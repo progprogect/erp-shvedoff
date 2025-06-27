@@ -1,0 +1,23 @@
+{
+  "name": "erp-shvedoff",
+  "version": "1.0.0",
+  "description": "Система управления складскими остатками и заказами резинотехнических изделий",
+  "scripts": {
+    "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\"",
+    "server:dev": "cd backend && npm run dev",
+    "client:dev": "cd frontend && npm start",
+    "server:install": "cd backend && npm install",
+    "client:install": "cd frontend && npm install",
+    "install:all": "npm install && npm run server:install && npm run client:install",
+    "build": "cd frontend && npm run build",
+    "start": "cd backend && npm start",
+    "db:migrate": "cd backend && npm run db:migrate",
+    "db:seed": "cd backend && npm run db:seed"
+  },
+  "keywords": ["erp", "inventory", "orders", "rubber-products"],
+  "author": "Development Team",
+  "license": "PROPRIETARY",
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+} 
