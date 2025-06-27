@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
-import { Row, Col, Card, Tree, Input, Button, Space, Typography, Tag, Divider, Badge, Select, InputNumber, Collapse } from 'antd';
+import React, { useState, useMemo } from 'react';
+import { Row, Col, Card, Tree, Input, Button, Space, Typography, Tag, Badge, Select, InputNumber, Collapse } from 'antd';
 import {
   SearchOutlined,
   PlusOutlined,
-  FilterOutlined,
   AppstoreOutlined,
   InboxOutlined,
   BorderOutlined,
-  ColumnWidthOutlined
+  FilterOutlined,
+  ClearOutlined
 } from '@ant-design/icons';
 import { useAuthStore } from '../stores/authStore';
 
@@ -19,47 +19,29 @@ const { Panel } = Collapse;
 // Заглушки данных - в будущем будут загружаться из API
 const mockCategories = [
   {
-    title: '📁 Лежаки резиновые (347)',
-    key: 'category-1',
+    title: '📁 Лежаки резиновые (4)',
+    key: 'lejaki',
     children: [
-      {
-        title: '📁 Чешские (0 Чеш) (45)',
-        key: 'category-1-1',
-        children: [
-          { title: '📁 Стандартные 1800×1200 (12)', key: 'category-1-1-1' },
-          { title: '📁 Нестандартные размеры (8)', key: 'category-1-1-2' }
-        ]
-      },
-      { title: '📁 3-Корончатые (3Кор) (28)', key: 'category-1-2' },
-      {
-        title: '📁 Брендовые (156)',
-        key: 'category-1-3',
-        children: [
-          { title: '📁 GEA (34)', key: 'category-1-3-1' },
-          { title: '📁 Agrotek (28)', key: 'category-1-3-2' },
-          { title: '📁 Верблюд (41)', key: 'category-1-3-3' }
-        ]
-      }
+      { title: '📁 Чешские (4)', key: 'cheshskie' },
+      { title: '📁 3-Корончатые (0)', key: '3koron' },
+      { title: '📁 Брендовые (0)', key: 'brendovie' }
     ]
   },
   {
-    title: '📁 Коврики (89)',
-    key: 'category-2',
+    title: '📁 Коврики (1)',
+    key: 'kovriki',
     children: [
-      { title: '📁 Кольцевые (34)', key: 'category-2-1' },
-      { title: '📁 Придверные (28)', key: 'category-2-2' }
+      { title: '📁 Кольцевые (1)', key: 'kolcevie' },
+      { title: '📁 Придверные (0)', key: 'pridvernie' }
     ]
   },
   {
-    title: '📁 Рулонные покрытия (45)',
-    key: 'category-3'
+    title: '📁 Рулонные покрытия (1)',
+    key: 'rulonnie'
   },
   {
-    title: '📁 Крепежные изделия (67)',
-    key: 'category-4',
-    children: [
-      { title: '📁 Дюбели (45)', key: 'category-4-1' }
-    ]
+    title: '📁 Крепежные изделия (0)',
+    key: 'krepej'
   }
 ];
 
@@ -68,111 +50,92 @@ const mockProducts = [
     id: 1,
     name: 'Лежак 0 Чеш 1800×1200×30',
     article: 'LCH-1800-1200-30',
-    category: 'Чешские',
-    dimensions: {
-      length: 1800,  // длина мм
-      width: 1200,   // ширина мм  
-      thickness: 30  // толщина мм
-    },
+    category: 'cheshskie',
+    parentCategory: 'lejaki',
+    categoryName: 'Чешские',
+    dimensions: { length: 1800, width: 1200, thickness: 30 },
     currentStock: 145,
     reservedStock: 23,
-    normStock: 100,
     price: 15430,
-    updated: '25.06.25',
-    characteristics: 'Стандартный размер, высокое качество'
+    updated: '25.06.25'
   },
   {
     id: 2,
     name: 'Лежак 0 Чеш 1800×1200×35',
     article: 'LCH-1800-1200-35',
-    category: 'Чешские',
-    dimensions: {
-      length: 1800,
-      width: 1200,
-      thickness: 35
-    },
+    category: 'cheshskie',
+    parentCategory: 'lejaki',
+    categoryName: 'Чешские',
+    dimensions: { length: 1800, width: 1200, thickness: 35 },
     currentStock: 89,
     reservedStock: 12,
-    normStock: 50,
     price: 16780,
-    updated: '24.06.25',
-    characteristics: 'Усиленная модель, повышенная толщина'
+    updated: '24.06.25'
   },
   {
     id: 3,
     name: 'Лежак 0 Чеш 1800×1200×40',
     article: 'LCH-1800-1200-40',
-    category: 'Чешские',
-    dimensions: {
-      length: 1800,
-      width: 1200,
-      thickness: 40
-    },
+    category: 'cheshskie',
+    parentCategory: 'lejaki',
+    categoryName: 'Чешские',
+    dimensions: { length: 1800, width: 1200, thickness: 40 },
     currentStock: 67,
     reservedStock: 5,
-    normStock: 80,
     price: 18920,
-    updated: '23.06.25',
-    characteristics: 'Максимальная прочность'
+    updated: '23.06.25'
   },
   {
     id: 4,
     name: 'Лежак 0 Чеш 1600×1000×30',
     article: 'LCH-1600-1000-30',
-    category: 'Чешские',
-    dimensions: {
-      length: 1600,
-      width: 1000,
-      thickness: 30
-    },
+    category: 'cheshskie',
+    parentCategory: 'lejaki',
+    categoryName: 'Чешские',
+    dimensions: { length: 1600, width: 1000, thickness: 30 },
     currentStock: 34,
     reservedStock: 8,
-    normStock: 40,
     price: 12350,
-    updated: '25.06.25',
-    characteristics: 'Компактный размер для стойл'
+    updated: '25.06.25'
   },
   {
     id: 5,
     name: 'Коврик кольцевой 1000×1000×20',
     article: 'KVR-RING-1000-20',
-    category: 'Кольцевые',
-    dimensions: {
-      length: 1000,
-      width: 1000,
-      thickness: 20
-    },
+    category: 'kolcevie',
+    parentCategory: 'kovriki',
+    categoryName: 'Кольцевые',
+    dimensions: { length: 1000, width: 1000, thickness: 20 },
     currentStock: 89,
     reservedStock: 15,
-    normStock: 60,
     price: 8450,
-    updated: '24.06.25',
-    characteristics: 'Дренажные отверстия, противоскользящий'
+    updated: '24.06.25'
   },
   {
     id: 6,
     name: 'Покрытие рулонное 15000×1500×12',
     article: 'POK-RUL-15000-12',
-    category: 'Рулонные покрытия',
-    dimensions: {
-      length: 15000,
-      width: 1500,
-      thickness: 12
-    },
+    category: 'rulonnie',
+    parentCategory: null,
+    categoryName: 'Рулонные покрытия',
+    dimensions: { length: 15000, width: 1500, thickness: 12 },
     currentStock: 12,
     reservedStock: 3,
-    normStock: 20,
     price: 45670,
-    updated: '23.06.25',
-    characteristics: 'Для проходов, износостойкий'
+    updated: '23.06.25'
   }
 ];
 
 const Catalog: React.FC = () => {
   const [searchText, setSearchText] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string[]>([]);
+  const [checkedCategories, setCheckedCategories] = useState<string[]>([]);
   const [stockFilter, setStockFilter] = useState<string>('all');
-  const [dimensionFilter, setDimensionFilter] = useState({
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(4); // 4 товара на страницу
+  const [showSizeFilters, setShowSizeFilters] = useState(false);
+  
+  // Фильтры по размерам
+  const [sizeFilters, setSizeFilters] = useState({
     lengthMin: null as number | null,
     lengthMax: null as number | null,
     widthMin: null as number | null,
@@ -180,71 +143,127 @@ const Catalog: React.FC = () => {
     thicknessMin: null as number | null,
     thicknessMax: null as number | null,
   });
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+
   const { user } = useAuthStore();
 
-  const getStockStatus = (current: number, reserved: number, norm: number) => {
+  const getStockStatus = (current: number, reserved: number) => {
     const available = current - reserved;
     if (available <= 0) return { status: 'critical', color: '#ff4d4f', text: 'Закончился' };
-    if (available < norm * 0.5) return { status: 'low', color: '#faad14', text: 'Мало' };
-    return { status: 'normal', color: '#52c41a', text: 'Норма' };
+    if (available < 20) return { status: 'low', color: '#faad14', text: 'Мало' };
+    return { status: 'normal', color: '#52c41a', text: 'В наличии' };
   };
 
-  const filteredProducts = mockProducts.filter(product => {
-    // Поиск по названию, артикулу и размерам
-    if (searchText) {
-      const searchLower = searchText.toLowerCase();
-      const dimensionsString = `${product.dimensions.length}×${product.dimensions.width}×${product.dimensions.thickness}`;
-      const isNameMatch = product.name.toLowerCase().includes(searchLower);
-      const isArticleMatch = product.article.toLowerCase().includes(searchLower);
-      const isDimensionsMatch = dimensionsString.includes(searchText);
+  // Функция для получения всех дочерних категорий
+  const getAllChildCategories = (categoryKey: string): string[] => {
+    const category = mockCategories.find(cat => cat.key === categoryKey);
+    if (!category) return [categoryKey];
+    
+    if (category.children) {
+      const childKeys = category.children.map(child => child.key);
+      return [categoryKey, ...childKeys];
+    }
+    
+    return [categoryKey];
+  };
+
+  // Обработка выбора категорий
+  const handleCategoryCheck = (checkedKeys: any) => {
+    let expandedKeys = [...checkedKeys];
+    
+    // Для каждой выбранной родительской категории добавляем дочерние
+    checkedKeys.forEach((key: string) => {
+      const childKeys = getAllChildCategories(key);
+      expandedKeys = [...expandedKeys, ...childKeys];
+    });
+    
+    // Убираем дубликаты
+    expandedKeys = Array.from(new Set(expandedKeys));
+    
+    setCheckedCategories(expandedKeys);
+    setCurrentPage(1); // Сбрасываем на первую страницу при изменении фильтра
+  };
+
+  // Фильтрация товаров
+  const filteredProducts = useMemo(() => {
+    return mockProducts.filter(product => {
+      // Поиск по названию, артикулу и размерам
+      if (searchText) {
+        const searchLower = searchText.toLowerCase();
+        const dimensionsString = `${product.dimensions.length}×${product.dimensions.width}×${product.dimensions.thickness}`;
+        const searchMatch = 
+          product.name.toLowerCase().includes(searchLower) ||
+          product.article.toLowerCase().includes(searchLower) ||
+          dimensionsString.includes(searchText) ||
+          product.categoryName.toLowerCase().includes(searchLower);
+        
+        if (!searchMatch) return false;
+      }
       
-      if (!isNameMatch && !isArticleMatch && !isDimensionsMatch) {
-        return false;
+      // Фильтр по категории
+      if (checkedCategories.length > 0) {
+        const productCategories = [product.category];
+        if (product.parentCategory) {
+          productCategories.push(product.parentCategory);
+        }
+        
+        const hasMatchingCategory = productCategories.some(cat => 
+          checkedCategories.includes(cat)
+        );
+        
+        if (!hasMatchingCategory) return false;
       }
-    }
-    
-    // Фильтр по остаткам
-    if (stockFilter !== 'all') {
-      const stockStatus = getStockStatus(product.currentStock, product.reservedStock, product.normStock);
-      if (stockFilter !== stockStatus.status) {
-        return false;
+      
+      // Фильтр по остаткам
+      if (stockFilter !== 'all') {
+        const stockStatus = getStockStatus(product.currentStock, product.reservedStock);
+        if (stockFilter !== stockStatus.status) return false;
       }
-    }
-    
-    // Фильтр по размерам
-    const { length, width, thickness } = product.dimensions;
-    
-    if (dimensionFilter.lengthMin && length < dimensionFilter.lengthMin) return false;
-    if (dimensionFilter.lengthMax && length > dimensionFilter.lengthMax) return false;
-    if (dimensionFilter.widthMin && width < dimensionFilter.widthMin) return false;
-    if (dimensionFilter.widthMax && width > dimensionFilter.widthMax) return false;
-    if (dimensionFilter.thicknessMin && thickness < dimensionFilter.thicknessMin) return false;
-    if (dimensionFilter.thicknessMax && thickness > dimensionFilter.thicknessMax) return false;
-    
-    return true;
-  });
+      
+      // Фильтры по размерам
+      const { length, width, thickness } = product.dimensions;
+      
+      if (sizeFilters.lengthMin && length < sizeFilters.lengthMin) return false;
+      if (sizeFilters.lengthMax && length > sizeFilters.lengthMax) return false;
+      if (sizeFilters.widthMin && width < sizeFilters.widthMin) return false;
+      if (sizeFilters.widthMax && width > sizeFilters.widthMax) return false;
+      if (sizeFilters.thicknessMin && thickness < sizeFilters.thicknessMin) return false;
+      if (sizeFilters.thicknessMax && thickness > sizeFilters.thicknessMax) return false;
+      
+      return true;
+    });
+  }, [searchText, checkedCategories, stockFilter, sizeFilters]);
+
+  // Пагинация
+  const totalPages = Math.ceil(filteredProducts.length / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedProducts = filteredProducts.slice(startIndex, startIndex + pageSize);
+
+  // Популярные размеры для быстрого поиска
+  const popularSizes = ['1800×1200', '1600×1000', '1000×1000'];
   
-  // Быстрые фильтры по популярным размерам
-  const quickSizeFilters = [
-    { label: '1800×1200', length: 1800, width: 1200 },
-    { label: '1600×1000', length: 1600, width: 1000 },
-    { label: '1000×1000', length: 1000, width: 1000 },
+  // Быстрые фильтры размеров
+  const quickSizeRanges = [
+    { label: 'Большие (>1500мм)', lengthMin: 1500, widthMin: 1000 },
+    { label: 'Средние (1000-1500мм)', lengthMin: 1000, lengthMax: 1500, widthMin: 800, widthMax: 1500 },
+    { label: 'Малые (<1000мм)', lengthMax: 1000, widthMax: 1000 },
   ];
-  
-  const applyQuickSizeFilter = (length: number, width: number) => {
-    setDimensionFilter({
-      lengthMin: length,
-      lengthMax: length,
-      widthMin: width,
-      widthMax: width,
+
+  // Применение быстрого фильтра размеров
+  const applyQuickSizeRange = (range: any) => {
+    setSizeFilters({
+      lengthMin: range.lengthMin || null,
+      lengthMax: range.lengthMax || null,
+      widthMin: range.widthMin || null,
+      widthMax: range.widthMax || null,
       thicknessMin: null,
       thicknessMax: null,
     });
+    setCurrentPage(1);
   };
-  
+
+  // Сброс фильтров размеров
   const clearSizeFilters = () => {
-    setDimensionFilter({
+    setSizeFilters({
       lengthMin: null,
       lengthMax: null,
       widthMin: null,
@@ -252,7 +271,11 @@ const Catalog: React.FC = () => {
       thicknessMin: null,
       thicknessMax: null,
     });
+    setCurrentPage(1);
   };
+
+  // Проверка есть ли активные фильтры размеров
+  const hasSizeFilters = Object.values(sizeFilters).some(value => value !== null);
 
   const canEdit = user?.role === 'director' || user?.role === 'manager';
 
@@ -268,137 +291,119 @@ const Catalog: React.FC = () => {
                 Каталог товаров
               </Title>
               <Text type="secondary">
-                Управление номенклатурой и категориями товаров
+                Поиск по названию, артикулу, размерам или категории
               </Text>
             </div>
             
             {canEdit && (
               <Space>
-                <Button icon={<PlusOutlined />}>
-                  Добавить категорию
-                </Button>
-                <Button type="primary" icon={<PlusOutlined />}>
-                  Добавить товар
-                </Button>
+                <Button icon={<PlusOutlined />}>Добавить категорию</Button>
+                <Button type="primary" icon={<PlusOutlined />}>Добавить товар</Button>
               </Space>
             )}
           </div>
         </Col>
 
-        {/* Поиск и фильтры */}
+        {/* Фильтры */}
         <Col span={24}>
           <Card>
             <Space direction="vertical" style={{ width: '100%' }}>
-              {/* Основные фильтры */}
-              <Row gutter={16} align="middle">
-                <Col xs={24} sm={12} md={8}>
+              {/* Основная строка поиска и фильтров */}
+              <Row gutter={[16, 16]} align="middle">
+                <Col xs={24} md={8}>
                   <Search
-                    placeholder="Поиск: название, артикул, размеры (1800x1200)..."
+                    placeholder="Поиск: Лежак, LCH-1800, 1800×1200..."
                     allowClear
                     value={searchText}
                     onChange={(e) => setSearchText(e.target.value)}
-                    style={{ width: '100%' }}
+                    size="large"
                   />
                 </Col>
-                <Col xs={24} sm={12} md={8}>
-                  <Space wrap>
-                    <Button 
-                      type={stockFilter === 'all' ? 'primary' : 'default'}
-                      onClick={() => setStockFilter('all')}
-                    >
-                      Все
-                    </Button>
-                    <Button 
-                      type={stockFilter === 'normal' ? 'primary' : 'default'}
-                      onClick={() => setStockFilter('normal')}
-                    >
-                      В наличии
-                    </Button>
-                    <Button 
-                      type={stockFilter === 'low' ? 'primary' : 'default'}
-                      onClick={() => setStockFilter('low')}
-                    >
-                      Мало
-                    </Button>
-                    <Button 
-                      type={stockFilter === 'critical' ? 'primary' : 'default'}
-                      onClick={() => setStockFilter('critical')}
-                    >
-                      Критичные
-                    </Button>
+                
+                <Col xs={24} md={8}>
+                  <Space>
+                    <Text>📦 Остатки:</Text>
+                    <Select value={stockFilter} onChange={setStockFilter} style={{ width: 120 }}>
+                      <Option value="all">Все</Option>
+                      <Option value="normal">В наличии</Option>
+                      <Option value="low">Мало</Option>
+                      <Option value="critical">Закончились</Option>
+                    </Select>
                   </Space>
                 </Col>
-                <Col xs={24} sm={24} md={8}>
+                
+                <Col xs={24} md={8}>
                   <div style={{ textAlign: 'right' }}>
                     <Button
                       icon={<FilterOutlined />}
-                      onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                      type={showSizeFilters ? 'primary' : 'default'}
+                      onClick={() => setShowSizeFilters(!showSizeFilters)}
                     >
-                      Расширенные фильтры
+                      Фильтры размеров {hasSizeFilters ? '(активны)' : ''}
                     </Button>
                   </div>
                 </Col>
               </Row>
 
-              {/* Быстрые фильтры по размерам */}
-              <Row gutter={16} align="middle">
+              {/* Быстрые размеры */}
+              <Row gutter={[8, 8]} align="middle">
                 <Col>
-                  <Text strong>📏 Быстрый поиск по размерам:</Text>
+                  <Text>📏 Быстрый поиск:</Text>
                 </Col>
-                {quickSizeFilters.map((filter) => (
-                  <Col key={filter.label}>
+                {popularSizes.map(size => (
+                  <Col key={size}>
                     <Button
                       size="small"
-                      icon={<BorderOutlined />}
-                      onClick={() => applyQuickSizeFilter(filter.length, filter.width)}
-                      type={
-                        dimensionFilter.lengthMin === filter.length && 
-                        dimensionFilter.widthMin === filter.width ? 'primary' : 'default'
-                      }
+                      type={searchText === size ? 'primary' : 'default'}
+                      onClick={() => setSearchText(searchText === size ? '' : size)}
                     >
-                      {filter.label}
+                      {size}
                     </Button>
                   </Col>
                 ))}
                 <Col>
-                  <Button size="small" onClick={clearSizeFilters}>
-                    Сбросить
-                  </Button>
+                  <Text style={{ marginLeft: 16 }}>🔧 По размеру:</Text>
                 </Col>
-                <Col flex="auto">
-                  <div style={{ textAlign: 'right' }}>
-                    <Text type="secondary">
-                      Показано: {filteredProducts.length} из {mockProducts.length} товаров
-                    </Text>
-                  </div>
-                </Col>
+                {quickSizeRanges.map((range, index) => (
+                  <Col key={index}>
+                    <Button
+                      size="small"
+                      onClick={() => applyQuickSizeRange(range)}
+                    >
+                      {range.label}
+                    </Button>
+                  </Col>
+                ))}
+                {hasSizeFilters && (
+                  <Col>
+                    <Button size="small" icon={<ClearOutlined />} onClick={clearSizeFilters}>
+                      Сбросить
+                    </Button>
+                  </Col>
+                )}
               </Row>
 
-              {/* Расширенные фильтры по размерам */}
-              {showAdvancedFilters && (
+              {/* Расширенные фильтры размеров */}
+              {showSizeFilters && (
                 <Collapse>
-                  <Panel header="🔧 Точная фильтрация по размерам" key="1">
+                  <Panel header="🎯 Точные диапазоны размеров" key="1">
                     <Row gutter={16}>
                       <Col span={8}>
                         <Text strong>Длина (мм)</Text>
                         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                           <InputNumber
                             placeholder="от"
-                            value={dimensionFilter.lengthMin}
-                            onChange={(value) => setDimensionFilter({
-                              ...dimensionFilter, 
-                              lengthMin: value
-                            })}
+                            value={sizeFilters.lengthMin}
+                            onChange={(value) => setSizeFilters({...sizeFilters, lengthMin: value})}
                             style={{ width: '50%' }}
+                            min={0}
                           />
                           <InputNumber
                             placeholder="до"
-                            value={dimensionFilter.lengthMax}
-                            onChange={(value) => setDimensionFilter({
-                              ...dimensionFilter, 
-                              lengthMax: value
-                            })}
+                            value={sizeFilters.lengthMax}
+                            onChange={(value) => setSizeFilters({...sizeFilters, lengthMax: value})}
                             style={{ width: '50%' }}
+                            min={0}
                           />
                         </div>
                       </Col>
@@ -407,21 +412,17 @@ const Catalog: React.FC = () => {
                         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                           <InputNumber
                             placeholder="от"
-                            value={dimensionFilter.widthMin}
-                            onChange={(value) => setDimensionFilter({
-                              ...dimensionFilter, 
-                              widthMin: value
-                            })}
+                            value={sizeFilters.widthMin}
+                            onChange={(value) => setSizeFilters({...sizeFilters, widthMin: value})}
                             style={{ width: '50%' }}
+                            min={0}
                           />
                           <InputNumber
                             placeholder="до"
-                            value={dimensionFilter.widthMax}
-                            onChange={(value) => setDimensionFilter({
-                              ...dimensionFilter, 
-                              widthMax: value
-                            })}
+                            value={sizeFilters.widthMax}
+                            onChange={(value) => setSizeFilters({...sizeFilters, widthMax: value})}
                             style={{ width: '50%' }}
+                            min={0}
                           />
                         </div>
                       </Col>
@@ -430,21 +431,17 @@ const Catalog: React.FC = () => {
                         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                           <InputNumber
                             placeholder="от"
-                            value={dimensionFilter.thicknessMin}
-                            onChange={(value) => setDimensionFilter({
-                              ...dimensionFilter, 
-                              thicknessMin: value
-                            })}
+                            value={sizeFilters.thicknessMin}
+                            onChange={(value) => setSizeFilters({...sizeFilters, thicknessMin: value})}
                             style={{ width: '50%' }}
+                            min={0}
                           />
                           <InputNumber
                             placeholder="до"
-                            value={dimensionFilter.thicknessMax}
-                            onChange={(value) => setDimensionFilter({
-                              ...dimensionFilter, 
-                              thicknessMax: value
-                            })}
+                            value={sizeFilters.thicknessMax}
+                            onChange={(value) => setSizeFilters({...sizeFilters, thicknessMax: value})}
                             style={{ width: '50%' }}
+                            min={0}
                           />
                         </div>
                       </Col>
@@ -452,6 +449,23 @@ const Catalog: React.FC = () => {
                   </Panel>
                 </Collapse>
               )}
+
+              {/* Индикатор результатов */}
+              <Row>
+                <Col span={24}>
+                  <div style={{ textAlign: 'center', padding: '8px 0' }}>
+                    <Text type="secondary">
+                      📊 Найдено: <Text strong>{filteredProducts.length}</Text> товаров
+                      {checkedCategories.length > 0 && (
+                        <Text type="secondary"> в выбранных категориях</Text>
+                      )}
+                      {hasSizeFilters && (
+                        <Text type="secondary"> с фильтрами размеров</Text>
+                      )}
+                    </Text>
+                  </div>
+                </Col>
+              </Row>
             </Space>
           </Card>
         </Col>
@@ -459,169 +473,166 @@ const Catalog: React.FC = () => {
         {/* Основной контент */}
         <Col span={24}>
           <Row gutter={16}>
-            {/* Категории */}
-            <Col xs={24} lg={8}>
-              <Card title="📂 Категории" className="category-tree">
+            {/* Категории с множественным выбором */}
+            <Col xs={24} lg={6}>
+              <Card title="📂 Категории" size="small">
                 <Tree
+                  checkable
                   showLine
-                  defaultExpandedKeys={['category-1', 'category-1-1']}
-                  selectedKeys={selectedCategory}
-                  onSelect={(selectedKeys) => setSelectedCategory(selectedKeys.map(key => String(key)))}
+                  defaultExpandedKeys={['lejaki', 'kovriki']}
+                  checkedKeys={checkedCategories}
+                  onCheck={handleCategoryCheck}
                   treeData={mockCategories}
                 />
+                {checkedCategories.length > 0 && (
+                  <div style={{ marginTop: 12, padding: '8px', backgroundColor: '#f0f0f0', borderRadius: '4px' }}>
+                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                      Выбрано категорий: {checkedCategories.length}
+                    </Text>
+                    <br />
+                    <Button 
+                      size="small" 
+                      style={{ marginTop: 4 }}
+                      onClick={() => setCheckedCategories([])}
+                    >
+                      Сбросить выбор
+                    </Button>
+                  </div>
+                )}
               </Card>
             </Col>
 
             {/* Список товаров */}
-            <Col xs={24} lg={16}>
-              <Space direction="vertical" style={{ width: '100%' }}>
-                {filteredProducts.map((product) => {
-                  const stockStatus = getStockStatus(product.currentStock, product.reservedStock, product.normStock);
+            <Col xs={24} lg={18}>
+              <Row gutter={[16, 16]}>
+                {paginatedProducts.map((product) => {
+                  const stockStatus = getStockStatus(product.currentStock, product.reservedStock);
                   const available = product.currentStock - product.reservedStock;
                   const { length, width, thickness } = product.dimensions;
-                  const area = (length * width) / 1000000; // площадь в м²
-                  const pricePerM2 = Math.round(product.price / area);
                   
                   return (
-                    <Card key={product.id} className="product-card" hoverable>
-                      <Row>
-                        <Col flex="auto">
-                          <div className="product-name">
-                            <Text strong style={{ fontSize: '16px' }}>
-                              {product.name}
-                            </Text>
-                            <Tag style={{ marginLeft: 8 }}>
-                              {product.article}
-                            </Tag>
-                          </div>
-                          
-                          {/* Размеры - ключевая информация */}
-                          <div style={{ margin: '8px 0' }}>
-                            <Space>
-                              <Tag icon={<ColumnWidthOutlined />} color="blue" style={{ fontSize: '13px' }}>
-                                📐 {length}×{width}×{thickness} мм
-                              </Tag>
+                    <Col xs={24} xl={12} key={product.id}>
+                      <Card hoverable size="small">
+                        <div style={{ marginBottom: 12 }}>
+                          <Text strong style={{ fontSize: '16px' }}>
+                            {product.name}
+                          </Text>
+                          <br />
+                          <Tag style={{ marginTop: 4 }}>{product.article}</Tag>
+                          <Tag color="blue">{length}×{width}×{thickness} мм</Tag>
+                        </div>
+                        
+                        <Row gutter={16}>
+                          <Col span={12}>
+                            <Space direction="vertical" size="small">
+                              <div>
+                                <Badge color={stockStatus.color} />
+                                <Text strong>{available} шт</Text>
+                                <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>
+                                  доступно
+                                </Text>
+                              </div>
                               <Text type="secondary" style={{ fontSize: '12px' }}>
-                                Категория: {product.category}
+                                {product.categoryName}
                               </Text>
                             </Space>
-                          </div>
+                          </Col>
                           
-                          {/* Характеристики */}
-                          <Text type="secondary" style={{ fontSize: '12px', fontStyle: 'italic' }}>
-                            {product.characteristics}
-                          </Text>
-                          
-                          <div className="product-stock" style={{ marginTop: 12 }}>
-                            <Row gutter={16}>
-                              <Col span={12}>
-                                <Space direction="vertical" size="small">
-                                  <div>
-                                    <Badge 
-                                      color={stockStatus.color} 
-                                      text={<Text strong>{product.currentStock} шт</Text>}
-                                    />
-                                    <Text type="secondary" style={{ fontSize: '11px', display: 'block' }}>
-                                      Текущий остаток
-                                    </Text>
-                                  </div>
-                                  
-                                  <div>
-                                    <Text strong style={{ color: stockStatus.color }}>
-                                      📦 {available} шт доступно
-                                    </Text>
-                                    {product.reservedStock > 0 && (
-                                      <Text type="secondary" style={{ fontSize: '11px', display: 'block' }}>
-                                        🔒 {product.reservedStock} в резерве
-                                      </Text>
-                                    )}
-                                  </div>
-                                </Space>
-                              </Col>
+                          <Col span={12}>
+                            <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                              <div style={{ textAlign: 'right' }}>
+                                <Text strong style={{ fontSize: '16px', color: '#1890ff' }}>
+                                  {product.price.toLocaleString()}₽
+                                </Text>
+                                <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>
+                                  за штуку
+                                </Text>
+                              </div>
                               
-                              <Col span={12}>
-                                <Space direction="vertical" size="small">
-                                  <div>
-                                    <Text strong style={{ fontSize: '16px', color: '#1890ff' }}>
-                                      💰 {product.price.toLocaleString()}₽
-                                    </Text>
-                                    <Text type="secondary" style={{ fontSize: '11px', display: 'block' }}>
-                                      за штуку
-                                    </Text>
-                                  </div>
-                                  
-                                  <div>
-                                    <Text type="secondary" style={{ fontSize: '11px' }}>
-                                      Площадь: {area.toFixed(2)} м²
-                                    </Text>
-                                    <br />
-                                    <Text type="secondary" style={{ fontSize: '11px' }}>
-                                      Цена за м²: {pricePerM2}₽
-                                    </Text>
-                                  </div>
-                                </Space>
-                              </Col>
-                            </Row>
-                          </div>
-                        </Col>
-                        
-                        <Col>
-                          <Space direction="vertical" align="end">
-                            <Tag color={stockStatus.color} style={{ marginBottom: 8 }}>
-                              {stockStatus.text}
-                            </Tag>
-                            
-                            <Space direction="vertical" size="small">
-                              <Button size="small" block>📋 Детали</Button>
-                              <Button size="small" block>📈 График</Button>
-                              {(user?.role === 'manager' || user?.role === 'director') && (
-                                <Button size="small" type="primary" block>🛒 Заказать</Button>
-                              )}
+                              <Space size="small">
+                                <Button size="small">Детали</Button>
+                                {(user?.role === 'manager' || user?.role === 'director') && (
+                                  <Button size="small" type="primary">Заказать</Button>
+                                )}
+                              </Space>
                             </Space>
-                            
-                            <Text type="secondary" style={{ fontSize: '10px', marginTop: 8 }}>
-                              Обновл: {product.updated}
-                            </Text>
-                          </Space>
-                        </Col>
-                      </Row>
-                    </Card>
+                          </Col>
+                        </Row>
+                      </Card>
+                    </Col>
                   );
                 })}
-              </Space>
+              </Row>
 
               {/* Пагинация */}
-              <Card style={{ marginTop: 16, textAlign: 'center' }}>
-                <Space>
-                  <Button>◀️ Пред</Button>
-                  <Text>Страница 1 из 2</Text>
-                  <Button>▶️ След</Button>
-                </Space>
-              </Card>
+              {totalPages > 1 && (
+                <Card style={{ marginTop: 16, textAlign: 'center' }} size="small">
+                  <Space>
+                    <Button 
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage(currentPage - 1)}
+                    >
+                      ← Пред
+                    </Button>
+                    
+                    <Text>Страница {currentPage} из {totalPages}</Text>
+                    
+                    <Button 
+                      disabled={currentPage === totalPages}
+                      onClick={() => setCurrentPage(currentPage + 1)}
+                    >
+                      След →
+                    </Button>
+                  </Space>
+                </Card>
+              )}
+
+              {paginatedProducts.length === 0 && (
+                <Card style={{ textAlign: 'center', marginTop: 16 }}>
+                  <Text type="secondary">
+                    <InboxOutlined style={{ fontSize: 48, marginBottom: 16, display: 'block' }} />
+                    Товары не найдены
+                  </Text>
+                  <Button onClick={() => {
+                    setSearchText('');
+                    setCheckedCategories([]);
+                    setStockFilter('all');
+                    setSizeFilters({
+                      lengthMin: null, lengthMax: null,
+                      widthMin: null, widthMax: null,
+                      thicknessMin: null, thicknessMax: null,
+                    });
+                    setCurrentPage(1);
+                  }}>
+                    Сбросить все фильтры
+                  </Button>
+                </Card>
+              )}
             </Col>
           </Row>
         </Col>
 
-        {/* Сводка по категории */}
-        <Col span={24}>
-          <Card>
-            <Title level={5}>📈 Сводка по выбранным товарам</Title>
-            <Row gutter={16}>
-              <Col span={6}>
-                <Text>💾 Общий остаток: <Text strong>{filteredProducts.reduce((sum, p) => sum + p.currentStock, 0)} шт</Text></Text>
-              </Col>
-              <Col span={6}>
-                <Text>🔒 Резерв: <Text strong>{filteredProducts.reduce((sum, p) => sum + p.reservedStock, 0)} шт</Text></Text>
-              </Col>
-              <Col span={6}>
-                <Text>💰 Стоимость: <Text strong>{filteredProducts.reduce((sum, p) => sum + (p.price * p.currentStock), 0).toLocaleString()}₽</Text></Text>
-              </Col>
-              <Col span={6}>
-                <Text>📦 Доступно: <Text strong>{filteredProducts.reduce((sum, p) => sum + (p.currentStock - p.reservedStock), 0)} шт</Text></Text>
-              </Col>
-            </Row>
-          </Card>
-        </Col>
+        {/* Компактная сводка */}
+        {filteredProducts.length > 0 && (
+          <Col span={24}>
+            <Card size="small">
+              <Row gutter={16}>
+                <Col span={6}>
+                  <Text>💾 Остаток: <Text strong>{filteredProducts.reduce((sum, p) => sum + p.currentStock, 0)}</Text></Text>
+                </Col>
+                <Col span={6}>
+                  <Text>📦 Доступно: <Text strong>{filteredProducts.reduce((sum, p) => sum + (p.currentStock - p.reservedStock), 0)}</Text></Text>
+                </Col>
+                <Col span={6}>
+                  <Text>💰 Стоимость: <Text strong>{(filteredProducts.reduce((sum, p) => sum + (p.price * p.currentStock), 0) / 1000).toFixed(0)}к₽</Text></Text>
+                </Col>
+                <Col span={6}>
+                  <Text>📊 Позиций: <Text strong>{filteredProducts.length}</Text></Text>
+                </Col>
+              </Row>
+            </Card>
+          </Col>
+        )}
       </Row>
     </div>
   );
