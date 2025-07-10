@@ -12,7 +12,7 @@ const { Option } = Select;
 
 const Stock: React.FC = () => {
   const [searchText, setSearchText] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'critical' | 'low' | 'normal' | 'out_of_stock'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'critical' | 'low' | 'normal' | 'out_of_stock' | 'in_production'>('all');
   const [loading, setLoading] = useState(false);
   const [stockData, setStockData] = useState<StockItem[]>([]);
   const [adjustmentModalVisible, setAdjustmentModalVisible] = useState(false);
@@ -340,6 +340,7 @@ const Stock: React.FC = () => {
                   <Option value="critical">🚨 Критичные</Option>
                   <Option value="low">⚠️ Мало</Option>
                   <Option value="normal">✅ В норме</Option>
+                  <Option value="in_production">🏭 В производстве</Option>
                 </Select>
               </Col>
               <Col xs={24} sm={24} md={8}>
@@ -384,6 +385,16 @@ const Stock: React.FC = () => {
                   style={{ borderColor: '#52c41a', color: statusFilter === 'normal' ? '#fff' : '#52c41a' }}
                 >
                   ✅ В норме ({stockStats.normal})
+                </Button>
+              </Col>
+              <Col>
+                <Button 
+                  size="small"
+                  type={statusFilter === 'in_production' ? 'primary' : 'default'}
+                  onClick={() => setStatusFilter('in_production')}
+                  style={{ borderColor: '#722ed1', color: statusFilter === 'in_production' ? '#fff' : '#722ed1' }}
+                >
+                  🏭 В производстве ({stockStats.inProductionCount})
                 </Button>
               </Col>
               {statusFilter !== 'all' && (

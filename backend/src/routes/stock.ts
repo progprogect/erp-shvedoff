@@ -150,14 +150,19 @@ router.get('/', authenticateToken, async (req, res, next) => {
       filteredData = stockWithProduction.filter(item => {
         const available = item.availableStock;
         const norm = item.normStock || 0;
+        const inProduction = item.inProductionQuantity;
         
         switch (status) {
+          case 'out_of_stock':
+            return available <= 0;
           case 'critical':
             return available <= 0;
           case 'low':
             return available > 0 && available < norm * 0.5;
           case 'normal':
             return available >= norm * 0.5;
+          case 'in_production':
+            return inProduction > 0;
           default:
             return true;
         }
