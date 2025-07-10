@@ -518,4 +518,94 @@ router.post('/:id/messages', authenticateToken, async (req: AuthRequest, res, ne
   }
 });
 
+// DELETE /api/orders/:id - Delete order (cancel with reservation release)
+router.delete('/:id', authenticateToken, authorizeRoles('manager', 'director'), async (req: AuthRequest, res, next) => {
+  try {
+    const orderId = Number(req.params.id);
+    const userId = req.user!.id;
+    const userRole = req.user!.role;
+
+    // Check if order exists and user has access
+    let whereCondition;
+    if (userRole === 'manager') {
+      whereCondition = and(
+        eq(schema.orders.id, orderId),
+        eq(schema.orders.managerId, userId)
+      );
+    } else {
+      whereCondition = eq(schema.orders.id, orderId);
+    }
+
+    const existingOrder = await db.query.orders.findFirst({
+      where: whereCondition,
+      with: {
+        items: true
+      }
+    });
+
+    if (!existingOrder) {
+      return next(createError('Order not found', 404));
+    }
+
+    // Check if order can be deleted (only new, pending, or production orders)
+    const deletableStatuses = ['new', 'pending', 'production'];
+    if (existingOrder.status && !deletableStatuses.includes(existingOrder.status)) {
+      return next(createError(`Cannot delete order with status '${existingOrder.status}'`, 400));
+    }
+
+    // Release all reservations
+    const orderItems = existingOrder.items || [];
+    for (const item of orderItems) {
+      const reservedQty = item.reservedQuantity || 0;
+      if (reservedQty > 0) {
+        await db.update(schema.stock)
+          .set({
+            reservedStock: sql`${schema.stock.reservedStock} - ${reservedQty}`,
+            updatedAt: new Date()
+          })
+          .where(eq(schema.stock.productId, item.productId));
+
+        // Log reservation release
+        await db.insert(schema.stockMovements).values({
+          productId: item.productId,
+          movementType: 'release_reservation',
+          quantity: -reservedQty,
+          referenceId: orderId,
+          referenceType: 'order',
+          userId
+        });
+      }
+    }
+
+    // Log order deletion for audit
+    await db.insert(schema.auditLog).values({
+      tableName: 'orders',
+      recordId: orderId,
+      operation: 'DELETE',
+      oldValues: existingOrder,
+      userId,
+      createdAt: new Date()
+    });
+
+    // Delete order messages
+    await db.delete(schema.orderMessages)
+      .where(eq(schema.orderMessages.orderId, orderId));
+
+    // Delete order items
+    await db.delete(schema.orderItems)
+      .where(eq(schema.orderItems.orderId, orderId));
+
+    // Delete order
+    await db.delete(schema.orders)
+      .where(eq(schema.orders.id, orderId));
+
+    res.json({
+      success: true,
+      message: `Заказ ${existingOrder.orderNumber} успешно удален`
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router; 

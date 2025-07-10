@@ -9,6 +9,7 @@ import stockRoutes from './routes/stock';
 import orderRoutes from './routes/orders';
 import categoriesRoutes from './routes/categories';
 import productsRoutes from './routes/products';
+import auditRoutes from './routes/audit';
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/logger';
 
@@ -45,6 +46,7 @@ app.use('/api/stock', stockRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/categories', categoriesRoutes);
 app.use('/api/products', productsRoutes);
+app.use('/api/audit', auditRoutes);
 
 // API Info endpoint
 app.get('/api', (req, res) => {

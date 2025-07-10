@@ -11,7 +11,8 @@ import {
   LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
-  BellOutlined
+  BellOutlined,
+  HistoryOutlined
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
@@ -81,6 +82,14 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       }
     ];
 
+    const directorItems = [
+      {
+        key: '/audit',
+        icon: <HistoryOutlined />,
+        label: 'История изменений',
+      }
+    ];
+
     let menuItems = [...baseItems, ...allRolesItems];
 
     if (user?.role === 'manager' || user?.role === 'director') {
@@ -93,6 +102,10 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
 
     if (user?.role === 'warehouse' || user?.role === 'director') {
       menuItems = [...menuItems, ...warehouseItems];
+    }
+
+    if (user?.role === 'director') {
+      menuItems = [...menuItems, ...directorItems];
     }
 
     return menuItems;

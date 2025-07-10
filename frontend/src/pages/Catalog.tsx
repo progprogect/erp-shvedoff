@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Row, Col, Card, Tree, Input, Button, Space, Typography, Tag, Badge, Select, InputNumber, Collapse, message, Spin } from 'antd';
+import { Row, Col, Card, Tree, Input, Button, Space, Typography, Tag, Badge, Select, InputNumber, Collapse, message, Spin, Table, Modal } from 'antd';
 import {
   SearchOutlined,
   PlusOutlined,
@@ -10,6 +10,7 @@ import {
   ClearOutlined,
   ReloadOutlined
 } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { catalogApi, Category, Product, ProductFilters } from '../services/catalogApi';
 import CreateProductModal from '../components/CreateProductModal';
@@ -20,13 +21,43 @@ const { Search } = Input;
 const { Option } = Select;
 const { Panel } = Collapse;
 
-// Функция форматирования категорий для Tree компонента
-const formatCategoriesForTree = (categories: Category[]): any[] => {
-  return categories.map(category => ({
-    title: `📁 ${category.name}`,
-    key: category.id,
-    children: category.children ? formatCategoriesForTree(category.children) : undefined
-  }));
+// Функция форматирования категорий для Tree компонента с товарами
+const formatCategoriesForTree = (categories: Category[], allProducts: Product[]): any[] => {
+  return categories.map(category => {
+    // Найдем товары этой категории
+    const categoryProducts = allProducts.filter(product => product.categoryId === category.id);
+    
+    // Создаем дочерние элементы: сначала подкатегории, затем товары
+    const children = [];
+    
+    // Добавляем подкатегории
+    if (category.children && category.children.length > 0) {
+      children.push(...formatCategoriesForTree(category.children, allProducts));
+    }
+    
+    // Добавляем товары
+    categoryProducts.forEach(product => {
+      const dimensions = product.dimensions ? 
+        `${product.dimensions.length}×${product.dimensions.width}×${product.dimensions.thickness}` : 
+        'без размеров';
+      const available = product.currentStock - product.reservedStock;
+      const stockIcon = available > 0 ? '✅' : '❌';
+      
+      children.push({
+        title: `${stockIcon} ${product.name} (${dimensions})`,
+        key: `product-${product.id}`,
+        isLeaf: true,
+        data: { type: 'product', product }
+      });
+    });
+
+    return {
+      title: `📁 ${category.name} (${categoryProducts.length})`,
+      key: category.id,
+      data: { type: 'category', category },
+      children: children.length > 0 ? children : undefined
+    };
+  });
 };
 
 
@@ -55,6 +86,7 @@ const Catalog: React.FC = () => {
   });
 
   const { user, token } = useAuthStore();
+  const navigate = useNavigate();
 
   // Загрузка данных
   useEffect(() => {
@@ -111,10 +143,13 @@ const Catalog: React.FC = () => {
 
   // Обработка выбора категорий
   const handleCategoryCheck = (checkedKeys: any) => {
-    let expandedKeys = [...checkedKeys];
+    // Фильтруем только категории (не товары)
+    const categoryKeys = checkedKeys.filter((key: any) => !key.toString().startsWith('product-'));
+    
+    let expandedKeys = [...categoryKeys];
     
     // Для каждой выбранной родительской категории добавляем дочерние
-    checkedKeys.forEach((key: number) => {
+    categoryKeys.forEach((key: number) => {
       const childKeys = getAllChildCategories(key);
       expandedKeys = [...expandedKeys, ...childKeys];
     });
@@ -124,6 +159,19 @@ const Catalog: React.FC = () => {
     
     setCheckedCategories(expandedKeys);
     setCurrentPage(1); // Сбрасываем на первую страницу при изменении фильтра
+  };
+
+  // Обработка клика по элементам дерева
+  const handleTreeSelect = (selectedKeys: any, info: any) => {
+    if (selectedKeys.length > 0) {
+      const selectedKey = selectedKeys[0];
+      
+      // Если это товар - переходим к его карточке
+      if (selectedKey.toString().startsWith('product-')) {
+        const productId = selectedKey.replace('product-', '');
+        navigate(`/catalog/products/${productId}`);
+      }
+    }
   };
 
   // Фильтрация товаров
@@ -233,6 +281,48 @@ const Catalog: React.FC = () => {
   const hasSizeFilters = Object.values(sizeFilters).some(value => value !== null);
 
   const canEdit = user?.role === 'director' || user?.role === 'manager';
+
+  // Функция удаления товара
+  const handleDeleteProduct = (product: Product) => {
+    Modal.confirm({
+      title: 'Подтверждение удаления',
+      content: (
+        <div>
+          <p>Вы действительно хотите удалить товар?</p>
+          <div style={{ background: '#f5f5f5', padding: '12px', borderRadius: '6px', marginTop: '12px' }}>
+            <Text strong>{product.name}</Text>
+            <br />
+            <Text type="secondary">Артикул: {product.article || 'Не указан'}</Text>
+            <br />
+            <Text type="secondary">Категория: {product.categoryName}</Text>
+          </div>
+          <div style={{ marginTop: '12px', color: '#ff4d4f' }}>
+            <Text type="danger">
+              ⚠️ Внимание: Товар будет деактивирован и скрыт из каталога. 
+              Это действие можно отменить только через панель администрирования.
+            </Text>
+          </div>
+        </div>
+      ),
+      okText: 'Удалить',
+      cancelText: 'Отмена',
+      okType: 'danger',
+      onOk: async () => {
+        try {
+          const response = await catalogApi.deleteProduct(product.id, token!);
+          if (response.success) {
+            message.success('Товар успешно удален');
+            loadData(); // Перезагружаем данные
+          } else {
+            message.error(response.message || 'Ошибка удаления товара');
+          }
+        } catch (error: any) {
+          console.error('Error deleting product:', error);
+          message.error('Ошибка удаления товара');
+        }
+      }
+    });
+  };
 
   return (
     <div>
@@ -448,7 +538,8 @@ const Catalog: React.FC = () => {
                   defaultExpandedKeys={['lejaki', 'kovriki']}
                   checkedKeys={checkedCategories}
                   onCheck={handleCategoryCheck}
-                  treeData={formatCategoriesForTree(categories)}
+                  onSelect={handleTreeSelect}
+                  treeData={formatCategoriesForTree(categories, products)}
                 />
                 {checkedCategories.length > 0 && (
                   <div style={{ marginTop: 12, padding: '8px', backgroundColor: '#f0f0f0', borderRadius: '4px' }}>
@@ -470,66 +561,113 @@ const Catalog: React.FC = () => {
 
             {/* Список товаров */}
             <Col xs={24} lg={18}>
-              <Row gutter={[16, 16]}>
-                {paginatedProducts.map((product) => {
-                  const stockStatus = getStockStatus(product.currentStock, product.reservedStock);
-                  const available = product.currentStock - product.reservedStock;
-                  const dimensions = product.dimensions || { length: 0, width: 0, thickness: 0 };
-                  const { length, width, thickness } = dimensions;
-                  
-                  return (
-                    <Col xs={24} xl={12} key={product.id}>
-                      <Card hoverable size="small">
-                        <div style={{ marginBottom: 12 }}>
-                          <Text strong style={{ fontSize: '16px' }}>
-                            {product.name}
-                          </Text>
+              <Table
+                dataSource={paginatedProducts}
+                pagination={false}
+                size="small"
+                rowKey="id"
+                scroll={{ x: 800 }}
+                columns={[
+                  {
+                    title: 'Товар',
+                    key: 'product',
+                    width: 300,
+                    render: (_: any, product: Product) => (
+                      <div>
+                        <Text strong>{product.name}</Text>
+                        <br />
+                        <Tag>{product.article}</Tag>
+                        <br />
+                        <Text type="secondary" style={{ fontSize: '12px' }}>
+                          {product.categoryName}
+                        </Text>
+                      </div>
+                    ),
+                  },
+                  {
+                    title: 'Размеры (мм)',
+                    key: 'dimensions',
+                    width: 140,
+                    render: (_: any, product: Product) => {
+                      const dimensions = product.dimensions || { length: 0, width: 0, thickness: 0 };
+                      const { length, width, thickness } = dimensions;
+                      return (
+                        <Tag color="blue">
+                          {length}×{width}×{thickness}
+                        </Tag>
+                      );
+                    },
+                  },
+                  {
+                    title: 'Остатки',
+                    key: 'stock',
+                    width: 120,
+                    align: 'center' as const,
+                    render: (_: any, product: Product) => {
+                      const stockStatus = getStockStatus(product.currentStock, product.reservedStock);
+                      const available = product.currentStock - product.reservedStock;
+                      return (
+                        <div>
+                          <Badge color={stockStatus.color} />
+                          <Text strong>{available} шт</Text>
                           <br />
-                          <Tag style={{ marginTop: 4 }}>{product.article}</Tag>
-                          <Tag color="blue">{length}×{width}×{thickness} мм</Tag>
+                          <Text type="secondary" style={{ fontSize: '11px' }}>
+                            всего: {product.currentStock}
+                          </Text>
                         </div>
-                        
-                        <Row gutter={16}>
-                          <Col span={12}>
-                            <Space direction="vertical" size="small">
-                              <div>
-                                <Badge color={stockStatus.color} />
-                                <Text strong>{available} шт</Text>
-                                <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>
-                                  доступно
-                                </Text>
-                              </div>
-                              <Text type="secondary" style={{ fontSize: '12px' }}>
-                                {product.categoryName}
-                              </Text>
-                            </Space>
-                          </Col>
-                          
-                          <Col span={12}>
-                            <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                              <div style={{ textAlign: 'right' }}>
-                                <Text strong style={{ fontSize: '16px', color: '#1890ff' }}>
-                                  {product.price ? product.price.toLocaleString() : 'Цена не указана'}₽
-                                </Text>
-                                <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>
-                                  за штуку
-                                </Text>
-                              </div>
-                              
-                              <Space size="small">
-                                <Button size="small">Детали</Button>
-                                {(user?.role === 'manager' || user?.role === 'director') && (
-                                  <Button size="small" type="primary">Заказать</Button>
-                                )}
-                              </Space>
-                            </Space>
-                          </Col>
-                        </Row>
-                      </Card>
-                    </Col>
-                  );
-                })}
-              </Row>
+                      );
+                    },
+                  },
+                  {
+                    title: 'Цена',
+                    key: 'price',
+                    width: 120,
+                    align: 'right' as const,
+                    render: (_: any, product: Product) => (
+                      <div>
+                        <Text strong style={{ color: '#1890ff' }}>
+                          {product.price ? product.price.toLocaleString() : '—'}₽
+                        </Text>
+                        {product.price && (
+                          <Text type="secondary" style={{ fontSize: '11px', display: 'block' }}>
+                            за шт
+                          </Text>
+                        )}
+                      </div>
+                    ),
+                  },
+                  {
+                    title: 'Действия',
+                    key: 'actions',
+                    width: 160,
+                    align: 'center' as const,
+                    render: (_: any, product: Product) => (
+                      <Space size="small">
+                        <Button 
+                          size="small"
+                          onClick={() => navigate(`/catalog/products/${product.id}`)}
+                        >
+                          Детали
+                        </Button>
+                        {(user?.role === 'manager' || user?.role === 'director') && (
+                          <Button size="small" type="primary">
+                            Заказать
+                          </Button>
+                        )}
+                        {canEdit && (
+                          <Button 
+                            size="small" 
+                            danger
+                            onClick={() => handleDeleteProduct(product)}
+                          >
+                            Удалить
+                          </Button>
+                        )}
+                      </Space>
+                    ),
+                  },
+                ]}
+              />
 
               {/* Пагинация */}
               {totalPages > 1 && (

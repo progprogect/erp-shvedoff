@@ -11,6 +11,7 @@ import Stock from './pages/Stock';
 import Orders from './pages/Orders';
 import OrderDetail from './pages/OrderDetail';
 import CreateOrder from './pages/CreateOrder';
+import AuditHistory from './pages/AuditHistory';
 
 const { Content } = Layout;
 
@@ -114,6 +115,16 @@ const App: React.FC = () => {
               element={
                 <ProtectedRoute requiredRoles={['manager', 'director']}>
                   <OrderDetail />
+                </ProtectedRoute>
+              } 
+            />
+
+            {/* История изменений */}
+            <Route 
+              path="/audit" 
+              element={
+                <ProtectedRoute requiredRoles={['director']}>
+                  <AuditHistory />
                 </ProtectedRoute>
               } 
             />

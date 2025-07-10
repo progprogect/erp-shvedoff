@@ -153,6 +153,14 @@ class CatalogApi {
     );
     return response.data;
   }
+
+  async deleteCategory(id: number, token: string): Promise<ApiResponse<void>> {
+    const response = await axios.delete(
+      `${API_BASE_URL}/categories/${id}`,
+      this.getAuthHeaders(token)
+    );
+    return response.data;
+  }
 }
 
 export const catalogApi = new CatalogApi(); 

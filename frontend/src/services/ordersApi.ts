@@ -204,6 +204,23 @@ class OrdersApiService {
       };
     }
   }
+
+  async deleteOrder(id: number, token: string): Promise<ApiResponse<void>> {
+    try {
+      const response = await axios.delete(`${API_BASE_URL}/orders/${id}`, {
+        headers: this.getAuthHeaders(token)
+      });
+
+      return response.data;
+    } catch (error: any) {
+      console.error('Error deleting order:', error);
+      return {
+        success: false,
+        data: undefined as any,
+        message: error.response?.data?.message || 'Ошибка удаления заказа'
+      };
+    }
+  }
 }
 
 export const ordersApi = new OrdersApiService(); 
