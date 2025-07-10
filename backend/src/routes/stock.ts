@@ -1,6 +1,6 @@
 import express from 'express';
 import { db, schema } from '../db';
-import { eq, sql, and } from 'drizzle-orm';
+import { eq, sql, and, or, ilike } from 'drizzle-orm';
 import { authenticateToken, authorizeRoles, AuthRequest } from '../middleware/auth';
 import { createError } from '../middleware/errorHandler';
 
@@ -10,6 +10,23 @@ const router = express.Router();
 router.get('/', authenticateToken, async (req, res, next) => {
   try {
     const { status, categoryId, search } = req.query;
+
+    // Build where conditions
+    let whereClause = eq(schema.products.isActive, true);
+    
+    if (search) {
+      whereClause = and(
+        whereClause,
+        or(
+          ilike(schema.products.name, `%${search}%`),
+          ilike(schema.products.article, `%${search}%`)
+        )
+      )!;
+    }
+
+    if (categoryId) {
+      whereClause = and(whereClause, eq(schema.products.categoryId, Number(categoryId)))!;
+    }
 
     const stockData = await db
       .select({
@@ -28,7 +45,7 @@ router.get('/', authenticateToken, async (req, res, next) => {
       .from(schema.stock)
       .innerJoin(schema.products, eq(schema.stock.productId, schema.products.id))
       .leftJoin(schema.categories, eq(schema.products.categoryId, schema.categories.id))
-      .where(eq(schema.products.isActive, true))
+      .where(whereClause)
       .orderBy(schema.products.name);
 
     // Apply filters
@@ -41,6 +58,8 @@ router.get('/', authenticateToken, async (req, res, next) => {
         
         switch (status) {
           case 'critical':
+            return available <= 0;
+          case 'out_of_stock':
             return available <= 0;
           case 'low':
             return available > 0 && available < norm * 0.5;
@@ -105,7 +124,7 @@ router.post('/adjust', authenticateToken, authorizeRoles('director', 'warehouse'
     res.json({
       success: true,
       message: 'Stock adjusted successfully',
-      newStock
+      data: { newStock }
     });
   } catch (error) {
     next(error);

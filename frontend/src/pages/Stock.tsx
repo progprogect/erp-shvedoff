@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
-import { Table, Card, Typography, Button, Space, Tag, Input, Select, Row, Col, Statistic } from 'antd';
-import { SearchOutlined, InboxOutlined, EditOutlined, HistoryOutlined } from '@ant-design/icons';
+import React, { useState, useEffect } from 'react';
+import { Table, Card, Typography, Button, Space, Tag, Input, Select, Row, Col, Statistic, message, Spin } from 'antd';
+import { SearchOutlined, InboxOutlined, EditOutlined, HistoryOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useAuthStore } from '../stores/authStore';
+import { stockApi, StockItem, StockFilters } from '../services/stockApi';
+import StockAdjustmentModal from '../components/StockAdjustmentModal';
+import StockHistoryModal from '../components/StockHistoryModal';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -9,60 +12,76 @@ const { Option } = Select;
 
 const Stock: React.FC = () => {
   const [searchText, setSearchText] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const { user } = useAuthStore();
+  const [statusFilter, setStatusFilter] = useState<'all' | 'critical' | 'low' | 'normal' | 'out_of_stock'>('all');
+  const [loading, setLoading] = useState(false);
+  const [stockData, setStockData] = useState<StockItem[]>([]);
+  const [adjustmentModalVisible, setAdjustmentModalVisible] = useState(false);
+  const [historyModalVisible, setHistoryModalVisible] = useState(false);
+  const [selectedStockItem, setSelectedStockItem] = useState<StockItem | null>(null);
+  const { user, token } = useAuthStore();
 
-  // Заглушки данных
-  const mockStockData = [
-    {
-      id: 1,
-      productName: 'Лежак 0 Чеш 1800×1200×30',
-      article: 'LCH-1800-1200-30',
-      category: 'Чешские',
-      currentStock: 145,
-      reservedStock: 23,
-      availableStock: 122,
-      normStock: 100,
-      price: 15430,
-      updatedAt: '2025-06-25T14:32:00Z'
-    },
-    {
-      id: 2,
-      productName: 'Лежак 0 Чеш 1800×1200×35',
-      article: 'LCH-1800-1200-35',
-      category: 'Чешские',
-      currentStock: 89,
-      reservedStock: 12,
-      availableStock: 77,
-      normStock: 50,
-      price: 16780,
-      updatedAt: '2025-06-24T09:15:00Z'
-    },
-    {
-      id: 3,
-      productName: 'Лежак 0 Чеш 1800×1200×40',
-      article: 'LCH-1800-1200-40',
-      category: 'Чешские',
-      currentStock: 67,
-      reservedStock: 5,
-      availableStock: 62,
-      normStock: 80,
-      price: 18920,
-      updatedAt: '2025-06-23T16:45:00Z'
-    },
-    {
-      id: 4,
-      productName: 'Коврик кольцевой 600×400',
-      article: 'KK-600-400',
-      category: 'Коврики',
-      currentStock: 0,
-      reservedStock: 0,
-      availableStock: 0,
-      normStock: 200,
-      price: 2850,
-      updatedAt: '2025-06-20T11:20:00Z'
+  // Статистика по остаткам
+  const stockStats = React.useMemo(() => {
+    const total = stockData.length;
+    const outOfStock = stockData.filter((item: StockItem) => item.availableStock <= 0).length;
+    const critical = stockData.filter((item: StockItem) => item.availableStock <= 0 && item.currentStock <= 0).length;
+    const low = stockData.filter((item: StockItem) => {
+      const available = item.availableStock;
+      const norm = item.normStock || 0;
+      return available > 0 && available < norm * 0.5;
+    }).length;
+    const normal = stockData.filter((item: StockItem) => {
+      const available = item.availableStock;
+      const norm = item.normStock || 0;
+      return available >= norm * 0.5;
+    }).length;
+    const totalAvailable = stockData.reduce((sum: number, item: StockItem) => sum + Math.max(0, item.availableStock), 0);
+    const totalReserved = stockData.reduce((sum: number, item: StockItem) => sum + item.reservedStock, 0);
+    const totalCurrent = stockData.reduce((sum: number, item: StockItem) => sum + item.currentStock, 0);
+
+    return { total, outOfStock, critical, low, normal, totalAvailable, totalReserved, totalCurrent };
+  }, [stockData]);
+
+  const loadStockData = async () => {
+    if (!token) return;
+    
+    setLoading(true);
+    try {
+      const filters: StockFilters = {
+        status: statusFilter,
+        search: searchText.trim() || undefined
+      };
+
+      const response = await stockApi.getStock(filters, token);
+      
+      if (response.success) {
+        setStockData(response.data);
+      } else {
+        message.error('Ошибка загрузки остатков');
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки остатков:', error);
+      message.error('Ошибка связи с сервером');
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  // Загрузка данных при изменении фильтров
+  useEffect(() => {
+    loadStockData();
+  }, [statusFilter, token]);
+
+  // Поиск с задержкой
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchText.length >= 3 || searchText.length === 0) {
+        loadStockData();
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchText]);
 
   const getStockStatus = (available: number, norm: number) => {
     if (available <= 0) return { status: 'critical', color: 'red', text: 'Закончился' };
@@ -70,30 +89,31 @@ const Stock: React.FC = () => {
     return { status: 'normal', color: 'green', text: 'Норма' };
   };
 
-  const filteredData = mockStockData.filter(item => {
-    if (searchText && !item.productName.toLowerCase().includes(searchText.toLowerCase())) {
-      return false;
-    }
-    if (statusFilter !== 'all') {
-      const stockStatus = getStockStatus(item.availableStock, item.normStock);
-      if (statusFilter !== stockStatus.status) {
-        return false;
-      }
-    }
-    return true;
-  });
+  const handleStockAdjustment = (record: StockItem) => {
+    setSelectedStockItem(record);
+    setAdjustmentModalVisible(true);
+  };
+
+  const handleAdjustmentSuccess = () => {
+    loadStockData(); // Перезагружаем данные после успешной корректировки
+  };
+
+  const handleViewHistory = (record: StockItem) => {
+    setSelectedStockItem(record);
+    setHistoryModalVisible(true);
+  };
 
   const columns = [
     {
       title: 'Товар',
       dataIndex: 'productName',
       key: 'productName',
-      render: (text: string, record: any) => (
+      render: (text: string, record: StockItem) => (
         <div>
           <Text strong>{text}</Text>
           <br />
           <Text type="secondary" style={{ fontSize: '12px' }}>
-            {record.article} • {record.category}
+            {record.productArticle} • {record.categoryName}
           </Text>
         </div>
       ),
@@ -117,7 +137,7 @@ const Stock: React.FC = () => {
       dataIndex: 'availableStock',
       key: 'availableStock',
       align: 'center' as const,
-      render: (value: number, record: any) => {
+      render: (value: number, record: StockItem) => {
         const status = getStockStatus(value, record.normStock);
         return (
           <Text strong style={{ color: status.color === 'green' ? '#52c41a' : status.color === 'orange' ? '#faad14' : '#ff4d4f' }}>
@@ -130,7 +150,7 @@ const Stock: React.FC = () => {
       title: 'Статус',
       key: 'status',
       align: 'center' as const,
-      render: (_: any, record: any) => {
+      render: (_: any, record: StockItem) => {
         const status = getStockStatus(record.availableStock, record.normStock);
         return <Tag color={status.color}>{status.text}</Tag>;
       },
@@ -140,7 +160,7 @@ const Stock: React.FC = () => {
       dataIndex: 'price',
       key: 'price',
       align: 'right' as const,
-      render: (value: number) => <Text>💰 {value.toLocaleString()}₽</Text>,
+      render: (value: number) => <Text>💰 {value?.toLocaleString() || 0}₽</Text>,
     },
     {
       title: 'Обновлено',
@@ -156,13 +176,23 @@ const Stock: React.FC = () => {
       title: 'Действия',
       key: 'actions',
       align: 'center' as const,
-      render: (_: any, record: any) => (
+      render: (_: any, record: StockItem) => (
         <Space>
-          <Button size="small" icon={<HistoryOutlined />} title="История движения">
+          <Button 
+            size="small" 
+            icon={<HistoryOutlined />} 
+            title="История движения"
+            onClick={() => handleViewHistory(record)}
+          >
             История
           </Button>
           {(user?.role === 'director' || user?.role === 'warehouse') && (
-            <Button size="small" icon={<EditOutlined />} title="Корректировка остатка">
+            <Button 
+              size="small" 
+              icon={<EditOutlined />} 
+              title="Корректировка остатка"
+              onClick={() => handleStockAdjustment(record)}
+            >
               Корректировка
             </Button>
           )}
@@ -171,84 +201,80 @@ const Stock: React.FC = () => {
     },
   ];
 
-  const summaryStats = {
-    total: filteredData.length,
-    critical: filteredData.filter(item => getStockStatus(item.availableStock, item.normStock).status === 'critical').length,
-    low: filteredData.filter(item => getStockStatus(item.availableStock, item.normStock).status === 'low').length,
-    normal: filteredData.filter(item => getStockStatus(item.availableStock, item.normStock).status === 'normal').length,
-  };
-
   return (
-    <div>
-      <Row gutter={[0, 24]}>
-        {/* Header */}
+    <div style={{ padding: '24px' }}>
+      <Row gutter={[16, 16]}>
+        {/* Заголовок */}
         <Col span={24}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <Title level={2} style={{ margin: 0, display: 'flex', alignItems: 'center' }}>
-                <InboxOutlined style={{ marginRight: 12 }} />
-                Остатки на складе
+          <Row justify="space-between" align="middle">
+            <Col>
+              <Title level={2} style={{ margin: 0 }}>
+                📦 Учет остатков
               </Title>
-              <Text type="secondary">
-                Текущие остатки товаров с индикацией критичных уровней
-              </Text>
-            </div>
-          </div>
-        </Col>
-
-        {/* Статистика */}
-        <Col span={24}>
-          <Row gutter={16}>
-            <Col xs={12} sm={6}>
-              <Card>
-                <Statistic
-                  title="Всего позиций"
-                  value={summaryStats.total}
-                  valueStyle={{ color: '#1890ff' }}
-                />
-              </Card>
             </Col>
-            <Col xs={12} sm={6}>
-              <Card>
-                <Statistic
-                  title="Критичные"
-                  value={summaryStats.critical}
-                  valueStyle={{ color: '#ff4d4f' }}
-                />
-              </Card>
-            </Col>
-            <Col xs={12} sm={6}>
-              <Card>
-                <Statistic
-                  title="Мало"
-                  value={summaryStats.low}
-                  valueStyle={{ color: '#faad14' }}
-                />
-              </Card>
-            </Col>
-            <Col xs={12} sm={6}>
-              <Card>
-                <Statistic
-                  title="В норме"
-                  value={summaryStats.normal}
-                  valueStyle={{ color: '#52c41a' }}
-                />
-              </Card>
+            <Col>
+              <Button 
+                icon={<ReloadOutlined />} 
+                onClick={loadStockData}
+                loading={loading}
+              >
+                Обновить
+              </Button>
             </Col>
           </Row>
         </Col>
 
-        {/* Фильтры */}
+        {/* Статистика */}
+        <Col span={24}>
+          <Card>
+            <Row gutter={[16, 16]} align="middle">
+              <Col xs={24} sm={12} md={8} lg={4} xl={4}>
+                <Statistic
+                  title="📊 Всего позиций"
+                  value={stockStats.total}
+                  valueStyle={{ color: '#1890ff' }}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={5} xl={5}>
+                <Statistic
+                  title="📦 Общий остаток"
+                  value={stockStats.totalCurrent}
+                  suffix="шт"
+                  valueStyle={{ color: '#1890ff' }}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={5} xl={5}>
+                <Statistic
+                  title="🔒 В резерве"
+                  value={stockStats.totalReserved}
+                  suffix="шт"
+                  valueStyle={{ color: '#faad14' }}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={12} lg={6} xl={6}>
+                <Statistic
+                  title="✅ Доступно"
+                  value={stockStats.totalAvailable}
+                  suffix="шт"
+                  valueStyle={{ color: '#52c41a' }}
+                />
+              </Col>
+            </Row>
+          </Card>
+        </Col>
+
+        {/* Фильтры и поиск */}
         <Col span={24}>
           <Card>
             <Row gutter={16} align="middle">
               <Col xs={24} sm={12} md={8}>
                 <Search
-                  placeholder="Поиск товаров..."
+                  placeholder="Поиск по названию, артикулу..."
                   allowClear
                   value={searchText}
                   onChange={(e) => setSearchText(e.target.value)}
                   style={{ width: '100%' }}
+                  size="large"
                 />
               </Col>
               <Col xs={24} sm={12} md={8}>
@@ -257,19 +283,73 @@ const Stock: React.FC = () => {
                   onChange={setStatusFilter}
                   style={{ width: '100%' }}
                   placeholder="Фильтр по статусу"
+                  size="large"
                 >
-                  <Option value="all">Все статусы</Option>
-                  <Option value="critical">Критичные</Option>
-                  <Option value="low">Мало</Option>
-                  <Option value="normal">В норме</Option>
+                  <Option value="all">📊 Все статусы</Option>
+                  <Option value="out_of_stock">❌ Отсутствующие</Option>
+                  <Option value="critical">🚨 Критичные</Option>
+                  <Option value="low">⚠️ Мало</Option>
+                  <Option value="normal">✅ В норме</Option>
                 </Select>
               </Col>
               <Col xs={24} sm={24} md={8}>
-                <div style={{ textAlign: 'right' }}>
+                <Space wrap style={{ justifyContent: 'flex-end', width: '100%' }}>
                   <Text type="secondary">
-                    Показано: {filteredData.length} из {mockStockData.length} позиций
+                    Показано: {stockData.length} позиций
                   </Text>
-                </div>
+                </Space>
+              </Col>
+            </Row>
+            
+            {/* Быстрые фильтры */}
+            <Row gutter={[8, 8]} style={{ marginTop: 16 }} align="middle">
+              <Col>
+                <Text strong>🔥 Быстрая фильтрация:</Text>
+              </Col>
+              <Col>
+                <Button 
+                  size="small"
+                  type={statusFilter === 'out_of_stock' ? 'primary' : 'default'}
+                  danger={statusFilter === 'out_of_stock'}
+                  onClick={() => setStatusFilter('out_of_stock')}
+                >
+                  ❌ Отсутствующие ({stockStats.outOfStock})
+                </Button>
+              </Col>
+              <Col>
+                <Button 
+                  size="small"
+                  type={statusFilter === 'low' ? 'primary' : 'default'}
+                  onClick={() => setStatusFilter('low')}
+                  style={{ borderColor: '#faad14', color: statusFilter === 'low' ? '#fff' : '#faad14' }}
+                >
+                  ⚠️ Мало ({stockStats.low})
+                </Button>
+              </Col>
+              <Col>
+                <Button 
+                  size="small"
+                  type={statusFilter === 'normal' ? 'primary' : 'default'}
+                  onClick={() => setStatusFilter('normal')}
+                  style={{ borderColor: '#52c41a', color: statusFilter === 'normal' ? '#fff' : '#52c41a' }}
+                >
+                  ✅ В норме ({stockStats.normal})
+                </Button>
+              </Col>
+              {statusFilter !== 'all' && (
+                <Col>
+                  <Button 
+                    size="small"
+                    onClick={() => setStatusFilter('all')}
+                  >
+                    🔄 Показать все
+                  </Button>
+                </Col>
+              )}
+              <Col flex="auto" style={{ textAlign: 'right' }}>
+                <Text type="secondary" style={{ fontSize: '12px' }}>
+                  💡 Подсказка: используйте поиск для быстрого нахождения товара
+                </Text>
               </Col>
             </Row>
           </Card>
@@ -278,22 +358,42 @@ const Stock: React.FC = () => {
         {/* Таблица остатков */}
         <Col span={24}>
           <Card>
-            <Table
-              columns={columns}
-              dataSource={filteredData}
-              rowKey="id"
-              pagination={{
-                pageSize: 20,
-                showSizeChanger: true,
-                showQuickJumper: true,
-                showTotal: (total, range) =>
-                  `${range[0]}-${range[1]} из ${total} позиций`,
-              }}
-              scroll={{ x: 1000 }}
-            />
+            <Spin spinning={loading}>
+              <Table
+                columns={columns}
+                dataSource={stockData}
+                rowKey="id"
+                pagination={{
+                  pageSize: 20,
+                  showSizeChanger: true,
+                  showQuickJumper: true,
+                  showTotal: (total, range) =>
+                    `${range[0]}-${range[1]} из ${total} позиций`,
+                }}
+                scroll={{ x: 1000 }}
+                locale={{
+                  emptyText: searchText ? 'Товары не найдены' : 'Нет данных об остатках'
+                }}
+              />
+            </Spin>
           </Card>
         </Col>
       </Row>
+
+      {/* Модальное окно корректировки остатков */}
+      <StockAdjustmentModal
+        visible={adjustmentModalVisible}
+        stockItem={selectedStockItem}
+        onClose={() => setAdjustmentModalVisible(false)}
+        onSuccess={handleAdjustmentSuccess}
+      />
+
+      {/* Модальное окно истории движения остатков */}
+      <StockHistoryModal
+        visible={historyModalVisible}
+        stockItem={selectedStockItem}
+        onClose={() => setHistoryModalVisible(false)}
+      />
     </div>
   );
 };

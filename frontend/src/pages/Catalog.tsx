@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Row, Col, Card, Tree, Input, Button, Space, Typography, Tag, Badge, Select, InputNumber, Collapse } from 'antd';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Row, Col, Card, Tree, Input, Button, Space, Typography, Tag, Badge, Select, InputNumber, Collapse, message, Spin } from 'antd';
 import {
   SearchOutlined,
   PlusOutlined,
@@ -7,132 +7,42 @@ import {
   InboxOutlined,
   BorderOutlined,
   FilterOutlined,
-  ClearOutlined
+  ClearOutlined,
+  ReloadOutlined
 } from '@ant-design/icons';
 import { useAuthStore } from '../stores/authStore';
+import { catalogApi, Category, Product, ProductFilters } from '../services/catalogApi';
+import CreateProductModal from '../components/CreateProductModal';
+import CreateCategoryModal from '../components/CreateCategoryModal';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
 const { Option } = Select;
 const { Panel } = Collapse;
 
-// Заглушки данных - в будущем будут загружаться из API
-const mockCategories = [
-  {
-    title: '📁 Лежаки резиновые (4)',
-    key: 'lejaki',
-    children: [
-      { title: '📁 Чешские (4)', key: 'cheshskie' },
-      { title: '📁 3-Корончатые (0)', key: '3koron' },
-      { title: '📁 Брендовые (0)', key: 'brendovie' }
-    ]
-  },
-  {
-    title: '📁 Коврики (1)',
-    key: 'kovriki',
-    children: [
-      { title: '📁 Кольцевые (1)', key: 'kolcevie' },
-      { title: '📁 Придверные (0)', key: 'pridvernie' }
-    ]
-  },
-  {
-    title: '📁 Рулонные покрытия (1)',
-    key: 'rulonnie'
-  },
-  {
-    title: '📁 Крепежные изделия (0)',
-    key: 'krepej'
-  }
-];
+// Функция форматирования категорий для Tree компонента
+const formatCategoriesForTree = (categories: Category[]): any[] => {
+  return categories.map(category => ({
+    title: `📁 ${category.name}`,
+    key: category.id,
+    children: category.children ? formatCategoriesForTree(category.children) : undefined
+  }));
+};
 
-const mockProducts = [
-  {
-    id: 1,
-    name: 'Лежак 0 Чеш 1800×1200×30',
-    article: 'LCH-1800-1200-30',
-    category: 'cheshskie',
-    parentCategory: 'lejaki',
-    categoryName: 'Чешские',
-    dimensions: { length: 1800, width: 1200, thickness: 30 },
-    currentStock: 145,
-    reservedStock: 23,
-    price: 15430,
-    updated: '25.06.25'
-  },
-  {
-    id: 2,
-    name: 'Лежак 0 Чеш 1800×1200×35',
-    article: 'LCH-1800-1200-35',
-    category: 'cheshskie',
-    parentCategory: 'lejaki',
-    categoryName: 'Чешские',
-    dimensions: { length: 1800, width: 1200, thickness: 35 },
-    currentStock: 89,
-    reservedStock: 12,
-    price: 16780,
-    updated: '24.06.25'
-  },
-  {
-    id: 3,
-    name: 'Лежак 0 Чеш 1800×1200×40',
-    article: 'LCH-1800-1200-40',
-    category: 'cheshskie',
-    parentCategory: 'lejaki',
-    categoryName: 'Чешские',
-    dimensions: { length: 1800, width: 1200, thickness: 40 },
-    currentStock: 67,
-    reservedStock: 5,
-    price: 18920,
-    updated: '23.06.25'
-  },
-  {
-    id: 4,
-    name: 'Лежак 0 Чеш 1600×1000×30',
-    article: 'LCH-1600-1000-30',
-    category: 'cheshskie',
-    parentCategory: 'lejaki',
-    categoryName: 'Чешские',
-    dimensions: { length: 1600, width: 1000, thickness: 30 },
-    currentStock: 34,
-    reservedStock: 8,
-    price: 12350,
-    updated: '25.06.25'
-  },
-  {
-    id: 5,
-    name: 'Коврик кольцевой 1000×1000×20',
-    article: 'KVR-RING-1000-20',
-    category: 'kolcevie',
-    parentCategory: 'kovriki',
-    categoryName: 'Кольцевые',
-    dimensions: { length: 1000, width: 1000, thickness: 20 },
-    currentStock: 89,
-    reservedStock: 15,
-    price: 8450,
-    updated: '24.06.25'
-  },
-  {
-    id: 6,
-    name: 'Покрытие рулонное 15000×1500×12',
-    article: 'POK-RUL-15000-12',
-    category: 'rulonnie',
-    parentCategory: null,
-    categoryName: 'Рулонные покрытия',
-    dimensions: { length: 15000, width: 1500, thickness: 12 },
-    currentStock: 12,
-    reservedStock: 3,
-    price: 45670,
-    updated: '23.06.25'
-  }
-];
+
 
 const Catalog: React.FC = () => {
   const [searchText, setSearchText] = useState('');
-  const [checkedCategories, setCheckedCategories] = useState<string[]>([]);
+  const [checkedCategories, setCheckedCategories] = useState<number[]>([]);
   const [stockFilter, setStockFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(4); // 4 товара на страницу
   const [showSizeFilters, setShowSizeFilters] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [createProductModalVisible, setCreateProductModalVisible] = useState(false);
+  const [createCategoryModalVisible, setCreateCategoryModalVisible] = useState(false);
   
   // Фильтры по размерам
   const [sizeFilters, setSizeFilters] = useState({
@@ -144,7 +54,40 @@ const Catalog: React.FC = () => {
     thicknessMax: null as number | null,
   });
 
-  const { user } = useAuthStore();
+  const { user, token } = useAuthStore();
+
+  // Загрузка данных
+  useEffect(() => {
+    if (token) {
+      loadData();
+    }
+  }, [token]);
+
+  const loadData = async () => {
+    if (!token) return;
+    
+    setLoading(true);
+    try {
+      // Загружаем категории и товары параллельно
+      const [categoriesResponse, productsResponse] = await Promise.all([
+        catalogApi.getCategories(token),
+        catalogApi.getProducts({ page: 1, limit: 100 }, token)
+      ]);
+
+      if (categoriesResponse.success) {
+        setCategories(categoriesResponse.data);
+      }
+
+      if (productsResponse.success) {
+        setProducts(productsResponse.data);
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки данных каталога:', error);
+      message.error('Ошибка загрузки данных каталога');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getStockStatus = (current: number, reserved: number) => {
     const available = current - reserved;
@@ -154,16 +97,16 @@ const Catalog: React.FC = () => {
   };
 
   // Функция для получения всех дочерних категорий
-  const getAllChildCategories = (categoryKey: string): string[] => {
-    const category = mockCategories.find(cat => cat.key === categoryKey);
-    if (!category) return [categoryKey];
+  const getAllChildCategories = (categoryId: number): number[] => {
+    const category = categories.find(cat => cat.id === categoryId);
+    if (!category) return [categoryId];
     
     if (category.children) {
-      const childKeys = category.children.map(child => child.key);
-      return [categoryKey, ...childKeys];
+      const childIds = category.children.map(child => child.id);
+      return [categoryId, ...childIds];
     }
     
-    return [categoryKey];
+    return [categoryId];
   };
 
   // Обработка выбора категорий
@@ -171,7 +114,7 @@ const Catalog: React.FC = () => {
     let expandedKeys = [...checkedKeys];
     
     // Для каждой выбранной родительской категории добавляем дочерние
-    checkedKeys.forEach((key: string) => {
+    checkedKeys.forEach((key: number) => {
       const childKeys = getAllChildCategories(key);
       expandedKeys = [...expandedKeys, ...childKeys];
     });
@@ -185,53 +128,65 @@ const Catalog: React.FC = () => {
 
   // Фильтрация товаров
   const filteredProducts = useMemo(() => {
-    return mockProducts.filter(product => {
+    return products.filter((product: Product) => {
       // Поиск по названию, артикулу и размерам
       if (searchText) {
         const searchLower = searchText.toLowerCase();
-        const dimensionsString = `${product.dimensions.length}×${product.dimensions.width}×${product.dimensions.thickness}`;
+        const dimensionsString = product.dimensions 
+          ? `${product.dimensions.length}×${product.dimensions.width}×${product.dimensions.thickness}` 
+          : '';
         const searchMatch = 
           product.name.toLowerCase().includes(searchLower) ||
-          product.article.toLowerCase().includes(searchLower) ||
+          (product.article && product.article.toLowerCase().includes(searchLower)) ||
           dimensionsString.includes(searchText) ||
-          product.categoryName.toLowerCase().includes(searchLower);
+          (product.categoryName && product.categoryName.toLowerCase().includes(searchLower));
         
         if (!searchMatch) return false;
       }
       
       // Фильтр по категории
       if (checkedCategories.length > 0) {
-        const productCategories = [product.category];
-        if (product.parentCategory) {
-          productCategories.push(product.parentCategory);
+        if (!checkedCategories.includes(product.categoryId)) {
+          return false;
         }
-        
-        const hasMatchingCategory = productCategories.some(cat => 
-          checkedCategories.includes(cat)
-        );
-        
-        if (!hasMatchingCategory) return false;
       }
       
       // Фильтр по остаткам
       if (stockFilter !== 'all') {
-        const stockStatus = getStockStatus(product.currentStock, product.reservedStock);
-        if (stockFilter !== stockStatus.status) return false;
+        const available = product.availableStock || (product.currentStock - product.reservedStock);
+        const norm = product.normStock || 0;
+        
+        let statusMatch = false;
+        switch (stockFilter) {
+          case 'critical':
+            statusMatch = available <= 0;
+            break;
+          case 'low':
+            statusMatch = available > 0 && available < norm * 0.5;
+            break;
+          case 'normal':
+            statusMatch = available >= norm * 0.5;
+            break;
+        }
+        
+        if (!statusMatch) return false;
       }
       
       // Фильтры по размерам
-      const { length, width, thickness } = product.dimensions;
-      
-      if (sizeFilters.lengthMin && length < sizeFilters.lengthMin) return false;
-      if (sizeFilters.lengthMax && length > sizeFilters.lengthMax) return false;
-      if (sizeFilters.widthMin && width < sizeFilters.widthMin) return false;
-      if (sizeFilters.widthMax && width > sizeFilters.widthMax) return false;
-      if (sizeFilters.thicknessMin && thickness < sizeFilters.thicknessMin) return false;
-      if (sizeFilters.thicknessMax && thickness > sizeFilters.thicknessMax) return false;
+      if (product.dimensions) {
+        const { length, width, thickness } = product.dimensions;
+        
+        if (sizeFilters.lengthMin && length < sizeFilters.lengthMin) return false;
+        if (sizeFilters.lengthMax && length > sizeFilters.lengthMax) return false;
+        if (sizeFilters.widthMin && width < sizeFilters.widthMin) return false;
+        if (sizeFilters.widthMax && width > sizeFilters.widthMax) return false;
+        if (sizeFilters.thicknessMin && thickness < sizeFilters.thicknessMin) return false;
+        if (sizeFilters.thicknessMax && thickness > sizeFilters.thicknessMax) return false;
+      }
       
       return true;
     });
-  }, [searchText, checkedCategories, stockFilter, sizeFilters]);
+  }, [products, searchText, checkedCategories, stockFilter, sizeFilters]);
 
   // Пагинация
   const totalPages = Math.ceil(filteredProducts.length / pageSize);
@@ -297,8 +252,19 @@ const Catalog: React.FC = () => {
             
             {canEdit && (
               <Space>
-                <Button icon={<PlusOutlined />}>Добавить категорию</Button>
-                <Button type="primary" icon={<PlusOutlined />}>Добавить товар</Button>
+                <Button 
+                  icon={<PlusOutlined />}
+                  onClick={() => setCreateCategoryModalVisible(true)}
+                >
+                  Добавить категорию
+                </Button>
+                <Button 
+                  type="primary" 
+                  icon={<PlusOutlined />}
+                  onClick={() => setCreateProductModalVisible(true)}
+                >
+                  Добавить товар
+                </Button>
               </Space>
             )}
           </div>
@@ -482,7 +448,7 @@ const Catalog: React.FC = () => {
                   defaultExpandedKeys={['lejaki', 'kovriki']}
                   checkedKeys={checkedCategories}
                   onCheck={handleCategoryCheck}
-                  treeData={mockCategories}
+                  treeData={formatCategoriesForTree(categories)}
                 />
                 {checkedCategories.length > 0 && (
                   <div style={{ marginTop: 12, padding: '8px', backgroundColor: '#f0f0f0', borderRadius: '4px' }}>
@@ -508,7 +474,8 @@ const Catalog: React.FC = () => {
                 {paginatedProducts.map((product) => {
                   const stockStatus = getStockStatus(product.currentStock, product.reservedStock);
                   const available = product.currentStock - product.reservedStock;
-                  const { length, width, thickness } = product.dimensions;
+                  const dimensions = product.dimensions || { length: 0, width: 0, thickness: 0 };
+                  const { length, width, thickness } = dimensions;
                   
                   return (
                     <Col xs={24} xl={12} key={product.id}>
@@ -542,7 +509,7 @@ const Catalog: React.FC = () => {
                             <Space direction="vertical" size="small" style={{ width: '100%' }}>
                               <div style={{ textAlign: 'right' }}>
                                 <Text strong style={{ fontSize: '16px', color: '#1890ff' }}>
-                                  {product.price.toLocaleString()}₽
+                                  {product.price ? product.price.toLocaleString() : 'Цена не указана'}₽
                                 </Text>
                                 <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>
                                   за штуку
@@ -587,25 +554,49 @@ const Catalog: React.FC = () => {
                 </Card>
               )}
 
-              {paginatedProducts.length === 0 && (
+              {/* Сообщения о состоянии */}
+              {!loading && products.length === 0 && (
                 <Card style={{ textAlign: 'center', marginTop: 16 }}>
                   <Text type="secondary">
                     <InboxOutlined style={{ fontSize: 48, marginBottom: 16, display: 'block' }} />
-                    Товары не найдены
+                    Товары в каталоге отсутствуют
                   </Text>
-                  <Button onClick={() => {
-                    setSearchText('');
-                    setCheckedCategories([]);
-                    setStockFilter('all');
-                    setSizeFilters({
-                      lengthMin: null, lengthMax: null,
-                      widthMin: null, widthMax: null,
-                      thicknessMin: null, thicknessMax: null,
-                    });
-                    setCurrentPage(1);
-                  }}>
-                    Сбросить все фильтры
-                  </Button>
+                </Card>
+              )}
+
+              {!loading && paginatedProducts.length === 0 && products.length > 0 && (
+                <Card style={{ textAlign: 'center', marginTop: 16 }}>
+                  <Text type="secondary">
+                    <InboxOutlined style={{ fontSize: 48, marginBottom: 16, display: 'block' }} />
+                    По заданным критериям товары не найдены
+                  </Text>
+                  {(searchText || checkedCategories.length > 0 || stockFilter !== 'all' || hasSizeFilters) && (
+                    <Button onClick={() => {
+                      setSearchText('');
+                      setCheckedCategories([]);
+                      setStockFilter('all');
+                      setSizeFilters({
+                        lengthMin: null, lengthMax: null,
+                        widthMin: null, widthMax: null,
+                        thicknessMin: null, thicknessMax: null,
+                      });
+                      setCurrentPage(1);
+                    }}>
+                      Сбросить все фильтры
+                    </Button>
+                  )}
+                </Card>
+              )}
+              
+              {!loading && products.length === 0 && (
+                <Card style={{ textAlign: 'center', marginTop: 16 }}>
+                  <Text type="secondary">
+                    <InboxOutlined style={{ fontSize: 48, marginBottom: 16, display: 'block' }} />
+                    Каталог товаров пуст
+                  </Text>
+                  <Text type="secondary">
+                    Добавьте товары через кнопку "Добавить товар"
+                  </Text>
                 </Card>
               )}
             </Col>
@@ -617,16 +608,13 @@ const Catalog: React.FC = () => {
           <Col span={24}>
             <Card size="small">
               <Row gutter={16}>
-                <Col span={6}>
+                <Col span={8}>
                   <Text>💾 Остаток: <Text strong>{filteredProducts.reduce((sum, p) => sum + p.currentStock, 0)}</Text></Text>
                 </Col>
-                <Col span={6}>
+                <Col span={8}>
                   <Text>📦 Доступно: <Text strong>{filteredProducts.reduce((sum, p) => sum + (p.currentStock - p.reservedStock), 0)}</Text></Text>
                 </Col>
-                <Col span={6}>
-                  <Text>💰 Стоимость: <Text strong>{(filteredProducts.reduce((sum, p) => sum + (p.price * p.currentStock), 0) / 1000).toFixed(0)}к₽</Text></Text>
-                </Col>
-                <Col span={6}>
+                <Col span={8}>
                   <Text>📊 Позиций: <Text strong>{filteredProducts.length}</Text></Text>
                 </Col>
               </Row>
@@ -634,6 +622,26 @@ const Catalog: React.FC = () => {
           </Col>
         )}
       </Row>
+
+      {/* Модальное окно создания товара */}
+      <CreateProductModal
+        visible={createProductModalVisible}
+        categories={categories}
+        onClose={() => setCreateProductModalVisible(false)}
+        onSuccess={() => {
+          loadData(); // Перезагружаем данные после создания товара
+        }}
+      />
+
+      {/* Модальное окно создания категории */}
+      <CreateCategoryModal
+        visible={createCategoryModalVisible}
+        categories={categories}
+        onClose={() => setCreateCategoryModalVisible(false)}
+        onSuccess={() => {
+          loadData(); // Перезагружаем данные после создания категории
+        }}
+      />
     </div>
   );
 };

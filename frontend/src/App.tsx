@@ -1,6 +1,6 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { Layout } from 'antd';
+import { Layout, App as AntdApp } from 'antd';
 import { useAuthStore } from './stores/authStore';
 import LoginPage from './pages/LoginPage';
 import DashboardLayout from './components/Layout/DashboardLayout';
@@ -40,91 +40,91 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 const App: React.FC = () => {
   const { isAuthenticated } = useAuthStore();
 
-  if (!isAuthenticated) {
-    return (
-      <Layout className="full-height">
-        <Content className="center-flex">
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="*" element={<Navigate to="/login" replace />} />
-          </Routes>
-        </Content>
-      </Layout>
-    );
-  }
-
   return (
-    <DashboardLayout>
-      <Routes>
-        {/* Дашборд */}
-        <Route 
-          path="/dashboard" 
-          element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          } 
-        />
+    <AntdApp>
+      {!isAuthenticated ? (
+        <Layout className="full-height">
+          <Content className="center-flex">
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="*" element={<Navigate to="/login" replace />} />
+            </Routes>
+          </Content>
+        </Layout>
+      ) : (
+        <DashboardLayout>
+          <Routes>
+            {/* Дашборд */}
+            <Route 
+              path="/dashboard" 
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              } 
+            />
 
-        {/* Каталог товаров */}
-        <Route 
-          path="/catalog" 
-          element={
-            <ProtectedRoute>
-              <Catalog />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/catalog/products/:id" 
-          element={
-            <ProtectedRoute>
-              <ProductDetail />
-            </ProtectedRoute>
-          } 
-        />
+            {/* Каталог товаров */}
+            <Route 
+              path="/catalog" 
+              element={
+                <ProtectedRoute>
+                  <Catalog />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/catalog/products/:id" 
+              element={
+                <ProtectedRoute>
+                  <ProductDetail />
+                </ProtectedRoute>
+              } 
+            />
 
-        {/* Остатки */}
-        <Route 
-          path="/stock" 
-          element={
-            <ProtectedRoute>
-              <Stock />
-            </ProtectedRoute>
-          } 
-        />
+            {/* Остатки */}
+            <Route 
+              path="/stock" 
+              element={
+                <ProtectedRoute>
+                  <Stock />
+                </ProtectedRoute>
+              } 
+            />
 
-        {/* Заказы */}
-        <Route 
-          path="/orders" 
-          element={
-            <ProtectedRoute requiredRoles={['manager', 'director']}>
-              <Orders />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/orders/create" 
-          element={
-            <ProtectedRoute requiredRoles={['manager', 'director']}>
-              <CreateOrder />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/orders/:id" 
-          element={
-            <ProtectedRoute requiredRoles={['manager', 'director']}>
-              <OrderDetail />
-            </ProtectedRoute>
-          } 
-        />
+            {/* Заказы */}
+            <Route 
+              path="/orders" 
+              element={
+                <ProtectedRoute requiredRoles={['manager', 'director']}>
+                  <Orders />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/orders/create" 
+              element={
+                <ProtectedRoute requiredRoles={['manager', 'director']}>
+                  <CreateOrder />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/orders/:id" 
+              element={
+                <ProtectedRoute requiredRoles={['manager', 'director']}>
+                  <OrderDetail />
+                </ProtectedRoute>
+              } 
+            />
 
-        {/* Redirect */}
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-    </DashboardLayout>
+            {/* Redirect */}
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </DashboardLayout>
+      )}
+    </AntdApp>
   );
 };
 

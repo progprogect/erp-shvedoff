@@ -14,10 +14,16 @@
     "db:migrate": "cd backend && npm run db:migrate",
     "db:seed": "cd backend && npm run db:seed"
   },
-  "keywords": ["erp", "inventory", "orders", "rubber-products"],
+  "keywords": [
+    "erp",
+    "inventory",
+    "orders",
+    "rubber-products"
+  ],
   "author": "Development Team",
   "license": "PROPRIETARY",
   "devDependencies": {
-    "concurrently": "^8.2.0"
+    "concurrently": "^8.2.0",
+    "fork-ts-checker-webpack-plugin": "^9.1.0"
   }
-} 
+}

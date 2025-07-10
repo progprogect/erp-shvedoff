@@ -231,7 +231,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   orders: many(orders),
   messages: many(orderMessages),
   productions: many(productionQueue),
-  notifications: many(telegramNotifications)
+  notifications: many(telegramNotifications),
+  stockMovements: many(stockMovements)
 }));
 
 export const categoriesRelations = relations(categories, ({ one, many }) => ({
@@ -257,4 +258,9 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
 
 export const stockRelations = relations(stock, ({ one }) => ({
   product: one(products, { fields: [stock.productId], references: [products.id] })
+}));
+
+export const stockMovementsRelations = relations(stockMovements, ({ one }) => ({
+  product: one(products, { fields: [stockMovements.productId], references: [products.id] }),
+  user: one(users, { fields: [stockMovements.userId], references: [users.id] })
 })); 
