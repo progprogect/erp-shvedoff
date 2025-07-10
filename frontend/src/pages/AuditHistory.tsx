@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Row, Col, Card, Table, Typography, Button, Space, Select, DatePicker, 
-  Input, Tag, Drawer, message, Statistic, Tabs, Badge, Timeline
+  Input, Tag, Drawer, App, Statistic, Tabs, Badge, Timeline
 } from 'antd';
 import {
   HistoryOutlined, FilterOutlined, ReloadOutlined, EyeOutlined,
@@ -33,6 +33,7 @@ const AuditHistory: React.FC = () => {
   const [detailsVisible, setDetailsVisible] = useState(false);
   
   const { token } = useAuthStore();
+  const { message } = App.useApp();
 
   useEffect(() => {
     if (token) {
