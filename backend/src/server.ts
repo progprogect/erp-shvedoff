@@ -10,6 +10,7 @@ import orderRoutes from './routes/orders';
 import categoriesRoutes from './routes/categories';
 import productsRoutes from './routes/products';
 import auditRoutes from './routes/audit';
+import dashboardRoutes from './routes/dashboard';
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/logger';
 
@@ -47,6 +48,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/categories', categoriesRoutes);
 app.use('/api/products', productsRoutes);
 app.use('/api/audit', auditRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // API Info endpoint
 app.get('/api', (req, res) => {
@@ -59,7 +61,8 @@ app.get('/api', (req, res) => {
       auth: '/api/auth',
       catalog: '/api/catalog',
       stock: '/api/stock',
-      orders: '/api/orders'
+      orders: '/api/orders',
+      dashboard: '/api/dashboard'
     }
   });
 });
