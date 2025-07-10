@@ -173,6 +173,8 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
     const orderId = newOrder[0].id;
 
     // Create order items and check/reserve stock
+    const itemsNeedingProduction = [];
+    
     for (const item of items) {
       // Create order item
       await db.insert(schema.orderItems).values({
@@ -187,9 +189,10 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
         where: eq(schema.stock.productId, item.productId)
       });
 
+      let quantityToReserve = 0;
       if (stock) {
         const availableStock = stock.currentStock - stock.reservedStock;
-        const quantityToReserve = Math.min(availableStock, item.quantity);
+        quantityToReserve = Math.min(availableStock, item.quantity);
 
         if (quantityToReserve > 0) {
           // Reserve available stock
@@ -219,6 +222,39 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
           });
         }
       }
+
+      // Check if there's a shortage and add to production queue
+      const shortage = item.quantity - quantityToReserve;
+      if (shortage > 0) {
+        itemsNeedingProduction.push({
+          productId: item.productId,
+          quantity: shortage
+        });
+      }
+    }
+
+    // Add items with shortage to production queue
+    if (itemsNeedingProduction.length > 0) {
+      const productionItems = itemsNeedingProduction.map(item => ({
+        orderId,
+        productId: item.productId,
+        quantity: item.quantity,
+        priority: priority === 'urgent' ? 5 : 
+                 priority === 'high' ? 4 : 
+                 priority === 'normal' ? 3 : 2,
+        status: 'queued' as const,
+        notes: `Автоматически добавлено в очередь для заказа ${orderNumber}`
+      }));
+
+      await db.insert(schema.productionQueue).values(productionItems);
+
+      // Update order status to in_production if any items need production
+      await db.update(schema.orders)
+        .set({
+          status: 'in_production',
+          updatedAt: new Date()
+        })
+        .where(eq(schema.orders.id, orderId));
     }
 
     // Get complete order data

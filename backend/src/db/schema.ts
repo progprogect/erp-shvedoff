@@ -253,7 +253,8 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
   manager: one(users, { fields: [orders.managerId], references: [users.id] }),
   items: many(orderItems, { relationName: 'orderItems' }),
   messages: many(orderMessages, { relationName: 'orderMessages' }),
-  shipments: many(shipments)
+  shipments: many(shipments),
+  productionQueue: many(productionQueue)
 }));
 
 export const stockRelations = relations(stock, ({ one }) => ({
@@ -273,4 +274,9 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
 export const orderMessagesRelations = relations(orderMessages, ({ one }) => ({
   order: one(orders, { fields: [orderMessages.orderId], references: [orders.id], relationName: 'orderMessages' }),
   user: one(users, { fields: [orderMessages.userId], references: [users.id] })
+}));
+
+export const productionQueueRelations = relations(productionQueue, ({ one }) => ({
+  order: one(orders, { fields: [productionQueue.orderId], references: [orders.id] }),
+  product: one(products, { fields: [productionQueue.productId], references: [products.id] })
 })); 

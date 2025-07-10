@@ -96,7 +96,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       menuItems = [...menuItems, ...managerDirectorItems];
     }
 
-    if (user?.role === 'production' || user?.role === 'director') {
+    if (user?.role === 'production' || user?.role === 'director' || user?.role === 'manager') {
       menuItems = [...menuItems, ...productionItems];
     }
 

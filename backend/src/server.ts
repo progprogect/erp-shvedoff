@@ -11,6 +11,7 @@ import categoriesRoutes from './routes/categories';
 import productsRoutes from './routes/products';
 import auditRoutes from './routes/audit';
 import dashboardRoutes from './routes/dashboard';
+import productionRoutes from './routes/production';
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/logger';
 
@@ -23,7 +24,7 @@ const PORT = process.env.PORT || 5001;
 // Middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3000'],
+  origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3000', 'http://localhost:3001'],
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
@@ -49,6 +50,7 @@ app.use('/api/categories', categoriesRoutes);
 app.use('/api/products', productsRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/production', productionRoutes);
 
 // API Info endpoint
 app.get('/api', (req, res) => {
@@ -62,7 +64,8 @@ app.get('/api', (req, res) => {
       catalog: '/api/catalog',
       stock: '/api/stock',
       orders: '/api/orders',
-      dashboard: '/api/dashboard'
+      dashboard: '/api/dashboard',
+      production: '/api/production'
     }
   });
 });

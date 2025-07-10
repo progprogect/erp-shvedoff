@@ -1,0 +1,17 @@
+/* Стили для страницы Производство */
+
+.urgent-priority-row td {
+  background-color: #fff2f0 !important;
+}
+
+.in-progress-status-row td {
+  background-color: #fff7e6 !important;
+}
+
+.urgent-priority-row:hover td {
+  background-color: #ffe1dc !important;
+}
+
+.in-progress-status-row:hover td {
+  background-color: #fff0d6 !important;
+} 
