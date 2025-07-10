@@ -41,6 +41,7 @@ export interface Product {
   currentStock: number;
   reservedStock: number;
   availableStock: number;
+  inProductionQuantity?: number;
   stockStatus?: 'critical' | 'low' | 'normal';
 }
 

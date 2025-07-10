@@ -1,10 +1,95 @@
 import express from 'express';
 import { db, schema } from '../db';
-import { eq, sql, and, or, ilike } from 'drizzle-orm';
+import { eq, sql, and, or, ilike, inArray } from 'drizzle-orm';
 import { authenticateToken, authorizeRoles, AuthRequest } from '../middleware/auth';
 import { createError } from '../middleware/errorHandler';
 
 const router = express.Router();
+
+// Helper function to calculate production quantity for products
+async function getProductionQuantities(productIds?: number[]) {
+  // Если нет productIds или пустой массив, возвращаем пустую Map
+  if (!productIds || productIds.length === 0) {
+    return new Map<number, number>();
+  }
+
+  // 1. Товары в заказах со статусом производства
+  const inProductionQuery = db
+    .select({
+      productId: schema.orderItems.productId,
+      quantity: sql<number>`SUM(${schema.orderItems.quantity})`.as('quantity')
+    })
+    .from(schema.orderItems)
+    .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
+    .where(
+      and(
+        eq(schema.orders.status, 'in_production'),
+        inArray(schema.orderItems.productId, productIds)
+      )
+    )
+    .groupBy(schema.orderItems.productId);
+
+  // 2. Недостающие товары в заказах (quantity > reservedQuantity)
+  const shortageQuery = db
+    .select({
+      productId: schema.orderItems.productId,
+      quantity: sql<number>`SUM(${schema.orderItems.quantity} - COALESCE(${schema.orderItems.reservedQuantity}, 0))`.as('quantity')
+    })
+    .from(schema.orderItems)
+    .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
+    .where(
+      and(
+        inArray(schema.orders.status, ['new', 'confirmed']),
+        sql`${schema.orderItems.quantity} > COALESCE(${schema.orderItems.reservedQuantity}, 0)`,
+        inArray(schema.orderItems.productId, productIds)
+      )
+    )
+    .groupBy(schema.orderItems.productId);
+
+  // 3. Товары в очереди производства
+  const queueQuery = db
+    .select({
+      productId: schema.productionQueue.productId,
+      quantity: sql<number>`SUM(${schema.productionQueue.quantity})`.as('quantity')
+    })
+    .from(schema.productionQueue)
+    .where(
+      and(
+        inArray(schema.productionQueue.status, ['queued', 'in_progress']),
+        inArray(schema.productionQueue.productId, productIds)
+      )
+    )
+    .groupBy(schema.productionQueue.productId);
+
+  // Выполняем все запросы параллельно
+  const [inProduction, shortage, inQueue] = await Promise.all([
+    inProductionQuery,
+    shortageQuery, 
+    queueQuery
+  ]);
+
+  // Объединяем результаты
+  const productionMap = new Map<number, number>();
+
+  // Добавляем товары в производстве
+  inProduction.forEach(item => {
+    productionMap.set(item.productId, (productionMap.get(item.productId) || 0) + item.quantity);
+  });
+
+  // Добавляем недостающие товары
+  shortage.forEach(item => {
+    if (item.quantity > 0) {
+      productionMap.set(item.productId, (productionMap.get(item.productId) || 0) + item.quantity);
+    }
+  });
+
+  // Добавляем товары в очереди
+  inQueue.forEach(item => {
+    productionMap.set(item.productId, (productionMap.get(item.productId) || 0) + item.quantity);
+  });
+
+  return productionMap;
+}
 
 // GET /api/stock - Get current stock levels
 router.get('/', authenticateToken, async (req, res, next) => {
@@ -48,18 +133,26 @@ router.get('/', authenticateToken, async (req, res, next) => {
       .where(whereClause)
       .orderBy(schema.products.name);
 
+    // Получаем количества к производству
+    const productIds = stockData.map(item => item.productId);
+    const productionQuantities = await getProductionQuantities(productIds);
+
+    // Добавляем информацию о производстве к данным об остатках
+    const stockWithProduction = stockData.map(item => ({
+      ...item,
+      inProductionQuantity: productionQuantities.get(item.productId) || 0
+    }));
+
     // Apply filters
-    let filteredData = stockData;
-    
+    let filteredData = stockWithProduction;
+
     if (status) {
-      filteredData = stockData.filter(item => {
-        const available = item.currentStock - item.reservedStock;
+      filteredData = stockWithProduction.filter(item => {
+        const available = item.availableStock;
         const norm = item.normStock || 0;
         
         switch (status) {
           case 'critical':
-            return available <= 0;
-          case 'out_of_stock':
             return available <= 0;
           case 'low':
             return available > 0 && available < norm * 0.5;
@@ -71,9 +164,27 @@ router.get('/', authenticateToken, async (req, res, next) => {
       });
     }
 
+    // Calculate status counts for summary
+    const statusCounts = {
+      total: stockWithProduction.length,
+      critical: stockWithProduction.filter(item => item.availableStock <= 0).length,
+      low: stockWithProduction.filter(item => {
+        const available = item.availableStock;
+        const norm = item.normStock || 0;
+        return available > 0 && available < norm * 0.5;
+      }).length,
+      normal: stockWithProduction.filter(item => {
+        const available = item.availableStock;
+        const norm = item.normStock || 0;
+        return available >= norm * 0.5;
+      }).length,
+      inProduction: stockWithProduction.filter(item => item.inProductionQuantity > 0).length
+    };
+
     res.json({
       success: true,
-      data: filteredData
+      data: filteredData,
+      summary: statusCounts
     });
   } catch (error) {
     next(error);

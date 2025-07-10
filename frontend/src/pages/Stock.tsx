@@ -38,8 +38,27 @@ const Stock: React.FC = () => {
     const totalAvailable = stockData.reduce((sum: number, item: StockItem) => sum + Math.max(0, item.availableStock), 0);
     const totalReserved = stockData.reduce((sum: number, item: StockItem) => sum + item.reservedStock, 0);
     const totalCurrent = stockData.reduce((sum: number, item: StockItem) => sum + item.currentStock, 0);
+    const totalInProduction = stockData.reduce((sum: number, item: StockItem) => {
+      const quantity = parseInt(item.inProductionQuantity?.toString() || '0');
+      return sum + quantity;
+    }, 0);
+    const inProductionCount = stockData.filter((item: StockItem) => {
+      const quantity = parseInt(item.inProductionQuantity?.toString() || '0');
+      return quantity > 0;
+    }).length;
 
-    return { total, outOfStock, critical, low, normal, totalAvailable, totalReserved, totalCurrent };
+    return { 
+      total, 
+      outOfStock, 
+      critical, 
+      low, 
+      normal, 
+      totalAvailable, 
+      totalReserved, 
+      totalCurrent,
+      totalInProduction,
+      inProductionCount
+    };
   }, [stockData]);
 
   const loadStockData = async () => {
@@ -147,6 +166,22 @@ const Stock: React.FC = () => {
       },
     },
     {
+      title: 'К производству',
+      dataIndex: 'inProductionQuantity',
+      key: 'inProductionQuantity',
+      align: 'center' as const,
+      render: (value: number) => {
+        const quantity = parseInt(value?.toString() || '0');
+        return quantity > 0 ? (
+          <Text strong style={{ color: '#1890ff' }}>
+            🏭 {quantity} шт
+          </Text>
+        ) : (
+          <Text type="secondary">–</Text>
+        );
+      },
+    },
+    {
       title: 'Статус',
       key: 'status',
       align: 'center' as const,
@@ -228,14 +263,14 @@ const Stock: React.FC = () => {
         <Col span={24}>
           <Card>
             <Row gutter={[16, 16]} align="middle">
-              <Col xs={24} sm={12} md={8} lg={4} xl={4}>
+              <Col xs={24} sm={12} md={6} lg={4} xl={4}>
                 <Statistic
                   title="📊 Всего позиций"
                   value={stockStats.total}
                   valueStyle={{ color: '#1890ff' }}
                 />
               </Col>
-              <Col xs={24} sm={12} md={8} lg={5} xl={5}>
+              <Col xs={24} sm={12} md={6} lg={4} xl={4}>
                 <Statistic
                   title="📦 Общий остаток"
                   value={stockStats.totalCurrent}
@@ -243,7 +278,7 @@ const Stock: React.FC = () => {
                   valueStyle={{ color: '#1890ff' }}
                 />
               </Col>
-              <Col xs={24} sm={12} md={8} lg={5} xl={5}>
+              <Col xs={24} sm={12} md={6} lg={4} xl={4}>
                 <Statistic
                   title="🔒 В резерве"
                   value={stockStats.totalReserved}
@@ -251,12 +286,27 @@ const Stock: React.FC = () => {
                   valueStyle={{ color: '#faad14' }}
                 />
               </Col>
-              <Col xs={24} sm={12} md={12} lg={6} xl={6}>
+              <Col xs={24} sm={12} md={6} lg={4} xl={4}>
                 <Statistic
                   title="✅ Доступно"
                   value={stockStats.totalAvailable}
                   suffix="шт"
                   valueStyle={{ color: '#52c41a' }}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={6} lg={4} xl={4}>
+                <Statistic
+                  title="🏭 К производству"
+                  value={stockStats.totalInProduction}
+                  suffix="шт"
+                  valueStyle={{ color: '#722ed1' }}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={6} lg={4} xl={4}>
+                <Statistic
+                  title="🏭 Позиций в производстве"
+                  value={stockStats.inProductionCount}
+                  valueStyle={{ color: '#722ed1' }}
                 />
               </Col>
             </Row>

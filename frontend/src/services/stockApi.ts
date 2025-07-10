@@ -8,6 +8,7 @@ export interface StockItem {
   currentStock: number;
   reservedStock: number;
   availableStock: number;
+  inProductionQuantity: number;
   updatedAt: string;
   productName: string;
   productArticle: string;

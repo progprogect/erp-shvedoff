@@ -1,10 +1,62 @@
 import express from 'express';
 import { db, schema } from '../db';
-import { eq, like, and, desc, sql, ilike } from 'drizzle-orm';
+import { eq, like, and, desc, sql, ilike, inArray } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 
 const router = express.Router();
+
+// Helper function to calculate production quantity for a single product
+async function getProductionQuantity(productId: number): Promise<number> {
+  // 1. Товары в заказах со статусом производства
+  const inProductionResult = await db
+    .select({
+      quantity: sql<number>`SUM(${schema.orderItems.quantity})`.as('quantity')
+    })
+    .from(schema.orderItems)
+    .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
+    .where(
+      and(
+        eq(schema.orders.status, 'in_production'),
+        eq(schema.orderItems.productId, productId)
+      )
+    );
+
+  // 2. Недостающие товары в заказах (quantity > reservedQuantity)
+  const shortageResult = await db
+    .select({
+      quantity: sql<number>`SUM(${schema.orderItems.quantity} - COALESCE(${schema.orderItems.reservedQuantity}, 0))`.as('quantity')
+    })
+    .from(schema.orderItems)
+    .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
+    .where(
+      and(
+        inArray(schema.orders.status, ['new', 'confirmed']),
+        sql`${schema.orderItems.quantity} > COALESCE(${schema.orderItems.reservedQuantity}, 0)`,
+        eq(schema.orderItems.productId, productId)
+      )
+    );
+
+  // 3. Товары в очереди производства
+  const queueResult = await db
+    .select({
+      quantity: sql<number>`SUM(${schema.productionQueue.quantity})`.as('quantity')
+    })
+    .from(schema.productionQueue)
+    .where(
+      and(
+        inArray(schema.productionQueue.status, ['queued', 'in_progress']),
+        eq(schema.productionQueue.productId, productId)
+      )
+    );
+
+  // Суммируем все количества
+  const inProduction = inProductionResult[0]?.quantity || 0;
+  const shortage = Math.max(0, shortageResult[0]?.quantity || 0);
+  const inQueue = queueResult[0]?.quantity || 0;
+
+  return inProduction + shortage + inQueue;
+}
 
 // GET /api/products - получить все товары с фильтрацией и поиском
 router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
@@ -187,9 +239,13 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
       return next(createError('Товар не найден', 404));
     }
 
+    // Получаем количество к производству
+    const inProductionQuantity = await getProductionQuantity(product.id);
+
     const productWithStock = {
       ...product,
       availableStock: (product.currentStock as number) - (product.reservedStock as number),
+      inProductionQuantity,
       stockStatus: getStockStatus(
         (product.currentStock as number) - (product.reservedStock as number),
         product.normStock || 0

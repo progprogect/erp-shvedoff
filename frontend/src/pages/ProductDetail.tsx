@@ -384,17 +384,29 @@ const ProductDetail: React.FC = () => {
                   
                   <Divider style={{ margin: '16px 0' }} />
                   
-                  <Row>
-                    <Col span={24}>
+                  <Row gutter={16}>
+                    <Col span={12}>
                       <Statistic
                         title="Доступно к продаже"
                         value={available}
                         suffix="шт"
                         valueStyle={{ 
-                          fontSize: 24, 
+                          fontSize: 20, 
                           color: available > 0 ? '#52c41a' : '#ff4d4f',
                           fontWeight: 'bold'
                         }}
+                      />
+                    </Col>
+                    <Col span={12}>
+                      <Statistic
+                        title="К производству"
+                        value={product.inProductionQuantity || 0}
+                        suffix="шт"
+                        valueStyle={{ 
+                          fontSize: 20,
+                          color: '#1890ff'
+                        }}
+                        prefix="🏭"
                       />
                     </Col>
                   </Row>
