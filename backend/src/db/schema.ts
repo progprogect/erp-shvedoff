@@ -243,7 +243,7 @@ export const categoriesRelations = relations(categories, ({ one, many }) => ({
 
 export const productsRelations = relations(products, ({ one, many }) => ({
   category: one(categories, { fields: [products.categoryId], references: [categories.id] }),
-  stock: one(stock),
+  stock: one(stock, { fields: [products.id], references: [stock.productId] }),
   orderItems: many(orderItems),
   stockMovements: many(stockMovements),
   productionQueue: many(productionQueue)
@@ -251,8 +251,8 @@ export const productsRelations = relations(products, ({ one, many }) => ({
 
 export const ordersRelations = relations(orders, ({ one, many }) => ({
   manager: one(users, { fields: [orders.managerId], references: [users.id] }),
-  items: many(orderItems),
-  messages: many(orderMessages),
+  items: many(orderItems, { relationName: 'orderItems' }),
+  messages: many(orderMessages, { relationName: 'orderMessages' }),
   shipments: many(shipments)
 }));
 
@@ -263,4 +263,14 @@ export const stockRelations = relations(stock, ({ one }) => ({
 export const stockMovementsRelations = relations(stockMovements, ({ one }) => ({
   product: one(products, { fields: [stockMovements.productId], references: [products.id] }),
   user: one(users, { fields: [stockMovements.userId], references: [users.id] })
+}));
+
+export const orderItemsRelations = relations(orderItems, ({ one }) => ({
+  order: one(orders, { fields: [orderItems.orderId], references: [orders.id], relationName: 'orderItems' }),
+  product: one(products, { fields: [orderItems.productId], references: [products.id] })
+}));
+
+export const orderMessagesRelations = relations(orderMessages, ({ one }) => ({
+  order: one(orders, { fields: [orderMessages.orderId], references: [orders.id], relationName: 'orderMessages' }),
+  user: one(users, { fields: [orderMessages.userId], references: [users.id] })
 })); 

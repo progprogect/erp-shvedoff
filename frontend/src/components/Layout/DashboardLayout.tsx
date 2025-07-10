@@ -188,12 +188,18 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                   style={{ backgroundColor: '#1890ff' }} 
                   icon={<UserOutlined />} 
                 />
-                <Space direction="vertical" size={0} style={{ textAlign: 'right' }}>
-                  <Text strong>{user?.fullName || user?.username}</Text>
-                  <Text type="secondary" style={{ fontSize: '12px' }}>
-                    {user?.role && getRoleDisplayName(user.role)}
-                  </Text>
-                </Space>
+                <div style={{ textAlign: 'right', lineHeight: '1.3' }}>
+                  <div>
+                    <Text strong style={{ display: 'block' }}>
+                      {user?.fullName || user?.username}
+                    </Text>
+                  </div>
+                  <div>
+                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                      {user?.role && getRoleDisplayName(user.role)}
+                    </Text>
+                  </div>
+                </div>
               </Space>
             </Dropdown>
           </Space>

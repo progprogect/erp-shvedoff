@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Table, Typography, Tag, Space, Spin, message, Row, Col, Statistic } from 'antd';
-import { HistoryOutlined } from '@ant-design/icons';
+import { Modal, Table, Typography, Tag, Space, Spin, message, Row, Col, Statistic, Button } from 'antd';
+import { HistoryOutlined, LinkOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import { StockItem, StockMovement, stockApi } from '../services/stockApi';
 import { useAuthStore } from '../stores/authStore';
 
@@ -20,6 +21,7 @@ const StockHistoryModal: React.FC<StockHistoryModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const { token } = useAuthStore();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (visible && stockItem && token) {
@@ -123,6 +125,25 @@ const StockHistoryModal: React.FC<StockHistoryModalProps> = ({
             'adjustment': 'Корректировка'
           };
           const refText = refTypes[record.referenceType] || record.referenceType;
+          
+          // Если это заказ, делаем кликабельную ссылку
+          if (record.referenceType === 'order') {
+            return (
+              <Button
+                type="link"
+                size="small"
+                icon={<LinkOutlined />}
+                onClick={() => {
+                  navigate(`/orders/${record.referenceId}`);
+                  onClose(); // Закрываем модальное окно после перехода
+                }}
+                style={{ padding: 0, height: 'auto' }}
+              >
+                {refText} #{record.referenceId}
+              </Button>
+            );
+          }
+          
           return (
             <Text>
               {refText} #{record.referenceId}

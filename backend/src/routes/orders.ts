@@ -242,6 +242,203 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
   }
 });
 
+// PUT /api/orders/:id - Update order
+router.put('/:id', authenticateToken, authorizeRoles('manager', 'director'), async (req: AuthRequest, res, next) => {
+  try {
+    const orderId = Number(req.params.id);
+    const { 
+      customerName, 
+      customerContact, 
+      deliveryDate, 
+      priority, 
+      notes,
+      items 
+    } = req.body;
+    const userId = req.user!.id;
+    const userRole = req.user!.role;
+
+    // Check if order exists and user has access
+    let whereCondition;
+    if (userRole === 'manager') {
+      whereCondition = and(
+        eq(schema.orders.id, orderId),
+        eq(schema.orders.managerId, userId)
+      );
+    } else {
+      whereCondition = eq(schema.orders.id, orderId);
+    }
+
+    const existingOrder = await db.query.orders.findFirst({
+      where: whereCondition,
+      with: {
+        items: true
+      }
+    });
+
+    if (!existingOrder) {
+      return next(createError('Order not found', 404));
+    }
+
+    // Check if order can be edited
+    const nonEditableStatuses = ['shipped', 'delivered', 'cancelled'];
+    if (existingOrder.status && nonEditableStatuses.includes(existingOrder.status)) {
+      return next(createError('Order cannot be edited in current status', 400));
+    }
+
+    // Calculate new total amount
+    let totalAmount = 0;
+    if (items && Array.isArray(items)) {
+      for (const item of items) {
+        if (item.price && item.quantity) {
+          totalAmount += Number(item.price) * Number(item.quantity);
+        }
+      }
+    }
+
+    // Update order
+    const updateData: any = {
+      updatedAt: new Date()
+    };
+
+    if (customerName) updateData.customerName = customerName;
+    if (customerContact !== undefined) updateData.customerContact = customerContact || '';
+    if (deliveryDate) updateData.deliveryDate = new Date(deliveryDate);
+    if (priority) updateData.priority = priority;
+    if (notes !== undefined) updateData.notes = notes || '';
+    if (totalAmount > 0) updateData.totalAmount = totalAmount.toString();
+
+    const updatedOrder = await db.update(schema.orders)
+      .set(updateData)
+      .where(eq(schema.orders.id, orderId))
+      .returning();
+
+    // Update order items if provided
+    if (items && Array.isArray(items)) {
+      // Remove existing items and their reservations
+      const existingItems = existingOrder.items || [];
+      
+      for (const existingItem of existingItems) {
+        // Release reservations
+        const reservedQty = existingItem.reservedQuantity || 0;
+        if (reservedQty > 0) {
+          await db.update(schema.stock)
+            .set({
+              reservedStock: sql`${schema.stock.reservedStock} - ${reservedQty}`,
+              updatedAt: new Date()
+            })
+            .where(eq(schema.stock.productId, existingItem.productId));
+
+          // Log reservation release
+          await db.insert(schema.stockMovements).values({
+            productId: existingItem.productId,
+            movementType: 'release_reservation',
+            quantity: -reservedQty,
+            referenceId: orderId,
+            referenceType: 'order',
+            userId
+          });
+        }
+      }
+
+      // Delete existing items
+      await db.delete(schema.orderItems)
+        .where(eq(schema.orderItems.orderId, orderId));
+
+      // Create new items and reserve stock
+      for (const item of items) {
+        // Create order item
+        const newOrderItem = await db.insert(schema.orderItems).values({
+          orderId,
+          productId: item.productId,
+          quantity: item.quantity,
+          price: item.price.toString()
+        }).returning();
+
+        // Check stock availability and reserve
+        const stock = await db.query.stock.findFirst({
+          where: eq(schema.stock.productId, item.productId)
+        });
+
+        if (stock) {
+          const availableStock = stock.currentStock - stock.reservedStock;
+          const quantityToReserve = Math.min(availableStock, item.quantity);
+
+          if (quantityToReserve > 0) {
+            // Reserve available stock
+            await db.update(schema.stock)
+              .set({
+                reservedStock: stock.reservedStock + quantityToReserve,
+                updatedAt: new Date()
+              })
+              .where(eq(schema.stock.productId, item.productId));
+
+            // Update order item with reserved quantity
+            await db.update(schema.orderItems)
+              .set({ reservedQuantity: quantityToReserve })
+              .where(eq(schema.orderItems.id, newOrderItem[0].id));
+
+            // Log stock movement
+            await db.insert(schema.stockMovements).values({
+              productId: item.productId,
+              movementType: 'reservation',
+              quantity: quantityToReserve,
+              referenceId: orderId,
+              referenceType: 'order',
+              userId
+            });
+          }
+        }
+      }
+    }
+
+    // Add message about order update
+    await db.insert(schema.orderMessages).values({
+      orderId,
+      userId,
+      message: 'Заказ был отредактирован'
+    });
+
+    // Get complete updated order
+    const completeOrder = await db.query.orders.findFirst({
+      where: eq(schema.orders.id, orderId),
+      with: {
+        manager: {
+          columns: {
+            passwordHash: false
+          }
+        },
+        items: {
+          with: {
+            product: {
+              with: {
+                stock: true,
+                category: true
+              }
+            }
+          }
+        },
+        messages: {
+          with: {
+            user: {
+              columns: {
+                passwordHash: false
+              }
+            }
+          },
+          orderBy: sql`${schema.orderMessages.createdAt} ASC`
+        }
+      }
+    });
+
+    res.json({
+      success: true,
+      data: completeOrder
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // PUT /api/orders/:id/status - Update order status
 router.put('/:id/status', authenticateToken, async (req: AuthRequest, res, next) => {
   try {
