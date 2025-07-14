@@ -18,6 +18,9 @@ export interface Product {
   name: string;
   article?: string;
   categoryId: number;
+  surfaceId?: number;
+  logoId?: number;
+  materialId?: number;
   dimensions?: {
     length: number;
     width: number;
@@ -29,7 +32,6 @@ export interface Product {
   };
   tags?: string[];
   price?: number;
-  costPrice?: number;
   normStock: number;
   notes?: string;
   photos?: string[];
@@ -38,6 +40,9 @@ export interface Product {
   updatedAt: string;
   categoryName?: string;
   categoryPath?: string;
+  surfaceName?: string;
+  logoName?: string;
+  materialName?: string;
   currentStock: number;
   reservedStock: number;
   availableStock: number;
@@ -66,6 +71,24 @@ export interface ApiResponse<T> {
     limit: number;
     total: number;
     pages: number;
+  };
+}
+
+export interface CategoryDeleteOptions {
+  productAction: 'delete' | 'move';
+  targetCategoryId?: number;
+  childAction?: 'delete' | 'move' | 'promote';
+  targetParentId?: number;
+}
+
+export interface CategoryDeleteResult {
+  success: boolean;
+  message: string;
+  details: {
+    productsProcessed: number;
+    productAction: string;
+    childCategoriesProcessed: number;
+    childAction?: string;
   };
 }
 
@@ -157,6 +180,23 @@ class CatalogApi {
 
   async deleteCategory(id: number, token: string): Promise<ApiResponse<void>> {
     const response = await axios.delete(
+      `${API_BASE_URL}/categories/${id}`,
+      this.getAuthHeaders(token)
+    );
+    return response.data;
+  }
+
+  async deleteCategoryWithAction(id: number, options: CategoryDeleteOptions, token: string): Promise<CategoryDeleteResult> {
+    const response = await axios.post(
+      `${API_BASE_URL}/categories/${id}/delete-with-action`,
+      options,
+      this.getAuthHeaders(token)
+    );
+    return response.data;
+  }
+
+  async getCategoryDetails(id: number, token: string): Promise<ApiResponse<Category & { productsCount: number }>> {
+    const response = await axios.get(
       `${API_BASE_URL}/categories/${id}`,
       this.getAuthHeaders(token)
     );

@@ -31,7 +31,7 @@ async function getProductionQuantity(productId: number): Promise<number> {
     .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
     .where(
       and(
-        inArray(schema.orders.status, ['new', 'confirmed']),
+        inArray(schema.orders.status, ['new', 'confirmed', 'in_production']),
         sql`${schema.orderItems.quantity} > COALESCE(${schema.orderItems.reservedQuantity}, 0)`,
         eq(schema.orderItems.productId, productId)
       )
@@ -98,6 +98,8 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
       name: schema.products.name,
       article: schema.products.article,
       categoryId: schema.products.categoryId,
+      surfaceId: schema.products.surfaceId,
+      logoId: schema.products.logoId,
       dimensions: schema.products.dimensions,
       characteristics: schema.products.characteristics,
       price: schema.products.price,
@@ -110,11 +112,17 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
       updatedAt: schema.products.updatedAt,
       categoryName: schema.categories.name,
       categoryPath: schema.categories.path,
+      surfaceName: schema.productSurfaces.name,
+      logoName: schema.productLogos.name,
+      materialName: schema.productMaterials.name,
       currentStock: sql`COALESCE(${schema.stock.currentStock}, 0)`,
       reservedStock: sql`COALESCE(${schema.stock.reservedStock}, 0)`,
     })
     .from(schema.products)
     .leftJoin(schema.categories, eq(schema.products.categoryId, schema.categories.id))
+    .leftJoin(schema.productSurfaces, eq(schema.products.surfaceId, schema.productSurfaces.id))
+    .leftJoin(schema.productLogos, eq(schema.products.logoId, schema.productLogos.id))
+    .leftJoin(schema.productMaterials, eq(schema.products.materialId, schema.productMaterials.id))
     .leftJoin(schema.stock, eq(schema.products.id, schema.stock.productId))
     .where(whereClause)
     .limit(parseInt(limit as string))
@@ -214,6 +222,8 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
       name: schema.products.name,
       article: schema.products.article,
       categoryId: schema.products.categoryId,
+      surfaceId: schema.products.surfaceId,
+      logoId: schema.products.logoId,
       dimensions: schema.products.dimensions,
       characteristics: schema.products.characteristics,
       tags: schema.products.tags,
@@ -227,11 +237,17 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
       updatedAt: schema.products.updatedAt,
       categoryName: schema.categories.name,
       categoryPath: schema.categories.path,
+      surfaceName: schema.productSurfaces.name,
+      logoName: schema.productLogos.name,
+      materialName: schema.productMaterials.name,
       currentStock: sql`COALESCE(${schema.stock.currentStock}, 0)`,
       reservedStock: sql`COALESCE(${schema.stock.reservedStock}, 0)`,
     })
     .from(schema.products)
     .leftJoin(schema.categories, eq(schema.products.categoryId, schema.categories.id))
+    .leftJoin(schema.productSurfaces, eq(schema.products.surfaceId, schema.productSurfaces.id))
+    .leftJoin(schema.productLogos, eq(schema.products.logoId, schema.productLogos.id))
+    .leftJoin(schema.productMaterials, eq(schema.products.materialId, schema.productMaterials.id))
     .leftJoin(schema.stock, eq(schema.products.id, schema.stock.productId))
     .where(eq(schema.products.id, parseInt(id)));
 
@@ -268,6 +284,9 @@ router.post('/', authenticateToken, async (req: AuthRequest, res, next) => {
       name,
       article,
       categoryId,
+      surfaceId,
+      logoId,
+      materialId,
       dimensions,
       characteristics,
       tags,
@@ -302,6 +321,39 @@ router.post('/', authenticateToken, async (req: AuthRequest, res, next) => {
       return next(createError('Категория не найдена', 400));
     }
 
+    // Проверяем существование поверхности (если указана)
+    if (surfaceId) {
+      const surface = await db.query.productSurfaces.findFirst({
+        where: eq(schema.productSurfaces.id, surfaceId)
+      });
+
+      if (!surface) {
+        return next(createError('Поверхность не найдена', 400));
+      }
+    }
+
+    // Проверяем существование логотипа (если указан)
+    if (logoId) {
+      const logo = await db.query.productLogos.findFirst({
+        where: eq(schema.productLogos.id, logoId)
+      });
+
+      if (!logo) {
+        return next(createError('Логотип не найден', 400));
+      }
+    }
+
+    // Проверяем существование материала (если указан)
+    if (materialId) {
+      const material = await db.query.productMaterials.findFirst({
+        where: eq(schema.productMaterials.id, materialId)
+      });
+
+      if (!material) {
+        return next(createError('Материал не найден', 400));
+      }
+    }
+
     // Проверяем уникальность артикула (если указан)
     if (article) {
       const existingProduct = await db.query.products.findFirst({
@@ -318,6 +370,9 @@ router.post('/', authenticateToken, async (req: AuthRequest, res, next) => {
       name: name.trim(),
       article: article?.trim() || null,
       categoryId,
+      surfaceId: surfaceId || null,
+      logoId: logoId || null,
+      materialId: materialId || null,
       dimensions: dimensions || null,
       characteristics: characteristics || null,
       tags: tags || null,
@@ -367,6 +422,9 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
       name,
       article,
       categoryId,
+      surfaceId,
+      logoId,
+      materialId,
       dimensions,
       characteristics,
       tags,
@@ -398,12 +456,48 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
       return next(createError('Название товара должно содержать минимум 2 символа', 400));
     }
 
+    // Проверяем существование поверхности (если указана)
+    if (surfaceId) {
+      const surface = await db.query.productSurfaces.findFirst({
+        where: eq(schema.productSurfaces.id, surfaceId)
+      });
+
+      if (!surface) {
+        return next(createError('Поверхность не найдена', 400));
+      }
+    }
+
+    // Проверяем существование логотипа (если указан)
+    if (logoId) {
+      const logo = await db.query.productLogos.findFirst({
+        where: eq(schema.productLogos.id, logoId)
+      });
+
+      if (!logo) {
+        return next(createError('Логотип не найден', 400));
+      }
+    }
+
+    // Проверяем существование материала (если указан)
+    if (materialId) {
+      const material = await db.query.productMaterials.findFirst({
+        where: eq(schema.productMaterials.id, materialId)
+      });
+
+      if (!material) {
+        return next(createError('Материал не найден', 400));
+      }
+    }
+
     // Обновляем товар
     const [updatedProduct] = await db.update(schema.products)
       .set({
         name: name.trim(),
         article: article?.trim() || null,
         categoryId: categoryId || currentProduct.categoryId,
+        surfaceId: surfaceId !== undefined ? surfaceId : currentProduct.surfaceId,
+        logoId: logoId !== undefined ? logoId : currentProduct.logoId,
+        materialId: materialId !== undefined ? materialId : currentProduct.materialId,
         dimensions: dimensions || null,
         characteristics: characteristics || null,
         tags: tags || null,

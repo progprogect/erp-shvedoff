@@ -7,61 +7,120 @@ const seedUsers = async () => {
   const users = [
     {
       username: 'director',
-      password: '123456',
+      passwordHash: await bcrypt.hash('123456', 10),
       role: 'director' as const,
-      fullName: 'Иванов Иван Иванович',
-      phone: '+7 (999) 123-45-67',
+      fullName: 'Директор по продажам',
+      phone: '+7-999-123-45-67',
       email: 'director@shvedoff.ru'
     },
     {
       username: 'manager1',
-      password: '123456',
+      passwordHash: await bcrypt.hash('123456', 10),
       role: 'manager' as const,
-      fullName: 'Петров Петр Петрович',
-      phone: '+7 (999) 234-56-78',
+      fullName: 'Менеджер по продажам #1',
+      phone: '+7-999-123-45-68',
       email: 'manager1@shvedoff.ru'
     },
     {
-      username: 'manager2',
-      password: '123456',
-      role: 'manager' as const,
-      fullName: 'Сидоров Сидор Сидорович',
-      phone: '+7 (999) 345-67-89',
-      email: 'manager2@shvedoff.ru'
-    },
-    {
       username: 'production1',
-      password: '123456',
+      passwordHash: await bcrypt.hash('123456', 10),
       role: 'production' as const,
-      fullName: 'Козлов Александр Николаевич',
-      phone: '+7 (999) 456-78-90',
+      fullName: 'Сотрудник производства #1',
+      phone: '+7-999-123-45-69',
       email: 'production1@shvedoff.ru'
     },
     {
       username: 'warehouse1',
-      password: '123456',
+      passwordHash: await bcrypt.hash('123456', 10),
       role: 'warehouse' as const,
-      fullName: 'Федоров Федор Федорович',
-      phone: '+7 (999) 567-89-01',
+      fullName: 'Сотрудник склада/Охрана #1',
+      phone: '+7-999-123-45-70',
       email: 'warehouse1@shvedoff.ru'
     }
   ];
 
-  for (const user of users) {
-    const passwordHash = await bcrypt.hash(user.password, 10);
-    
-    await db.insert(schema.users).values({
-      username: user.username,
-      passwordHash,
-      role: user.role,
-      fullName: user.fullName,
-      phone: user.phone,
-      email: user.email,
-      isActive: true
-    }).onConflictDoNothing();
-  }
-
+  await db.insert(schema.users).values(users).onConflictDoNothing();
   console.log('✅ Users seeded successfully');
+};
+
+const seedSurfaces = async () => {
+  console.log('🌱 Seeding product surfaces...');
+  
+  const surfaces = [
+    {
+      name: 'Чешуйки',
+      description: 'Поверхность с рисунком в виде чешуек',
+      isSystem: true
+    },
+    {
+      name: 'Черточки',
+      description: 'Поверхность с рисунком в виде черточек',
+      isSystem: true
+    },
+    {
+      name: 'Одна коровка',
+      description: 'Поверхность с одним логотипом коровки',
+      isSystem: true
+    },
+    {
+      name: 'Три коровки',
+      description: 'Поверхность с тремя логотипами коровок',
+      isSystem: true
+    },
+    {
+      name: 'Лого',
+      description: 'Поверхность с логотипом (требует указания конкретного логотипа)',
+      isSystem: true
+    }
+  ];
+
+  await db.insert(schema.productSurfaces).values(surfaces).onConflictDoNothing();
+  console.log('✅ Product surfaces seeded successfully');
+};
+
+const seedLogos = async () => {
+  console.log('🌱 Seeding product logos...');
+  
+  const logos = [
+    {
+      name: 'Велес',
+      description: 'Логотип бренда Велес',
+      isSystem: true
+    },
+    {
+      name: 'Геа',
+      description: 'Логотип бренда Геа',
+      isSystem: true
+    },
+    {
+      name: 'Агротек',
+      description: 'Логотип бренда Агротек',
+      isSystem: true
+    }
+  ];
+
+  await db.insert(schema.productLogos).values(logos).onConflictDoNothing();
+  console.log('✅ Product logos seeded successfully');
+};
+
+const seedMaterials = async () => {
+  console.log('🌱 Seeding product materials...');
+  
+  const materials = [
+    {
+      name: 'Протектор',
+      description: 'Материал протектор для резиновых изделий',
+      isSystem: true
+    },
+    {
+      name: 'Дробленка',
+      description: 'Материал дробленка для резиновых изделий',
+      isSystem: true
+    }
+  ];
+
+  await db.insert(schema.productMaterials).values(materials).onConflictDoNothing();
+  console.log('✅ Product materials seeded successfully');
 };
 
 const seedCategories = async () => {
@@ -173,6 +232,9 @@ const main = async () => {
     console.log('🚀 Starting database seeding...');
     
     await seedUsers();
+    await seedSurfaces();
+    await seedLogos();
+    await seedMaterials();
     await seedCategories(); 
     await seedProducts();
     

@@ -225,8 +225,9 @@ router.put('/queue/:id/status', authenticateToken, authorizeRoles('production', 
 router.post('/auto-queue', authenticateToken, authorizeRoles('production', 'director'), async (req: AuthRequest, res, next) => {
   try {
     // Find orders with items that don't have enough stock
+    // Ищем заказы в статусах: new, confirmed, in_production - все которые могут требовать производства
     const ordersNeedingProduction = await db.query.orders.findMany({
-      where: eq(schema.orders.status, 'confirmed'),
+      where: sql`${schema.orders.status} IN ('new', 'confirmed', 'in_production')`,
       with: {
         items: {
           with: {

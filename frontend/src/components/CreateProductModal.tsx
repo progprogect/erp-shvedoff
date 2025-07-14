@@ -43,7 +43,6 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
           material: values.material || null
         },
         price: values.price ? parseFloat(values.price) : undefined,
-        costPrice: values.costPrice ? parseFloat(values.costPrice) : undefined,
         normStock: values.normStock || 0,
         notes: values.notes || null
       };
@@ -267,19 +266,6 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
             >
               <InputNumber 
                 placeholder="15000"
-                style={{ width: '100%' }}
-                min={0}
-                precision={2}
-              />
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item
-              name="costPrice"
-              label="Себестоимость (₽)"
-            >
-              <InputNumber 
-                placeholder="12000"
                 style={{ width: '100%' }}
                 min={0}
                 precision={2}

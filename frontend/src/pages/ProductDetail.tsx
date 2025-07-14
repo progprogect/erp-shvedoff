@@ -85,7 +85,6 @@ const ProductDetail: React.FC = () => {
       surface: product.characteristics?.surface,
       material: product.characteristics?.material,
       price: product.price,
-      costPrice: product.costPrice,
       normStock: product.normStock,
       notes: product.notes
     });
@@ -112,7 +111,6 @@ const ProductDetail: React.FC = () => {
           material: values.material
         },
         price: values.price,
-        costPrice: values.costPrice,
         normStock: values.normStock,
         notes: values.notes
       };
@@ -134,6 +132,7 @@ const ProductDetail: React.FC = () => {
 
   // Получение статуса остатков
   const getStockStatus = (available: number, norm: number) => {
+    if (available < 0) return { status: 'negative', color: 'red', text: 'Перезаказ' };
     if (available <= 0) return { status: 'critical', color: 'red', text: 'Закончился' };
     if (available < norm * 0.5) return { status: 'low', color: 'orange', text: 'Мало' };
     return { status: 'normal', color: 'green', text: 'В наличии' };
@@ -336,11 +335,6 @@ const ProductDetail: React.FC = () => {
                     <Text strong style={{ fontSize: 16, color: '#1890ff' }}>
                       {product.price ? `${product.price.toLocaleString()}₽` : 'Не указана'}
                     </Text>
-                    {product.costPrice && (
-                      <Text type="secondary" style={{ marginLeft: 16 }}>
-                        Себестоимость: {product.costPrice.toLocaleString()}₽
-                      </Text>
-                    )}
                   </Descriptions.Item>
                 </Descriptions>
 
@@ -392,10 +386,16 @@ const ProductDetail: React.FC = () => {
                         suffix="шт"
                         valueStyle={{ 
                           fontSize: 20, 
-                          color: available > 0 ? '#52c41a' : '#ff4d4f',
+                          color: available < 0 ? '#ff4d4f' : available > 0 ? '#52c41a' : '#faad14',
                           fontWeight: 'bold'
                         }}
+                        prefix={available < 0 ? '⚠️' : available > 0 ? '✅' : '⚡'}
                       />
+                      {available < 0 && (
+                        <Text type="danger" style={{ fontSize: '12px', display: 'block', marginTop: 4 }}>
+                          Требуется к производству: {Math.abs(available)} шт
+                        </Text>
+                      )}
                     </Col>
                     <Col span={12}>
                       <Statistic
@@ -559,15 +559,6 @@ const ProductDetail: React.FC = () => {
           <Row gutter={16}>
             <Col span={8}>
               <Form.Item name="price" label="Цена продажи (₽)">
-                <InputNumber 
-                  style={{ width: '100%' }} 
-                  min={0}
-                  formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item name="costPrice" label="Себестоимость (₽)">
                 <InputNumber 
                   style={{ width: '100%' }} 
                   min={0}

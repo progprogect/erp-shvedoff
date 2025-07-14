@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Form, InputNumber, Input, Button, Space, Typography, message, Row, Col, Statistic } from 'antd';
-import { ExclamationCircleOutlined, PlusOutlined, MinusOutlined } from '@ant-design/icons';
+import { Modal, Form, InputNumber, Input, Button, Space, Typography, Row, Col, Statistic, App, Checkbox, Card } from 'antd';
+import { ExclamationCircleOutlined, PlusOutlined, MinusOutlined, AppstoreAddOutlined } from '@ant-design/icons';
 import { StockItem, stockApi } from '../services/stockApi';
 import { useAuthStore } from '../stores/authStore';
 
@@ -24,13 +24,20 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [adjustmentType, setAdjustmentType] = useState<'add' | 'subtract' | 'set'>('add');
   const [quantity, setQuantity] = useState<number>(0);
+  const [showProductionOptions, setShowProductionOptions] = useState(false);
+  const [productionAction, setProductionAction] = useState<'none' | 'add' | 'remove'>('none');
+  const [productionQuantity, setProductionQuantity] = useState<number>(0);
   const { token } = useAuthStore();
+  const { message } = App.useApp();
 
   useEffect(() => {
     if (visible && stockItem) {
       form.resetFields();
       setQuantity(0);
       setAdjustmentType('add');
+      setShowProductionOptions(false);
+      setProductionAction('none');
+      setProductionQuantity(0);
     }
   }, [visible, stockItem, form]);
 
@@ -80,16 +87,35 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
       return;
     }
 
+    // Проверка производственных действий
+    if (showProductionOptions && productionAction !== 'none') {
+      if (productionQuantity <= 0) {
+        message.warning('Укажите количество для изменения производственной очереди');
+        return;
+      }
+      
+      if (productionAction === 'remove' && productionQuantity > (stockItem.inProductionQuantity || 0)) {
+        message.error(`Нельзя убрать больше чем в производстве (${stockItem.inProductionQuantity || 0} шт)`);
+        return;
+      }
+    }
+
     setLoading(true);
     try {
-      const response = await stockApi.adjustStock({
+      const requestData = {
         productId: stockItem.productId,
-        quantity: adjustmentAmount,
-        comment: values.comment || 'Ручная корректировка'
-      }, token);
+        adjustment: adjustmentAmount,
+        comment: values.comment || 'Ручная корректировка',
+        ...(showProductionOptions && productionAction !== 'none' ? {
+          productionAction,
+          productionQuantity
+        } : {})
+      };
+
+      const response = await stockApi.adjustStock(requestData, token);
 
       if (response.success) {
-        message.success(`Остаток успешно скорректирован. Новый остаток: ${response.data.newStock} шт`);
+        message.success(`Остаток успешно скорректирован. ${response.message}`);
         onSuccess();
         onClose();
       } else {
@@ -235,6 +261,80 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
             )}
           </div>
         )}
+
+        {/* Управление производством */}
+        <Card 
+          size="small" 
+          title={
+            <div>
+              <AppstoreAddOutlined style={{ marginRight: 8 }} />
+              Производственная очередь
+            </div>
+          }
+          style={{ marginBottom: 16 }}
+        >
+          <div style={{ marginBottom: 12 }}>
+            <Text type="secondary">
+              Текущее количество в производстве: <Text strong>{stockItem.inProductionQuantity || 0} шт</Text>
+            </Text>
+          </div>
+          
+          <Checkbox 
+            checked={showProductionOptions}
+            onChange={(e) => setShowProductionOptions(e.target.checked)}
+          >
+            Изменить задания на производство
+          </Checkbox>
+
+          {showProductionOptions && (
+            <div style={{ marginTop: 12, padding: 12, backgroundColor: '#f9f9f9', borderRadius: 6 }}>
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <div>
+                  <Text strong>Действие с производственной очередью:</Text>
+                </div>
+                
+                <Space>
+                  <Button
+                    size="small"
+                    type={productionAction === 'add' ? 'primary' : 'default'}
+                    icon={<PlusOutlined />}
+                    onClick={() => setProductionAction('add')}
+                  >
+                    Добавить
+                  </Button>
+                  <Button
+                    size="small"
+                    type={productionAction === 'remove' ? 'primary' : 'default'}
+                    icon={<MinusOutlined />}
+                    onClick={() => setProductionAction('remove')}
+                  >
+                    Убрать
+                  </Button>
+                  <Button
+                    size="small"
+                    type={productionAction === 'none' ? 'primary' : 'default'}
+                    onClick={() => setProductionAction('none')}
+                  >
+                    Не изменять
+                  </Button>
+                </Space>
+
+                {productionAction !== 'none' && (
+                  <InputNumber
+                    value={productionQuantity}
+                    onChange={(value) => setProductionQuantity(value || 0)}
+                    style={{ width: '100%' }}
+                    min={1}
+                    max={productionAction === 'remove' ? stockItem.inProductionQuantity : undefined}
+                    precision={0}
+                    placeholder={`Количество для ${productionAction === 'add' ? 'добавления' : 'удаления'}`}
+                    addonAfter="шт"
+                  />
+                )}
+              </Space>
+            </div>
+          )}
+        </Card>
 
         {/* Комментарий */}
         <Form.Item

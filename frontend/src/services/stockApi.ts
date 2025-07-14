@@ -32,14 +32,14 @@ export interface StockMovement {
 }
 
 export interface StockFilters {
-  status?: 'all' | 'critical' | 'low' | 'normal' | 'out_of_stock' | 'in_production';
-  categoryId?: number;
+  status?: 'all' | 'critical' | 'low' | 'normal' | 'out_of_stock' | 'in_production' | 'negative';
   search?: string;
+  categoryId?: number;
 }
 
 export interface StockAdjustment {
   productId: number;
-  quantity: number;
+  adjustment: number;
   comment: string;
 }
 

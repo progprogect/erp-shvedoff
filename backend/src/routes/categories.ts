@@ -287,4 +287,206 @@ router.delete('/:id', authenticateToken, async (req: AuthRequest, res, next) => 
   }
 });
 
+// POST /api/categories/:id/delete-with-action - удалить категорию с выбором действий
+router.post('/:id/delete-with-action', authenticateToken, async (req: AuthRequest, res, next) => {
+  try {
+    const { id } = req.params;
+    const { 
+      productAction,    // 'delete' | 'move'
+      targetCategoryId, // ID категории для переноса товаров
+      childAction,      // 'delete' | 'move' | 'promote'
+      targetParentId    // ID родительской категории для дочерних (если childAction === 'move')
+    } = req.body;
+    const userId = req.user!.id;
+
+    // Проверка прав доступа
+    if (req.user!.role !== 'director') {
+      return next(createError('Только директор может удалять категории', 403));
+    }
+
+    // Получаем категорию
+    const category = await db.query.categories.findFirst({
+      where: eq(schema.categories.id, parseInt(id))
+    });
+
+    if (!category) {
+      return next(createError('Категория не найдена', 404));
+    }
+
+    // Получаем товары и дочерние категории
+    const products = await db.query.products.findMany({
+      where: eq(schema.products.categoryId, parseInt(id))
+    });
+
+    const childCategories = await db.query.categories.findMany({
+      where: eq(schema.categories.parentId, parseInt(id))
+    });
+
+    // Валидация параметров
+    if (products.length > 0 && !productAction) {
+      return next(createError('Необходимо указать действие для товаров (delete или move)', 400));
+    }
+
+    if (productAction === 'move' && !targetCategoryId) {
+      return next(createError('Необходимо указать целевую категорию для переноса товаров', 400));
+    }
+
+    if (childCategories.length > 0 && !childAction) {
+      return next(createError('Необходимо указать действие для дочерних категорий (delete, move или promote)', 400));
+    }
+
+    if (childAction === 'move' && !targetParentId) {
+      return next(createError('Необходимо указать родительскую категорию для переноса дочерних категорий', 400));
+    }
+
+    // Проверяем существование целевых категорий
+    if (targetCategoryId) {
+      const targetCategory = await db.query.categories.findFirst({
+        where: eq(schema.categories.id, targetCategoryId)
+      });
+      if (!targetCategory) {
+        return next(createError('Целевая категория для товаров не найдена', 400));
+      }
+    }
+
+    if (targetParentId) {
+      const targetParent = await db.query.categories.findFirst({
+        where: eq(schema.categories.id, targetParentId)
+      });
+      if (!targetParent) {
+        return next(createError('Целевая родительская категория не найдена', 400));
+      }
+    }
+
+    // Обрабатываем товары
+    if (products.length > 0) {
+      if (productAction === 'move') {
+        // Переносим товары в другую категорию
+        await db.update(schema.products)
+          .set({ 
+            categoryId: targetCategoryId,
+            updatedAt: new Date()
+          })
+          .where(eq(schema.products.categoryId, parseInt(id)));
+
+        // Логируем перенос товаров
+        await db.insert(schema.auditLog).values({
+          tableName: 'products',
+          recordId: parseInt(id),
+          operation: 'UPDATE',
+          oldValues: { categoryId: parseInt(id) },
+          newValues: { categoryId: targetCategoryId },
+          userId,
+          createdAt: new Date()
+        });
+      } else if (productAction === 'delete') {
+        // Деактивируем товары (мягкое удаление)
+        await db.update(schema.products)
+          .set({ 
+            isActive: false,
+            updatedAt: new Date()
+          })
+          .where(eq(schema.products.categoryId, parseInt(id)));
+
+        // Логируем деактивацию товаров
+        await db.insert(schema.auditLog).values({
+          tableName: 'products',
+          recordId: parseInt(id),
+          operation: 'UPDATE',
+          oldValues: { isActive: true },
+          newValues: { isActive: false },
+          userId,
+          createdAt: new Date()
+        });
+      }
+    }
+
+    // Обрабатываем дочерние категории
+    if (childCategories.length > 0) {
+      if (childAction === 'delete') {
+        // Удаляем дочерние категории (рекурсивно)
+        for (const child of childCategories) {
+          await db.delete(schema.categories)
+            .where(eq(schema.categories.id, child.id));
+          
+          // Логируем удаление
+          await db.insert(schema.auditLog).values({
+            tableName: 'categories',
+            recordId: child.id,
+            operation: 'DELETE',
+            oldValues: child,
+            userId,
+            createdAt: new Date()
+          });
+        }
+      } else if (childAction === 'move') {
+        // Переносим дочерние категории к новому родителю
+        await db.update(schema.categories)
+          .set({ 
+            parentId: targetParentId,
+            updatedAt: new Date()
+          })
+          .where(eq(schema.categories.parentId, parseInt(id)));
+
+        // Логируем перенос
+        await db.insert(schema.auditLog).values({
+          tableName: 'categories',
+          recordId: parseInt(id),
+          operation: 'UPDATE',
+          oldValues: { parentId: parseInt(id) },
+          newValues: { parentId: targetParentId },
+          userId,
+          createdAt: new Date()
+        });
+      } else if (childAction === 'promote') {
+        // Делаем дочерние категории корневыми (убираем родителя)
+        await db.update(schema.categories)
+          .set({ 
+            parentId: null,
+            updatedAt: new Date()
+          })
+          .where(eq(schema.categories.parentId, parseInt(id)));
+
+        // Логируем изменение
+        await db.insert(schema.auditLog).values({
+          tableName: 'categories',
+          recordId: parseInt(id),
+          operation: 'UPDATE',
+          oldValues: { parentId: parseInt(id) },
+          newValues: { parentId: null },
+          userId,
+          createdAt: new Date()
+        });
+      }
+    }
+
+    // Удаляем саму категорию
+    await db.delete(schema.categories)
+      .where(eq(schema.categories.id, parseInt(id)));
+
+    // Логируем удаление категории
+    await db.insert(schema.auditLog).values({
+      tableName: 'categories',
+      recordId: parseInt(id),
+      operation: 'DELETE',
+      oldValues: category,
+      userId,
+      createdAt: new Date()
+    });
+
+    res.json({
+      success: true,
+      message: 'Категория успешно удалена',
+      details: {
+        productsProcessed: products.length,
+        productAction,
+        childCategoriesProcessed: childCategories.length,
+        childAction
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router; 

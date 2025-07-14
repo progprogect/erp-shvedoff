@@ -40,12 +40,42 @@ export const categories = pgTable('categories', {
   updatedAt: timestamp('updated_at').defaultNow()
 });
 
+// Product surfaces table - FR-002-EXT
+export const productSurfaces = pgTable('product_surfaces', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 100 }).notNull().unique(),
+  description: text('description'),
+  isSystem: boolean('is_system').default(false), // предустановленные нельзя удалить
+  createdAt: timestamp('created_at').defaultNow()
+});
+
+// Product logos table - FR-002-EXT
+export const productLogos = pgTable('product_logos', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 100 }).notNull().unique(),
+  description: text('description'),
+  isSystem: boolean('is_system').default(false), // предустановленные логотипы
+  createdAt: timestamp('created_at').defaultNow()
+});
+
+// Product materials table - FR-002-EXT
+export const productMaterials = pgTable('product_materials', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 100 }).notNull().unique(),
+  description: text('description'),
+  isSystem: boolean('is_system').default(false), // предустановленные материалы
+  createdAt: timestamp('created_at').defaultNow()
+});
+
 // Products table - FR-002
 export const products = pgTable('products', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 500 }).notNull(),
   article: varchar('article', { length: 100 }).unique(),
   categoryId: integer('category_id').references(() => categories.id),
+  surfaceId: integer('surface_id').references(() => productSurfaces.id),
+  logoId: integer('logo_id').references(() => productLogos.id),
+  materialId: integer('material_id').references(() => productMaterials.id),
   dimensions: jsonb('dimensions'), // {length: 1800, width: 1200, height: 30}
   characteristics: jsonb('characteristics'), // {surface: "чертёная", material: "резина"}
   tags: text('tags').array(),
@@ -241,8 +271,23 @@ export const categoriesRelations = relations(categories, ({ one, many }) => ({
   products: many(products)
 }));
 
+export const productSurfacesRelations = relations(productSurfaces, ({ many }) => ({
+  products: many(products)
+}));
+
+export const productLogosRelations = relations(productLogos, ({ many }) => ({
+  products: many(products)
+}));
+
+export const productMaterialsRelations = relations(productMaterials, ({ many }) => ({
+  products: many(products)
+}));
+
 export const productsRelations = relations(products, ({ one, many }) => ({
   category: one(categories, { fields: [products.categoryId], references: [categories.id] }),
+  surface: one(productSurfaces, { fields: [products.surfaceId], references: [productSurfaces.id] }),
+  logo: one(productLogos, { fields: [products.logoId], references: [productLogos.id] }),
+  material: one(productMaterials, { fields: [products.materialId], references: [productMaterials.id] }),
   stock: one(stock, { fields: [products.id], references: [stock.productId] }),
   orderItems: many(orderItems),
   stockMovements: many(stockMovements),

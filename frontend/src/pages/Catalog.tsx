@@ -8,13 +8,15 @@ import {
   BorderOutlined,
   FilterOutlined,
   ClearOutlined,
-  ReloadOutlined
+  ReloadOutlined,
+  DeleteOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { catalogApi, Category, Product, ProductFilters } from '../services/catalogApi';
 import CreateProductModal from '../components/CreateProductModal';
 import CreateCategoryModal from '../components/CreateCategoryModal';
+import DeleteCategoryModal from '../components/DeleteCategoryModal';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -74,6 +76,8 @@ const Catalog: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [createProductModalVisible, setCreateProductModalVisible] = useState(false);
   const [createCategoryModalVisible, setCreateCategoryModalVisible] = useState(false);
+  const [deleteCategoryModalVisible, setDeleteCategoryModalVisible] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   
   // Фильтры по размерам
   const [sizeFilters, setSizeFilters] = useState({
@@ -123,6 +127,7 @@ const Catalog: React.FC = () => {
 
   const getStockStatus = (current: number, reserved: number) => {
     const available = current - reserved;
+    if (available < 0) return { status: 'negative', color: '#ff4d4f', text: 'Перезаказ' };
     if (available <= 0) return { status: 'critical', color: '#ff4d4f', text: 'Закончился' };
     if (available < 20) return { status: 'low', color: '#faad14', text: 'Мало' };
     return { status: 'normal', color: '#52c41a', text: 'В наличии' };
@@ -322,6 +327,24 @@ const Catalog: React.FC = () => {
         }
       }
     });
+  };
+
+  // Функция открытия модального окна удаления категории
+  const handleDeleteCategory = (category: Category) => {
+    setSelectedCategory(category);
+    setDeleteCategoryModalVisible(true);
+  };
+
+  // Получение плоского списка категорий
+  const getFlatCategories = (cats: Category[]): Category[] => {
+    let result: Category[] = [];
+    cats.forEach(cat => {
+      result.push(cat);
+      if (cat.children) {
+        result.push(...getFlatCategories(cat.children));
+      }
+    });
+    return result;
   };
 
   return (
@@ -547,16 +570,35 @@ const Catalog: React.FC = () => {
                       Выбрано категорий: {checkedCategories.length}
                     </Text>
                     <br />
-                    <Button 
-                      size="small" 
-                      style={{ marginTop: 4 }}
-                      onClick={() => setCheckedCategories([])}
-                    >
-                      Сбросить выбор
-                    </Button>
+                    <Space style={{ marginTop: 4 }}>
+                      <Button 
+                        size="small" 
+                        onClick={() => setCheckedCategories([])}
+                      >
+                        Сбросить выбор
+                      </Button>
+                      {user?.role === 'director' && checkedCategories.length === 1 && (
+                        <Button
+                          size="small"
+                          danger
+                          icon={<DeleteOutlined />}
+                          onClick={() => {
+                            const categoryToDelete = getFlatCategories(categories).find(cat => cat.id === checkedCategories[0]);
+                            if (categoryToDelete) {
+                              handleDeleteCategory(categoryToDelete);
+                            }
+                          }}
+                          title="Удалить выбранную категорию"
+                        >
+                          Удалить
+                        </Button>
+                      )}
+                    </Space>
                   </div>
                 )}
               </Card>
+
+
             </Col>
 
             {/* Список товаров */}
@@ -609,11 +651,21 @@ const Catalog: React.FC = () => {
                       return (
                         <div>
                           <Badge color={stockStatus.color} />
-                          <Text strong>{available} шт</Text>
+                          <Text strong style={{ color: available < 0 ? '#ff4d4f' : 'inherit' }}>
+                            {available < 0 ? '⚠️ ' : ''}{available} шт
+                          </Text>
                           <br />
                           <Text type="secondary" style={{ fontSize: '11px' }}>
                             всего: {product.currentStock}
                           </Text>
+                          {available < 0 && (
+                            <>
+                              <br />
+                              <Text type="danger" style={{ fontSize: '10px' }}>
+                                Перезаказ: {Math.abs(available)} шт
+                              </Text>
+                            </>
+                          )}
                         </div>
                       );
                     },
@@ -778,6 +830,20 @@ const Catalog: React.FC = () => {
         onClose={() => setCreateCategoryModalVisible(false)}
         onSuccess={() => {
           loadData(); // Перезагружаем данные после создания категории
+        }}
+      />
+
+      {/* Модальное окно удаления категории */}
+      <DeleteCategoryModal
+        visible={deleteCategoryModalVisible}
+        category={selectedCategory}
+        categories={categories}
+        onClose={() => {
+          setDeleteCategoryModalVisible(false);
+          setSelectedCategory(null);
+        }}
+        onSuccess={() => {
+          loadData(); // Перезагружаем данные после удаления категории
         }}
       />
     </div>

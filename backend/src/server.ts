@@ -12,6 +12,9 @@ import productsRoutes from './routes/products';
 import auditRoutes from './routes/audit';
 import dashboardRoutes from './routes/dashboard';
 import productionRoutes from './routes/production';
+import surfacesRoutes from './routes/surfaces';
+import logosRoutes from './routes/logos';
+import materialsRoutes from './routes/materials';
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/logger';
 
@@ -51,6 +54,9 @@ app.use('/api/products', productsRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/production', productionRoutes);
+app.use('/api/surfaces', surfacesRoutes);
+app.use('/api/logos', logosRoutes);
+app.use('/api/materials', materialsRoutes);
 
 // API Info endpoint
 app.get('/api', (req, res) => {
@@ -65,7 +71,10 @@ app.get('/api', (req, res) => {
       stock: '/api/stock',
       orders: '/api/orders',
       dashboard: '/api/dashboard',
-      production: '/api/production'
+      production: '/api/production',
+      surfaces: '/api/surfaces',
+      logos: '/api/logos',
+      materials: '/api/materials'
     }
   });
 });

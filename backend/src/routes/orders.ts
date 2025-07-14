@@ -3,6 +3,7 @@ import { db, schema } from '../db';
 import { eq, and, sql } from 'drizzle-orm';
 import { authenticateToken, authorizeRoles, AuthRequest } from '../middleware/auth';
 import { createError } from '../middleware/errorHandler';
+import { performStockOperation } from '../utils/stockManager';
 
 const router = express.Router();
 
@@ -475,6 +476,118 @@ router.put('/:id', authenticateToken, authorizeRoles('manager', 'director'), asy
   }
 });
 
+// PUT /api/orders/:id/confirm - Confirm order (move from 'new' to 'confirmed')
+router.put('/:id/confirm', authenticateToken, authorizeRoles('manager', 'director'), async (req: AuthRequest, res, next) => {
+  try {
+    const orderId = Number(req.params.id);
+    const { comment } = req.body;
+    const userId = req.user!.id;
+    const userRole = req.user!.role;
+
+    // Check if order exists and user has access
+    let whereCondition;
+    if (userRole === 'manager') {
+      whereCondition = and(
+        eq(schema.orders.id, orderId),
+        eq(schema.orders.managerId, userId)
+      );
+    } else {
+      whereCondition = eq(schema.orders.id, orderId);
+    }
+
+    const existingOrder = await db.query.orders.findFirst({
+      where: whereCondition,
+      with: {
+        items: {
+          with: {
+            product: {
+              with: {
+                stock: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!existingOrder) {
+      return next(createError('Order not found', 404));
+    }
+
+    // Check if order can be confirmed (only new orders)
+    if (existingOrder.status !== 'new') {
+      return next(createError(`Cannot confirm order with status '${existingOrder.status}'`, 400));
+    }
+
+    // Check if all items have sufficient stock or are already in production queue
+    let needsProduction = false;
+    const itemsNeedingProduction = [];
+
+    for (const item of existingOrder.items) {
+      const stock = item.product.stock;
+      const availableStock = stock ? (stock.currentStock - stock.reservedStock) : 0;
+      const shortage = item.quantity - (item.reservedQuantity || 0);
+
+      if (shortage > 0) {
+        needsProduction = true;
+        itemsNeedingProduction.push({
+          productId: item.productId,
+          quantity: shortage
+        });
+      }
+    }
+
+    // Determine target status
+    const targetStatus = needsProduction ? 'in_production' : 'confirmed';
+
+    // Update order status
+    const updatedOrder = await db.update(schema.orders)
+      .set({
+        status: targetStatus,
+        updatedAt: new Date()
+      })
+      .where(eq(schema.orders.id, orderId))
+      .returning();
+
+    // Add items to production queue if needed
+    if (needsProduction && itemsNeedingProduction.length > 0) {
+      const productionItems = itemsNeedingProduction.map(item => ({
+        orderId,
+        productId: item.productId,
+        quantity: item.quantity,
+        priority: existingOrder.priority === 'urgent' ? 5 : 
+                 existingOrder.priority === 'high' ? 4 : 
+                 existingOrder.priority === 'normal' ? 3 : 2,
+        status: 'queued' as const,
+        notes: `Автоматически добавлено при подтверждении заказа ${existingOrder.orderNumber}`
+      }));
+
+      await db.insert(schema.productionQueue).values(productionItems);
+    }
+
+    // Add message about confirmation
+    const message = comment ? 
+      `Заказ подтвержден. ${comment}` : 
+      `Заказ подтвержден. Статус: ${targetStatus === 'in_production' ? 'отправлен в производство' : 'готов к обработке'}`;
+
+    await db.insert(schema.orderMessages).values({
+      orderId,
+      userId,
+      message
+    });
+
+    res.json({
+      success: true,
+      data: updatedOrder[0],
+      message: targetStatus === 'in_production' ? 
+        'Заказ подтвержден и отправлен в производство' : 
+        'Заказ подтвержден'
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // PUT /api/orders/:id/status - Update order status
 router.put('/:id/status', authenticateToken, async (req: AuthRequest, res, next) => {
   try {
@@ -484,6 +597,73 @@ router.put('/:id/status', authenticateToken, async (req: AuthRequest, res, next)
 
     if (!status) {
       return next(createError('Status is required', 400));
+    }
+
+    // Get existing order with items for processing reservations
+    const existingOrder = await db.query.orders.findFirst({
+      where: eq(schema.orders.id, orderId),
+      with: {
+        items: true
+      }
+    });
+
+    if (!existingOrder) {
+      return next(createError('Order not found', 404));
+    }
+
+    // Handle reservation release for completed/cancelled orders
+    const statusesRequiringReservationRelease = ['shipped', 'delivered', 'cancelled'];
+    const statusesRequiringStockReduction = ['shipped', 'delivered'];
+    
+    if (statusesRequiringReservationRelease.includes(status) && existingOrder.status !== status) {
+      const orderItems = existingOrder.items || [];
+      
+      for (const item of orderItems) {
+        const reservedQty = item.reservedQuantity || 0;
+        
+        if (reservedQty > 0) {
+          if (statusesRequiringStockReduction.includes(status)) {
+            // For shipped/delivered: reduce both reserved and current stock
+            await db.update(schema.stock)
+              .set({
+                currentStock: sql`${schema.stock.currentStock} - ${reservedQty}`,
+                reservedStock: sql`${schema.stock.reservedStock} - ${reservedQty}`,
+                updatedAt: new Date()
+              })
+              .where(eq(schema.stock.productId, item.productId));
+
+            // Log outgoing movement
+            await db.insert(schema.stockMovements).values({
+              productId: item.productId,
+              movementType: 'outgoing',
+              quantity: -reservedQty,
+              referenceId: orderId,
+              referenceType: 'order',
+              comment: `Отгрузка по заказу ${existingOrder.orderNumber}`,
+              userId
+            });
+          } else {
+            // For cancelled: only release reservation
+            await db.update(schema.stock)
+              .set({
+                reservedStock: sql`${schema.stock.reservedStock} - ${reservedQty}`,
+                updatedAt: new Date()
+              })
+              .where(eq(schema.stock.productId, item.productId));
+
+            // Log reservation release
+            await db.insert(schema.stockMovements).values({
+              productId: item.productId,
+              movementType: 'release_reservation',
+              quantity: -reservedQty,
+              referenceId: orderId,
+              referenceType: 'order',
+              comment: `Отмена резерва по заказу ${existingOrder.orderNumber}`,
+              userId
+            });
+          }
+        }
+      }
     }
 
     const updatedOrder = await db.update(schema.orders)
@@ -499,17 +679,28 @@ router.put('/:id/status', authenticateToken, async (req: AuthRequest, res, next)
     }
 
     // Add message about status change
-    if (comment) {
-      await db.insert(schema.orderMessages).values({
-        orderId,
-        userId,
-        message: `Status changed to ${status}. ${comment}`
-      });
-    }
+    const statusMessages: Record<string, string> = {
+      'shipped': 'Заказ отгружен',
+      'delivered': 'Заказ доставлен',
+      'cancelled': 'Заказ отменен',
+      'ready': 'Заказ готов к отгрузке'
+    };
+
+    const defaultMessage = statusMessages[status] || `Status changed to ${status}`;
+    const message = comment ? `${defaultMessage}. ${comment}` : defaultMessage;
+
+    await db.insert(schema.orderMessages).values({
+      orderId,
+      userId,
+      message
+    });
 
     res.json({
       success: true,
-      data: updatedOrder[0]
+      data: updatedOrder[0],
+      message: statusesRequiringReservationRelease.includes(status) ? 
+        'Статус заказа обновлен, резерв товаров снят' : 
+        'Статус заказа обновлен'
     });
   } catch (error) {
     next(error);

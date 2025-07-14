@@ -3,18 +3,25 @@ import { db, schema } from '../db';
 import { eq, sql, and, or, ilike, inArray } from 'drizzle-orm';
 import { authenticateToken, authorizeRoles, AuthRequest } from '../middleware/auth';
 import { createError } from '../middleware/errorHandler';
+import { 
+  performStockOperation, 
+  getStockInfo, 
+  validateAllStock, 
+  fixStockInconsistencies, 
+  syncReservationsWithOrders,
+  getStockStatistics 
+} from '../utils/stockManager';
 
 const router = express.Router();
 
-// Helper function to calculate production quantity for products
-async function getProductionQuantities(productIds?: number[]) {
-  // Если нет productIds или пустой массив, возвращаем пустую Map
+// Helper function to calculate reserved quantities from active orders
+async function getReservedQuantities(productIds?: number[]) {
   if (!productIds || productIds.length === 0) {
     return new Map<number, number>();
   }
 
-  // 1. Товары в заказах со статусом производства
-  const inProductionQuery = db
+  // Резерв = сумма всех товаров в активных заказах (не отмененных и не доставленных)
+  const reservedQuery = db
     .select({
       productId: schema.orderItems.productId,
       quantity: sql<number>`SUM(${schema.orderItems.quantity})`.as('quantity')
@@ -23,30 +30,30 @@ async function getProductionQuantities(productIds?: number[]) {
     .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
     .where(
       and(
-        eq(schema.orders.status, 'in_production'),
-        inArray(schema.orderItems.productId, productIds)
+        inArray(schema.orderItems.productId, productIds),
+        inArray(schema.orders.status, ['new', 'confirmed', 'in_production', 'shipped'])
       )
     )
     .groupBy(schema.orderItems.productId);
 
-  // 2. Недостающие товары в заказах (quantity > reservedQuantity)
-  const shortageQuery = db
-    .select({
-      productId: schema.orderItems.productId,
-      quantity: sql<number>`SUM(${schema.orderItems.quantity} - COALESCE(${schema.orderItems.reservedQuantity}, 0))`.as('quantity')
-    })
-    .from(schema.orderItems)
-    .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
-    .where(
-      and(
-        inArray(schema.orders.status, ['new', 'confirmed']),
-        sql`${schema.orderItems.quantity} > COALESCE(${schema.orderItems.reservedQuantity}, 0)`,
-        inArray(schema.orderItems.productId, productIds)
-      )
-    )
-    .groupBy(schema.orderItems.productId);
+  const reservedData = await reservedQuery;
+  const reservedMap = new Map<number, number>();
 
-  // 3. Товары в очереди производства
+  reservedData.forEach(item => {
+    reservedMap.set(item.productId, item.quantity);
+  });
+
+  return reservedMap;
+}
+
+// Helper function to calculate production quantity for products
+async function getProductionQuantities(productIds?: number[]) {
+  // Если нет productIds или пустой массив, возвращаем пустую Map
+  if (!productIds || productIds.length === 0) {
+    return new Map<number, number>();
+  }
+
+  // К производству = только товары в очереди производства
   const queueQuery = db
     .select({
       productId: schema.productionQueue.productId,
@@ -61,31 +68,11 @@ async function getProductionQuantities(productIds?: number[]) {
     )
     .groupBy(schema.productionQueue.productId);
 
-  // Выполняем все запросы параллельно
-  const [inProduction, shortage, inQueue] = await Promise.all([
-    inProductionQuery,
-    shortageQuery, 
-    queueQuery
-  ]);
-
-  // Объединяем результаты
+  const inQueue = await queueQuery;
   const productionMap = new Map<number, number>();
 
-  // Добавляем товары в производстве
-  inProduction.forEach(item => {
-    productionMap.set(item.productId, (productionMap.get(item.productId) || 0) + item.quantity);
-  });
-
-  // Добавляем недостающие товары
-  shortage.forEach(item => {
-    if (item.quantity > 0) {
-      productionMap.set(item.productId, (productionMap.get(item.productId) || 0) + item.quantity);
-    }
-  });
-
-  // Добавляем товары в очереди
   inQueue.forEach(item => {
-    productionMap.set(item.productId, (productionMap.get(item.productId) || 0) + item.quantity);
+    productionMap.set(item.productId, item.quantity);
   });
 
   return productionMap;
@@ -118,8 +105,6 @@ router.get('/', authenticateToken, async (req, res, next) => {
         id: schema.stock.id,
         productId: schema.stock.productId,
         currentStock: schema.stock.currentStock,
-        reservedStock: schema.stock.reservedStock,
-        availableStock: sql<number>`${schema.stock.currentStock} - ${schema.stock.reservedStock}`,
         updatedAt: schema.stock.updatedAt,
         productName: schema.products.name,
         productArticle: schema.products.article,
@@ -133,21 +118,34 @@ router.get('/', authenticateToken, async (req, res, next) => {
       .where(whereClause)
       .orderBy(schema.products.name);
 
-    // Получаем количества к производству
+    // Получаем ID всех продуктов
     const productIds = stockData.map(item => item.productId);
-    const productionQuantities = await getProductionQuantities(productIds);
+    
+    // Получаем реальные резервы из заказов и количества к производству
+    const [reservedQuantities, productionQuantities] = await Promise.all([
+      getReservedQuantities(productIds),
+      getProductionQuantities(productIds)
+    ]);
 
-    // Добавляем информацию о производстве к данным об остатках
-    const stockWithProduction = stockData.map(item => ({
-      ...item,
-      inProductionQuantity: productionQuantities.get(item.productId) || 0
-    }));
+    // Добавляем рассчитанные данные к складским остаткам
+    const stockWithCalculations = stockData.map(item => {
+      const reserved = reservedQuantities.get(item.productId) || 0;
+      const inProduction = productionQuantities.get(item.productId) || 0;
+      const available = item.currentStock - reserved;
+      
+      return {
+        ...item,
+        reservedStock: reserved,
+        availableStock: available,
+        inProductionQuantity: inProduction
+      };
+    });
 
     // Apply filters
-    let filteredData = stockWithProduction;
+    let filteredData = stockWithCalculations;
 
     if (status) {
-      filteredData = stockWithProduction.filter(item => {
+      filteredData = stockWithCalculations.filter(item => {
         const available = item.availableStock;
         const norm = item.normStock || 0;
         const inProduction = item.inProductionQuantity;
@@ -157,6 +155,8 @@ router.get('/', authenticateToken, async (req, res, next) => {
             return available <= 0;
           case 'critical':
             return available <= 0;
+          case 'negative':
+            return available < 0;
           case 'low':
             return available > 0 && available < norm * 0.5;
           case 'normal':
@@ -171,19 +171,20 @@ router.get('/', authenticateToken, async (req, res, next) => {
 
     // Calculate status counts for summary
     const statusCounts = {
-      total: stockWithProduction.length,
-      critical: stockWithProduction.filter(item => item.availableStock <= 0).length,
-      low: stockWithProduction.filter(item => {
+      total: stockWithCalculations.length,
+      critical: stockWithCalculations.filter(item => item.availableStock <= 0).length,
+      negative: stockWithCalculations.filter(item => item.availableStock < 0).length,
+      low: stockWithCalculations.filter(item => {
         const available = item.availableStock;
         const norm = item.normStock || 0;
         return available > 0 && available < norm * 0.5;
       }).length,
-      normal: stockWithProduction.filter(item => {
+      normal: stockWithCalculations.filter(item => {
         const available = item.availableStock;
         const norm = item.normStock || 0;
         return available >= norm * 0.5;
       }).length,
-      inProduction: stockWithProduction.filter(item => item.inProductionQuantity > 0).length
+      inProduction: stockWithCalculations.filter(item => item.inProductionQuantity > 0).length
     };
 
     res.json({
@@ -196,51 +197,92 @@ router.get('/', authenticateToken, async (req, res, next) => {
   }
 });
 
-// POST /api/stock/adjust - Manual stock adjustment
-router.post('/adjust', authenticateToken, authorizeRoles('director', 'warehouse'), async (req: AuthRequest, res, next) => {
+// POST /api/stock/adjust - Adjust stock levels (UPDATED)
+router.post('/adjust', authenticateToken, authorizeRoles('manager', 'director', 'warehouse'), async (req: AuthRequest, res, next) => {
   try {
-    const { productId, quantity, comment } = req.body;
+    const { productId, adjustment, comment, productionAction, productionQuantity } = req.body;
     const userId = req.user!.id;
 
-    if (!productId || quantity === undefined) {
-      return next(createError('Product ID and quantity are required', 400));
+    if (!productId || adjustment === undefined) {
+      return next(createError('Product ID and adjustment are required', 400));
     }
 
-    // Get current stock
-    const currentStock = await db.query.stock.findFirst({
-      where: eq(schema.stock.productId, productId)
-    });
+    // Транзакция для атомарного выполнения операций
+    const result = await db.transaction(async (tx) => {
+      // 1. Корректировка склада
+      const stockResult = await performStockOperation({
+        productId: Number(productId),
+        type: 'adjustment',
+        quantity: Number(adjustment),
+        userId,
+        comment: comment || 'Корректировка остатков'
+      });
 
-    if (!currentStock) {
-      return next(createError('Stock record not found', 404));
-    }
+      if (!stockResult.success) {
+        throw new Error(stockResult.message);
+      }
 
-    const newStock = currentStock.currentStock + quantity;
-    if (newStock < 0) {
-      return next(createError('Insufficient stock for adjustment', 400));
-    }
+      // 2. Управление производственной очередью (если указано)
+      let productionMessage = '';
+      if (productionAction && productionAction !== 'none' && productionQuantity > 0) {
+        if (productionAction === 'add') {
+          // Добавляем в производственную очередь
+          await tx.insert(schema.productionQueue).values({
+            productId: Number(productId),
+            quantity: Number(productionQuantity),
+            priority: 1,
+            status: 'queued',
+            notes: `Добавлено при корректировке склада: ${comment || 'Ручная корректировка'}`,
+            createdAt: new Date()
+          });
+          productionMessage = ` Добавлено в производство: ${productionQuantity} шт.`;
+        } else if (productionAction === 'remove') {
+          // Удаляем из производственной очереди (FIFO - сначала самые старые)
+          const queueItems = await tx
+            .select()
+            .from(schema.productionQueue)
+            .where(
+              and(
+                eq(schema.productionQueue.productId, Number(productId)),
+                inArray(schema.productionQueue.status, ['queued', 'in_progress'])
+              )
+            )
+            .orderBy(schema.productionQueue.createdAt);
 
-    // Update stock
-    await db.update(schema.stock)
-      .set({
-        currentStock: newStock,
-        updatedAt: new Date()
-      })
-      .where(eq(schema.stock.productId, productId));
+          let remainingToRemove = Number(productionQuantity);
+          for (const item of queueItems) {
+            if (remainingToRemove <= 0) break;
+            
+            if (item.quantity <= remainingToRemove) {
+              // Удаляем полностью
+              await tx
+                .delete(schema.productionQueue)
+                .where(eq(schema.productionQueue.id, item.id));
+              remainingToRemove -= item.quantity;
+            } else {
+              // Уменьшаем количество
+              await tx
+                .update(schema.productionQueue)
+                .set({ quantity: item.quantity - remainingToRemove })
+                .where(eq(schema.productionQueue.id, item.id));
+              remainingToRemove = 0;
+            }
+          }
+          const actuallyRemoved = Number(productionQuantity) - remainingToRemove;
+          productionMessage = ` Убрано из производства: ${actuallyRemoved} шт.`;
+        }
+      }
 
-    // Log movement
-    await db.insert(schema.stockMovements).values({
-      productId,
-      movementType: 'adjustment',
-      quantity,
-      comment,
-      userId
+      return {
+        stockResult,
+        productionMessage
+      };
     });
 
     res.json({
       success: true,
-      message: 'Stock adjusted successfully',
-      data: { newStock }
+      message: result.stockResult.message + result.productionMessage,
+      data: result.stockResult.stockInfo
     });
   } catch (error) {
     next(error);
@@ -276,7 +318,7 @@ router.get('/movements/:productId', authenticateToken, async (req, res, next) =>
   }
 });
 
-// POST /api/stock/reserve - Reserve stock for order
+// POST /api/stock/reserve - Reserve stock for order (UPDATED)
 router.post('/reserve', authenticateToken, async (req: AuthRequest, res, next) => {
   try {
     const { productId, quantity, orderId } = req.body;
@@ -286,70 +328,246 @@ router.post('/reserve', authenticateToken, async (req: AuthRequest, res, next) =
       return next(createError('Product ID, quantity, and order ID are required', 400));
     }
 
-    // Get current stock
-    const currentStock = await db.query.stock.findFirst({
-      where: eq(schema.stock.productId, productId)
+    const result = await performStockOperation({
+      productId: Number(productId),
+      type: 'reservation',
+      quantity: Number(quantity),
+      orderId: Number(orderId),
+      userId,
+      comment: `Резервирование для заказа #${orderId}`
     });
 
-    if (!currentStock) {
-      return next(createError('Stock record not found', 404));
+    if (!result.success) {
+      return next(createError(result.message, 400));
     }
-
-    const availableStock = currentStock.currentStock - currentStock.reservedStock;
-    if (availableStock < quantity) {
-      return next(createError(`Insufficient stock. Available: ${availableStock}`, 400));
-    }
-
-    // Reserve stock
-    await db.update(schema.stock)
-      .set({
-        reservedStock: currentStock.reservedStock + quantity,
-        updatedAt: new Date()
-      })
-      .where(eq(schema.stock.productId, productId));
-
-    // Log movement
-    await db.insert(schema.stockMovements).values({
-      productId,
-      movementType: 'reservation',
-      quantity,
-      referenceId: orderId,
-      referenceType: 'order',
-      userId
-    });
 
     res.json({
       success: true,
-      message: 'Stock reserved successfully'
+      message: result.message,
+      data: result.stockInfo
     });
   } catch (error) {
     next(error);
   }
 });
 
-// POST /api/stock/release - Release reserved stock
+// POST /api/stock/release - Release reserved stock (UPDATED)
 router.post('/release', authenticateToken, async (req: AuthRequest, res, next) => {
   try {
     const { productId, quantity, orderId } = req.body;
     const userId = req.user!.id;
 
+    const result = await performStockOperation({
+      productId: Number(productId),
+      type: 'release',
+      quantity: Number(quantity),
+      orderId: orderId ? Number(orderId) : undefined,
+      userId,
+      comment: `Снятие резерва${orderId ? ` с заказа #${orderId}` : ''}`
+    });
+
+    if (!result.success) {
+      return next(createError(result.message, 400));
+    }
+
+    res.json({
+      success: true,
+      message: result.message,
+      data: result.stockInfo
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/stock/outgoing - Process outgoing shipment (UPDATED)
+router.post('/outgoing', authenticateToken, authorizeRoles('manager', 'director'), async (req: AuthRequest, res, next) => {
+  try {
+    const { productId, quantity, orderId } = req.body;
+    const userId = req.user!.id;
+
+    if (!productId || !quantity) {
+      return next(createError('Product ID and quantity are required', 400));
+    }
+
+    const result = await performStockOperation({
+      productId: Number(productId),
+      type: 'outgoing',
+      quantity: Number(quantity),
+      orderId: orderId ? Number(orderId) : undefined,
+      userId,
+      comment: `Отгрузка товара${orderId ? ` по заказу #${orderId}` : ''}`
+    });
+
+    if (!result.success) {
+      return next(createError(result.message, 400));
+    }
+
+    res.json({
+      success: true,
+      message: result.message,
+      data: result.stockInfo
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/stock/incoming - Process incoming goods (NEW)
+router.post('/incoming', authenticateToken, authorizeRoles('manager', 'director'), async (req: AuthRequest, res, next) => {
+  try {
+    const { productId, quantity, comment } = req.body;
+    const userId = req.user!.id;
+
+    if (!productId || !quantity || quantity <= 0) {
+      return next(createError('Product ID and positive quantity are required', 400));
+    }
+
+    const result = await performStockOperation({
+      productId: Number(productId),
+      type: 'incoming',
+      quantity: Number(quantity),
+      userId,
+      comment: comment || 'Поступление товара на склад'
+    });
+
+    if (!result.success) {
+      return next(createError(result.message, 400));
+    }
+
+    res.json({
+      success: true,
+      message: result.message,
+      data: result.stockInfo
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/stock/validate - Validate all stock data integrity (NEW)
+router.get('/validate', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+  try {
+    const validation = await validateAllStock();
+    
+    res.json({
+      success: true,
+      data: {
+        valid: validation.valid,
+        invalid: validation.invalid,
+        total: validation.valid + validation.invalid.length
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/stock/fix-inconsistencies - Fix stock data inconsistencies (NEW)
+router.post('/fix-inconsistencies', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+  try {
+    const userId = req.user!.id;
+    
+    const result = await fixStockInconsistencies(userId);
+    
+    res.json({
+      success: true,
+      message: `Исправлено записей: ${result.fixed}`,
+      data: {
+        fixed: result.fixed,
+        errors: result.errors
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/stock/sync-reservations - Sync reservations with orders (NEW)
+router.post('/sync-reservations', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+  try {
+    const userId = req.user!.id;
+    
+    const result = await syncReservationsWithOrders(userId);
+    
+    res.json({
+      success: true,
+      message: `Синхронизировано записей: ${result.synced}`,
+      data: {
+        synced: result.synced,
+        errors: result.errors
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/stock/statistics - Get enhanced stock statistics (NEW)
+router.get('/statistics', authenticateToken, async (req: AuthRequest, res, next) => {
+  try {
+    const statistics = await getStockStatistics();
+    
+    res.json({
+      success: true,
+      data: statistics
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/stock/product/:id - Get detailed stock info for specific product (NEW)
+router.get('/product/:id', authenticateToken, async (req: AuthRequest, res, next) => {
+  try {
+    const { id } = req.params;
+    
+    const stockInfo = await getStockInfo(Number(id));
+    
+    res.json({
+      success: true,
+      data: stockInfo
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/stock/clear-reservations - Clear all reservations for a product (admin only)
+router.post('/clear-reservations', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+  try {
+    const { productId, comment } = req.body;
+    const userId = req.user!.id;
+
+    if (!productId) {
+      return next(createError('Product ID is required', 400));
+    }
+
     // Get current stock
     const currentStock = await db.query.stock.findFirst({
-      where: eq(schema.stock.productId, productId)
+      where: eq(schema.stock.productId, productId),
+      with: {
+        product: true
+      }
     });
 
     if (!currentStock) {
       return next(createError('Stock record not found', 404));
     }
 
-    if (currentStock.reservedStock < quantity) {
-      return next(createError('Cannot release more than reserved', 400));
+    const reservedQty = currentStock.reservedStock;
+    
+    if (reservedQty <= 0) {
+      return res.json({
+        success: true,
+        message: 'No reservations to clear'
+      });
     }
 
-    // Release stock
+    // Clear all reservations
     await db.update(schema.stock)
       .set({
-        reservedStock: currentStock.reservedStock - quantity,
+        reservedStock: 0,
         updatedAt: new Date()
       })
       .where(eq(schema.stock.productId, productId));
@@ -358,19 +576,110 @@ router.post('/release', authenticateToken, async (req: AuthRequest, res, next) =
     await db.insert(schema.stockMovements).values({
       productId,
       movementType: 'release_reservation',
-      quantity: -quantity,
-      referenceId: orderId,
-      referenceType: 'order',
+      quantity: -reservedQty,
+      comment: comment || `Очистка зависшего резерва: ${reservedQty} шт.`,
       userId
     });
 
     res.json({
       success: true,
-      message: 'Stock reservation released successfully'
+      message: `Cleared ${reservedQty} reserved items for product: ${currentStock.product?.name}`,
+      data: { clearedQuantity: reservedQty }
     });
   } catch (error) {
     next(error);
   }
 });
 
-export default router; 
+// 🔧 НОВЫЙ ENDPOINT: Исправление целостности данных
+router.post('/fix-integrity', authenticateToken, async (req, res) => {
+  try {
+    console.log('🔍 Начинаю диагностику и исправление данных...');
+    
+    // 1. Получаем все товары и их складские данные
+    const allProducts = await db.select({
+      id: schema.products.id,
+      name: schema.products.name,
+      article: schema.products.article
+    }).from(schema.products);
+    
+    const problems: string[] = [];
+    const fixes: any[] = [];
+    
+    // 2. Для каждого товара пересчитываем метрики
+    for (const product of allProducts) {
+      // Получаем текущие данные склада
+      let stockData = await db
+        .select()
+        .from(schema.stock)
+        .where(eq(schema.stock.productId, product.id))
+        .limit(1);
+      
+      // Создаем запись склада если её нет
+      if (stockData.length === 0) {
+        await db.insert(schema.stock).values({
+          productId: product.id,
+          currentStock: 0,
+          reservedStock: 0,
+          updatedAt: new Date()
+        });
+        
+        stockData = await db
+          .select()
+          .from(schema.stock)
+          .where(eq(schema.stock.productId, product.id))
+          .limit(1);
+        
+        problems.push(`✅ Создана запись склада для ${product.name}`);
+      }
+      
+      const currentStockData = stockData[0];
+      
+      // Считаем реальные резервы из активных заказов
+      const realReserved = await db
+        .select({
+          total: sql`COALESCE(SUM(${schema.orderItems.quantity}), 0)`
+        })
+        .from(schema.orderItems)
+        .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
+        .where(
+          and(
+            eq(schema.orderItems.productId, product.id),
+            sql`${schema.orders.status} IN ('new', 'confirmed', 'in_production')`
+          )
+        );
+     
+     const reservedCount = parseInt(realReserved[0].total as string) || 0;
+     
+     // Исправляем отрицательные значения
+     if (currentStockData.currentStock < 0) {
+       await db
+         .update(schema.stock)
+         .set({
+           currentStock: 0,
+           updatedAt: new Date()
+         })
+         .where(eq(schema.stock.productId, product.id));
+       
+       problems.push(`⚠️ ${product.name}: исправлен отрицательный остаток ${currentStockData.currentStock} → 0`);
+     }
+   }
+   
+   res.json({
+     success: true,
+     message: 'Данные успешно проверены и исправлены',
+     problemsFound: problems.length,
+     problems: problems
+   });
+   
+ } catch (error: any) {
+   console.error('❌ Ошибка при исправлении данных:', error);
+   res.status(500).json({
+     success: false,
+     message: 'Ошибка при исправлении данных',
+     error: error.message
+   });
+ }
+});
+
+export default router;
