@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Row, Col, Card, Table, Button, Input, Select, Space, Typography, Tag, Statistic,
-  message, Modal, Form, Dropdown, MenuProps, Tooltip, Progress
+  message, Modal, Form, Dropdown, MenuProps, Tooltip, Progress, InputNumber
 } from 'antd';
 import {
   ToolOutlined, SearchOutlined, FilterOutlined, EyeOutlined, EditOutlined,
   PlayCircleOutlined, CheckCircleOutlined, ClockCircleOutlined, ReloadOutlined, 
-  MoreOutlined, BuildOutlined, WarningOutlined
+  MoreOutlined, BuildOutlined, WarningOutlined, PlusOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
@@ -17,6 +17,7 @@ import {
   ProductionStats,
   UpdateProductionStatusRequest 
 } from '../services/productionApi';
+import { catalogApi, Product } from '../services/catalogApi';
 import './Production.css';
 
 const { Title, Text } = Typography;
@@ -37,11 +38,14 @@ const Production: React.FC = () => {
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
+  const [products, setProducts] = useState<Product[]>([]);
   
   // Modal states
   const [statusModalVisible, setStatusModalVisible] = useState(false);
+  const [createModalVisible, setCreateModalVisible] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ProductionQueueItem | null>(null);
   const [statusForm] = Form.useForm();
+  const [createForm] = Form.useForm();
 
   // Load production queue
   const loadProductionQueue = async () => {
@@ -79,8 +83,23 @@ const Production: React.FC = () => {
     }
   };
 
+  // Load products for manual production creation
+  const loadProducts = async () => {
+    if (!token) return;
+    
+    try {
+      const response = await catalogApi.getProducts({ page: 1, limit: 100 }, token);
+      if (response.success) {
+        setProducts(response.data);
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки товаров:', error);
+    }
+  };
+
   useEffect(() => {
     loadProductionQueue();
+    loadProducts();
   }, [statusFilter, priorityFilter, token]);
 
   // Auto-refresh every 30 seconds
@@ -174,6 +193,32 @@ const Production: React.FC = () => {
       }
     } catch (error) {
       console.error('Ошибка автоматической постановки в очередь:', error);
+      message.error('Ошибка связи с сервером');
+    }
+  };
+
+  // Handle manual create production item
+  const handleCreateProduction = async (values: any) => {
+    if (!token) return;
+
+    try {
+      const response = await productionApi.createProductionItem({
+        productId: values.productId,
+        quantity: values.quantity,
+        priority: values.priority,
+        notes: values.notes
+      }, token);
+
+      if (response.success) {
+        message.success('Задание добавлено в очередь производства');
+        setCreateModalVisible(false);
+        createForm.resetFields();
+        loadProductionQueue();
+      } else {
+        message.error('Ошибка создания задания на производство');
+      }
+    } catch (error) {
+      console.error('Ошибка создания задания на производство:', error);
       message.error('Ошибка связи с сервером');
     }
   };
@@ -380,13 +425,23 @@ const Production: React.FC = () => {
                 Обновить
               </Button>
               {(user?.role === 'production' || user?.role === 'director') && (
-                <Button 
-                  type="primary" 
-                  icon={<ToolOutlined />}
-                  onClick={handleAutoQueue}
-                >
-                  Автопостановка в очередь
-                </Button>
+                <>
+                  <Button 
+                    type="primary" 
+                    icon={<ToolOutlined />}
+                    onClick={handleAutoQueue}
+                  >
+                    Автопостановка в очередь
+                  </Button>
+                  <Button 
+                    type="primary"
+                    ghost
+                    icon={<PlusOutlined />}
+                    onClick={() => setCreateModalVisible(true)}
+                  >
+                    Создать задание
+                  </Button>
+                </>
               )}
             </Space>
           </div>
@@ -560,6 +615,91 @@ const Production: React.FC = () => {
               </Button>
               <Button type="primary" htmlType="submit">
                 Изменить статус
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Модальное окно создания задания на производство */}
+      <Modal
+        title="Создать задание на производство"
+        open={createModalVisible}
+        onCancel={() => setCreateModalVisible(false)}
+        footer={null}
+        width={500}
+      >
+        <Form
+          form={createForm}
+          layout="vertical"
+          onFinish={handleCreateProduction}
+          initialValues={{
+            priority: 3,
+            quantity: 1
+          }}
+        >
+          <Form.Item
+            name="productId"
+            label="Товар"
+            rules={[{ required: true, message: 'Выберите товар' }]}
+          >
+            <Select 
+              placeholder="Выберите товар для производства"
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+              options={products.map(product => ({
+                value: product.id,
+                label: `${product.name} ${product.article ? `(${product.article})` : ''}`,
+                key: product.id
+              }))}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="quantity"
+            label="Количество"
+            rules={[{ required: true, message: 'Укажите количество' }]}
+          >
+            <InputNumber 
+              min={1}
+              placeholder="Количество штук"
+              style={{ width: '100%' }}
+              addonAfter="шт"
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="priority"
+            label="Приоритет"
+            rules={[{ required: true, message: 'Выберите приоритет' }]}
+          >
+            <Select placeholder="Выберите приоритет">
+              <Select.Option value={2}>Низкий</Select.Option>
+              <Select.Option value={3}>Обычный</Select.Option>
+              <Select.Option value={4}>Высокий</Select.Option>
+              <Select.Option value={5}>Срочный</Select.Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="notes"
+            label="Комментарий"
+          >
+            <TextArea 
+              rows={3} 
+              placeholder="Дополнительная информация о задании..."
+            />
+          </Form.Item>
+
+          <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
+            <Space>
+              <Button onClick={() => setCreateModalVisible(false)}>
+                Отмена
+              </Button>
+              <Button type="primary" htmlType="submit">
+                Создать задание
               </Button>
             </Space>
           </Form.Item>

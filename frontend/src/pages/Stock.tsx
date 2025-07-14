@@ -190,16 +190,27 @@ const Stock: React.FC = () => {
             </Text>
           </div>
           
-          {record.availableStock < 0 && (
-            <Text type="danger" style={{ fontSize: '11px', display: 'block', marginTop: '4px' }}>
-              Нужно к производству: {Math.abs(record.availableStock)} шт
-            </Text>
-          )}
+          {(() => {
+            if (record.availableStock >= 0) return null;
+            
+            const inProduction = parseInt(record.inProductionQuantity?.toString() || '0');
+            const needed = Math.abs(record.availableStock);
+            const stillNeeded = Math.max(0, needed - inProduction);
+            
+            if (stillNeeded > 0) {
+              return (
+                <Text type="danger" style={{ fontSize: '11px', display: 'block', marginTop: '4px' }}>
+                  Еще к производству: {stillNeeded} шт
+                </Text>
+              );
+            }
+            return null;
+          })()}
         </div>
       ),
     },
     {
-      title: 'К производству',
+      title: 'В производстве',
       dataIndex: 'inProductionQuantity',
       key: 'inProductionQuantity',
       width: '12%',
@@ -375,7 +386,7 @@ const Stock: React.FC = () => {
           </Col>
           <Col xs={12} sm={8} md={6} lg={4}>
             <Statistic
-              title="К производству"
+              title="В производстве"
               value={stockStats.totalInProduction}
               suffix="шт"
               valueStyle={{ color: '#722ed1', fontSize: '18px' }}

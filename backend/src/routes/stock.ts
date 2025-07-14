@@ -31,7 +31,7 @@ async function getReservedQuantities(productIds?: number[]) {
     .where(
       and(
         inArray(schema.orderItems.productId, productIds),
-        inArray(schema.orders.status, ['new', 'confirmed', 'in_production', 'shipped'])
+        inArray(schema.orders.status, ['new', 'confirmed', 'in_production', 'ready'])
       )
     )
     .groupBy(schema.orderItems.productId);

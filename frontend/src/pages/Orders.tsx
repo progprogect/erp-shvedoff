@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Row, Col, Card, Table, Button, Input, Select, Space, Typography, Tag, Statistic,
-  message, Modal, Form, Dropdown, MenuProps
+  Modal, Form, Dropdown, MenuProps, App
 } from 'antd';
 import {
   PlusOutlined, SearchOutlined, FilterOutlined, EyeOutlined, EditOutlined,
-  ShoppingCartOutlined, MoreOutlined
+  ShoppingCartOutlined, MoreOutlined, DeleteOutlined, ExclamationCircleOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
@@ -18,6 +18,7 @@ const { TextArea } = Input;
 const Orders: React.FC = () => {
   const navigate = useNavigate();
   const { user, token } = useAuthStore();
+  const { message, modal } = App.useApp();
   
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
@@ -134,6 +135,43 @@ const Orders: React.FC = () => {
     }
   };
 
+  // Delete order handler
+  const handleDeleteOrder = async (order: Order) => {
+    if (!token) return;
+
+    modal.confirm({
+      title: 'Удаление заказа',
+      icon: <ExclamationCircleOutlined />,
+      content: (
+        <div>
+          <p>Вы уверены, что хотите удалить заказ <strong>{order.orderNumber}</strong>?</p>
+          <p>Клиент: <strong>{order.customerName}</strong></p>
+          <p style={{ color: '#ff4d4f', marginTop: '8px' }}>
+            ⚠️ Это действие нельзя отменить. Все резервы товаров будут освобождены.
+          </p>
+        </div>
+      ),
+      okText: 'Удалить',
+      okType: 'danger',
+      cancelText: 'Отмена',
+      onOk: async () => {
+        try {
+          const response = await ordersApi.deleteOrder(order.id, token);
+          
+          if (response.success) {
+            message.success('Заказ успешно удален');
+            loadOrders(); // Перезагружаем список
+          } else {
+            message.error(response.message || 'Ошибка удаления заказа');
+          }
+        } catch (error) {
+          console.error('Ошибка удаления заказа:', error);
+          message.error('Ошибка связи с сервером');
+        }
+      }
+    });
+  };
+
   // More actions dropdown
   const getMoreActions = (record: Order): MenuProps['items'] => [
     {
@@ -147,6 +185,17 @@ const Orders: React.FC = () => {
       label: 'Изменить статус',
       icon: <EditOutlined />,
       onClick: () => handleStatusChange(record)
+    },
+    {
+      type: 'divider'
+    },
+    {
+      key: 'delete',
+      label: 'Удалить заказ',
+      icon: <DeleteOutlined />,
+      danger: true,
+      disabled: !['new', 'confirmed', 'in_production'].includes(record.status),
+      onClick: () => handleDeleteOrder(record)
     }
   ];
 

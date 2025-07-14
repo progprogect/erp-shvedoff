@@ -1,6 +1,6 @@
 import express from 'express';
 import { db, schema } from '../db';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, inArray } from 'drizzle-orm';
 import { authenticateToken, authorizeRoles, AuthRequest } from '../middleware/auth';
 import { createError } from '../middleware/errorHandler';
 import { performStockOperation } from '../utils/stockManager';
@@ -119,9 +119,105 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
       return next(createError('Order not found', 404));
     }
 
+    // Helper function to calculate production quantity for products
+    async function getProductionQuantities(productIds: number[]) {
+      if (productIds.length === 0) {
+        return new Map<number, number>();
+      }
+
+      const queueQuery = db
+        .select({
+          productId: schema.productionQueue.productId,
+          quantity: sql<number>`SUM(${schema.productionQueue.quantity})`.as('quantity')
+        })
+        .from(schema.productionQueue)
+        .where(
+          and(
+            inArray(schema.productionQueue.status, ['queued', 'in_progress']),
+            inArray(schema.productionQueue.productId, productIds)
+          )
+        )
+        .groupBy(schema.productionQueue.productId);
+
+      const inQueue = await queueQuery;
+      const productionMap = new Map<number, number>();
+
+      inQueue.forEach(item => {
+        productionMap.set(item.productId, item.quantity);
+      });
+
+      return productionMap;
+    }
+
+    // Helper function to calculate reserved quantities from active orders
+    async function getReservedQuantities(productIds: number[]) {
+      if (productIds.length === 0) {
+        return new Map<number, number>();
+      }
+
+      const reservedQuery = db
+        .select({
+          productId: schema.orderItems.productId,
+          quantity: sql<number>`SUM(${schema.orderItems.quantity})`.as('quantity')
+        })
+        .from(schema.orderItems)
+        .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
+        .where(
+          and(
+            inArray(schema.orderItems.productId, productIds),
+            inArray(schema.orders.status, ['new', 'confirmed', 'in_production', 'shipped'])
+          )
+        )
+        .groupBy(schema.orderItems.productId);
+
+      const reservedData = await reservedQuery;
+      const reservedMap = new Map<number, number>();
+
+      reservedData.forEach(item => {
+        reservedMap.set(item.productId, item.quantity);
+      });
+
+      return reservedMap;
+    }
+
+    // Получаем ID всех продуктов в заказе
+    const productIds = order.items?.map(item => item.productId) || [];
+    
+    // Получаем данные о производстве и резервах
+    const [productionQuantities, reservedQuantities] = await Promise.all([
+      getProductionQuantities(productIds),
+      getReservedQuantities(productIds)
+    ]);
+
+    // Обогащаем данные о товарах
+    const enrichedOrder = {
+      ...order,
+      items: order.items?.map(item => {
+        const stock = item.product?.stock;
+        const currentStock = stock?.currentStock || 0;
+        const reserved = reservedQuantities.get(item.productId) || 0;
+        const inProduction = productionQuantities.get(item.productId) || 0;
+        const available = currentStock - reserved;
+
+        return {
+          ...item,
+          product: {
+            ...item.product,
+            stock: {
+              ...stock,
+              currentStock,
+              reservedStock: reserved,
+              availableStock: available,
+              inProductionQuantity: inProduction
+            }
+          }
+        };
+      })
+    };
+
     res.json({
       success: true,
-      data: order
+      data: enrichedOrder
     });
   } catch (error) {
     next(error);
@@ -774,8 +870,8 @@ router.delete('/:id', authenticateToken, authorizeRoles('manager', 'director'), 
       return next(createError('Order not found', 404));
     }
 
-    // Check if order can be deleted (only new, pending, or production orders)
-    const deletableStatuses = ['new', 'pending', 'production'];
+    // Check if order can be deleted (only new, confirmed, or in_production orders)
+    const deletableStatuses = ['new', 'confirmed', 'in_production'];
     if (existingOrder.status && !deletableStatuses.includes(existingOrder.status)) {
       return next(createError(`Cannot delete order with status '${existingOrder.status}'`, 400));
     }
@@ -813,6 +909,10 @@ router.delete('/:id', authenticateToken, authorizeRoles('manager', 'director'), 
       userId,
       createdAt: new Date()
     });
+
+    // Delete production queue items related to this order
+    await db.delete(schema.productionQueue)
+      .where(eq(schema.productionQueue.orderId, orderId));
 
     // Delete order messages
     await db.delete(schema.orderMessages)

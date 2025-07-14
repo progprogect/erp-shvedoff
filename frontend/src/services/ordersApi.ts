@@ -41,6 +41,8 @@ export interface OrderItem {
     stock?: {
       currentStock: number;
       reservedStock: number;
+      availableStock: number;
+      inProductionQuantity: number;
     };
   };
 }

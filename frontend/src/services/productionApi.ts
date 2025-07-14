@@ -57,6 +57,13 @@ export interface UpdateProductionStatusRequest {
   notes?: string;
 }
 
+export interface CreateProductionItemRequest {
+  productId: number;
+  quantity: number;
+  priority?: number;
+  notes?: string;
+}
+
 export interface ProductionFilters {
   status?: string;
   priority?: number;
@@ -149,6 +156,26 @@ class ProductionApiService {
         success: false,
         data: [],
         message: error.response?.data?.message || 'Ошибка автоматической постановки в очередь'
+      };
+    }
+  }
+
+  async createProductionItem(data: CreateProductionItemRequest, token: string): Promise<ApiResponse<ProductionQueueItem>> {
+    try {
+      const response = await axios.post(`${API_BASE_URL}/production/queue`, data, {
+        headers: this.getAuthHeaders(token)
+      });
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    } catch (error: any) {
+      console.error('Ошибка создания задания на производство:', error);
+      return {
+        success: false,
+        data: null as any,
+        message: error.response?.data?.message || 'Ошибка создания задания на производство'
       };
     }
   }

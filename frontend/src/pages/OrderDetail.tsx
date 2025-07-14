@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   Row, Col, Card, Typography, Tag, Table, Button, Space, Divider, Timeline,
-  Form, Input, Modal, Select, message, Statistic, Descriptions, Badge, Avatar,
-  DatePicker, Popconfirm, InputNumber
+  Form, Input, Modal, Select, Statistic, Descriptions, Badge, Avatar,
+  DatePicker, Popconfirm, InputNumber, App
 } from 'antd';
 import {
   ArrowLeftOutlined, EditOutlined, MessageOutlined, UserOutlined,
@@ -24,6 +24,7 @@ const OrderDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, token } = useAuthStore();
+  const { message, modal } = App.useApp();
   
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(false);
@@ -228,6 +229,43 @@ const OrderDetail: React.FC = () => {
     return !nonEditableStatuses.includes(order.status);
   };
 
+  // Delete order handler
+  const handleDeleteOrder = async () => {
+    if (!order || !token) return;
+
+    modal.confirm({
+      title: 'Удаление заказа',
+      icon: <ExclamationCircleOutlined />,
+      content: (
+        <div>
+          <p>Вы уверены, что хотите удалить заказ <strong>{order.orderNumber}</strong>?</p>
+          <p>Клиент: <strong>{order.customerName}</strong></p>
+          <p style={{ color: '#ff4d4f', marginTop: '8px' }}>
+            ⚠️ Это действие нельзя отменить. Все резервы товаров будут освобождены.
+          </p>
+        </div>
+      ),
+      okText: 'Удалить',
+      okType: 'danger',
+      cancelText: 'Отмена',
+      onOk: async () => {
+        try {
+          const response = await ordersApi.deleteOrder(order.id, token);
+          
+          if (response.success) {
+            message.success('Заказ успешно удален');
+            navigate('/orders'); // Возвращаемся к списку заказов
+          } else {
+            message.error(response.message || 'Ошибка удаления заказа');
+          }
+        } catch (error) {
+          console.error('Ошибка удаления заказа:', error);
+          message.error('Ошибка связи с сервером');
+        }
+      }
+    });
+  };
+
   // Get status info
   const getStatusInfo = (status: string) => {
     const statusMap = {
@@ -259,11 +297,54 @@ const OrderDetail: React.FC = () => {
 
     const totalQuantity = order.items.reduce((sum, item) => sum + item.quantity, 0);
     const totalReserved = order.items.reduce((sum, item) => sum + item.reservedQuantity, 0);
-    const totalNeedProduction = order.items.reduce((sum, item) => 
-      sum + Math.max(0, item.quantity - (item.product?.stock?.currentStock || 0)), 0
-    );
+    
+    // Исправленная логика: К производству = товары, которых не хватает и которые еще не в производстве
+    const totalNeedProduction = order.items.reduce((sum, item) => {
+      const availableStock = item.product?.stock?.availableStock || 0;
+      const inProduction = item.product?.stock?.inProductionQuantity || 0;
+      const needed = Math.max(0, item.quantity - item.reservedQuantity);
+      const stillNeed = Math.max(0, needed - inProduction);
+      return sum + stillNeed;
+    }, 0);
 
     return { totalQuantity, totalReserved, totalNeedProduction };
+  };
+
+  // Анализ статуса готовности заказа
+  const getOrderReadinessStatus = () => {
+    if (!order?.items) return { status: 'unknown', color: '#d9d9d9', text: 'Неизвестно' };
+
+    let allAvailable = true;
+    let anyInProduction = false;
+    let anyOutOfStock = false;
+    
+    for (const item of order.items) {
+      const product = item.product;
+      if (!product?.stock) continue;
+
+      const { availableStock, inProductionQuantity, currentStock, reservedStock } = product.stock;
+      const available = availableStock || (currentStock - Number(reservedStock || 0));
+      const inProduction = Number(inProductionQuantity || 0);
+
+      if (available < item.quantity) {
+        allAvailable = false;
+        if (inProduction > 0) {
+          anyInProduction = true;
+        } else {
+          anyOutOfStock = true;
+        }
+      }
+    }
+
+    if (allAvailable) {
+      return { status: 'ready', color: '#52c41a', text: '✅ Готов к отгрузке' };
+    } else if (anyInProduction) {
+      return { status: 'in_production', color: '#faad14', text: '🏭 В производстве' };
+    } else if (anyOutOfStock) {
+      return { status: 'need_production', color: '#ff4d4f', text: '⚠️ Требует производства' };
+    } else {
+      return { status: 'partial', color: '#1890ff', text: '🔄 Частично готов' };
+    }
   };
 
   // Calculate editing total
@@ -297,23 +378,38 @@ const OrderDetail: React.FC = () => {
       ),
     },
     {
-      title: 'Зарезервировано',
-      dataIndex: 'reservedQuantity',
-      key: 'reservedQuantity',
+      title: 'Статус товара',
+      dataIndex: 'product',
+      key: 'productStatus',
       align: 'center' as const,
-      render: (reserved: number, record: OrderItem) => {
-        const needProduction = Math.max(0, record.quantity - reserved);
-        return (
-          <div>
-            <Tag color="blue">{reserved} шт</Tag>
-            {needProduction > 0 && (
-              <>
-                <br />
-                <Tag color="orange">+{needProduction} произв.</Tag>
-              </>
-            )}
-          </div>
-        );
+      render: (product: any, record: OrderItem) => {
+        if (!product?.stock) {
+          return <Tag color="default">Неизвестно</Tag>;
+        }
+
+        const { currentStock, reservedStock, availableStock, inProductionQuantity } = product.stock;
+        const available = availableStock || (currentStock - Number(reservedStock || 0));
+        const inProduction = Number(inProductionQuantity || 0);
+        const reserved = Number(reservedStock || 0);
+
+        // Определяем статус товара
+        if (available < 0) {
+          return <Tag color="red">⚠️ Перезаказ</Tag>;
+        } else if (available === 0) {
+          if (inProduction > 0) {
+            return <Tag color="orange">🏭 В производстве</Tag>;
+          } else {
+            return <Tag color="red">❌ Нет на складе</Tag>;
+          }
+        } else if (available < record.quantity) {
+          if (inProduction > 0) {
+            return <Tag color="orange">🏭 В производстве</Tag>;
+          } else {
+            return <Tag color="gold">⚠️ Частично в наличии</Tag>;
+          }
+        } else {
+          return <Tag color="green">✅ В наличии</Tag>;
+        }
       },
     },
     {
@@ -428,6 +524,7 @@ const OrderDetail: React.FC = () => {
   const statusInfo = getStatusInfo(order.status);
   const priorityInfo = getPriorityInfo(order.priority);
   const stats = calculateStats();
+  const readinessStatus = getOrderReadinessStatus();
 
   return (
     <div>
@@ -492,6 +589,15 @@ const OrderDetail: React.FC = () => {
                 >
                   Изменить статус
                 </Button>
+                {canEditOrder() && (user?.role === 'manager' || user?.role === 'director') && (
+                  <Button 
+                    danger
+                    icon={<DeleteOutlined />}
+                    onClick={handleDeleteOrder}
+                  >
+                    Удалить заказ
+                  </Button>
+                )}
               </Space>
             </Col>
           </Row>
@@ -558,25 +664,23 @@ const OrderDetail: React.FC = () => {
                 <Divider style={{ margin: '16px 0' }} />
 
                 <Row gutter={16}>
-                  <Col span={8}>
+                  <Col span={12}>
                     <div style={{ textAlign: 'center' }}>
-                      <Text type="secondary">Заказано</Text>
+                      <Text type="secondary">Общее количество</Text>
                       <br />
                       <Text strong style={{ fontSize: '16px' }}>{stats.totalQuantity} шт</Text>
                     </div>
                   </Col>
-                  <Col span={8}>
+                  <Col span={12}>
                     <div style={{ textAlign: 'center' }}>
-                      <Text type="secondary">Зарезервировано</Text>
+                      <Text type="secondary">Готовность заказа</Text>
                       <br />
-                      <Text strong style={{ fontSize: '16px', color: '#52c41a' }}>{stats.totalReserved} шт</Text>
-                    </div>
-                  </Col>
-                  <Col span={8}>
-                    <div style={{ textAlign: 'center' }}>
-                      <Text type="secondary">К производству</Text>
-                      <br />
-                      <Text strong style={{ fontSize: '16px', color: '#faad14' }}>{stats.totalNeedProduction} шт</Text>
+                      <Tag 
+                        color={readinessStatus.color} 
+                        style={{ fontSize: '14px', padding: '4px 8px' }}
+                      >
+                        {readinessStatus.text}
+                      </Tag>
                     </div>
                   </Col>
                 </Row>

@@ -308,6 +308,57 @@ router.post('/auto-queue', authenticateToken, authorizeRoles('production', 'dire
   }
 });
 
+// POST /api/production/queue - Manually add production task to queue
+router.post('/queue', authenticateToken, authorizeRoles('production', 'director'), async (req: AuthRequest, res, next) => {
+  try {
+    const { productId, quantity, priority = 3, notes } = req.body;
+
+    if (!productId || !quantity || quantity <= 0) {
+      return next(createError('Product ID and positive quantity are required', 400));
+    }
+
+    // Check if product exists
+    const product = await db.query.products.findFirst({
+      where: eq(schema.products.id, productId)
+    });
+
+    if (!product) {
+      return next(createError('Product not found', 404));
+    }
+
+    // Create production queue item
+    const newProductionItem = await db.insert(schema.productionQueue).values({
+      productId: Number(productId),
+      quantity: Number(quantity),
+      priority: Number(priority),
+      status: 'queued',
+      notes: notes || `Ручное создание задания на производство`,
+      createdAt: new Date()
+    }).returning();
+
+    // Get complete production item with product data
+    const completeItem = await db.query.productionQueue.findFirst({
+      where: eq(schema.productionQueue.id, newProductionItem[0].id),
+      with: {
+        product: {
+          with: {
+            category: true,
+            stock: true
+          }
+        }
+      }
+    });
+
+    res.status(201).json({
+      success: true,
+      data: completeItem,
+      message: 'Задание добавлено в очередь производства'
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/production/stats - Get production statistics
 router.get('/stats', authenticateToken, authorizeRoles('production', 'director'), async (req: AuthRequest, res, next) => {
   try {
