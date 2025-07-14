@@ -330,28 +330,26 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
       }
     }
 
-    // Add items with shortage to production queue
+    // Предлагаем производственные задания для товаров с дефицитом
+    const suggestedTasks = [];
     if (itemsNeedingProduction.length > 0) {
-      const productionItems = itemsNeedingProduction.map(item => ({
-        orderId,
-        productId: item.productId,
-        quantity: item.quantity,
-        priority: priority === 'urgent' ? 5 : 
-                 priority === 'high' ? 4 : 
-                 priority === 'normal' ? 3 : 2,
-        status: 'queued' as const,
-        notes: `Автоматически добавлено в очередь для заказа ${orderNumber}`
-      }));
+      const taskPriority = priority === 'urgent' ? 5 : 
+                          priority === 'high' ? 4 : 
+                          priority === 'normal' ? 3 : 2;
 
-      await db.insert(schema.productionQueue).values(productionItems);
-
-      // Update order status to in_production if any items need production
-      await db.update(schema.orders)
-        .set({
-          status: 'in_production',
-          updatedAt: new Date()
-        })
-        .where(eq(schema.orders.id, orderId));
+      for (const item of itemsNeedingProduction) {
+        const task = await db.insert(schema.productionTasks).values({
+          orderId,
+          productId: item.productId,
+          requestedQuantity: item.quantity,
+          priority: taskPriority,
+          status: 'suggested',
+          suggestedBy: managerId,
+          notes: `Автоматически предложено для заказа ${orderNumber}`
+        }).returning();
+        
+        suggestedTasks.push(task[0]);
+      }
     }
 
     // Get complete order data
@@ -368,7 +366,11 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
 
     res.status(201).json({
       success: true,
-      data: completeOrder
+      data: completeOrder,
+      suggestedTasks: suggestedTasks.length > 0 ? suggestedTasks : undefined,
+      message: suggestedTasks.length > 0 ? 
+        `Заказ создан. Предложено ${suggestedTasks.length} производственных заданий.` :
+        'Заказ создан'
     });
   } catch (error) {
     next(error);

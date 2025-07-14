@@ -173,6 +173,60 @@ export const productionQueue = pgTable('production_queue', {
   createdAt: timestamp('created_at').defaultNow()
 });
 
+// Production Tasks - новая система управления производственными заданиями
+export const productionTaskStatusEnum = pgEnum('production_task_status', [
+  'suggested',     // предложено
+  'approved',      // подтверждено
+  'rejected',      // отклонено
+  'postponed',     // отложено
+  'in_progress',   // в работе
+  'completed',     // завершено
+  'cancelled'      // отменено
+]);
+
+export const productionTasks = pgTable('production_tasks', {
+  id: serial('id').primaryKey(),
+  orderId: integer('order_id').notNull().references(() => orders.id),
+  productId: integer('product_id').notNull().references(() => products.id),
+  requestedQuantity: integer('requested_quantity').notNull(), // запрошенное количество
+  approvedQuantity: integer('approved_quantity'), // подтвержденное количество
+  status: productionTaskStatusEnum('status').default('suggested'),
+  priority: integer('priority').default(1), // 1-5, где 5 - срочный
+  sortOrder: integer('sort_order').default(0), // для drag-and-drop сортировки
+  
+  // Даты
+  suggestedAt: timestamp('suggested_at').defaultNow(),
+  approvedAt: timestamp('approved_at'),
+  startedAt: timestamp('started_at'),
+  completedAt: timestamp('completed_at'),
+  
+  // Результаты выполнения
+  producedQuantity: integer('produced_quantity').default(0), // фактически произведено
+  qualityQuantity: integer('quality_quantity').default(0),   // годных изделий
+  defectQuantity: integer('defect_quantity').default(0),     // брак
+  
+  // Метаданные
+  suggestedBy: integer('suggested_by').references(() => users.id), // кто предложил
+  approvedBy: integer('approved_by').references(() => users.id),   // кто подтвердил
+  completedBy: integer('completed_by').references(() => users.id), // кто завершил
+  
+  notes: text('notes'),
+  rejectReason: text('reject_reason'),
+  
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+// Дополнительные товары, произведенные сверх задания
+export const productionTaskExtras = pgTable('production_task_extras', {
+  id: serial('id').primaryKey(),
+  taskId: integer('task_id').notNull().references(() => productionTasks.id),
+  productId: integer('product_id').notNull().references(() => products.id),
+  quantity: integer('quantity').notNull(),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow()
+});
+
 // Cutting operations - FR-005
 export const cuttingOperations = pgTable('cutting_operations', {
   id: serial('id').primaryKey(),
@@ -262,7 +316,10 @@ export const usersRelations = relations(users, ({ many }) => ({
   messages: many(orderMessages),
   productions: many(productionQueue),
   notifications: many(telegramNotifications),
-  stockMovements: many(stockMovements)
+  stockMovements: many(stockMovements),
+  suggestedTasks: many(productionTasks),
+  approvedTasks: many(productionTasks), 
+  completedTasks: many(productionTasks)
 }));
 
 export const categoriesRelations = relations(categories, ({ one, many }) => ({
@@ -291,7 +348,9 @@ export const productsRelations = relations(products, ({ one, many }) => ({
   stock: one(stock, { fields: [products.id], references: [stock.productId] }),
   orderItems: many(orderItems),
   stockMovements: many(stockMovements),
-  productionQueue: many(productionQueue)
+  productionQueue: many(productionQueue),
+  productionTasks: many(productionTasks),
+  productionTaskExtras: many(productionTaskExtras)
 }));
 
 export const ordersRelations = relations(orders, ({ one, many }) => ({
@@ -299,7 +358,8 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
   items: many(orderItems, { relationName: 'orderItems' }),
   messages: many(orderMessages, { relationName: 'orderMessages' }),
   shipments: many(shipments),
-  productionQueue: many(productionQueue)
+  productionQueue: many(productionQueue),
+  productionTasks: many(productionTasks)
 }));
 
 export const stockRelations = relations(stock, ({ one }) => ({
@@ -324,4 +384,19 @@ export const orderMessagesRelations = relations(orderMessages, ({ one }) => ({
 export const productionQueueRelations = relations(productionQueue, ({ one }) => ({
   order: one(orders, { fields: [productionQueue.orderId], references: [orders.id] }),
   product: one(products, { fields: [productionQueue.productId], references: [products.id] })
+}));
+
+// Relations для новых таблиц производственных заданий
+export const productionTasksRelations = relations(productionTasks, ({ one, many }) => ({
+  order: one(orders, { fields: [productionTasks.orderId], references: [orders.id] }),
+  product: one(products, { fields: [productionTasks.productId], references: [products.id] }),
+  suggestedByUser: one(users, { fields: [productionTasks.suggestedBy], references: [users.id] }),
+  approvedByUser: one(users, { fields: [productionTasks.approvedBy], references: [users.id] }),
+  completedByUser: one(users, { fields: [productionTasks.completedBy], references: [users.id] }),
+  extras: many(productionTaskExtras)
+}));
+
+export const productionTaskExtrasRelations = relations(productionTaskExtras, ({ one }) => ({
+  task: one(productionTasks, { fields: [productionTaskExtras.taskId], references: [productionTasks.id] }),
+  product: one(products, { fields: [productionTaskExtras.productId], references: [products.id] })
 })); 
