@@ -82,8 +82,8 @@ const Dashboard: React.FC = () => {
       case 'confirmed': return 'cyan';
       case 'in_production': return 'orange';
       case 'ready': return 'green';
-      case 'shipped': return 'purple';
-      case 'delivered': return 'success';
+      case 'completed': return 'success';
+      case 'cancelled': return 'red';
       default: return 'default';
     }
   };
@@ -95,8 +95,8 @@ const Dashboard: React.FC = () => {
       confirmed: 'Подтвержден',
       in_production: 'В производстве',
       ready: 'Готов',
-      shipped: 'Отгружен',
-      delivered: 'Доставлен'
+      completed: 'Выполнен',
+      cancelled: 'Отменен'
     };
     return statusMap[status] || status;
   };
@@ -203,10 +203,10 @@ const Dashboard: React.FC = () => {
       key: 'status',
       render: (status: string) => {
         const statusMap: Record<string, { color: string; text: string }> = {
-          planned: { color: 'blue', text: 'Запланирована' },
-          loading: { color: 'orange', text: 'Загрузка' },
-          shipped: { color: 'green', text: 'Отгружена' },
-          delivered: { color: 'success', text: 'Доставлена' }
+          pending: { color: 'blue', text: 'В очереди' },
+          paused: { color: 'orange', text: 'На паузе' },
+          completed: { color: 'green', text: 'Выполнена' },
+          cancelled: { color: 'red', text: 'Отменена' }
         };
         const statusInfo = statusMap[status] || { color: 'default', text: status };
         return <Tag color={statusInfo.color}>{statusInfo.text}</Tag>;
