@@ -47,6 +47,7 @@ import shipmentsApi, {
   UpdateShipmentStatusRequest,
   UpdateShipmentRequest
 } from '../services/shipmentsApi';
+import { SHIPMENT_STATUS_COLORS } from '../constants/shipmentStatuses';
 import dayjs from 'dayjs';
 
 const { Option } = Select;
@@ -511,12 +512,42 @@ export const Shipments: React.FC = () => {
             onChange={setStatusFilter}
             style={{ width: 200 }}
           >
-            <Option value="all">Все отгрузки</Option>
-            <Option value="planned">Запланированные</Option>
-            <Option value="loading">Загрузка</Option>
-            <Option value="shipped">Отгруженные</Option>
-            <Option value="delivered">Доставленные</Option>
-            <Option value="cancelled">Отмененные</Option>
+            <Option value="all">
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#d9d9d9', marginRight: '8px' }} />
+                Все отгрузки
+              </div>
+            </Option>
+            <Option value="planned">
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: SHIPMENT_STATUS_COLORS.planned, marginRight: '8px' }} />
+                Запланированные
+              </div>
+            </Option>
+            <Option value="loading">
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: SHIPMENT_STATUS_COLORS.loading, marginRight: '8px' }} />
+                Загрузка
+              </div>
+            </Option>
+            <Option value="shipped">
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: SHIPMENT_STATUS_COLORS.shipped, marginRight: '8px' }} />
+                Отгруженные
+              </div>
+            </Option>
+            <Option value="delivered">
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: SHIPMENT_STATUS_COLORS.delivered, marginRight: '8px' }} />
+                Доставленные
+              </div>
+            </Option>
+            <Option value="cancelled">
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: SHIPMENT_STATUS_COLORS.cancelled, marginRight: '8px' }} />
+                Отмененные
+              </div>
+            </Option>
           </Select>
           
           <Input.Search
@@ -670,10 +701,18 @@ export const Shipments: React.FC = () => {
                 <Select placeholder="Выберите статус">
                   {shipmentsApi.getValidNextStatuses(selectedShipment.status).map(status => (
                     <Option key={status} value={status}>
-                      <Badge 
-                        color={shipmentsApi.getStatusColor(status)} 
-                        text={shipmentsApi.getStatusText(status)} 
-                      />
+                      <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <div 
+                          style={{ 
+                            width: '8px', 
+                            height: '8px', 
+                            borderRadius: '50%', 
+                            backgroundColor: shipmentsApi.getStatusColor(status),
+                            marginRight: '8px'
+                          }} 
+                        />
+                        {shipmentsApi.getStatusText(status)}
+                      </div>
                     </Option>
                   ))}
                 </Select>

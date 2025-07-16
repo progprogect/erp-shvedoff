@@ -131,24 +131,30 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
         return new Map<number, number>();
       }
 
+      // Дополнительная валидация массива productIds
+      const validProductIds = productIds.filter(id => Number.isInteger(id) && id > 0);
+      if (validProductIds.length === 0) {
+        return new Map<number, number>();
+      }
+
       const tasksQuery = db
         .select({
           productId: schema.productionTasks.productId,
           quantity: sql<number>`
-            SUM(
+            COALESCE(SUM(
               CASE 
-                WHEN ${schema.productionTasks.status} IN ('approved', 'in_progress') 
-                THEN COALESCE(${schema.productionTasks.approvedQuantity}, ${schema.productionTasks.requestedQuantity})
+                WHEN ${schema.productionTasks.status} IN ('pending', 'in_progress') 
+                THEN ${schema.productionTasks.requestedQuantity}
                 ELSE 0
               END
-            )
+            ), 0)
           `.as('quantity')
         })
         .from(schema.productionTasks)
         .where(
           and(
-            inArray(schema.productionTasks.status, ['approved', 'in_progress']),
-            inArray(schema.productionTasks.productId, productIds)
+            inArray(schema.productionTasks.status, ['pending', 'in_progress']),
+            inArray(schema.productionTasks.productId, validProductIds)
           )
         )
         .groupBy(schema.productionTasks.productId);
@@ -157,16 +163,41 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
       const productionMap = new Map<number, number>();
 
       inProduction.forEach(item => {
-        productionMap.set(item.productId, item.quantity);
+        // Добавляем валидацию и обработку числовых данных
+        const quantity = Number(item.quantity) || 0;
+        
+        // Проверяем на разумность значения
+        if (quantity < 0 || quantity > 1000000) {
+          console.warn(`⚠️ Подозрительное значение производства для товара ${item.productId}: ${quantity}. Устанавливаем 0.`);
+          productionMap.set(item.productId, 0);
+        } else {
+          productionMap.set(item.productId, quantity);
+        }
       });
 
       return productionMap;
     }
 
     // Helper function to calculate reserved quantities from active orders
-    async function getReservedQuantities(productIds: number[]) {
+    async function getReservedQuantities(productIds: number[], excludeOrderId?: number) {
       if (productIds.length === 0) {
         return new Map<number, number>();
+      }
+
+      // Дополнительная валидация массива productIds
+      const validProductIds = productIds.filter(id => Number.isInteger(id) && id > 0);
+      if (validProductIds.length === 0) {
+        return new Map<number, number>();
+      }
+
+      let whereConditions = [
+        inArray(schema.orderItems.productId, validProductIds),
+        inArray(schema.orders.status, ['new', 'confirmed', 'in_production', 'shipped'])
+      ];
+
+      // Исключаем текущий заказ из расчета резерва
+      if (excludeOrderId) {
+        whereConditions.push(sql`${schema.orders.id} != ${excludeOrderId}`);
       }
 
       const reservedQuery = db
@@ -176,12 +207,7 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
         })
         .from(schema.orderItems)
         .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
-        .where(
-          and(
-            inArray(schema.orderItems.productId, productIds),
-            inArray(schema.orders.status, ['new', 'confirmed', 'in_production', 'shipped'])
-          )
-        )
+        .where(and(...whereConditions))
         .groupBy(schema.orderItems.productId);
 
       const reservedData = await reservedQuery;
@@ -195,12 +221,16 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
     }
 
     // Получаем ID всех продуктов в заказе
-    const productIds = order.items?.map(item => item.productId) || [];
+    const productIds = order.items?.map(item => {
+      const id = typeof item.productId === 'string' ? parseInt(item.productId, 10) : Number(item.productId);
+      return id;
+    }).filter(id => Number.isInteger(id) && id > 0) || [];
     
     // Получаем данные о производстве и резервах
+    // Исключаем текущий заказ из расчета резерва для корректного отображения доступности
     const [productionQuantities, reservedQuantities] = await Promise.all([
       getProductionQuantities(productIds),
-      getReservedQuantities(productIds)
+      getReservedQuantities(productIds, order.id)
     ]);
 
     // Обогащаем данные о товарах
@@ -247,12 +277,38 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
       deliveryDate, 
       priority = 'normal', 
       items, 
-      notes 
+      notes,
+      managerId // Добавляем возможность назначить заказ на другого менеджера
     } = req.body;
-    const managerId = req.user!.id;
+    const currentUserId = req.user!.id;
+    const currentUserRole = req.user!.role;
 
     if (!customerName || !items || !Array.isArray(items) || items.length === 0) {
       return next(createError('Customer name and items are required', 400));
+    }
+
+    // Определяем менеджера заказа
+    let assignedManagerId = currentUserId; // По умолчанию - текущий пользователь
+    
+    if (managerId && managerId !== currentUserId) {
+      // Проверяем права на назначение заказа на другого пользователя
+      if (currentUserRole !== 'director') {
+        return next(createError('Только директор может назначать заказы на других пользователей', 403));
+      }
+      
+      // Проверяем, что указанный пользователь существует и активен
+      const targetManager = await db.query.users.findFirst({
+        where: and(
+          eq(schema.users.id, managerId),
+          eq(schema.users.isActive, true)
+        )
+      });
+      
+      if (!targetManager) {
+        return next(createError('Указанный менеджер не найден или неактивен', 404));
+      }
+      
+      assignedManagerId = managerId;
     }
 
     // Generate order number
@@ -276,7 +332,7 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
       status: 'new',
       priority,
       deliveryDate: deliveryDate ? new Date(deliveryDate) : null,
-      managerId,
+      managerId: assignedManagerId, // Используем назначенного менеджера
       totalAmount: totalAmount.toString(),
       notes
     }).returning();
@@ -329,7 +385,7 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
             quantity: quantityToReserve,
             referenceId: orderId,
             referenceType: 'order',
-            userId: managerId
+            userId: currentUserId
           });
         }
       }
@@ -369,9 +425,9 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
           productId: item.product_id,
           requestedQuantity: item.shortage,
           priority: taskPriority,
-          status: 'suggested',
-          suggestedBy: managerId,
-          notes: `Автоматически предложено для заказа ${orderNumber}. Дефицит: ${item.shortage} шт.`
+          status: 'pending',
+          createdBy: currentUserId,
+          notes: `Автоматически создано для заказа ${orderNumber}. Дефицит: ${item.shortage} шт.`
         }).returning();
         
         suggestedTasks.push(task[0]);
@@ -431,17 +487,18 @@ router.put('/:id', authenticateToken, authorizeRoles('manager', 'director'), asy
       deliveryDate, 
       priority, 
       notes,
-      items 
+      items,
+      managerId // Добавляем возможность изменить менеджера
     } = req.body;
-    const userId = req.user!.id;
-    const userRole = req.user!.role;
+    const currentUserId = req.user!.id;
+    const currentUserRole = req.user!.role;
 
     // Check if order exists and user has access
     let whereCondition;
-    if (userRole === 'manager') {
+    if (currentUserRole === 'manager') {
       whereCondition = and(
         eq(schema.orders.id, orderId),
-        eq(schema.orders.managerId, userId)
+        eq(schema.orders.managerId, currentUserId)
       );
     } else {
       whereCondition = eq(schema.orders.id, orderId);
@@ -462,6 +519,25 @@ router.put('/:id', authenticateToken, authorizeRoles('manager', 'director'), asy
     const nonEditableStatuses = ['shipped', 'delivered', 'cancelled'];
     if (existingOrder.status && nonEditableStatuses.includes(existingOrder.status)) {
       return next(createError('Order cannot be edited in current status', 400));
+    }
+
+    // Проверяем права на изменение менеджера
+    if (managerId && managerId !== existingOrder.managerId) {
+      if (currentUserRole !== 'director') {
+        return next(createError('Только директор может изменять назначенного менеджера', 403));
+      }
+      
+      // Проверяем, что новый менеджер существует и активен
+      const targetManager = await db.query.users.findFirst({
+        where: and(
+          eq(schema.users.id, managerId),
+          eq(schema.users.isActive, true)
+        )
+      });
+      
+      if (!targetManager) {
+        return next(createError('Указанный менеджер не найден или неактивен', 404));
+      }
     }
 
     // Calculate new total amount
@@ -485,6 +561,7 @@ router.put('/:id', authenticateToken, authorizeRoles('manager', 'director'), asy
     if (priority) updateData.priority = priority;
     if (notes !== undefined) updateData.notes = notes || '';
     if (totalAmount > 0) updateData.totalAmount = totalAmount.toString();
+    if (managerId && managerId !== existingOrder.managerId) updateData.managerId = managerId;
 
     const updatedOrder = await db.update(schema.orders)
       .set(updateData)
@@ -514,7 +591,7 @@ router.put('/:id', authenticateToken, authorizeRoles('manager', 'director'), asy
             quantity: -reservedQty,
             referenceId: orderId,
             referenceType: 'order',
-            userId
+            userId: currentUserId
           });
         }
       }
@@ -563,7 +640,7 @@ router.put('/:id', authenticateToken, authorizeRoles('manager', 'director'), asy
               quantity: quantityToReserve,
               referenceId: orderId,
               referenceType: 'order',
-              userId
+              userId: currentUserId
             });
           }
         }
@@ -573,7 +650,7 @@ router.put('/:id', authenticateToken, authorizeRoles('manager', 'director'), asy
     // Add message about order update
     await db.insert(schema.orderMessages).values({
       orderId,
-      userId,
+      userId: currentUserId,
       message: 'Заказ был отредактирован'
     });
 
@@ -623,15 +700,15 @@ router.put('/:id/confirm', authenticateToken, authorizeRoles('manager', 'directo
   try {
     const orderId = Number(req.params.id);
     const { comment } = req.body;
-    const userId = req.user!.id;
-    const userRole = req.user!.role;
+    const currentUserId = req.user!.id;
+    const currentUserRole = req.user!.role;
 
     // Check if order exists and user has access
     let whereCondition;
-    if (userRole === 'manager') {
+    if (currentUserRole === 'manager') {
       whereCondition = and(
         eq(schema.orders.id, orderId),
-        eq(schema.orders.managerId, userId)
+        eq(schema.orders.managerId, currentUserId)
       );
     } else {
       whereCondition = eq(schema.orders.id, orderId);
@@ -714,7 +791,7 @@ router.put('/:id/confirm', authenticateToken, authorizeRoles('manager', 'directo
 
     await db.insert(schema.orderMessages).values({
       orderId,
-      userId,
+      userId: currentUserId,
       message
     });
 
@@ -735,7 +812,7 @@ router.put('/:id/status', authenticateToken, async (req: AuthRequest, res, next)
   try {
     const orderId = Number(req.params.id);
     const { status, comment } = req.body;
-    const userId = req.user!.id;
+    const currentUserId = req.user!.id;
 
     if (!status) {
       return next(createError('Status is required', 400));
@@ -782,7 +859,7 @@ router.put('/:id/status', authenticateToken, async (req: AuthRequest, res, next)
               referenceId: orderId,
               referenceType: 'order',
               comment: `Отгрузка по заказу ${existingOrder.orderNumber}`,
-              userId
+              userId: currentUserId
             });
           } else {
             // For cancelled: only release reservation
@@ -801,7 +878,7 @@ router.put('/:id/status', authenticateToken, async (req: AuthRequest, res, next)
               referenceId: orderId,
               referenceType: 'order',
               comment: `Отмена резерва по заказу ${existingOrder.orderNumber}`,
-              userId
+              userId: currentUserId
             });
           }
         }
@@ -833,7 +910,7 @@ router.put('/:id/status', authenticateToken, async (req: AuthRequest, res, next)
 
     await db.insert(schema.orderMessages).values({
       orderId,
-      userId,
+      userId: currentUserId,
       message
     });
 
@@ -921,15 +998,15 @@ router.get('/:id/availability', authenticateToken, async (req: AuthRequest, res,
 router.delete('/:id', authenticateToken, authorizeRoles('manager', 'director'), async (req: AuthRequest, res, next) => {
   try {
     const orderId = Number(req.params.id);
-    const userId = req.user!.id;
-    const userRole = req.user!.role;
+    const currentUserId = req.user!.id;
+    const currentUserRole = req.user!.role;
 
     // Check if order exists and user has access
     let whereCondition;
-    if (userRole === 'manager') {
+    if (currentUserRole === 'manager') {
       whereCondition = and(
         eq(schema.orders.id, orderId),
-        eq(schema.orders.managerId, userId)
+        eq(schema.orders.managerId, currentUserId)
       );
     } else {
       whereCondition = eq(schema.orders.id, orderId);
@@ -971,7 +1048,7 @@ router.delete('/:id', authenticateToken, authorizeRoles('manager', 'director'), 
           quantity: -reservedQty,
           referenceId: orderId,
           referenceType: 'order',
-          userId
+          userId: currentUserId
         });
       }
     }
@@ -982,7 +1059,7 @@ router.delete('/:id', authenticateToken, authorizeRoles('manager', 'director'), 
       recordId: orderId,
       operation: 'DELETE',
       oldValues: existingOrder,
-      userId,
+      userId: currentUserId,
       createdAt: new Date()
     });
 
@@ -1005,6 +1082,64 @@ router.delete('/:id', authenticateToken, authorizeRoles('manager', 'director'), 
     res.json({
       success: true,
       message: `Заказ ${existingOrder.orderNumber} успешно удален`
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/orders/by-product/:productId - Get orders by product
+router.get('/by-product/:productId', authenticateToken, async (req: AuthRequest, res, next) => {
+  try {
+    const productId = Number(req.params.productId);
+    const userRole = req.user!.role;
+    const userId = req.user!.id;
+
+    if (isNaN(productId) || productId <= 0) {
+      return next(createError('Некорректный ID товара', 400));
+    }
+
+    // Получаем заказы где используется данный товар (только активные)
+    let whereConditions = [
+      sql`EXISTS (
+        SELECT 1 FROM order_items oi 
+        WHERE oi.order_id = ${schema.orders.id} 
+        AND oi.product_id = ${productId}
+      )`,
+      inArray(schema.orders.status, ['new', 'confirmed', 'in_production'])
+    ];
+
+    // Role-based filtering
+    if (userRole === 'manager') {
+      whereConditions.push(eq(schema.orders.managerId, userId));
+    }
+
+    const orders = await db.query.orders.findMany({
+      where: and(...whereConditions),
+      with: {
+        manager: {
+          columns: {
+            passwordHash: false
+          }
+        },
+        items: {
+          where: eq(schema.orderItems.productId, productId),
+          with: {
+            product: {
+              with: {
+                stock: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: sql`${schema.orders.createdAt} DESC`,
+      limit: 50
+    });
+
+    res.json({
+      success: true,
+      data: orders
     });
   } catch (error) {
     next(error);

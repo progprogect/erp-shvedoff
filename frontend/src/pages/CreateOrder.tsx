@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { ordersApi, CreateOrderRequest } from '../services/ordersApi';
 import { catalogApi, Product } from '../services/catalogApi';
+import { usersApi } from '../services/usersApi';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -29,6 +30,13 @@ interface OrderItemForm {
   canReserve: number;
 }
 
+interface User {
+  id: number;
+  username: string;
+  fullName?: string;
+  role: string;
+}
+
 const CreateOrder: React.FC = () => {
   const navigate = useNavigate();
   const { user, token } = useAuthStore();
@@ -36,6 +44,7 @@ const CreateOrder: React.FC = () => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [searchText, setSearchText] = useState('');
   const [orderItems, setOrderItems] = useState<OrderItemForm[]>([]);
   const [currentStep, setCurrentStep] = useState(0);
@@ -44,9 +53,10 @@ const CreateOrder: React.FC = () => {
   const [productModalVisible, setProductModalVisible] = useState(false);
   const [confirmModalVisible, setConfirmModalVisible] = useState(false);
 
-  // Load products for selection
+  // Load products and users for selection
   useEffect(() => {
     loadProducts();
+    loadUsers();
   }, []);
 
   const loadProducts = async () => {
@@ -60,6 +70,24 @@ const CreateOrder: React.FC = () => {
       }
     } catch (error) {
       console.error('Ошибка загрузки товаров:', error);
+    }
+  };
+
+  const loadUsers = async () => {
+    if (!token) return;
+    
+    try {
+      const response = await catalogApi.getUsers();
+      
+      if (response.success) {
+        // Фильтруем только менеджеров и директоров для назначения заказов
+        const availableUsers = response.data.filter(
+          (u: User) => u.role === 'manager' || u.role === 'director'
+        );
+        setUsers(availableUsers);
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки пользователей:', error);
     }
   };
 
@@ -151,6 +179,7 @@ const CreateOrder: React.FC = () => {
       deliveryDate: values.deliveryDate ? values.deliveryDate.toISOString() : undefined,
       priority: values.priority || 'normal',
       notes: values.notes,
+      managerId: values.managerId, // Добавляем назначенного менеджера
       items: orderItems.map(item => ({
         productId: item.productId,
         quantity: item.quantity,
@@ -397,7 +426,7 @@ const CreateOrder: React.FC = () => {
               </Row>
 
               <Row gutter={24}>
-                <Col span={8}>
+                <Col span={6}>
                   <Form.Item
                     name="deliveryDate"
                     label="Дата поставки"
@@ -409,7 +438,7 @@ const CreateOrder: React.FC = () => {
                     />
                   </Form.Item>
                 </Col>
-                <Col span={8}>
+                <Col span={6}>
                   <Form.Item
                     name="priority"
                     label="Приоритет"
@@ -422,7 +451,22 @@ const CreateOrder: React.FC = () => {
                     </Select>
                   </Form.Item>
                 </Col>
-                <Col span={8}>
+                <Col span={6}>
+                  <Form.Item
+                    name="managerId"
+                    label="Менеджер"
+                    initialValue={user?.id}
+                  >
+                    <Select placeholder="Выберите менеджера">
+                      {users.map(u => (
+                        <Option key={u.id} value={u.id}>
+                          {u.fullName || u.username} ({u.role === 'manager' ? 'Менеджер' : 'Директор'})
+                        </Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+                </Col>
+                <Col span={6}>
                   <div style={{ paddingTop: 30 }}>
                     <Button
                       type="dashed"

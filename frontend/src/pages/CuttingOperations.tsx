@@ -187,59 +187,16 @@ export const CuttingOperations: React.FC = () => {
     }
   };
 
-  // Утверждение операции
-  const handleApproveOperation = async (id: number) => {
+  // Изменение статуса операции
+  const handleChangeStatus = async (id: number, newStatus: CuttingOperation['status']) => {
     try {
       setActionLoading(true);
-      await cuttingApi.approveCuttingOperation(id);
-      message.success('Операция резки утверждена');
+      await cuttingApi.changeOperationStatus(id, newStatus);
+      message.success('Статус операции изменен');
       loadData();
       loadStatistics();
     } catch (error: any) {
-      message.error(error.response?.data?.message || 'Ошибка утверждения операции');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  // Запуск операции
-  const handleStartOperation = async (id: number) => {
-    try {
-      setActionLoading(true);
-      await cuttingApi.startCuttingOperation(id);
-      message.success('Операция резки запущена');
-      loadData();
-      loadStatistics();
-    } catch (error: any) {
-      message.error(error.response?.data?.message || 'Ошибка запуска операции');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  // Завершение операции
-  const handleCompleteOperation = async (values: any) => {
-    if (!selectedOperation) return;
-    
-    try {
-      setActionLoading(true);
-      
-      const request: CompleteCuttingOperationRequest = {
-        actualTargetQuantity: values.actualTargetQuantity,
-        actualWasteQuantity: values.actualWasteQuantity,
-        notes: values.notes
-      };
-      
-      await cuttingApi.completeCuttingOperation(selectedOperation.id, request);
-      message.success('Операция резки завершена');
-      
-      setCompleteModalVisible(false);
-      completeForm.resetFields();
-      setSelectedOperation(null);
-      loadData();
-      loadStatistics();
-    } catch (error: any) {
-      message.error(error.response?.data?.message || 'Ошибка завершения операции');
+      message.error(error.response?.data?.message || 'Ошибка изменения статуса');
     } finally {
       setActionLoading(false);
     }
@@ -279,9 +236,37 @@ export const CuttingOperations: React.FC = () => {
     setSelectedOperation(operation);
     completeForm.setFieldsValue({
       actualTargetQuantity: operation.targetQuantity,
-      actualWasteQuantity: operation.wasteQuantity
+      actualDefectQuantity: operation.wasteQuantity // Используем старое поле, но теперь это "брак"
     });
     setCompleteModalVisible(true);
+  };
+
+  // Завершение операции
+  const handleCompleteOperation = async (values: any) => {
+    if (!selectedOperation) return;
+    
+    try {
+      setActionLoading(true);
+      
+      const request: CompleteCuttingOperationRequest = {
+        actualTargetQuantity: values.actualTargetQuantity,
+        actualDefectQuantity: values.actualDefectQuantity,
+        notes: values.notes
+      };
+      
+      await cuttingApi.completeCuttingOperation(selectedOperation.id, request);
+      message.success('Операция резки завершена');
+      
+      setCompleteModalVisible(false);
+      completeForm.resetFields();
+      setSelectedOperation(null);
+      loadData();
+      loadStatistics();
+    } catch (error: any) {
+      message.error(error.response?.data?.message || 'Ошибка завершения операции');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   // Фильтрация доступных целевых товаров (исключаем исходный)
@@ -346,7 +331,7 @@ export const CuttingOperations: React.FC = () => {
       ),
     },
     {
-      title: 'Отходы',
+      title: 'Брак',
       dataIndex: 'wasteQuantity',
       key: 'wasteQuantity',
       width: 100,
@@ -389,6 +374,7 @@ export const CuttingOperations: React.FC = () => {
       width: 200,
       render: (record: CuttingOperation) => {
         const userRole = user?.role || '';
+        const validNextStatuses = cuttingApi.getValidNextStatuses(record.status);
         
         return (
           <Space size="small">
@@ -400,35 +386,6 @@ export const CuttingOperations: React.FC = () => {
               />
             </Tooltip>
             
-            {record.status === 'planned' && cuttingApi.canApprove(userRole) && (
-              <Tooltip title="Утвердить">
-                <Popconfirm
-                  title="Утвердить операцию резки?"
-                  description="Товар будет зарезервирован"
-                  onConfirm={() => handleApproveOperation(record.id)}
-                >
-                  <Button 
-                    type="text" 
-                    icon={<CheckOutlined />} 
-                    style={{ color: '#52c41a' }} 
-                    loading={actionLoading}
-                  />
-                </Popconfirm>
-              </Tooltip>
-            )}
-            
-            {record.status === 'approved' && cuttingApi.canStart(userRole) && (
-              <Tooltip title="Запустить">
-                <Button 
-                  type="text" 
-                  icon={<PlayCircleOutlined />} 
-                  style={{ color: '#1890ff' }}
-                  onClick={() => handleStartOperation(record.id)}
-                  loading={actionLoading}
-                />
-              </Tooltip>
-            )}
-            
             {record.status === 'in_progress' && cuttingApi.canComplete(userRole) && (
               <Tooltip title="Завершить">
                 <Button 
@@ -439,8 +396,28 @@ export const CuttingOperations: React.FC = () => {
                 />
               </Tooltip>
             )}
+
+            {/* Кнопки изменения статуса (кроме завершенных операций) */}
+            {record.status !== 'completed' && validNextStatuses.length > 0 && (
+              <Select
+                size="small"
+                value={record.status}
+                style={{ minWidth: 120 }}
+                onChange={(newStatus) => handleChangeStatus(record.id, newStatus as CuttingOperation['status'])}
+                loading={actionLoading}
+              >
+                <Option value={record.status} disabled>
+                  {cuttingApi.getStatusText(record.status)}
+                </Option>
+                {validNextStatuses.map(status => (
+                  <Option key={status} value={status}>
+                    {cuttingApi.getStatusText(status)}
+                  </Option>
+                ))}
+              </Select>
+            )}
             
-            {(record.status === 'planned' || record.status === 'approved') && cuttingApi.canCancel(userRole) && (
+            {(record.status === 'in_progress' || record.status === 'cancelled') && cuttingApi.canCancel(userRole) && (
               <Tooltip title="Отменить">
                 <Popconfirm
                   title="Отменить операцию резки?"
@@ -494,7 +471,7 @@ export const CuttingOperations: React.FC = () => {
         <Col span={6}>
           <Card>
             <Statistic 
-              title="Общий объем отходов" 
+              title="Общий объем брака" 
               value={statistics.totalWaste} 
               suffix="шт."
               valueStyle={{ color: '#ff4d4f' }}
@@ -520,13 +497,13 @@ export const CuttingOperations: React.FC = () => {
           </Select>
         </Space>
         
-        {cuttingApi.canCreate(user?.role || '') && (
+        {['manager', 'director'].includes(user?.role || '') && (
           <Button 
             type="primary" 
             icon={<PlusOutlined />}
             onClick={() => setCreateModalVisible(true)}
           >
-            Создать заявку на резку
+            Создать операцию резки
           </Button>
         )}
       </div>
@@ -579,12 +556,19 @@ export const CuttingOperations: React.FC = () => {
                 const available = getAvailableStock(product);
                 return (
                   <Option key={product.id} value={product.id} disabled={available <= 0}>
-                    <div>
-                      <div>{product.name}</div>
-                      <div style={{ fontSize: '12px', color: available <= 0 ? '#ff4d4f' : '#999' }}>
-                        {product.article && `Артикул: ${product.article} | `}
-                        Доступно: {available} шт.
-                        {available <= 0 && ' (недостаточно товара)'}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <div style={{ fontWeight: 'bold', fontSize: '14px' }}>
+                        {product.name}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#666' }}>
+                        {product.article ? `Артикул: ${product.article}` : 'Без артикула'}
+                        {' • '}
+                        <span style={{ color: available <= 0 ? '#ff4d4f' : '#52c41a' }}>
+                          Доступно: {available} шт.
+                        </span>
+                        {available <= 0 && (
+                          <span style={{ color: '#ff4d4f' }}> (недостаточно товара)</span>
+                        )}
                       </div>
                     </div>
                   </Option>
@@ -608,11 +592,13 @@ export const CuttingOperations: React.FC = () => {
             >
               {getAvailableTargetProducts(createForm.getFieldValue('sourceProductId')).map(product => (
                 <Option key={product.id} value={product.id}>
-                  <div>
-                    <div>{product.name}</div>
-                    {product.article && <div style={{ fontSize: '12px', color: '#999' }}>
-                      Артикул: {product.article}
-                    </div>}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '14px' }}>
+                      {product.name}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>
+                      {product.article ? `Артикул: ${product.article}` : 'Без артикула'}
+                    </div>
                   </div>
                 </Option>
               ))}
@@ -708,7 +694,7 @@ export const CuttingOperations: React.FC = () => {
             <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#f5f5f5', borderRadius: '6px' }}>
               <div><strong>Операция:</strong> {selectedOperation.sourceProduct.name} → {selectedOperation.targetProduct.name}</div>
               <div><strong>Планировалось:</strong> {selectedOperation.targetQuantity} шт.</div>
-              <div><strong>Ожидаемые отходы:</strong> {selectedOperation.wasteQuantity} шт.</div>
+              <div><strong>Ожидаемый брак:</strong> {selectedOperation.wasteQuantity} шт.</div>
             </div>
             
             <Form
@@ -729,13 +715,13 @@ export const CuttingOperations: React.FC = () => {
               </Form.Item>
 
               <Form.Item
-                name="actualWasteQuantity"
-                label="Фактические отходы"
+                name="actualDefectQuantity"
+                label="Фактический брак"
               >
                 <InputNumber
                   min={0}
                   style={{ width: '100%' }}
-                  placeholder="Автоматически рассчитается"
+                  placeholder="Количество брака"
                 />
               </Form.Item>
 

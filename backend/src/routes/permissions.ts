@@ -274,4 +274,226 @@ router.get('/user-menu', authenticateToken, async (req: AuthRequest, res, next) 
   }
 });
 
+// POST /api/permissions/assign - Назначить разрешение роли
+router.post('/assign', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+  try {
+    const { role, permissionId } = req.body;
+    const userId = req.user!.id;
+
+    if (!role || !permissionId) {
+      return next(createError('Роль и ID разрешения обязательны', 400));
+    }
+
+    // Проверяем валидность роли
+    const validRoles = ['manager', 'director', 'production', 'warehouse'];
+    if (!validRoles.includes(role)) {
+      return next(createError('Недопустимая роль', 400));
+    }
+
+    // Проверяем существование разрешения
+    const permission = await db.query.permissions.findFirst({
+      where: eq(schema.permissions.id, permissionId)
+    });
+
+    if (!permission) {
+      return next(createError('Разрешение не найдено', 404));
+    }
+
+    // Проверяем, не назначено ли уже это разрешение
+    const existingAssignment = await db.query.rolePermissions.findFirst({
+      where: and(
+        eq(schema.rolePermissions.role, role as any),
+        eq(schema.rolePermissions.permissionId, permissionId)
+      )
+    });
+
+    if (existingAssignment) {
+      return next(createError('Разрешение уже назначено этой роли', 400));
+    }
+
+    // Назначаем разрешение роли
+    const [newAssignment] = await db.insert(schema.rolePermissions).values({
+      role: role as any,
+      permissionId
+    }).returning();
+
+    // Логируем назначение
+    await db.insert(schema.auditLog).values({
+      tableName: 'role_permissions',
+      recordId: newAssignment.id,
+      operation: 'INSERT',
+      newValues: {
+        role,
+        permissionId,
+        permissionResource: permission.resource,
+        permissionAction: permission.action
+      },
+      userId
+    });
+
+    res.json({
+      success: true,
+      data: newAssignment,
+      message: `Разрешение "${permission.resource}:${permission.action}" назначено роли "${role}"`
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// DELETE /api/permissions/revoke - Отозвать разрешение у роли
+router.delete('/revoke', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+  try {
+    const { role, permissionId } = req.body;
+    const userId = req.user!.id;
+
+    if (!role || !permissionId) {
+      return next(createError('Роль и ID разрешения обязательны', 400));
+    }
+
+    // Проверяем валидность роли
+    const validRoles = ['manager', 'director', 'production', 'warehouse'];
+    if (!validRoles.includes(role)) {
+      return next(createError('Недопустимая роль', 400));
+    }
+
+    // Находим назначение разрешения
+    const assignment = await db.query.rolePermissions.findFirst({
+      where: and(
+        eq(schema.rolePermissions.role, role as any),
+        eq(schema.rolePermissions.permissionId, permissionId)
+      ),
+      with: {
+        permission: true
+      }
+    });
+
+    if (!assignment) {
+      return next(createError('Разрешение не назначено этой роли', 404));
+    }
+
+    // Удаляем назначение
+    await db.delete(schema.rolePermissions)
+      .where(eq(schema.rolePermissions.id, assignment.id));
+
+    // Логируем отзыв
+    await db.insert(schema.auditLog).values({
+      tableName: 'role_permissions',
+      recordId: assignment.id,
+      operation: 'DELETE',
+      oldValues: {
+        role,
+        permissionId,
+        permissionResource: assignment.permission.resource,
+        permissionAction: assignment.permission.action
+      },
+      userId
+    });
+
+    res.json({
+      success: true,
+      message: `Разрешение "${assignment.permission.resource}:${assignment.permission.action}" отозвано у роли "${role}"`
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/permissions/roles/:role/bulk-assign - Массовое назначение разрешений роли
+router.post('/roles/:role/bulk-assign', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+  try {
+    const { role } = req.params;
+    const { permissionIds } = req.body;
+    const userId = req.user!.id;
+
+    if (!permissionIds || !Array.isArray(permissionIds)) {
+      return next(createError('Список ID разрешений обязателен', 400));
+    }
+
+    // Проверяем валидность роли
+    const validRoles = ['manager', 'director', 'production', 'warehouse'];
+    if (!validRoles.includes(role)) {
+      return next(createError('Недопустимая роль', 400));
+    }
+
+    // Проверяем существование всех разрешений
+    const permissions = await db.query.permissions.findMany({
+      where: sql`${schema.permissions.id} = ANY(${permissionIds})`
+    });
+
+    if (permissions.length !== permissionIds.length) {
+      return next(createError('Некоторые разрешения не найдены', 404));
+    }
+
+    // Получаем уже назначенные разрешения
+    const existingAssignments = await db.query.rolePermissions.findMany({
+      where: and(
+        eq(schema.rolePermissions.role, role as any),
+        sql`${schema.rolePermissions.permissionId} = ANY(${permissionIds})`
+      )
+    });
+
+    const existingPermissionIds = existingAssignments.map(a => a.permissionId);
+    const newPermissionIds = permissionIds.filter(id => !existingPermissionIds.includes(id));
+
+    if (newPermissionIds.length === 0) {
+      return next(createError('Все указанные разрешения уже назначены', 400));
+    }
+
+    // Назначаем новые разрешения в транзакции
+    const result = await db.transaction(async (tx) => {
+      const assignments = [];
+      
+      for (const permissionId of newPermissionIds) {
+        const [assignment] = await tx.insert(schema.rolePermissions).values({
+          role: role as any,
+          permissionId
+        }).returning();
+        assignments.push(assignment);
+
+        // Логируем каждое назначение
+        await tx.insert(schema.auditLog).values({
+          tableName: 'role_permissions',
+          recordId: assignment.id,
+          operation: 'INSERT',
+          newValues: {
+            role,
+            permissionId
+          },
+          userId
+        });
+      }
+
+      return assignments;
+    });
+
+    res.json({
+      success: true,
+      data: result,
+      message: `Назначено ${result.length} новых разрешений роли "${role}"`
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/permissions/available-roles - Получить список доступных ролей
+router.get('/available-roles', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+  try {
+    const roles = [
+      { value: 'manager', label: 'Менеджер', description: 'Управление заказами и клиентами' },
+      { value: 'director', label: 'Директор', description: 'Полный доступ ко всем функциям' },
+      { value: 'production', label: 'Производство', description: 'Управление производственными процессами' },
+      { value: 'warehouse', label: 'Склад', description: 'Управление складскими операциями' }
+    ];
+
+    res.json({
+      success: true,
+      data: roles
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router; 

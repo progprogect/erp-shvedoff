@@ -1,4 +1,10 @@
 import axios from 'axios';
+import { 
+  SHIPMENT_STATUS_LABELS, 
+  SHIPMENT_STATUS_COLORS, 
+  SHIPMENT_STATUS_TRANSITIONS,
+  type ShipmentStatus 
+} from '../constants/shipmentStatuses';
 
 const API_BASE_URL = 'http://localhost:5001/api';
 
@@ -189,37 +195,11 @@ class ShipmentsApiService {
 
   // Вспомогательные методы
   getStatusColor(status: Shipment['status']): string {
-    switch (status) {
-      case 'planned':
-        return 'blue';
-      case 'loading':
-        return 'orange';
-      case 'shipped':
-        return 'green';
-      case 'delivered':
-        return 'success';
-      case 'cancelled':
-        return 'red';
-      default:
-        return 'gray';
-    }
+    return SHIPMENT_STATUS_COLORS[status as ShipmentStatus] || '#d9d9d9';
   }
 
   getStatusText(status: Shipment['status']): string {
-    switch (status) {
-      case 'planned':
-        return 'Запланирована';
-      case 'loading':
-        return 'Загрузка';
-      case 'shipped':
-        return 'Отгружена';
-      case 'delivered':
-        return 'Доставлена';
-      case 'cancelled':
-        return 'Отменена';
-      default:
-        return 'Неизвестно';
-    }
+    return SHIPMENT_STATUS_LABELS[status as ShipmentStatus] || `Неизвестный статус: ${status}`;
   }
 
   getPriorityColor(priority: string): string {
@@ -275,15 +255,7 @@ class ShipmentsApiService {
 
   // Валидация статусных переходов
   getValidNextStatuses(currentStatus: Shipment['status']): Shipment['status'][] {
-    const transitions: Record<Shipment['status'], Shipment['status'][]> = {
-      'planned': ['loading', 'cancelled'],
-      'loading': ['shipped', 'planned'],
-      'shipped': ['delivered'],
-      'delivered': [],
-      'cancelled': []
-    };
-
-    return transitions[currentStatus] || [];
+    return SHIPMENT_STATUS_TRANSITIONS[currentStatus as ShipmentStatus] || [];
   }
 
   canTransitionTo(currentStatus: Shipment['status'], newStatus: Shipment['status']): boolean {

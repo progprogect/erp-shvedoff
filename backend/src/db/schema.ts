@@ -201,10 +201,7 @@ export const productionQueue = pgTable('production_queue', {
 
 // Production Tasks - новая система управления производственными заданиями
 export const productionTaskStatusEnum = pgEnum('production_task_status', [
-  'suggested',     // предложено
-  'approved',      // подтверждено
-  'rejected',      // отклонено
-  'postponed',     // отложено
+  'pending',       // ожидает выполнения (заменяет suggested + approved)  
   'in_progress',   // в работе
   'completed',     // завершено
   'cancelled'      // отменено
@@ -212,17 +209,15 @@ export const productionTaskStatusEnum = pgEnum('production_task_status', [
 
 export const productionTasks = pgTable('production_tasks', {
   id: serial('id').primaryKey(),
-  orderId: integer('order_id').notNull().references(() => orders.id),
+  orderId: integer('order_id').references(() => orders.id), // Убираем notNull - задания могут быть без заказа
   productId: integer('product_id').notNull().references(() => products.id),
   requestedQuantity: integer('requested_quantity').notNull(), // запрошенное количество
-  approvedQuantity: integer('approved_quantity'), // подтвержденное количество
-  status: productionTaskStatusEnum('status').default('suggested'),
+  status: productionTaskStatusEnum('status').default('pending'),
   priority: integer('priority').default(1), // 1-5, где 5 - срочный
   sortOrder: integer('sort_order').default(0), // для drag-and-drop сортировки
   
   // Даты
-  suggestedAt: timestamp('suggested_at').defaultNow(),
-  approvedAt: timestamp('approved_at'),
+  createdAt: timestamp('created_at').defaultNow(),
   startedAt: timestamp('started_at'),
   completedAt: timestamp('completed_at'),
   
@@ -232,16 +227,13 @@ export const productionTasks = pgTable('production_tasks', {
   defectQuantity: integer('defect_quantity').default(0),     // брак
   
   // Метаданные
-  suggestedBy: integer('suggested_by').references(() => users.id), // кто предложил
+  createdBy: integer('created_by').references(() => users.id), // кто создал
   assignedTo: integer('assigned_to').references(() => users.id),   // на кого назначено
-  approvedBy: integer('approved_by').references(() => users.id),   // кто подтвердил
   startedBy: integer('started_by').references(() => users.id),     // кто запустил
   completedBy: integer('completed_by').references(() => users.id), // кто завершил
   
   notes: text('notes'),
-  rejectReason: text('reject_reason'),
   
-  createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow()
 });
 
@@ -263,7 +255,7 @@ export const cuttingOperations = pgTable('cutting_operations', {
   sourceQuantity: integer('source_quantity').notNull(),
   targetQuantity: integer('target_quantity').notNull(),
   wasteQuantity: integer('waste_quantity').default(0),
-  status: cuttingStatusEnum('status').default('planned'),
+  status: cuttingStatusEnum('status').default('in_progress'),
   operatorId: integer('operator_id').references(() => users.id),
   assignedTo: integer('assigned_to').references(() => users.id), // на кого назначена операция
   plannedDate: timestamp('planned_date'),
@@ -348,9 +340,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   notifications: many(telegramNotifications),
   stockMovements: many(stockMovements),
   userPermissions: many(userPermissions),
-  tasksSuggested: many(productionTasks, { relationName: 'tasksSuggested' }),
+  tasksCreated: many(productionTasks, { relationName: 'tasksCreated' }),
   tasksAssigned: many(productionTasks, { relationName: 'tasksAssigned' }),
-  tasksApproved: many(productionTasks, { relationName: 'tasksApproved' }),
   tasksStarted: many(productionTasks, { relationName: 'tasksStarted' }),
   tasksCompleted: many(productionTasks, { relationName: 'tasksCompleted' }),
   cuttingOperator: many(cuttingOperations, { relationName: 'cuttingOperator' }),
@@ -358,8 +349,14 @@ export const usersRelations = relations(users, ({ many }) => ({
 }));
 
 export const categoriesRelations = relations(categories, ({ one, many }) => ({
-  parent: one(categories, { fields: [categories.parentId], references: [categories.id] }),
-  children: many(categories),
+  parent: one(categories, {
+    fields: [categories.parentId],
+    references: [categories.id],
+    relationName: "categoryParent"
+  }),
+  children: many(categories, {
+    relationName: "categoryParent"
+  }),
   products: many(products)
 }));
 
@@ -428,9 +425,8 @@ export const productionQueueRelations = relations(productionQueue, ({ one }) => 
 export const productionTasksRelations = relations(productionTasks, ({ one, many }) => ({
   order: one(orders, { fields: [productionTasks.orderId], references: [orders.id] }),
   product: one(products, { fields: [productionTasks.productId], references: [products.id] }),
-  suggestedByUser: one(users, { fields: [productionTasks.suggestedBy], references: [users.id], relationName: 'tasksSuggested' }),
+  createdByUser: one(users, { fields: [productionTasks.createdBy], references: [users.id], relationName: 'tasksCreated' }),
   assignedToUser: one(users, { fields: [productionTasks.assignedTo], references: [users.id], relationName: 'tasksAssigned' }),
-  approvedByUser: one(users, { fields: [productionTasks.approvedBy], references: [users.id], relationName: 'tasksApproved' }),
   startedByUser: one(users, { fields: [productionTasks.startedBy], references: [users.id], relationName: 'tasksStarted' }),
   completedByUser: one(users, { fields: [productionTasks.completedBy], references: [users.id], relationName: 'tasksCompleted' }),
   extras: many(productionTaskExtras)

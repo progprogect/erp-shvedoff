@@ -50,11 +50,19 @@ export interface Product {
   surfaceName?: string;
   logoName?: string;
   materialName?: string;
-  currentStock: number;
-  reservedStock: number;
-  availableStock: number;
+  // Поля для обратной совместимости
+  currentStock?: number;
+  reservedStock?: number;
+  availableStock?: number;
   inProductionQuantity?: number;
   stockStatus?: 'critical' | 'low' | 'normal';
+  // Новая структура stock
+  stock?: {
+    currentStock: number;
+    reservedStock: number;
+    availableStock?: number;
+    inProductionQuantity?: number;
+  };
 }
 
 export interface ProductFilters {
@@ -111,7 +119,7 @@ class CatalogApi {
 
   async getCategories(): Promise<ApiResponse<Category[]>> {
     const response = await axios.get(
-      `${API_BASE_URL}/categories`,
+      `${API_BASE_URL}/catalog/categories`,
       this.getAuthHeaders()
     );
     return response.data;
@@ -129,15 +137,17 @@ class CatalogApi {
     if (filters.stockStatus) {
       params.append('stockStatus', filters.stockStatus);
     }
+    
+    // Рассчитываем offset из page
+    const limit = filters.limit || 50;
     if (filters.page) {
-      params.append('page', filters.page.toString());
+      const offset = (filters.page - 1) * limit;
+      params.append('offset', offset.toString());
     }
-    if (filters.limit) {
-      params.append('limit', filters.limit.toString());
-    }
+    params.append('limit', limit.toString());
 
     const response = await axios.get(
-      `${API_BASE_URL}/products?${params.toString()}`,
+      `${API_BASE_URL}/catalog/products?${params.toString()}`,
       this.getAuthHeaders()
     );
     return response.data;
@@ -145,7 +155,7 @@ class CatalogApi {
 
   async getProduct(id: number): Promise<ApiResponse<Product>> {
     const response = await axios.get(
-      `${API_BASE_URL}/products/${id}`,
+      `${API_BASE_URL}/catalog/products/${id}`,
       this.getAuthHeaders()
     );
     return response.data;
@@ -160,7 +170,7 @@ class CatalogApi {
 
   async createProduct(productData: Partial<Product>): Promise<ApiResponse<Product>> {
     const response = await axios.post(
-      `${API_BASE_URL}/products`,
+      `${API_BASE_URL}/catalog/products`,
       productData,
       this.getAuthHeaders()
     );
@@ -169,7 +179,7 @@ class CatalogApi {
 
   async updateProduct(id: number, productData: Partial<Product>): Promise<ApiResponse<Product>> {
     const response = await axios.put(
-      `${API_BASE_URL}/products/${id}`,
+      `${API_BASE_URL}/catalog/products/${id}`,
       productData,
       this.getAuthHeaders()
     );
@@ -178,7 +188,7 @@ class CatalogApi {
 
   async deleteProduct(id: number): Promise<ApiResponse<void>> {
     const response = await axios.delete(
-      `${API_BASE_URL}/products/${id}`,
+      `${API_BASE_URL}/catalog/products/${id}`,
       this.getAuthHeaders()
     );
     return response.data;
@@ -186,7 +196,7 @@ class CatalogApi {
 
   async createCategory(categoryData: { name: string; parentId?: number; description?: string }): Promise<ApiResponse<Category>> {
     const response = await axios.post(
-      `${API_BASE_URL}/categories`,
+      `${API_BASE_URL}/catalog/categories`,
       categoryData,
       this.getAuthHeaders()
     );
@@ -195,7 +205,7 @@ class CatalogApi {
 
   async deleteCategory(id: number): Promise<ApiResponse<void>> {
     const response = await axios.delete(
-      `${API_BASE_URL}/categories/${id}`,
+      `${API_BASE_URL}/catalog/categories/${id}`,
       this.getAuthHeaders()
     );
     return response.data;
@@ -203,7 +213,7 @@ class CatalogApi {
 
   async deleteCategoryWithAction(id: number, options: CategoryDeleteOptions): Promise<CategoryDeleteResult> {
     const response = await axios.post(
-      `${API_BASE_URL}/categories/${id}/delete-with-action`,
+      `${API_BASE_URL}/catalog/categories/${id}/delete-with-action`,
       options,
       this.getAuthHeaders()
     );
@@ -212,7 +222,7 @@ class CatalogApi {
 
   async getCategoryDetails(id: number): Promise<ApiResponse<Category & { productsCount: number }>> {
     const response = await axios.get(
-      `${API_BASE_URL}/categories/${id}`,
+      `${API_BASE_URL}/catalog/categories/${id}`,
       this.getAuthHeaders()
     );
     return response.data;

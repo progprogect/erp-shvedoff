@@ -1,0 +1,34 @@
+export const SHIPMENT_STATUSES = {
+  PLANNED: 'planned',
+  LOADING: 'loading', 
+  SHIPPED: 'shipped',
+  DELIVERED: 'delivered',
+  CANCELLED: 'cancelled'
+} as const;
+
+export type ShipmentStatus = typeof SHIPMENT_STATUSES[keyof typeof SHIPMENT_STATUSES];
+
+export const SHIPMENT_STATUS_LABELS: Record<ShipmentStatus, string> = {
+  [SHIPMENT_STATUSES.PLANNED]: 'Запланирована',
+  [SHIPMENT_STATUSES.LOADING]: 'Загрузка',
+  [SHIPMENT_STATUSES.SHIPPED]: 'Отгружена', 
+  [SHIPMENT_STATUSES.DELIVERED]: 'Доставлена',
+  [SHIPMENT_STATUSES.CANCELLED]: 'Отменена'
+};
+
+export const SHIPMENT_STATUS_COLORS: Record<ShipmentStatus, string> = {
+  [SHIPMENT_STATUSES.PLANNED]: '#1890ff',
+  [SHIPMENT_STATUSES.LOADING]: '#fa8c16',
+  [SHIPMENT_STATUSES.SHIPPED]: '#52c41a',
+  [SHIPMENT_STATUSES.DELIVERED]: '#722ed1', 
+  [SHIPMENT_STATUSES.CANCELLED]: '#f5222d'
+};
+
+// Валидные переходы между статусами
+export const SHIPMENT_STATUS_TRANSITIONS: Record<ShipmentStatus, ShipmentStatus[]> = {
+  [SHIPMENT_STATUSES.PLANNED]: [SHIPMENT_STATUSES.LOADING, SHIPMENT_STATUSES.CANCELLED],
+  [SHIPMENT_STATUSES.LOADING]: [SHIPMENT_STATUSES.SHIPPED, SHIPMENT_STATUSES.PLANNED],
+  [SHIPMENT_STATUSES.SHIPPED]: [SHIPMENT_STATUSES.DELIVERED],
+  [SHIPMENT_STATUSES.DELIVERED]: [],
+  [SHIPMENT_STATUSES.CANCELLED]: []
+}; 

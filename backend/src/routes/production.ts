@@ -178,30 +178,39 @@ router.put('/queue/:id/status', authenticateToken, authorizeRoles('production', 
 
       // If this production item is linked to an order, update order status
       if (productionItem.orderId) {
-        // Check if all items for this order are completed
-        const allOrderProductionItems = await db.query.productionQueue.findMany({
-          where: eq(schema.productionQueue.orderId, productionItem.orderId)
-        });
-
-        const allCompleted = allOrderProductionItems.every(item => 
-          item.id === productionId || item.status === 'completed'
-        );
-
-        if (allCompleted) {
-          // Update order status to ready
+        // Пересчитываем статус заказа на основе реального анализа доступности
+        try {
+          const { analyzeOrderAvailability } = await import('../utils/orderStatusCalculator.js');
+          const orderAnalysis = await analyzeOrderAvailability(productionItem.orderId);
+          
           await db.update(schema.orders)
             .set({
-              status: 'ready',
+              status: orderAnalysis.status as any,
               updatedAt: new Date()
             })
             .where(eq(schema.orders.id, productionItem.orderId));
 
-          // Add message to order about production completion
+          // Уведомление о завершении производственного задания
           await db.insert(schema.orderMessages).values({
             orderId: productionItem.orderId,
             userId,
-            message: 'Производство завершено. Заказ готов к отгрузке.'
+            message: `📦 Производственное задание выполнено: произведено ${productionItem.quantity} шт.`
           });
+
+          // Проверяем готовность заказа к отгрузке только если все товары в наличии
+          const allItemsAvailable = orderAnalysis.items.every(item => 
+            item.available_quantity >= item.required_quantity
+          );
+
+          if (allItemsAvailable && orderAnalysis.status === 'confirmed') {
+            await db.insert(schema.orderMessages).values({
+              orderId: productionItem.orderId,
+              userId,
+              message: `✅ Заказ готов к отгрузке! Все товары в наличии на складе.`
+            });
+          }
+        } catch (error) {
+          console.error('Ошибка пересчета статуса заказа:', error);
         }
       }
     } else {
@@ -413,7 +422,7 @@ router.get('/stats', authenticateToken, authorizeRoles('production', 'director')
 
 // ==================== НОВЫЕ РОУТЫ ДЛЯ ПРОИЗВОДСТВЕННЫХ ЗАДАНИЙ ====================
 
-// GET /api/production/tasks - Get production tasks (предложения и активные задания)
+// GET /api/production/tasks - Get production tasks
 router.get('/tasks', authenticateToken, authorizeRoles('manager', 'production', 'director'), async (req: AuthRequest, res, next) => {
   try {
     const { status, limit = 50, offset = 0 } = req.query;
@@ -444,7 +453,7 @@ router.get('/tasks', authenticateToken, authorizeRoles('manager', 'production', 
             stock: true
           }
         },
-        suggestedByUser: {
+        createdByUser: {
           columns: {
             id: true,
             username: true,
@@ -452,13 +461,6 @@ router.get('/tasks', authenticateToken, authorizeRoles('manager', 'production', 
           }
         },
         assignedToUser: {
-          columns: {
-            id: true,
-            username: true,
-            fullName: true
-          }
-        },
-        approvedByUser: {
           columns: {
             id: true,
             username: true,
@@ -486,9 +488,9 @@ router.get('/tasks', authenticateToken, authorizeRoles('manager', 'production', 
         }
       },
       orderBy: [
-        desc(schema.productionTasks.priority),
         asc(schema.productionTasks.sortOrder),
-        desc(schema.productionTasks.suggestedAt)
+        desc(schema.productionTasks.priority),
+        desc(schema.productionTasks.createdAt)
       ],
       limit: Number(limit),
       offset: Number(offset)
@@ -506,12 +508,23 @@ router.get('/tasks', authenticateToken, authorizeRoles('manager', 'production', 
 // GET /api/production/tasks/by-product - Группировка заданий по товарам
 router.get('/tasks/by-product', authenticateToken, authorizeRoles('manager', 'production', 'director'), async (req: AuthRequest, res, next) => {
   try {
-    const { status = 'approved,in_progress' } = req.query;
-    const statusList = (status as string).split(',');
+    const { status = 'pending,in_progress' } = req.query;
+    
+    // Валидируем и очищаем статусы
+    const validStatuses = ['pending', 'in_progress', 'completed', 'cancelled'];
+    const statusList = (status as string)
+      .split(',')
+      .map(s => s.trim())
+      .filter(s => validStatuses.includes(s));
+
+    // Если нет валидных статусов, используем значения по умолчанию
+    if (statusList.length === 0) {
+      statusList.push('pending', 'in_progress');
+    }
 
     // Получаем активные задания
     const tasks = await db.query.productionTasks.findMany({
-      where: inArray(schema.productionTasks.status, statusList as any),
+      where: statusList.length > 0 ? inArray(schema.productionTasks.status, statusList as any) : undefined,
       with: {
         order: {
           columns: {
@@ -529,8 +542,9 @@ router.get('/tasks/by-product', authenticateToken, authorizeRoles('manager', 'pr
         }
       },
       orderBy: [
-        asc(schema.productionTasks.productId),
-        desc(schema.productionTasks.priority)
+        desc(schema.productionTasks.priority),      // Сначала по приоритету задания
+        asc(schema.productionTasks.sortOrder),     // Потом по порядку выполнения
+        desc(schema.productionTasks.createdAt)     // Затем по времени создания
       ]
     });
 
@@ -542,18 +556,54 @@ router.get('/tasks/by-product', authenticateToken, authorizeRoles('manager', 'pr
         acc[productId] = {
           product: task.product,
           totalQuantity: 0,
-          tasks: []
+          tasks: [],
+          // Отслеживаем максимальный приоритет и минимальный sortOrder для сортировки групп
+          maxPriority: task.priority || 1,
+          minSortOrder: task.sortOrder || 0,
+          earliestCreated: task.createdAt ? new Date(task.createdAt) : new Date()
         };
       }
       
-      acc[productId].totalQuantity += task.approvedQuantity || task.requestedQuantity;
+      acc[productId].totalQuantity += task.requestedQuantity;
       acc[productId].tasks.push(task);
+      
+      // Обновляем приоритет и порядок для группы
+      const taskPriority = task.priority || 1;
+      if (taskPriority > acc[productId].maxPriority) {
+        acc[productId].maxPriority = taskPriority;
+      }
+      if ((task.sortOrder || 0) < acc[productId].minSortOrder) {
+        acc[productId].minSortOrder = task.sortOrder || 0;
+      }
+      const taskCreated = task.createdAt ? new Date(task.createdAt) : new Date();
+      if (taskCreated < acc[productId].earliestCreated) {
+        acc[productId].earliestCreated = taskCreated;
+      }
       
       return acc;
     }, {} as Record<number, any>);
 
-    // Преобразуем в массив
-    const result = Object.values(groupedTasks);
+    // Преобразуем в массив и сортируем группы
+    const result = Object.values(groupedTasks)
+      .sort((a, b) => {
+        // Сначала по максимальному приоритету заданий в группе (убывание)
+        if (a.maxPriority !== b.maxPriority) {
+          return b.maxPriority - a.maxPriority;
+        }
+        
+        // Затем по минимальному sortOrder в группе (возрастание)
+        if (a.minSortOrder !== b.minSortOrder) {
+          return a.minSortOrder - b.minSortOrder;
+        }
+        
+        // Наконец по времени создания самого раннего задания (возрастание)
+        return a.earliestCreated.getTime() - b.earliestCreated.getTime();
+      })
+      .map(group => ({
+        product: group.product,
+        totalQuantity: group.totalQuantity,
+        tasks: group.tasks
+      }));
 
     res.json({
       success: true,
@@ -564,11 +614,212 @@ router.get('/tasks/by-product', authenticateToken, authorizeRoles('manager', 'pr
   }
 });
 
-// POST /api/production/tasks/:id/approve - Подтвердить задание
-router.post('/tasks/:id/approve', authenticateToken, authorizeRoles('manager', 'production', 'director'), async (req: AuthRequest, res, next) => {
+// POST /api/production/tasks/complete-by-product - Массовое завершение заданий по товару
+router.post('/tasks/complete-by-product', authenticateToken, authorizeRoles('production', 'director'), async (req: AuthRequest, res, next) => {
+  try {
+    const { productId, producedQuantity, qualityQuantity, defectQuantity, productionDate, notes } = req.body;
+    const userId = req.user!.id;
+
+    if (!productId || !producedQuantity || producedQuantity <= 0) {
+      return next(createError('Необходимо указать товар и положительное количество произведенного', 400));
+    }
+
+    // Валидация: произведенное = качественных + брак
+    if (qualityQuantity + defectQuantity !== producedQuantity) {
+      return next(createError('Сумма годных и брака должна равняться произведенному количеству', 400));
+    }
+
+    // Получаем активные задания для этого товара, отсортированные по приоритету
+    const activeTasks = await db.query.productionTasks.findMany({
+      where: and(
+        eq(schema.productionTasks.productId, productId),
+        sql`${schema.productionTasks.status} IN ('pending', 'in_progress')`
+      ),
+      orderBy: [
+        desc(schema.productionTasks.priority),     // Сначала высокоприоритетные
+        asc(schema.productionTasks.sortOrder),    // Потом по порядку выполнения
+        asc(schema.productionTasks.createdAt)     // Затем по времени создания
+      ],
+      with: {
+        order: true
+      }
+    });
+
+    if (activeTasks.length === 0) {
+      return next(createError('Нет активных заданий для данного товара', 404));
+    }
+
+    const completionDate = productionDate ? new Date(productionDate) : new Date();
+    const result = await db.transaction(async (tx) => {
+      let remainingProduced = producedQuantity;
+      let remainingQuality = qualityQuantity;
+      let remainingDefect = defectQuantity;
+      const completedTasks = [];
+      const updatedOrders = new Set<number>();
+
+      // Распределяем произведенное количество по заданиям
+      for (const task of activeTasks) {
+        if (remainingProduced <= 0) break;
+
+        const taskNeeded = task.requestedQuantity;
+        const taskProduced = Math.min(remainingProduced, taskNeeded);
+        
+        // Пропорционально распределяем качественные и брак
+        const taskQuality = Math.min(remainingQuality, Math.round((taskProduced / producedQuantity) * qualityQuantity));
+        const taskDefect = taskProduced - taskQuality;
+
+        // Обновляем задание
+        const completedTask = await tx.update(schema.productionTasks)
+          .set({
+            status: 'completed',
+            producedQuantity: taskProduced,
+            qualityQuantity: taskQuality,
+            defectQuantity: taskDefect,
+            completedAt: completionDate,
+            completedBy: userId,
+            notes: notes ? `${task.notes || ''}\n${notes}`.trim() : task.notes,
+            updatedAt: new Date()
+          })
+          .where(eq(schema.productionTasks.id, task.id))
+          .returning();
+
+        completedTasks.push(completedTask[0]);
+
+        // Обновляем остатки
+        remainingProduced -= taskProduced;
+        remainingQuality -= taskQuality;
+        remainingDefect -= taskDefect;
+
+        // Добавляем товары на склад (только качественные)
+        if (taskQuality > 0) {
+          await tx.insert(schema.stockMovements).values({
+            productId,
+            movementType: 'incoming', // используем существующий тип
+            quantity: taskQuality,
+            referenceId: task.id,
+            referenceType: 'production_task',
+            comment: `Производство завершено. Задание #${task.id}${task.order ? `, заказ #${task.order.orderNumber}` : ''}`,
+            userId
+          });
+
+          // Обновляем текущий остаток
+          await tx.insert(schema.stock).values({
+            productId,
+            currentStock: taskQuality
+          }).onConflictDoUpdate({
+            target: schema.stock.productId,
+            set: {
+              currentStock: sql`${schema.stock.currentStock} + ${taskQuality}`,
+              updatedAt: new Date()
+            }
+          });
+        }
+
+        // Отмечаем заказ для пересчета статуса
+        if (task.orderId) {
+          updatedOrders.add(task.orderId);
+        }
+      }
+
+      // Если произведено больше чем нужно было - создаем движение склада на излишки
+      if (remainingProduced > 0 && remainingQuality > 0) {
+        await tx.insert(schema.stockMovements).values({
+          productId,
+          movementType: 'incoming', // используем существующий тип
+          quantity: remainingQuality,
+          referenceType: 'production_surplus',
+          comment: `Дополнительное производство. Излишки: +${remainingProduced} шт.`,
+          userId
+        });
+
+        // Обновляем текущий остаток
+        await tx.insert(schema.stock).values({
+          productId,
+          currentStock: remainingQuality
+        }).onConflictDoUpdate({
+          target: schema.stock.productId,
+          set: {
+            currentStock: sql`${schema.stock.currentStock} + ${remainingQuality}`,
+            updatedAt: new Date()
+          }
+        });
+      }
+
+      // Пересчитываем статусы заказов и отправляем уведомления
+      for (const orderId of updatedOrders) {
+        try {
+          const { analyzeOrderAvailability } = await import('../utils/orderStatusCalculator.js');
+          const orderAnalysis = await analyzeOrderAvailability(orderId);
+          
+          await tx.update(schema.orders)
+            .set({ 
+              status: orderAnalysis.status as any,
+              updatedAt: new Date()
+            })
+            .where(eq(schema.orders.id, orderId));
+
+          // Находим завершенные задания для этого заказа
+          const orderCompletedTasks = completedTasks.filter(task => task.orderId === orderId);
+          
+          if (orderCompletedTasks.length > 0) {
+            // Отправляем уведомления о завершенных заданиях
+            for (const task of orderCompletedTasks) {
+              // Получаем название продукта по productId
+              const product = await tx.query.products.findFirst({
+                where: eq(schema.products.id, productId)
+              });
+              const productName = product?.name || 'товар';
+              
+              await tx.insert(schema.orderMessages).values({
+                orderId,
+                userId,
+                message: `📦 Задание на производство выполнено: "${productName}" произведено ${task.qualityQuantity} шт.`
+              });
+            }
+
+            // Проверяем готовность заказа к отгрузке
+            const allItemsAvailable = orderAnalysis.items.every(item => 
+              item.available_quantity >= item.required_quantity
+            );
+
+            if (allItemsAvailable && orderAnalysis.status === 'confirmed') {
+              await tx.insert(schema.orderMessages).values({
+                orderId,
+                userId,
+                message: `✅ Заказ готов к отгрузке! Все товары в наличии на складе.`
+              });
+            }
+          }
+        } catch (error) {
+          console.error(`Ошибка пересчета статуса заказа ${orderId}:`, error);
+        }
+      }
+
+      return {
+        completedTasks,
+        totalProduced: producedQuantity,
+        totalQuality: qualityQuantity,
+        totalDefect: defectQuantity,
+        tasksCompleted: completedTasks.length,
+        surplus: remainingProduced,
+        updatedOrders: Array.from(updatedOrders)
+      };
+    });
+
+    res.json({
+      success: true,
+      data: result,
+      message: `Завершено ${result.tasksCompleted} заданий. Произведено: ${result.totalProduced} шт. (${result.totalQuality} годных, ${result.totalDefect} брак)${result.surplus > 0 ? `. Излишки: ${result.surplus} шт.` : ''}`
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/production/tasks/:id/start - Начать выполнение задания
+router.post('/tasks/:id/start', authenticateToken, authorizeRoles('production', 'director'), async (req: AuthRequest, res, next) => {
   try {
     const taskId = Number(req.params.id);
-    const { approvedQuantity, notes } = req.body;
     const userId = req.user!.id;
 
     const task = await db.query.productionTasks.findFirst({
@@ -579,18 +830,16 @@ router.post('/tasks/:id/approve', authenticateToken, authorizeRoles('manager', '
       return next(createError('Задание не найдено', 404));
     }
 
-    if (task.status !== 'suggested') {
-      return next(createError('Можно подтвердить только предложенные задания', 400));
+    if (task.status !== 'pending') {
+      return next(createError('Можно начать только ожидающие задания', 400));
     }
 
     // Обновляем задание
     const updatedTask = await db.update(schema.productionTasks)
       .set({
-        status: 'approved',
-        approvedQuantity: approvedQuantity || task.requestedQuantity,
-        approvedBy: userId,
-        approvedAt: new Date(),
-        notes: notes || task.notes,
+        status: 'in_progress',
+        startedBy: userId,
+        startedAt: new Date(),
         updatedAt: new Date()
       })
       .where(eq(schema.productionTasks.id, taskId))
@@ -599,18 +848,18 @@ router.post('/tasks/:id/approve', authenticateToken, authorizeRoles('manager', '
     res.json({
       success: true,
       data: updatedTask[0],
-      message: 'Задание подтверждено'
+      message: 'Задание запущено в производство'
     });
   } catch (error) {
     next(error);
   }
 });
 
-// POST /api/production/tasks/:id/reject - Отклонить задание
-router.post('/tasks/:id/reject', authenticateToken, authorizeRoles('manager', 'production', 'director'), async (req: AuthRequest, res, next) => {
+// PUT /api/production/tasks/:id - Редактировать задание
+router.put('/tasks/:id', authenticateToken, authorizeRoles('manager', 'production', 'director'), async (req: AuthRequest, res, next) => {
   try {
     const taskId = Number(req.params.id);
-    const { rejectReason } = req.body;
+    const { requestedQuantity, priority, notes, assignedTo } = req.body;
     const userId = req.user!.id;
 
     const task = await db.query.productionTasks.findFirst({
@@ -621,64 +870,100 @@ router.post('/tasks/:id/reject', authenticateToken, authorizeRoles('manager', 'p
       return next(createError('Задание не найдено', 404));
     }
 
-    if (task.status !== 'suggested') {
-      return next(createError('Можно отклонить только предложенные задания', 400));
+    // Можно редактировать только задания в статусе pending
+    if (task.status !== 'pending') {
+      return next(createError('Можно редактировать только ожидающие задания', 400));
+    }
+
+    // Валидация данных
+    const updateData: any = { updatedAt: new Date() };
+
+    if (requestedQuantity !== undefined) {
+      if (!Number.isInteger(requestedQuantity) || requestedQuantity <= 0) {
+        return next(createError('Количество должно быть положительным целым числом', 400));
+      }
+      updateData.requestedQuantity = requestedQuantity;
+    }
+
+    if (priority !== undefined) {
+      if (!Number.isInteger(priority) || priority < 1 || priority > 5) {
+        return next(createError('Приоритет должен быть от 1 до 5', 400));
+      }
+      updateData.priority = priority;
+    }
+
+    if (notes !== undefined) {
+      updateData.notes = notes;
+    }
+
+    if (assignedTo !== undefined) {
+      // Проверяем существование пользователя
+      const user = await db.query.users.findFirst({
+        where: eq(schema.users.id, assignedTo)
+      });
+      if (!user) {
+        return next(createError('Пользователь не найден', 404));
+      }
+      updateData.assignedTo = assignedTo;
     }
 
     // Обновляем задание
     const updatedTask = await db.update(schema.productionTasks)
-      .set({
-        status: 'rejected',
-        rejectReason,
-        approvedBy: userId,
-        approvedAt: new Date(),
-        updatedAt: new Date()
-      })
+      .set(updateData)
       .where(eq(schema.productionTasks.id, taskId))
       .returning();
 
+    // Получаем полную информацию о задании
+    const fullTask = await db.query.productionTasks.findFirst({
+      where: eq(schema.productionTasks.id, taskId),
+      with: {
+        order: {
+          columns: {
+            id: true,
+            orderNumber: true,
+            customerName: true
+          }
+        },
+        product: {
+          with: {
+            category: true
+          }
+        },
+        createdByUser: {
+          columns: {
+            id: true,
+            username: true,
+            fullName: true
+          }
+        },
+        assignedToUser: {
+          columns: {
+            id: true,
+            username: true,
+            fullName: true
+          }
+        },
+        startedByUser: {
+          columns: {
+            id: true,
+            username: true,
+            fullName: true
+          }
+        },
+        completedByUser: {
+          columns: {
+            id: true,
+            username: true,
+            fullName: true
+          }
+        }
+      }
+    });
+
     res.json({
       success: true,
-      data: updatedTask[0],
-      message: 'Задание отклонено'
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// POST /api/production/tasks/:id/postpone - Отложить задание
-router.post('/tasks/:id/postpone', authenticateToken, authorizeRoles('manager', 'production', 'director'), async (req: AuthRequest, res, next) => {
-  try {
-    const taskId = Number(req.params.id);
-    const { notes } = req.body;
-
-    const task = await db.query.productionTasks.findFirst({
-      where: eq(schema.productionTasks.id, taskId)
-    });
-
-    if (!task) {
-      return next(createError('Задание не найдено', 404));
-    }
-
-    if (task.status !== 'suggested') {
-      return next(createError('Можно отложить только предложенные задания', 400));
-    }
-
-    // Обновляем задание
-    const updatedTask = await db.update(schema.productionTasks)
-      .set({
-        status: 'postponed',
-        notes: notes || task.notes,
-        updatedAt: new Date()
-      })
-      .where(eq(schema.productionTasks.id, taskId))
-      .returning();
-
-    res.json({
-      success: true,
-      data: updatedTask[0],
-      message: 'Задание отложено'
+      data: fullTask,
+      message: 'Задание обновлено'
     });
   } catch (error) {
     next(error);
@@ -706,43 +991,6 @@ router.put('/tasks/reorder', authenticateToken, authorizeRoles('production', 'di
     res.json({
       success: true,
       message: 'Порядок заданий обновлен'
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// POST /api/production/tasks/:id/start - Начать выполнение задания
-router.post('/tasks/:id/start', authenticateToken, authorizeRoles('production', 'director'), async (req: AuthRequest, res, next) => {
-  try {
-    const taskId = Number(req.params.id);
-
-    const task = await db.query.productionTasks.findFirst({
-      where: eq(schema.productionTasks.id, taskId)
-    });
-
-    if (!task) {
-      return next(createError('Задание не найдено', 404));
-    }
-
-    if (task.status !== 'approved') {
-      return next(createError('Можно начать только подтвержденные задания', 400));
-    }
-
-    // Обновляем задание
-    const updatedTask = await db.update(schema.productionTasks)
-      .set({
-        status: 'in_progress',
-        startedAt: new Date(),
-        updatedAt: new Date()
-      })
-      .where(eq(schema.productionTasks.id, taskId))
-      .returning();
-
-    res.json({
-      success: true,
-      data: updatedTask[0],
-      message: 'Задание запущено в производство'
     });
   } catch (error) {
     next(error);
@@ -857,41 +1105,45 @@ router.post('/tasks/:id/complete', authenticateToken, authorizeRoles('production
         }
       }
 
-      // ДОБАВЛЕНО: Пересчитываем статус заказа после завершения производства
+      // Пересчитываем статус заказа после завершения производства
       try {
-        const { analyzeOrderAvailability } = await import('../utils/orderStatusCalculator.js');
-        const orderAnalysis = await analyzeOrderAvailability(task.orderId);
-        
-        // Обновляем статус заказа если он изменился
-        if (orderAnalysis.status !== task.order.status) {
-          await tx.update(schema.orders)
-            .set({ 
-              status: orderAnalysis.status as any,
-              updatedAt: new Date()
-            })
-            .where(eq(schema.orders.id, task.orderId));
+        // Только если задание связано с заказом
+        if (task.orderId && task.order) {
+          const { analyzeOrderAvailability } = await import('../utils/orderStatusCalculator.js');
+          const orderAnalysis = await analyzeOrderAvailability(task.orderId);
+          
+          // Обновляем статус заказа если он изменился
+          if (orderAnalysis.status !== task.order.status) {
+            await tx.update(schema.orders)
+              .set({ 
+                status: orderAnalysis.status as any,
+                updatedAt: new Date()
+              })
+              .where(eq(schema.orders.id, task.orderId));
+          }
 
-          // Логируем изменение статуса
-          await tx.insert(schema.stockMovements).values({
-            productId: task.productId,
-            movementType: 'adjustment', 
-            quantity: 0,
-            referenceId: task.orderId,
-            referenceType: 'order_status_change',
-            comment: `Статус заказа изменен на "${orderAnalysis.status}" после завершения производства`,
-            userId
+          // Добавляем уведомление о завершении задания (НЕ о готовности заказа)
+          const extraProductsText = extraProducts.length > 0 
+            ? `. Дополнительно произведено: ${extraProducts.map((extra: any) => `${extra.quantity} шт.`).join(', ')}` 
+            : '';
+          
+          await tx.insert(schema.orderMessages).values({
+            orderId: task.orderId,
+            userId,
+            message: `📦 Задание на производство выполнено: "${task.product.name}" произведено ${qualityQuantity} шт.${extraProductsText}`
           });
 
-          // Если заказ стал готов к отгрузке - добавляем сообщение в чат заказа
-          if (orderAnalysis.status === 'confirmed' || orderAnalysis.status === 'ready') {
-            const extraProductsText = extraProducts.length > 0 
-              ? `. Дополнительно произведено: ${extraProducts.map((extra: any) => `${extra.quantity} шт.`).join(', ')}` 
-              : '';
-            
+          // Проверяем, готов ли заказ полностью к отгрузке (все товары в наличии)
+          const allItemsAvailable = orderAnalysis.items.every(item => 
+            item.available_quantity >= item.required_quantity
+          );
+
+          // Только если ДЕЙСТВИТЕЛЬНО все товары в наличии - уведомляем о готовности к отгрузке
+          if (allItemsAvailable && orderAnalysis.status === 'confirmed') {
             await tx.insert(schema.orderMessages).values({
               orderId: task.orderId,
               userId,
-              message: `✅ Заказ готов к отгрузке! Завершено производство товара "${task.product.name}" (${qualityQuantity} шт.)${extraProductsText}.`
+              message: `✅ Заказ готов к отгрузке! Все товары в наличии на складе.`
             });
           }
         }
@@ -919,35 +1171,50 @@ router.post('/tasks/suggest', authenticateToken, authorizeRoles('manager', 'dire
     const { orderId, productId, requestedQuantity, priority = 3, notes, assignedTo } = req.body;
     const userId = req.user!.id;
 
-    if (!orderId || !productId || !requestedQuantity || requestedQuantity <= 0) {
-      return next(createError('Необходимо указать заказ, товар и положительное количество', 400));
+    if (!productId || !requestedQuantity || requestedQuantity <= 0) {
+      return next(createError('Необходимо указать товар и положительное количество', 400));
     }
 
-    // Проверяем существование заказа и товара
-    const [order, product] = await Promise.all([
-      db.query.orders.findFirst({ where: eq(schema.orders.id, orderId) }),
-      db.query.products.findFirst({ where: eq(schema.products.id, productId) })
-    ]);
-
-    if (!order) {
-      return next(createError('Заказ не найден', 404));
-    }
+    // Проверяем существование товара
+    const product = await db.query.products.findFirst({ 
+      where: eq(schema.products.id, productId) 
+    });
 
     if (!product) {
       return next(createError('Товар не найден', 404));
     }
 
-    // Создаем предложение задания
-    const newTask = await db.insert(schema.productionTasks).values({
-      orderId,
+    // Проверяем существование заказа (если указан)
+    let order = null;
+    if (orderId) {
+      order = await db.query.orders.findFirst({ 
+        where: eq(schema.orders.id, orderId) 
+      });
+
+      if (!order) {
+        return next(createError('Заказ не найден', 404));
+      }
+    }
+
+    // Создаем производственное задание
+    const taskData: any = {
       productId,
       requestedQuantity,
       priority,
-      suggestedBy: userId,
-      assignedTo: assignedTo || userId, // По умолчанию назначаем на создателя
-      notes: notes || `Предложено для заказа ${order.orderNumber}`,
-      status: 'suggested'
-    }).returning();
+      createdBy: userId,
+      assignedTo: assignedTo || userId,
+      status: 'pending'  // сразу готово к работе
+    };
+
+    // Добавляем заказ если указан
+    if (orderId) {
+      taskData.orderId = orderId;
+      taskData.notes = notes || `Создано для заказа ${order!.orderNumber}`;
+    } else {
+      taskData.notes = notes || `Производственное задание на будущее`;
+    }
+
+    const newTask = await db.insert(schema.productionTasks).values(taskData).returning();
 
     // Получаем полные данные задания
     const fullTask = await db.query.productionTasks.findFirst({
@@ -959,7 +1226,7 @@ router.post('/tasks/suggest', authenticateToken, authorizeRoles('manager', 'dire
             category: true
           }
         },
-        suggestedByUser: {
+        createdByUser: {
           columns: {
             id: true,
             username: true,
@@ -972,7 +1239,7 @@ router.post('/tasks/suggest', authenticateToken, authorizeRoles('manager', 'dire
     res.status(201).json({
       success: true,
       data: fullTask,
-      message: 'Предложение создано'
+      message: 'Задание создано'
     });
   } catch (error) {
     next(error);
@@ -1083,6 +1350,172 @@ router.get('/sync/statistics', authenticateToken, authorizeRoles('director'), as
     res.json({
       success: true,
       data: statistics
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// DELETE /api/production/tasks/:id - Delete production task (only pending status)
+router.delete('/tasks/:id', authenticateToken, authorizeRoles('manager', 'production', 'director'), async (req: AuthRequest, res, next) => {
+  try {
+    const taskId = Number(req.params.id);
+    const userId = req.user!.id;
+
+    if (!taskId || isNaN(taskId)) {
+      return next(createError('Некорректный ID задания', 400));
+    }
+
+    // Проверяем существование задания
+    const task = await db.query.productionTasks.findFirst({
+      where: eq(schema.productionTasks.id, taskId),
+      with: {
+        order: {
+          columns: {
+            id: true,
+            orderNumber: true
+          }
+        },
+        product: {
+          columns: {
+            id: true,
+            name: true
+          }
+        }
+      }
+    });
+
+    if (!task) {
+      return next(createError('Задание не найдено', 404));
+    }
+
+    // Можно удалять только задания в статусе pending
+    if (task.status !== 'pending') {
+      return next(createError('Можно удалять только задания в статусе "Ожидает"', 400));
+    }
+
+    // Удаляем задание в транзакции
+    await db.transaction(async (tx) => {
+      // Сначала удаляем связанные дополнительные товары (если есть)
+      await tx.delete(schema.productionTaskExtras)
+        .where(eq(schema.productionTaskExtras.taskId, taskId));
+
+      // Затем удаляем само задание
+      await tx.delete(schema.productionTasks)
+        .where(eq(schema.productionTasks.id, taskId));
+
+      // Логируем удаление
+      await tx.insert(schema.auditLog).values({
+        tableName: 'production_tasks',
+        recordId: taskId,
+        operation: 'DELETE',
+        oldValues: {
+          id: task.id,
+          productId: task.productId,
+          productName: task.product.name,
+          requestedQuantity: task.requestedQuantity,
+          status: task.status,
+          orderId: task.orderId,
+          orderNumber: task.order?.orderNumber
+        },
+        userId
+      });
+    });
+
+    res.json({
+      success: true,
+      message: `Задание на производство товара "${task.product.name}" удалено`
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/production/tasks/by-product/:productId - Get production tasks by product
+router.get('/tasks/by-product/:productId', authenticateToken, authorizeRoles('manager', 'production', 'director'), async (req: AuthRequest, res, next) => {
+  try {
+    const productId = Number(req.params.productId);
+    const { status = 'pending,in_progress' } = req.query;
+
+    if (isNaN(productId) || productId <= 0) {
+      return next(createError('Некорректный ID товара', 400));
+    }
+
+    // Валидируем и очищаем статусы
+    const validStatuses = ['pending', 'in_progress', 'completed', 'cancelled'];
+    const statusList = (status as string)
+      .split(',')
+      .map(s => s.trim())
+      .filter(s => validStatuses.includes(s));
+
+    // Если нет валидных статусов, используем все
+    if (statusList.length === 0) {
+      statusList.push(...validStatuses);
+    }
+
+    const tasks = await db.query.productionTasks.findMany({
+      where: and(
+        eq(schema.productionTasks.productId, productId),
+        statusList.length > 0 ? inArray(schema.productionTasks.status, statusList as any) : undefined
+      ),
+      with: {
+        order: {
+          with: {
+            manager: {
+              columns: {
+                id: true,
+                username: true,
+                fullName: true
+              }
+            }
+          }
+        },
+        product: {
+          with: {
+            category: true,
+            stock: true
+          }
+        },
+        createdByUser: {
+          columns: {
+            id: true,
+            username: true,
+            fullName: true
+          }
+        },
+        assignedToUser: {
+          columns: {
+            id: true,
+            username: true,
+            fullName: true
+          }
+        },
+        startedByUser: {
+          columns: {
+            id: true,
+            username: true,
+            fullName: true
+          }
+        },
+        completedByUser: {
+          columns: {
+            id: true,
+            username: true,
+            fullName: true
+          }
+        }
+      },
+      orderBy: [
+        desc(schema.productionTasks.priority),
+        asc(schema.productionTasks.sortOrder),
+        desc(schema.productionTasks.createdAt)
+      ],
+      limit: 50
+    });
+
+    res.json({
+      success: true,
+      data: tasks
     });
   } catch (error) {
     next(error);

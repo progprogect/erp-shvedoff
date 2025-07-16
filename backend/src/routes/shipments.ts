@@ -142,9 +142,18 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
       return next(createError('Необходимо выбрать хотя бы один заказ для отгрузки', 400));
     }
 
+    // Валидируем, что все orderIds являются числами
+    const validOrderIds = orderIds.map(id => {
+      const numId = Number(id);
+      if (isNaN(numId) || numId <= 0) {
+        throw new Error(`Некорректный ID заказа: ${id}`);
+      }
+      return numId;
+    });
+
     // Проверяем, что все заказы готовы к отгрузке
     const orders = await db.query.orders.findMany({
-      where: inArray(schema.orders.id, orderIds),
+      where: inArray(schema.orders.id, validOrderIds),
       with: {
         items: {
           with: {
@@ -154,7 +163,7 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
       }
     });
 
-    if (orders.length !== orderIds.length) {
+    if (orders.length !== validOrderIds.length) {
       return next(createError('Некоторые заказы не найдены', 404));
     }
 
@@ -176,7 +185,7 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
       // Для множественных заказов создаем одну отгрузку
       const [newShipment] = await tx.insert(schema.shipments).values({
         shipmentNumber,
-        orderId: orderIds.length === 1 ? orderIds[0] : null, // Для одного заказа указываем orderId
+        orderId: validOrderIds.length === 1 ? validOrderIds[0] : null, // Для одного заказа указываем orderId
         plannedDate: plannedDate ? new Date(plannedDate) : null,
         transportInfo,
         status: 'planned',
@@ -187,10 +196,22 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
       const shipmentItems = [];
       for (const order of orders) {
         for (const item of order.items) {
+          // Валидируем данные перед вставкой
+          const productId = parseInt(String(item.productId), 10);
+          const quantity = parseInt(String(item.quantity), 10);
+          
+          if (!Number.isInteger(productId) || productId <= 0) {
+            throw new Error(`Некорректный ID товара: ${item.productId}`);
+          }
+          
+          if (!Number.isInteger(quantity) || quantity <= 0) {
+            throw new Error(`Некорректное количество товара: ${item.quantity}`);
+          }
+          
           shipmentItems.push({
             shipmentId: newShipment.id,
-            productId: item.productId,
-            plannedQuantity: item.quantity,
+            productId: productId,
+            plannedQuantity: quantity,
             actualQuantity: null
           });
         }
@@ -201,10 +222,12 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
       }
 
       // Если это одиночная отгрузка, обновляем статус заказа
-      if (orderIds.length === 1) {
+      if (validOrderIds.length === 1) {
+        const orderId = validOrderIds[0]; // уже валидирован выше
+        
         await tx.update(schema.orders)
           .set({ status: 'ready' }) // Остается ready до фактической отгрузки
-          .where(eq(schema.orders.id, orderIds[0]));
+          .where(eq(schema.orders.id, orderId));
       }
 
       // Логируем создание отгрузки
@@ -222,7 +245,7 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
     res.status(201).json({
       success: true,
       data: result,
-      message: `Отгрузка ${shipmentNumber} создана для ${orderIds.length} заказа(ов)`
+      message: `Отгрузка ${shipmentNumber} создана для ${validOrderIds.length} заказа(ов)`
     });
   } catch (error) {
     next(error);
@@ -305,6 +328,10 @@ router.get('/statistics', authenticateToken, async (req: AuthRequest, res, next)
 router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
   try {
     const shipmentId = Number(req.params.id);
+    
+    if (isNaN(shipmentId) || shipmentId <= 0) {
+      return next(createError('Некорректный ID отгрузки', 400));
+    }
 
     const shipment = await db.query.shipments.findFirst({
       where: eq(schema.shipments.id, shipmentId),

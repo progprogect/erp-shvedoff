@@ -61,8 +61,8 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
       total_in_production: sql<number>`
         COALESCE(SUM(
           CASE 
-            WHEN ${productionTasks.status} IN ('approved', 'in_progress') 
-            THEN COALESCE(${productionTasks.approvedQuantity}, ${productionTasks.requestedQuantity})
+            WHEN ${productionTasks.status} IN ('pending', 'in_progress') 
+            THEN ${productionTasks.requestedQuantity}
             ELSE 0
           END
         ), 0)
@@ -72,7 +72,7 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
     .where(
       and(
         inArray(productionTasks.productId, productIds),
-        inArray(productionTasks.status, ['approved', 'in_progress'])
+        inArray(productionTasks.status, ['pending', 'in_progress'])
       )
     )
     .groupBy(productionTasks.productId);

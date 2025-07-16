@@ -57,11 +57,11 @@ export async function syncProductionQueueToTasks(): Promise<SyncResult> {
         }
 
         // Конвертируем статус из старой системы в новую
-        let newStatus: 'suggested' | 'approved' | 'rejected' | 'postponed' | 'in_progress' | 'completed' | 'cancelled';
+        let newStatus: 'pending' | 'in_progress' | 'completed' | 'cancelled';
         
         switch (item.status) {
           case 'queued':
-            newStatus = 'approved'; // очередь = подтверждено
+            newStatus = 'pending'; // очередь = готово к работе
             break;
           case 'in_progress':
             newStatus = 'in_progress';
@@ -73,7 +73,7 @@ export async function syncProductionQueueToTasks(): Promise<SyncResult> {
             newStatus = 'cancelled';
             break;
           default:
-            newStatus = 'suggested';
+            newStatus = 'pending';
         }
 
         // Создаем новую задачу на основе элемента очереди
@@ -81,25 +81,18 @@ export async function syncProductionQueueToTasks(): Promise<SyncResult> {
           orderId: item.orderId || 0,
           productId: item.productId,
           requestedQuantity: item.quantity,
-          approvedQuantity: newStatus === 'approved' || newStatus === 'in_progress' || newStatus === 'completed' 
-            ? item.quantity 
-            : null,
           status: newStatus,
           priority: item.priority || 3,
           sortOrder: 0,
           
           // Проставляем даты на основе статуса
-          suggestedAt: item.createdAt || new Date(),
-          approvedAt: newStatus === 'approved' || newStatus === 'in_progress' || newStatus === 'completed' 
-            ? (item.createdAt || new Date()) 
-            : null,
+          createdAt: item.createdAt || new Date(),
           startedAt: item.actualStartDate,
           completedAt: item.actualCompletionDate,
           
           // Дополнительные поля
           notes: `Мигрировано из production_queue #${item.id}${item.notes ? ` | ${item.notes}` : ''}`,
-          suggestedBy: 1, // системный пользователь
-          approvedBy: newStatus === 'approved' || newStatus === 'in_progress' || newStatus === 'completed' ? 1 : null,
+          createdBy: 1, // системный пользователь
           startedBy: item.actualStartDate ? 1 : null,
           completedBy: item.actualCompletionDate ? 1 : null
         };
@@ -149,11 +142,10 @@ export async function createTasksForPendingOrders(): Promise<SyncResult> {
         orderId: productionTasks.orderId,
         productId: productionTasks.productId,
         requestedQuantity: productionTasks.requestedQuantity,
-        approvedQuantity: productionTasks.approvedQuantity,
         status: productionTasks.status
       })
       .from(productionTasks)
-      .where(sql`${productionTasks.status} IN ('suggested', 'approved', 'in_progress')`);
+      .where(sql`${productionTasks.status} IN ('pending', 'in_progress')`);
 
     // Группируем существующие задания по заказам для быстрого поиска
     const tasksByOrder = existingTasks.reduce((acc, task) => {
@@ -198,8 +190,7 @@ export async function createTasksForPendingOrders(): Promise<SyncResult> {
 
             // Рассчитываем уже запланированное количество для этого товара
             const alreadyPlanned = existingTasksForProduct.reduce((sum, task) => {
-              const quantity = task.approvedQuantity || task.requestedQuantity;
-              return sum + quantity;
+              return sum + task.requestedQuantity;
             }, 0);
 
             // Определяем нужное количество с учетом уже запланированного
@@ -211,10 +202,10 @@ export async function createTasksForPendingOrders(): Promise<SyncResult> {
                 orderId: order.orderId,
                 productId: item.product_id,
                 requestedQuantity: neededQuantity,
-                status: 'suggested',
+                status: 'pending',
                 priority: taskPriority,
                 notes: `Автоматически создано для заказа ${order.orderNumber}. Дефицит: ${neededQuantity} шт.`,
-                suggestedBy: 1 // системный пользователь
+                createdBy: 1 // системный пользователь
               });
 
               result.migrated++;
@@ -305,14 +296,18 @@ export async function recalculateProductionNeeds(): Promise<{
         orderId: productionTasks.orderId,
         productId: productionTasks.productId,
         requestedQuantity: productionTasks.requestedQuantity,
-        approvedQuantity: productionTasks.approvedQuantity,
         status: productionTasks.status
       })
       .from(productionTasks)
-      .where(sql`${productionTasks.status} IN ('suggested', 'approved')`);
+      .where(sql`${productionTasks.status} IN ('pending', 'in_progress')`);
 
     // Группируем задания по заказам для анализа
     const tasksByOrder = activeTasks.reduce((acc, task) => {
+      // Пропускаем задания без привязки к заказу
+      if (task.orderId === null) {
+        return acc;
+      }
+      
       if (!acc[task.orderId]) {
         acc[task.orderId] = [];
       }
@@ -335,7 +330,7 @@ export async function recalculateProductionNeeds(): Promise<{
             
             // Рассчитываем уже запланированное количество
             const plannedQuantity = existingTasksForProduct.reduce((sum, task) => {
-              return sum + (task.approvedQuantity || task.requestedQuantity);
+              return sum + task.requestedQuantity;
             }, 0);
 
             const neededQuantity = item.shortage;
@@ -352,10 +347,10 @@ export async function recalculateProductionNeeds(): Promise<{
                 orderId: order.orderId,
                 productId: item.product_id,
                 requestedQuantity: additionalQuantity,
-                status: 'suggested',
+                status: 'pending',
                 priority: taskPriority,
                 notes: `Автоматически создано при пересчете. Дополнительная потребность: ${additionalQuantity} шт.`,
-                suggestedBy: 1
+                createdBy: 1
               });
 
               result.created++;
@@ -366,7 +361,7 @@ export async function recalculateProductionNeeds(): Promise<{
               
               // Сначала отменяем предложенные задания
               const suggestedTasks = existingTasksForProduct
-                .filter(t => t.status === 'suggested')
+                .filter(t => t.status === 'pending') // Changed from 'suggested' to 'pending'
                 .sort((a, b) => b.requestedQuantity - a.requestedQuantity); // Сначала большие
 
               for (const task of suggestedTasks) {
@@ -402,13 +397,12 @@ export async function recalculateProductionNeeds(): Promise<{
           }
         } else {
           // Заказ больше не требует производства - отменяем предложенные задания
-          const suggestedTasksToCancel = currentTasks.filter(t => t.status === 'suggested');
+          const suggestedTasksToCancel = currentTasks.filter(t => t.status === 'pending'); // Changed from 'suggested' to 'pending'
           
           for (const task of suggestedTasksToCancel) {
             await db.update(productionTasks)
               .set({
                 status: 'cancelled',
-                rejectReason: 'Потребность отпала - товар появился на складе',
                 updatedAt: new Date()
               })
               .where(eq(productionTasks.id, task.id));

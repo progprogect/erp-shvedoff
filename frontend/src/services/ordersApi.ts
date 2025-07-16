@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { useAuthStore } from '../stores/authStore';
 
 const API_BASE_URL = 'http://localhost:5001/api';
 
@@ -41,8 +42,8 @@ export interface OrderItem {
     stock?: {
       currentStock: number;
       reservedStock: number;
-      availableStock: number;
-      inProductionQuantity: number;
+      availableStock?: number;
+      inProductionQuantity?: number;
     };
   };
 }
@@ -67,6 +68,7 @@ export interface CreateOrderRequest {
   deliveryDate?: string;
   priority?: 'low' | 'normal' | 'high' | 'urgent';
   notes?: string;
+  managerId?: number; // Добавляем поле для назначения менеджера
   items: {
     productId: number;
     quantity: number;
@@ -224,3 +226,28 @@ class OrdersApiService {
 }
 
 export const ordersApi = new OrdersApiService(); 
+
+// Get orders by product
+export const getOrdersByProduct = async (productId: number): Promise<ApiResponse<Order[]>> => {
+  try {
+    const { token } = useAuthStore.getState();
+    const response = await fetch(`${API_BASE_URL}/orders/by-product/${productId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching orders by product:', error);
+    return {
+      success: false,
+      data: [],
+      message: error instanceof Error ? error.message : 'Ошибка при получении заказов по товару'
+    };
+  }
+}; 

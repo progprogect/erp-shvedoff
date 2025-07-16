@@ -20,6 +20,13 @@ const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
 const { TextArea } = Input;
 
+interface User {
+  id: number;
+  username: string;
+  fullName?: string;
+  role: string;
+}
+
 const OrderDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -32,6 +39,7 @@ const OrderDetail: React.FC = () => {
   const [messageModalVisible, setMessageModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [productModalVisible, setProductModalVisible] = useState(false);
+  const [users, setUsers] = useState<User[]>([]);
   
   const [statusForm] = Form.useForm();
   const [messageForm] = Form.useForm();
@@ -47,6 +55,7 @@ const OrderDetail: React.FC = () => {
     if (id && token) {
       loadOrder();
       loadProducts();
+      loadUsers();
     }
   }, [id, token]);
 
@@ -82,6 +91,24 @@ const OrderDetail: React.FC = () => {
       }
     } catch (error) {
       console.error('Ошибка загрузки товаров:', error);
+    }
+  };
+
+  const loadUsers = async () => {
+    if (!token) return;
+    
+    try {
+      const response = await catalogApi.getUsers();
+      
+      if (response.success) {
+        // Фильтруем только менеджеров и директоров для назначения заказов
+        const availableUsers = response.data.filter(
+          (u: User) => u.role === 'manager' || u.role === 'director'
+        );
+        setUsers(availableUsers);
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки пользователей:', error);
     }
   };
 
@@ -143,6 +170,7 @@ const OrderDetail: React.FC = () => {
         deliveryDate: values.deliveryDate ? dayjs(values.deliveryDate).toISOString() : null,
         priority: values.priority,
         notes: values.notes,
+        managerId: values.managerId, // Добавляем назначенного менеджера
         items: editingItems.map(item => ({
           productId: item.productId,
           quantity: item.quantity,
@@ -176,7 +204,8 @@ const OrderDetail: React.FC = () => {
       customerContact: order.customerContact,
       deliveryDate: order.deliveryDate ? dayjs(order.deliveryDate) : null,
       priority: order.priority,
-      notes: order.notes
+      notes: order.notes,
+      managerId: order.managerId // Инициализируем текущим менеджером
     });
     setEditModalVisible(true);
   };
@@ -197,7 +226,15 @@ const OrderDetail: React.FC = () => {
       reservedQuantity: 0,
       price: String(Number(product.price) || 0), // Convert to string
       createdAt: new Date().toISOString(),
-      product
+      product: {
+        ...product,
+        stock: {
+          currentStock: (product as any).currentStock || 0,
+          reservedStock: (product as any).reservedStock || 0,
+          availableStock: ((product as any).currentStock || 0) - ((product as any).reservedStock || 0),
+          inProductionQuantity: 0
+        }
+      }
     };
 
     setEditingItems([...editingItems, newItem]);
@@ -867,7 +904,7 @@ const OrderDetail: React.FC = () => {
           </Row>
 
           <Row gutter={16}>
-            <Col span={12}>
+            <Col span={8}>
               <Form.Item
                 name="deliveryDate"
                 label="Дата поставки"
@@ -875,7 +912,7 @@ const OrderDetail: React.FC = () => {
                 <DatePicker style={{ width: '100%' }} placeholder="Выберите дату" />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col span={8}>
               <Form.Item
                 name="priority"
                 label="Приоритет"
@@ -885,6 +922,20 @@ const OrderDetail: React.FC = () => {
                   <Option value="normal">Обычный</Option>
                   <Option value="high">Высокий</Option>
                   <Option value="urgent">Срочный</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                name="managerId"
+                label="Менеджер"
+              >
+                <Select placeholder="Выберите менеджера" disabled={user?.role !== 'director'}>
+                  {users.map(u => (
+                    <Option key={u.id} value={u.id}>
+                      {u.fullName || u.username} ({u.role === 'manager' ? 'Менеджер' : 'Директор'})
+                    </Option>
+                  ))}
                 </Select>
               </Form.Item>
             </Col>

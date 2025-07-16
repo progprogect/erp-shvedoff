@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Card, Typography, Button, Space, Tag, Input, Select, Row, Col, Statistic, message, Spin, Divider } from 'antd';
 import { SearchOutlined, InboxOutlined, EditOutlined, HistoryOutlined, ReloadOutlined, FilterOutlined, SettingOutlined, SyncOutlined, ToolOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { stockApi, StockItem, StockFilters } from '../services/stockApi';
 import StockAdjustmentModal from '../components/StockAdjustmentModal';
@@ -11,6 +12,7 @@ const { Search } = Input;
 const { Option } = Select;
 
 const Stock: React.FC = () => {
+  const navigate = useNavigate();
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'critical' | 'low' | 'normal' | 'out_of_stock' | 'in_production' | 'negative'>('all');
   const [loading, setLoading] = useState(false);
@@ -198,7 +200,27 @@ const Stock: React.FC = () => {
       fixed: 'left' as const,
       render: (text: string, record: StockItem) => (
         <div style={{ minWidth: '220px' }}>
-          <Text strong style={{ fontSize: '14px', display: 'block', marginBottom: '4px' }}>
+          <Text 
+            strong 
+            style={{ 
+              fontSize: '14px', 
+              display: 'block', 
+              marginBottom: '4px',
+              color: '#1890ff',
+              cursor: 'pointer',
+              transition: 'color 0.3s ease'
+            }}
+            onClick={() => navigate(`/catalog/products/${record.productId}`)}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = '#096dd9';
+              e.currentTarget.style.textDecoration = 'underline';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = '#1890ff';
+              e.currentTarget.style.textDecoration = 'none';
+            }}
+            title="Перейти к карточке товара"
+          >
             {text}
           </Text>
           <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>

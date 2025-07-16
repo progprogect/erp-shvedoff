@@ -9,7 +9,7 @@ export interface CuttingOperation {
   sourceQuantity: number;
   targetQuantity: number;
   wasteQuantity: number;
-  status: 'planned' | 'approved' | 'in_progress' | 'completed' | 'cancelled';
+  status: 'in_progress' | 'completed' | 'cancelled'; // Упрощенные статусы без этапа утверждения
   operatorId?: number;
   plannedDate?: string;
   completedAt?: string;
@@ -59,7 +59,7 @@ export interface CreateCuttingOperationRequest {
 
 export interface CompleteCuttingOperationRequest {
   actualTargetQuantity: number;
-  actualWasteQuantity?: number;
+  actualDefectQuantity?: number;
   notes?: string;
 }
 
@@ -119,36 +119,35 @@ class CuttingApiService {
     return response.data.data;
   }
 
-  // Утвердить операцию резки (только директор)
-  async approveCuttingOperation(id: number): Promise<CuttingOperation> {
-    const response = await axios.put(`${API_BASE_URL}/cutting/${id}/approve`, {}, {
-      headers: this.getAuthHeaders()
-    });
-    return response.data.data;
-  }
-
-  // Начать операцию резки (производство)
-  async startCuttingOperation(id: number): Promise<CuttingOperation> {
-    const response = await axios.put(`${API_BASE_URL}/cutting/${id}/start`, {}, {
+  // Обновить операцию резки (только до утверждения)
+  async updateCuttingOperation(id: number, data: Partial<CreateCuttingOperationRequest>): Promise<CuttingOperation> {
+    const response = await axios.put(`${API_BASE_URL}/cutting/${id}`, data, {
       headers: this.getAuthHeaders()
     });
     return response.data.data;
   }
 
   // Завершить операцию резки
-  async completeCuttingOperation(id: number, data: CompleteCuttingOperationRequest): Promise<CuttingOperation> {
+  async completeCuttingOperation(id: number, data: CompleteCuttingOperationRequest): Promise<CuttingOperationDetails> {
     const response = await axios.put(`${API_BASE_URL}/cutting/${id}/complete`, data, {
       headers: this.getAuthHeaders()
     });
     return response.data.data;
   }
 
-  // Отменить операцию резки
-  async cancelCuttingOperation(id: number): Promise<CuttingOperation> {
-    const response = await axios.delete(`${API_BASE_URL}/cutting/${id}`, {
+  // Изменить статус операции резки (новый метод)
+  async changeOperationStatus(id: number, status: string): Promise<CuttingOperation> {
+    const response = await axios.put(`${API_BASE_URL}/cutting/${id}/status`, { status }, {
       headers: this.getAuthHeaders()
     });
     return response.data.data;
+  }
+
+  // Отменить операцию резки
+  async cancelCuttingOperation(id: number): Promise<void> {
+    await axios.delete(`${API_BASE_URL}/cutting/${id}`, {
+      headers: this.getAuthHeaders()
+    });
   }
 
   // Получить статистику по операциям резки
@@ -191,39 +190,23 @@ class CuttingApiService {
     }
   }
 
-  // Вспомогательные методы
+  // Статусы операций резки (упрощенные, без этапа утверждения)
   getStatusColor(status: CuttingOperation['status']): string {
-    switch (status) {
-      case 'planned':
-        return 'blue';
-      case 'approved':
-        return 'orange';
-      case 'in_progress':
-        return 'purple';
-      case 'completed':
-        return 'green';
-      case 'cancelled':
-        return 'red';
-      default:
-        return 'gray';
-    }
+    const statusColors: Record<CuttingOperation['status'], string> = {
+      'in_progress': 'processing',
+      'completed': 'success',
+      'cancelled': 'error'
+    };
+    return statusColors[status] || 'default';
   }
 
   getStatusText(status: CuttingOperation['status']): string {
-    switch (status) {
-      case 'planned':
-        return 'Запланировано';
-      case 'approved':
-        return 'Утверждено';
-      case 'in_progress':
-        return 'В процессе';
-      case 'completed':
-        return 'Завершено';
-      case 'cancelled':
-        return 'Отменено';
-      default:
-        return 'Неизвестно';
-    }
+    const statusTexts: Record<CuttingOperation['status'], string> = {
+      'in_progress': 'В процессе',
+      'completed': 'Завершена',
+      'cancelled': 'Отменена'
+    };
+    return statusTexts[status] || status;
   }
 
   // Проверка прав доступа
@@ -232,19 +215,43 @@ class CuttingApiService {
   }
 
   canStart(userRole: string): boolean {
-    return userRole === 'production' || userRole === 'director';
+    return ['production', 'director'].includes(userRole);
   }
 
   canComplete(userRole: string): boolean {
-    return userRole === 'production' || userRole === 'director';
+    return ['production', 'director'].includes(userRole);
   }
 
   canCancel(userRole: string): boolean {
-    return userRole === 'manager' || userRole === 'director';
+    return ['production', 'director'].includes(userRole);
   }
 
-  canCreate(userRole: string): boolean {
-    return userRole === 'manager' || userRole === 'director';
+  // DEPRECATED: Больше не используется
+  /*
+  async approveCuttingOperation(id: number): Promise<CuttingOperation> {
+    const response = await axios.put(`${API_BASE_URL}/cutting/${id}/approve`, {}, {
+      headers: this.getAuthHeaders()
+    });
+    return response.data.data;
+  }
+
+  async startCuttingOperation(id: number): Promise<CuttingOperation> {
+    const response = await axios.put(`${API_BASE_URL}/cutting/${id}/start`, {}, {
+      headers: this.getAuthHeaders()
+    });
+    return response.data.data;
+  }
+  */
+
+  // Получить возможные следующие статусы
+  getValidNextStatuses(currentStatus: CuttingOperation['status']): CuttingOperation['status'][] {
+    const transitions: Record<CuttingOperation['status'], CuttingOperation['status'][]> = {
+      'in_progress': ['completed', 'cancelled'],
+      'completed': [], // Завершенные операции нельзя изменять
+      'cancelled': ['in_progress'] // Можно вернуть отмененную обратно в процесс
+    };
+
+    return transitions[currentStatus] || [];
   }
 }
 

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { 
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import {
   Card, 
   Tabs, 
   Table, 
@@ -15,10 +15,12 @@ import {
   InputNumber,
   Input,
   Select,
-  message,
+  App,
   Popconfirm,
   Tooltip,
-  Divider
+  Divider,
+  Alert,
+  message
 } from 'antd';
 import {
   PlayCircleOutlined,
@@ -28,10 +30,7 @@ import {
   EyeOutlined,
   EditOutlined,
   DragOutlined,
-  PlusOutlined,
-  SortAscendingOutlined,
-  ReloadOutlined,
-  BellOutlined
+  PlusOutlined
 } from '@ant-design/icons';
 
 import {
@@ -45,19 +44,17 @@ import {
 
 import {
   getProductionTasks,
-  getProductionTasksByProduct,
-  approveProductionTask,
-  rejectProductionTask,
-  postponeProductionTask,
-  startProductionTask,
-  completeProductionTask,
+  getTasksByProduct,
+  startTask,
+  completeTask,
+  completeTasksByProduct,
+  updateProductionTask,
+  deleteProductionTask,
   reorderProductionTasks,
-  recalculateProductionNeeds,
-  getSyncStatistics,
-  notifyReadyOrders,
-  syncOrdersToTasks,
+  createProductionTask,
   ProductionTask,
-  ProductionTaskExtra
+  ProductionTaskExtra,
+  UpdateProductionTaskRequest
 } from '../services/productionApi';
 import { catalogApi } from '../services/catalogApi';
 import { useAuthStore } from '../stores/authStore';
@@ -88,19 +85,24 @@ const ProductionTasks: React.FC = () => {
   const [tasksByProduct, setTasksByProduct] = useState<TasksByProduct[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   
+  // Фильтры
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'in_progress' | 'completed' | 'cancelled'>('all');
+  
   // Состояние для статистики
   const [stats, setStats] = useState({
-    suggested: 0,
-    approved: 0,
+    pending: 0,
     inProgress: 0,
-    completed: 0
+    completed: 0,
+    cancelled: 0
   });
   
   // Состояние для модалов
   const [approveModalVisible, setApproveModalVisible] = useState<boolean>(false);
   const [completeModalVisible, setCompleteModalVisible] = useState<boolean>(false);
   const [createTaskModalVisible, setCreateTaskModalVisible] = useState<boolean>(false);
+  const [completeByProductModalVisible, setCompleteByProductModalVisible] = useState<boolean>(false);
   const [selectedTask, setSelectedTask] = useState<ProductionTask | null>(null);
+  const [selectedProductForCompletion, setSelectedProductForCompletion] = useState<TasksByProduct | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Array<{ id: number; orderNumber: string; customerName: string }>>([]);
   const [users, setUsers] = useState<Array<{ id: number; username: string; fullName: string }>>([]);
@@ -108,6 +110,27 @@ const ProductionTasks: React.FC = () => {
   const [approveForm] = Form.useForm();
   const [completeForm] = Form.useForm();
   const [createTaskForm] = Form.useForm();
+  const [completeByProductForm] = Form.useForm();
+
+  // Состояние для формы завершения
+  const [completeFormValues, setCompleteFormValues] = useState<{
+    producedQuantity: number;
+    qualityQuantity: number;
+    defectQuantity: number;
+  }>({ producedQuantity: 0, qualityQuantity: 0, defectQuantity: 0 });
+
+  // Состояние для модального окна редактирования
+  const [editModalVisible, setEditModalVisible] = useState(false);
+
+  // Фильтрация заданий по статусу
+  const filteredTasks = useMemo(() => {
+    if (statusFilter === 'all') {
+      return tasks;
+    }
+    return tasks.filter(task => task.status === statusFilter);
+  }, [tasks, statusFilter]);
+  const [editingTask, setEditingTask] = useState<ProductionTask | null>(null);
+  const [editForm] = Form.useForm();
 
   // Загрузка данных при монтировании компонента
   useEffect(() => {
@@ -144,7 +167,7 @@ const ProductionTasks: React.FC = () => {
     
     setLoading(true);
     try {
-      const response = await getProductionTasksByProduct();
+      const response = await getTasksByProduct();
       if (response.success) {
         setTasksByProduct(response.data);
       } else {
@@ -221,10 +244,10 @@ const ProductionTasks: React.FC = () => {
   // Обновление статистики
   const updateStats = (tasksList: ProductionTask[]) => {
     const newStats = {
-      suggested: tasksList.filter(t => t.status === 'suggested').length,
-      approved: tasksList.filter(t => t.status === 'approved').length,
+      pending: tasksList.filter(t => t.status === 'pending').length,
       inProgress: tasksList.filter(t => t.status === 'in_progress').length,
-      completed: tasksList.filter(t => t.status === 'completed').length
+      completed: tasksList.filter(t => t.status === 'completed').length,
+      cancelled: tasksList.filter(t => t.status === 'cancelled').length
     };
     setStats(newStats);
   };
@@ -240,7 +263,7 @@ const ProductionTasks: React.FC = () => {
   };
 
   // Обработчик drag and drop
-  const handleOnDragEnd = async (result: DropResult) => {
+  const handleOnDragEnd = useCallback(async (result: DropResult) => {
     if (!result.destination) return;
 
     const items = Array.from(tasks);
@@ -259,63 +282,89 @@ const ProductionTasks: React.FC = () => {
       // Восстанавливаем оригинальный порядок в случае ошибки
       loadTasks();
     }
+  }, [tasks]);
+
+  // Компонент для DragDropContext
+  const DragDropWrapper = ({ children }: { children: React.ReactNode }) => (
+    <DragDropContext onDragEnd={handleOnDragEnd}>
+      {children}
+    </DragDropContext>
+  );
+
+  // Обработчики действий с заданиями
+  const handleStartTask = async (task: ProductionTask) => {
+    try {
+      await startTask(task.id);
+      message.success('Задание запущено в производство');
+      loadTasks();
+      loadTasksByProduct();
+    } catch (error) {
+      message.error(`Ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
+    }
   };
 
-  // Подтверждение задания
-  const handleApproveTask = async (values: any) => {
+  const handleEditTask = (task: ProductionTask) => {
+    setEditingTask(task);
+    editForm.setFieldsValue({
+      requestedQuantity: task.requestedQuantity,
+      priority: task.priority,
+      notes: task.notes,
+      assignedTo: task.assignedTo
+    });
+    setEditModalVisible(true);
+  };
+
+  // Удаление задания
+  const handleDeleteTask = async (task: ProductionTask) => {
+    Modal.confirm({
+      title: 'Удаление производственного задания',
+      content: (
+        <div>
+          <p>Вы уверены, что хотите удалить задание на производство товара <strong>{task.product?.name}</strong>?</p>
+          <p>Количество: <strong>{task.requestedQuantity} шт.</strong></p>
+          {task.order && (
+            <p>Заказ: <strong>№{task.order.orderNumber}</strong> - {task.order.customerName}</p>
+          )}
+          <p style={{ color: '#ff4d4f', marginTop: '8px' }}>
+            ⚠️ Это действие нельзя отменить. Задание можно удалить только в статусе "Ожидает".
+          </p>
+        </div>
+      ),
+      okText: 'Удалить',
+      okType: 'danger',
+      cancelText: 'Отмена',
+      onOk: async () => {
+        try {
+          const result = await deleteProductionTask(task.id);
+          
+          if (result.success) {
+            message.success(result.message || 'Задание удалено');
+            loadTasks();
+            loadTasksByProduct();
+          } else {
+            message.error(result.message || 'Ошибка удаления задания');
+          }
+        } catch (error) {
+          console.error('Ошибка удаления задания:', error);
+          message.error(`Ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
+        }
+      }
+    });
+  };
+
+  const handleUpdateTask = async (values: any) => {
     if (!selectedTask) return;
 
     try {
-      await approveProductionTask(
-        selectedTask.id,
-        values.approvedQuantity,
-        values.notes
-      );
-      
-      message.success('Задание подтверждено');
-      setApproveModalVisible(false);
-      approveForm.resetFields();
-      setSelectedTask(null);
+      await updateProductionTask(selectedTask.id, values);
+      message.success('Задание обновлено');
+      setEditModalVisible(false);
+      setEditingTask(null);
+      editForm.resetFields();
       loadTasks();
+      loadTasksByProduct();
     } catch (error) {
-      console.error('Error approving task:', error);
-      message.error('Ошибка подтверждения задания');
-    }
-  };
-
-  // Отклонение задания
-  const handleRejectTask = async (task: ProductionTask) => {
-    try {
-      await rejectProductionTask(task.id, 'Отклонено менеджером');
-      message.success('Задание отклонено');
-      loadTasks();
-    } catch (error) {
-      console.error('Error rejecting task:', error);
-      message.error('Ошибка отклонения задания');
-    }
-  };
-
-  // Отложение задания
-  const handlePostponeTask = async (task: ProductionTask) => {
-    try {
-      await postponeProductionTask(task.id, 'Отложено');
-      message.success('Задание отложено');
-      loadTasks();
-    } catch (error) {
-      console.error('Error postponing task:', error);
-      message.error('Ошибка отложения задания');
-    }
-  };
-
-  // Начало выполнения задания
-  const handleStartTask = async (task: ProductionTask) => {
-    try {
-      await startProductionTask(task.id);
-      message.success('Задание запущено в производство');
-      loadTasks();
-    } catch (error) {
-      console.error('Error starting task:', error);
-      message.error('Ошибка запуска задания');
+      message.error(`Ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
     }
   };
 
@@ -324,56 +373,119 @@ const ProductionTasks: React.FC = () => {
     if (!selectedTask) return;
 
     try {
-      const extras = values.extras?.map((extra: any) => ({
-        product_id: extra.productId,
-        quantity: extra.quantity,
-        notes: extra.notes
-      })) || [];
+      // Автоматический пересчет качественных если не указано
+      if (!completeFormValues.qualityQuantity && !completeFormValues.defectQuantity) {
+        setCompleteFormValues(prev => ({
+          ...prev,
+          qualityQuantity: completeFormValues.producedQuantity,
+          defectQuantity: 0
+        }));
+      }
 
-      await completeProductionTask(selectedTask.id, {
-        produced_quantity: values.producedQuantity,
-        quality_quantity: values.qualityQuantity,
-        defect_quantity: values.defectQuantity,
-        notes: values.notes,
-        extras
+      const produced = completeFormValues.producedQuantity;
+      const quality = completeFormValues.qualityQuantity;
+      const defect = completeFormValues.defectQuantity;
+
+      // Валидация суммы
+      if (quality + defect !== produced) {
+        message.error('Сумма годных и брака должна равняться произведенному количеству');
+        return;
+      }
+
+      // Подготовка данных для отправки
+      await completeTask(selectedTask.id, {
+        producedQuantity: produced,
+        qualityQuantity: quality,
+        defectQuantity: defect,
+        notes: values.notes
       });
-      
+
       message.success('Задание завершено');
       setCompleteModalVisible(false);
-      completeForm.resetFields();
       setSelectedTask(null);
+      completeForm.resetFields();
       loadTasks();
+      loadTasksByProduct();
     } catch (error) {
-      console.error('Error completing task:', error);
-      message.error('Ошибка завершения задания');
+      message.error(`Ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
+    }
+  };
+
+  // Обработчик для массового завершения заданий по товару
+  const handleCompleteByProduct = (productTasks: TasksByProduct) => {
+    setSelectedProductForCompletion(productTasks);
+    const initialValues = {
+      producedQuantity: productTasks.totalQuantity,
+      qualityQuantity: productTasks.totalQuantity,
+      defectQuantity: 0,
+      productionDate: new Date(),
+      notes: ''
+    };
+    completeByProductForm.setFieldsValue(initialValues);
+    setCompleteByProductModalVisible(true);
+  };
+
+  // Завершение заданий по товару
+  const handleCompleteTasksByProduct = async (values: any) => {
+    if (!selectedProductForCompletion) return;
+
+    try {
+      const { producedQuantity, qualityQuantity, defectQuantity, productionDate, notes } = values;
+
+      // Валидация суммы
+      if (qualityQuantity + defectQuantity !== producedQuantity) {
+        message.error('Сумма годных и брака должна равняться произведенному количеству');
+        return;
+      }
+
+      // Подготовка данных для API
+      const requestData = {
+        productId: selectedProductForCompletion.product.id,
+        producedQuantity,
+        qualityQuantity,
+        defectQuantity,
+        productionDate: productionDate?.format ? productionDate.format('YYYY-MM-DD') : productionDate,
+        notes
+      };
+
+      // Отправляем запрос к API
+      const result = await completeTasksByProduct(requestData);
+      
+      if (result.success) {
+        message.success(`Произведено ${producedQuantity} шт. товара "${selectedProductForCompletion.product.name}"`);
+      } else {
+        message.error(result.message || 'Ошибка завершения заданий');
+        return;
+      }
+      setCompleteByProductModalVisible(false);
+      setSelectedProductForCompletion(null);
+      completeByProductForm.resetFields();
+      loadTasks();
+      loadTasksByProduct();
+    } catch (error) {
+      message.error(`Ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
     }
   };
 
   // Создание нового задания
   const handleCreateTask = async (values: any) => {
     try {
-      // Используем suggest API для создания задания
-      const response = await fetch(`/api/production/tasks/suggest`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          orderId: values.orderId,
-          productId: values.productId,
-          quantity: values.requestedQuantity,
-          priority: values.priority || 3,
-          notes: values.notes,
-          assignedTo: values.assignedTo
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      // Используем createProductionTask API для создания задания
+      const taskData: any = {
+        productId: values.productId,
+        requestedQuantity: values.requestedQuantity,
+        priority: values.priority || 3,
+        notes: values.notes,
+        assignedTo: values.assignedTo
+      };
+      
+      // Добавляем orderId только если он указан
+      if (values.orderId) {
+        taskData.orderId = values.orderId;
       }
 
-      const result = await response.json();
+      const result = await createProductionTask(taskData);
+      
       if (result.success) {
         message.success('Производственное задание создано');
         setCreateTaskModalVisible(false);
@@ -388,71 +500,12 @@ const ProductionTasks: React.FC = () => {
     }
   };
 
-  // Обработчики управления системой
-  const handleRecalculateNeeds = async () => {
-    try {
-      setLoading(true);
-      const result = await recalculateProductionNeeds();
-      message.success(`Пересчет завершен: создано ${result.data.created}, обновлено ${result.data.updated}, отменено ${result.data.cancelled}`);
-      loadTasks();
-    } catch (error) {
-      console.error('Error recalculating needs:', error);
-      message.error('Ошибка пересчета потребностей');
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const handleSyncOrders = async () => {
-    try {
-      setLoading(true);
-      const result = await syncOrdersToTasks();
-      message.success(`Синхронизация завершена: создано ${result.data.migrated} заданий`);
-      loadTasks();
-    } catch (error) {
-      console.error('Error syncing orders:', error);
-      message.error('Ошибка синхронизации заказов');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleNotifyReady = async () => {
-    try {
-      const result = await notifyReadyOrders();
-      message.success(`Уведомления отправлены: ${result.data.notified} заказов`);
-    } catch (error) {
-      console.error('Error notifying ready orders:', error);
-      message.error('Ошибка отправки уведомлений');
-    }
-  };
-
-  const handleShowSyncStats = async () => {
-    try {
-      const stats = await getSyncStatistics();
-      Modal.info({
-        title: 'Статистика синхронизации',
-        content: (
-          <div>
-            <p><strong>Очередь производства:</strong> {stats.data.production_queue.total} элементов</p>
-            <p><strong>Производственные задания:</strong> {stats.data.production_tasks.total} элементов</p>
-          </div>
-        ),
-        width: 500
-      });
-    } catch (error) {
-      console.error('Error getting sync stats:', error);
-      message.error('Ошибка получения статистики');
-    }
-  };
 
   // Получение цвета статуса
   const getStatusColor = (status: string) => {
     const colors = {
-      suggested: 'blue',
-      approved: 'green',
-      rejected: 'red',
-      postponed: 'orange',
+      pending: 'blue',
       in_progress: 'cyan',
       completed: 'purple',
       cancelled: 'gray'
@@ -463,11 +516,8 @@ const ProductionTasks: React.FC = () => {
   // Получение названия статуса
   const getStatusName = (status: string) => {
     const names = {
-      suggested: 'Предложено',
-      approved: 'Подтверждено', 
-      rejected: 'Отклонено',
-      postponed: 'Отложено',
-      in_progress: 'В производстве',
+      pending: 'Ожидает',
+      in_progress: 'В работе',
       completed: 'Завершено',
       cancelled: 'Отменено'
     };
@@ -495,11 +545,18 @@ const ProductionTasks: React.FC = () => {
       key: 'order',
       render: (record: ProductionTask) => {
         if (!record) return null;
+        if (!record.orderId || !record.order) {
+          return (
+            <Text type="secondary" style={{ fontStyle: 'italic' }}>
+              Задание на будущее
+            </Text>
+          );
+        }
         return (
           <div>
-            <div>№{record.orderId}</div>
+            <div>№{record.order.orderNumber}</div>
             <Text type="secondary" style={{ fontSize: '12px' }}>
-              {record.order?.customerName}
+              {record.order.customerName}
             </Text>
           </div>
         );
@@ -507,45 +564,45 @@ const ProductionTasks: React.FC = () => {
     },
     {
       title: 'Товар',
+      dataIndex: 'product',
       key: 'product',
-      render: (record: ProductionTask) => {
-        if (!record || !record.product) return null;
-        return (
-          <div>
-            <div>{record.product.name}</div>
-            {record.product.article && (
-              <Text type="secondary" style={{ fontSize: '12px' }}>
-                {record.product.article}
-              </Text>
-            )}
-          </div>
-        );
-      },
+      render: (product: any) => (
+        <div>
+          <div>{product.name}</div>
+          {product.code && (
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              {product.code}
+            </Text>
+          )}
+        </div>
+      ),
     },
     {
       title: 'Количество',
       key: 'quantity',
-      render: (record: ProductionTask) => {
-        if (!record) return null;
-        return (
-          <div>
-            <div>Запрошено: {record.requestedQuantity}</div>
-            {record.approvedQuantity && (
-              <Text type="secondary">Подтверждено: {record.approvedQuantity}</Text>
-            )}
-          </div>
-        );
-      },
+      render: (record: ProductionTask) => (
+        <div>
+          <div>Запрошено: {record.requestedQuantity}</div>
+          {record.producedQuantity > 0 && (
+            <Text type="secondary">Произведено: {record.producedQuantity}</Text>
+          )}
+        </div>
+      ),
     },
     {
       title: 'Статус',
       dataIndex: 'status',
       key: 'status',
-      render: (status: string) => (
-        <Tag color={getStatusColor(status)}>
-          {getStatusName(status)}
-        </Tag>
-      ),
+      render: (status: string) => {
+        const statusConfig = {
+          pending: { color: 'blue', text: 'Ожидает' },
+          in_progress: { color: 'processing', text: 'В работе' },
+          completed: { color: 'success', text: 'Завершено' },
+          cancelled: { color: 'error', text: 'Отменено' }
+        };
+        const config = statusConfig[status as keyof typeof statusConfig];
+        return <Tag color={config?.color}>{config?.text || status}</Tag>;
+      },
     },
     {
       title: 'Приоритет',
@@ -562,55 +619,34 @@ const ProductionTasks: React.FC = () => {
       key: 'actions',
       render: (record: ProductionTask) => (
         <Space size="small">
-          {record.status === 'suggested' && (
+          {record.status === 'pending' && (
             <>
+              <Tooltip title="Редактировать задание">
+                <Button
+                  type="default"
+                  size="small"
+                  icon={<EditOutlined />}
+                  onClick={() => handleEditTask(record)}
+                />
+              </Tooltip>
+              <Tooltip title="Удалить задание">
+                <Button
+                  type="default"
+                  size="small"
+                  danger
+                  icon={<CloseCircleOutlined />}
+                  onClick={() => handleDeleteTask(record)}
+                />
+              </Tooltip>
               <Button
                 type="primary"
                 size="small"
-                icon={<CheckCircleOutlined />}
-                onClick={() => {
-                  setSelectedTask(record);
-                  approveForm.setFieldsValue({
-                    approvedQuantity: record.requestedQuantity
-                  });
-                  setApproveModalVisible(true);
-                }}
+                icon={<PlayCircleOutlined />}
+                onClick={() => handleStartTask(record)}
               >
-                Подтвердить
-              </Button>
-              <Popconfirm
-                title="Отклонить задание?"
-                onConfirm={() => handleRejectTask(record)}
-                okText="Да"
-                cancelText="Нет"
-              >
-                <Button
-                  danger
-                  size="small"
-                  icon={<CloseCircleOutlined />}
-                >
-                  Отклонить
-                </Button>
-              </Popconfirm>
-              <Button
-                size="small"
-                icon={<PauseCircleOutlined />}
-                onClick={() => handlePostponeTask(record)}
-              >
-                Отложить
+                Начать
               </Button>
             </>
-          )}
-          
-          {record.status === 'approved' && (
-            <Button
-              type="primary"
-              size="small"
-              icon={<PlayCircleOutlined />}
-              onClick={() => handleStartTask(record)}
-            >
-              Запустить
-            </Button>
           )}
           
           {record.status === 'in_progress' && (
@@ -620,15 +656,32 @@ const ProductionTasks: React.FC = () => {
               icon={<CheckCircleOutlined />}
               onClick={() => {
                 setSelectedTask(record);
-                completeForm.setFieldsValue({
-                  producedQuantity: record.approvedQuantity || record.requestedQuantity,
-                  qualityQuantity: record.approvedQuantity || record.requestedQuantity,
+                const initialProduced = record.requestedQuantity;
+                const initialValues = {
+                  producedQuantity: initialProduced,
+                  qualityQuantity: initialProduced,
                   defectQuantity: 0
-                });
+                };
+                setCompleteFormValues(initialValues);
+                completeForm.setFieldsValue(initialValues);
                 setCompleteModalVisible(true);
               }}
             >
               Завершить
+            </Button>
+          )}
+          
+          {record.status === 'completed' && (
+            <Button
+              type="default"
+              size="small"
+              icon={<EyeOutlined />}
+              onClick={() => {
+                setSelectedTask(record);
+                // setViewModalVisible(true); // This state was not defined in the original file
+              }}
+            >
+              Просмотр
             </Button>
           )}
         </Space>
@@ -683,11 +736,36 @@ const ProductionTasks: React.FC = () => {
         );
       },
     },
+    {
+      title: 'Действия',
+      key: 'actions',
+      render: (record: TasksByProduct) => {
+        const hasActiveTasks = record.tasks.some(task => 
+          task.status === 'pending' || task.status === 'in_progress'
+        );
+        
+        return (
+          <Space>
+            {hasActiveTasks && (user?.role === 'production' || user?.role === 'director') && (
+              <Button
+                type="primary"
+                size="small"
+                icon={<CheckCircleOutlined />}
+                onClick={() => handleCompleteByProduct(record)}
+              >
+                Указать произведенное
+              </Button>
+            )}
+          </Space>
+        );
+      },
+    },
   ];
 
   return (
-    <div style={{ padding: '24px' }}>
-      <Title level={2}>Производственные задания</Title>
+    <App>
+      <div style={{ padding: '24px' }}>
+        <Title level={2}>Производственные задания</Title>
       
       {/* Статистика */}
       <Row gutter={16} style={{ marginBottom: '24px' }}>
@@ -695,17 +773,8 @@ const ProductionTasks: React.FC = () => {
           <Card>
             <Statistic
               title="Предложено"
-              value={stats.suggested}
+              value={stats.pending}
               valueStyle={{ color: '#1890ff' }}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic
-              title="Подтверждено"
-              value={stats.approved}
-              valueStyle={{ color: '#52c41a' }}
             />
           </Card>
         </Col>
@@ -727,7 +796,73 @@ const ProductionTasks: React.FC = () => {
             />
           </Card>
         </Col>
+        <Col span={6}>
+          <Card>
+            <Statistic
+              title="Отменено"
+              value={stats.cancelled}
+              valueStyle={{ color: '#f5222d' }}
+            />
+          </Card>
+        </Col>
       </Row>
+
+      {/* Фильтры по статусу */}
+      <Card style={{ marginBottom: '16px' }}>
+        <Title level={5}>Фильтры</Title>
+        <Space wrap>
+          <Button
+            type={statusFilter === 'all' ? 'primary' : 'default'}
+            onClick={() => setStatusFilter('all')}
+          >
+            Все ({stats.pending + stats.inProgress + stats.completed + stats.cancelled})
+          </Button>
+          <Button
+            type={statusFilter === 'pending' ? 'primary' : 'default'}
+            onClick={() => setStatusFilter('pending')}
+            style={{
+              backgroundColor: statusFilter === 'pending' ? '#faad14' : undefined,
+              borderColor: '#faad14',
+              color: statusFilter === 'pending' ? '#fff' : '#faad14'
+            }}
+          >
+            Ожидает ({stats.pending})
+          </Button>
+          <Button
+            type={statusFilter === 'in_progress' ? 'primary' : 'default'}
+            onClick={() => setStatusFilter('in_progress')}
+            style={{
+              backgroundColor: statusFilter === 'in_progress' ? '#1890ff' : undefined,
+              borderColor: '#1890ff',
+              color: statusFilter === 'in_progress' ? '#fff' : '#1890ff'
+            }}
+          >
+            В работе ({stats.inProgress})
+          </Button>
+          <Button
+            type={statusFilter === 'completed' ? 'primary' : 'default'}
+            onClick={() => setStatusFilter('completed')}
+            style={{
+              backgroundColor: statusFilter === 'completed' ? '#52c41a' : undefined,
+              borderColor: '#52c41a',
+              color: statusFilter === 'completed' ? '#fff' : '#52c41a'
+            }}
+          >
+            Завершено ({stats.completed})
+          </Button>
+          <Button
+            type={statusFilter === 'cancelled' ? 'primary' : 'default'}
+            onClick={() => setStatusFilter('cancelled')}
+            style={{
+              backgroundColor: statusFilter === 'cancelled' ? '#f5222d' : undefined,
+              borderColor: '#f5222d',
+              color: statusFilter === 'cancelled' ? '#fff' : '#f5222d'
+            }}
+          >
+            Отменено ({stats.cancelled})
+          </Button>
+        </Space>
+      </Card>
 
       {/* Панель управления системой */}
       <Card style={{ marginBottom: '24px' }}>
@@ -743,33 +878,6 @@ const ProductionTasks: React.FC = () => {
           >
             Создать задание
           </Button>
-          <Button
-            icon={<ReloadOutlined />}
-            onClick={handleRecalculateNeeds}
-            loading={loading}
-          >
-            Пересчитать потребности
-          </Button>
-          <Button
-            icon={<SortAscendingOutlined />}
-            onClick={handleSyncOrders}
-            loading={loading}
-          >
-            Синхронизировать заказы
-          </Button>
-          <Button
-            icon={<BellOutlined />}
-            onClick={handleNotifyReady}
-            loading={loading}
-          >
-            Уведомить о готовых заказах
-          </Button>
-          <Button
-            icon={<EyeOutlined />}
-            onClick={handleShowSyncStats}
-          >
-            Статистика синхронизации
-          </Button>
         </Space>
       </Card>
 
@@ -782,36 +890,38 @@ const ProductionTasks: React.FC = () => {
             {
               key: 'list',
               label: 'Список заданий',
-              children: (
-                <DragDropContext onDragEnd={handleOnDragEnd}>
-                  <Droppable droppableId="tasks-table" direction="vertical">
+                            children: (
+                <DragDropWrapper>
+                  <Droppable droppableId="tasks-table" direction="vertical" type="task">
                     {(provided: DroppableProvided) => (
                       <div {...provided.droppableProps} ref={provided.innerRef}>
                         <Table
                           columns={taskColumns}
-                          dataSource={tasks}
+                          dataSource={filteredTasks}
                           rowKey="id"
                           loading={loading}
                           pagination={false} // Отключаем пагинацию для drag-and-drop
                           components={{
                             body: {
                               row: ({ children, index, record, ...restProps }: any) => {
-                                if (!record || !record.id) {
+                                const taskIndex = filteredTasks.findIndex(task => task.id === record?.id);
+                                if (!record || !record.id || taskIndex === -1) {
                                   return <tr {...restProps}>{children}</tr>;
                                 }
                                 return (
-                                  <Draggable draggableId={`task-${record.id}`} index={index}>
-                                    {(provided: DraggableProvided) => (
+                                  <Draggable draggableId={`task-${record.id}`} index={taskIndex} key={`task-${record.id}`}>
+                                    {(provided: DraggableProvided, snapshot) => (
                                       <tr
                                         ref={provided.innerRef}
                                         {...provided.draggableProps}
                                         {...provided.dragHandleProps}
                                         {...restProps}
-                                      style={{
-                                        ...provided.draggableProps.style,
-                                        cursor: 'grab'
-                                      }}
-                                    >
+                                        style={{
+                                          ...provided.draggableProps.style,
+                                          cursor: snapshot.isDragging ? 'grabbing' : 'grab',
+                                          backgroundColor: snapshot.isDragging ? '#f0f0f0' : 'white'
+                                        }}
+                                      >
                                         {children}
                                       </tr>
                                     )}
@@ -825,7 +935,7 @@ const ProductionTasks: React.FC = () => {
                       </div>
                     )}
                   </Droppable>
-                </DragDropContext>
+                </DragDropWrapper>
               )
             },
             {
@@ -871,7 +981,7 @@ const ProductionTasks: React.FC = () => {
           <Form
             form={approveForm}
             layout="vertical"
-            onFinish={handleApproveTask}
+            onFinish={handleUpdateTask}
           >
             <div style={{ marginBottom: '16px' }}>
               <Text strong>Заказ:</Text> #{selectedTask.orderId} - {selectedTask.order?.customerName}
@@ -927,9 +1037,10 @@ const ProductionTasks: React.FC = () => {
           setCompleteModalVisible(false);
           setSelectedTask(null);
           completeForm.resetFields();
+          setCompleteFormValues({ producedQuantity: 0, qualityQuantity: 0, defectQuantity: 0 });
         }}
         footer={null}
-        width={800}
+        width={700}
       >
         {selectedTask && (
           <Form
@@ -944,20 +1055,32 @@ const ProductionTasks: React.FC = () => {
               <Text strong>Товар:</Text> {selectedTask.product?.name}
             </div>
             <div style={{ marginBottom: '16px' }}>
-              <Text strong>Подтвержденное количество:</Text> {selectedTask.approvedQuantity || selectedTask.requestedQuantity}
+              <Text strong>Подтвержденное количество:</Text> {selectedTask.requestedQuantity}
             </div>
+
+            <Alert 
+              message="Важно: Произведено = Качественных + Бракованных" 
+              description="Поля автоматически пересчитываются для соблюдения этого правила"
+              type="info" 
+              showIcon 
+              style={{ marginBottom: 16 }}
+            />
 
             <Row gutter={16}>
               <Col span={8}>
                 <Form.Item
                   name="producedQuantity"
-                  label="Произведено"
+                  label="Произведено всего"
                   rules={[
                     { required: true, message: 'Введите количество' },
                     { type: 'number', min: 0, message: 'Количество не может быть отрицательным' }
                   ]}
                 >
-                  <InputNumber min={0} style={{ width: '100%' }} />
+                  <InputNumber 
+                    min={0} 
+                    style={{ width: '100%' }}
+                    placeholder="Общее количество"
+                  />
                 </Form.Item>
               </Col>
               <Col span={8}>
@@ -969,7 +1092,11 @@ const ProductionTasks: React.FC = () => {
                     { type: 'number', min: 0, message: 'Количество не может быть отрицательным' }
                   ]}
                 >
-                  <InputNumber min={0} style={{ width: '100%' }} />
+                  <InputNumber 
+                    min={0} 
+                    style={{ width: '100%' }}
+                    placeholder="Годных изделий"
+                  />
                 </Form.Item>
               </Col>
               <Col span={8}>
@@ -981,10 +1108,24 @@ const ProductionTasks: React.FC = () => {
                     { type: 'number', min: 0, message: 'Количество не может быть отрицательным' }
                   ]}
                 >
-                  <InputNumber min={0} style={{ width: '100%' }} />
+                  <InputNumber 
+                    min={0} 
+                    style={{ width: '100%' }}
+                    placeholder="Количество брака"
+                  />
                 </Form.Item>
               </Col>
             </Row>
+
+            {/* Показываем сумму для проверки */}
+            <div style={{ marginBottom: 16, padding: 8, backgroundColor: '#f0f0f0', borderRadius: 4 }}>
+              <Text type="secondary">
+                Проверка: {completeFormValues.qualityQuantity} + {completeFormValues.defectQuantity} = {completeFormValues.qualityQuantity + completeFormValues.defectQuantity}
+                {completeFormValues.qualityQuantity + completeFormValues.defectQuantity === completeFormValues.producedQuantity 
+                  ? ' ✅' 
+                  : ' ❌ Не совпадает с произведенным количеством'}
+              </Text>
+            </div>
 
             <Form.Item
               name="notes"
@@ -1069,6 +1210,7 @@ const ProductionTasks: React.FC = () => {
                   setCompleteModalVisible(false);
                   setSelectedTask(null);
                   completeForm.resetFields();
+                  setCompleteFormValues({ producedQuantity: 0, qualityQuantity: 0, defectQuantity: 0 });
                 }}>
                   Отмена
                 </Button>
@@ -1096,13 +1238,14 @@ const ProductionTasks: React.FC = () => {
         >
           <Form.Item
             name="orderId"
-            label="Заказ"
-            rules={[{ required: true, message: 'Выберите заказ' }]}
+            label="Заказ (необязательно)"
+            help="Можно создать задание без привязки к заказу - на будущее"
           >
             <Select
-              placeholder="Выберите заказ"
+              placeholder="Выберите заказ или оставьте пустым"
               showSearch
               optionFilterProp="children"
+              allowClear
             >
               {orders.map(order => (
                 <Option key={order.id} value={order.id}>
@@ -1198,7 +1341,132 @@ const ProductionTasks: React.FC = () => {
           </Form.Item>
         </Form>
       </Modal>
-    </div>
+
+      {/* Модал массового завершения заданий по товару */}
+      <Modal
+        title="Указать произведенное количество"
+        open={completeByProductModalVisible}
+        onCancel={() => {
+          setCompleteByProductModalVisible(false);
+          setSelectedProductForCompletion(null);
+          completeByProductForm.resetFields();
+        }}
+        footer={null}
+        width={600}
+      >
+        {selectedProductForCompletion && (
+          <Form
+            form={completeByProductForm}
+            layout="vertical"
+            onFinish={handleCompleteTasksByProduct}
+          >
+            <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#f0f2f5', borderRadius: '4px' }}>
+              <Text strong>Товар:</Text> {selectedProductForCompletion.product.name}
+              <br />
+              <Text strong>Всего заданий:</Text> {selectedProductForCompletion.tasks.length}
+              <br />
+              <Text strong>Общее количество в заданиях:</Text> {selectedProductForCompletion.totalQuantity} шт
+            </div>
+
+            <Alert 
+              message="Произведенное количество может отличаться от запланированного" 
+              description="Система автоматически распределит произведенное количество по заданиям в порядке приоритета"
+              type="info" 
+              showIcon 
+              style={{ marginBottom: 16 }}
+            />
+
+            <Row gutter={16}>
+              <Col span={8}>
+                <Form.Item
+                  name="producedQuantity"
+                  label="Произведено всего"
+                  rules={[
+                    { required: true, message: 'Введите количество' },
+                    { type: 'number', min: 1, message: 'Количество должно быть больше 0' }
+                  ]}
+                  initialValue={selectedProductForCompletion.totalQuantity}
+                >
+                  <InputNumber 
+                    min={1} 
+                    style={{ width: '100%' }}
+                    placeholder="Общее количество"
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item
+                  name="qualityQuantity"
+                  label="Качественных"
+                  rules={[
+                    { required: true, message: 'Введите количество' },
+                    { type: 'number', min: 0, message: 'Количество не может быть отрицательным' }
+                  ]}
+                  initialValue={selectedProductForCompletion.totalQuantity}
+                >
+                  <InputNumber 
+                    min={0} 
+                    style={{ width: '100%' }}
+                    placeholder="Годных изделий"
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item
+                  name="defectQuantity"
+                  label="Бракованных"
+                  rules={[
+                    { required: true, message: 'Введите количество' },
+                    { type: 'number', min: 0, message: 'Количество не может быть отрицательным' }
+                  ]}
+                  initialValue={0}
+                >
+                  <InputNumber 
+                    min={0} 
+                    style={{ width: '100%' }}
+                    placeholder="Количество брака"
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Form.Item
+              name="productionDate"
+              label="Дата производства"
+              initialValue={new Date()}
+            >
+              <Input 
+                type="date" 
+                style={{ width: '100%' }}
+              />
+            </Form.Item>
+
+            <Form.Item
+              name="notes"
+              label="Комментарий к производству"
+            >
+              <TextArea rows={3} placeholder="Заметки о производстве..." />
+            </Form.Item>
+
+            <Form.Item>
+              <Space>
+                <Button type="primary" htmlType="submit">
+                  Указать произведенное
+                </Button>
+                <Button onClick={() => {
+                  setCompleteByProductModalVisible(false);
+                  setSelectedProductForCompletion(null);
+                  completeByProductForm.resetFields();
+                }}>
+                  Отмена
+                </Button>
+              </Space>
+            </Form.Item>
+          </Form>
+        )}
+      </Modal>
+      </div>
+    </App>
   );
 };
 

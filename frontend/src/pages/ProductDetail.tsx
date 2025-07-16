@@ -1,16 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import {
   Row, Col, Card, Typography, Button, Space, Divider, Tag, Table, Statistic,
-  Form, Input, InputNumber, Select, Modal, message, Spin, Badge, Descriptions
+  Form, Input, InputNumber, Select, Modal, message, Spin, Badge, Descriptions,
+  List, Avatar
 } from 'antd';
 import {
   ArrowLeftOutlined, EditOutlined, SaveOutlined, CloseOutlined,
-  ShoppingCartOutlined, HistoryOutlined, InboxOutlined
+  ShoppingCartOutlined, HistoryOutlined, InboxOutlined, FileTextOutlined,
+  SettingOutlined
 } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { catalogApi, Product, Category } from '../services/catalogApi';
 import { stockApi, StockMovement } from '../services/stockApi';
+import { getOrdersByProduct } from '../services/ordersApi';
+import { getProductionTasksByProduct } from '../services/productionApi';
 
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -25,10 +29,36 @@ const ProductDetail: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [users, setUsers] = useState<{id: number; fullName?: string; username: string; role: string}[]>([]);
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
+  const [productOrders, setProductOrders] = useState<any[]>([]);
+  const [productionTasks, setProductionTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [showAllMovements, setShowAllMovements] = useState(false);
   const [editForm] = Form.useForm();
+
+  // Функции для перевода статусов
+  const getOrderStatusText = (status: string) => {
+    const statusMap: { [key: string]: string } = {
+      'new': 'Новый',
+      'confirmed': 'Подтвержден',
+      'in_production': 'В производстве',
+      'ready': 'Готов',
+      'shipped': 'Отгружен',
+      'delivered': 'Доставлен',
+      'cancelled': 'Отменен'
+    };
+    return statusMap[status] || status;
+  };
+
+  const getTaskStatusText = (status: string) => {
+    const statusMap: { [key: string]: string } = {
+      'pending': 'Ожидает',
+      'in_progress': 'В работе',
+      'completed': 'Завершено',
+      'cancelled': 'Отменено'
+    };
+    return statusMap[status] || status;
+  };
 
   // Загрузка данных товара
   useEffect(() => {
@@ -43,11 +73,13 @@ const ProductDetail: React.FC = () => {
     setLoading(true);
     try {
       // Загружаем данные товара, категории, пользователей и историю движений параллельно
-      const [productResponse, categoriesResponse, usersResponse, movementsResponse] = await Promise.all([
+      const [productResponse, categoriesResponse, usersResponse, movementsResponse, ordersResponse, tasksResponse] = await Promise.all([
         catalogApi.getProduct(parseInt(id)),
         catalogApi.getCategories(),
         catalogApi.getUsers(),
-                  stockApi.getStockMovements(parseInt(id))
+        stockApi.getStockMovements(parseInt(id)),
+        getOrdersByProduct(parseInt(id)),
+        getProductionTasksByProduct(parseInt(id))
       ]);
 
       if (productResponse.success) {
@@ -68,6 +100,22 @@ const ProductDetail: React.FC = () => {
 
       if (movementsResponse.success) {
         setStockMovements(movementsResponse.data);
+      }
+
+      if (ordersResponse.success) {
+        // Фильтруем только активные заказы (не завершенные и не отмененные)
+        const activeOrders = ordersResponse.data.filter((order: any) => 
+          ['new', 'confirmed', 'in_production'].includes(order.status)
+        );
+        setProductOrders(activeOrders);
+      }
+
+      if (tasksResponse.success) {
+        // Фильтруем только активные задания (не завершенные и не отмененные)
+        const activeTasks = tasksResponse.data.filter((task: any) => 
+          ['pending', 'in_progress'].includes(task.status)
+        );
+        setProductionTasks(activeTasks);
       }
     } catch (error) {
       console.error('Ошибка загрузки данных товара:', error);
@@ -245,7 +293,7 @@ const ProductDetail: React.FC = () => {
   }
 
   const dimensions = product.dimensions || { length: 0, width: 0, thickness: 0 };
-  const available = product.currentStock - product.reservedStock;
+  const available = (product.currentStock || 0) - (product.reservedStock || 0);
   const stockStatus = getStockStatus(available, product.normStock);
 
   return (
@@ -370,7 +418,7 @@ const ProductDetail: React.FC = () => {
                     <Col span={12}>
                       <Statistic
                         title="Текущий остаток"
-                        value={product.currentStock}
+                        value={product.stock?.currentStock || product.currentStock || 0}
                         suffix="шт"
                         valueStyle={{ fontSize: 20 }}
                       />
@@ -423,6 +471,154 @@ const ProductDetail: React.FC = () => {
 
 
               </Space>
+            </Col>
+          </Row>
+        </Col>
+
+        {/* Заказы и производственные задания */}
+        <Col span={24}>
+          <Row gutter={16}>
+            {/* Заказы где используется товар */}
+            <Col xs={24} lg={12}>
+              <Card 
+                title={
+                  <Space>
+                    <FileTextOutlined />
+                    Заказы с этим товаром
+                    <Badge count={productOrders.length} showZero />
+                  </Space>
+                } 
+                size="small"
+              >
+                {productOrders.length === 0 ? (
+                  <Text type="secondary">Нет активных заказов с этим товаром</Text>
+                ) : (
+                  <List
+                    size="small"
+                    dataSource={productOrders}
+                    renderItem={(order: any) => (
+                      <List.Item 
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => navigate(`/orders/${order.id}`)}
+                      >
+                        <List.Item.Meta
+                          avatar={
+                            <Avatar 
+                              style={{ 
+                                backgroundColor: order.priority === 'urgent' ? '#ff4d4f' : 
+                                               order.priority === 'high' ? '#faad14' : '#52c41a'
+                              }}
+                            >
+                              {order.orderNumber}
+                            </Avatar>
+                          }
+                          title={
+                            <Space>
+                              <Text strong>{order.customerName}</Text>
+                              <Tag color={
+                                order.status === 'new' ? 'blue' :
+                                order.status === 'confirmed' ? 'green' :
+                                order.status === 'in_production' ? 'orange' :
+                                order.status === 'ready' ? 'purple' : 'default'
+                              }>
+                                {getOrderStatusText(order.status)}
+                              </Tag>
+                            </Space>
+                          }
+                          description={
+                            <div>
+                              <Text type="secondary">
+                                Количество: {order.items?.find((item: any) => item.productId === parseInt(id!))?.quantity || 0} шт
+                              </Text>
+                              {order.deliveryDate && (
+                                <div>
+                                  <Text type="secondary">
+                                    Доставка: {new Date(order.deliveryDate).toLocaleDateString('ru-RU')}
+                                  </Text>
+                                </div>
+                              )}
+                            </div>
+                          }
+                        />
+                      </List.Item>
+                    )}
+                  />
+                )}
+              </Card>
+            </Col>
+
+            {/* Производственные задания */}
+            <Col xs={24} lg={12}>
+              <Card 
+                title={
+                  <Space>
+                    <SettingOutlined />
+                    Производственные задания
+                    <Badge count={productionTasks.length} showZero />
+                  </Space>
+                } 
+                size="small"
+              >
+                {productionTasks.length === 0 ? (
+                  <Text type="secondary">Нет активных производственных заданий</Text>
+                ) : (
+                  <List
+                    size="small"
+                    dataSource={productionTasks}
+                    renderItem={(task: any) => (
+                      <List.Item>
+                        <List.Item.Meta
+                          avatar={
+                            <Avatar 
+                              style={{ 
+                                backgroundColor: task.status === 'pending' ? '#faad14' : 
+                                               task.status === 'in_progress' ? '#1890ff' : 
+                                               task.status === 'completed' ? '#52c41a' : '#d9d9d9'
+                              }}
+                            >
+                              {task.priority === 'urgent' ? '🔥' : 
+                               task.priority === 'high' ? '⚡' : '📋'}
+                            </Avatar>
+                          }
+                          title={
+                            <Space>
+                              <Text strong>Задание #{task.id}</Text>
+                              <Tag color={
+                                task.status === 'pending' ? 'orange' :
+                                task.status === 'in_progress' ? 'blue' :
+                                task.status === 'completed' ? 'green' : 'default'
+                              }>
+                                {getTaskStatusText(task.status)}
+                              </Tag>
+                            </Space>
+                          }
+                          description={
+                            <div>
+                              <Text type="secondary">
+                                Запрошено: {task.requestedQuantity} шт
+                              </Text>
+                              {task.order && (
+                                <div>
+                                  <Text type="secondary">
+                                    Заказ: {task.order.orderNumber} ({task.order.customerName})
+                                  </Text>
+                                </div>
+                              )}
+                              {task.completedQuantity && (
+                                <div>
+                                  <Text type="secondary">
+                                    Произведено: {task.completedQuantity} шт
+                                  </Text>
+                                </div>
+                              )}
+                            </div>
+                          }
+                        />
+                      </List.Item>
+                    )}
+                  />
+                )}
+              </Card>
             </Col>
           </Row>
         </Col>

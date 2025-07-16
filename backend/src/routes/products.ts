@@ -14,8 +14,8 @@ async function getProductionQuantity(productId: number): Promise<number> {
       quantity: sql<number>`
         COALESCE(SUM(
           CASE 
-            WHEN ${schema.productionTasks.status} IN ('approved', 'in_progress') 
-            THEN COALESCE(${schema.productionTasks.approvedQuantity}, ${schema.productionTasks.requestedQuantity})
+            WHEN ${schema.productionTasks.status} IN ('pending', 'in_progress') 
+            THEN COALESCE(${schema.productionTasks.requestedQuantity}, 0)
             ELSE 0
           END
         ), 0)
@@ -25,7 +25,7 @@ async function getProductionQuantity(productId: number): Promise<number> {
     .where(
       and(
         eq(schema.productionTasks.productId, productId),
-        inArray(schema.productionTasks.status, ['approved', 'in_progress'])
+        sql`${schema.productionTasks.status} IN ('pending', 'in_progress')`
       )
     );
 

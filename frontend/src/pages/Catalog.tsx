@@ -42,7 +42,7 @@ const formatCategoriesForTree = (categories: Category[], allProducts: Product[])
       const dimensions = product.dimensions ? 
         `${product.dimensions.length}×${product.dimensions.width}×${product.dimensions.thickness}` : 
         'без размеров';
-      const available = product.currentStock - product.reservedStock;
+      const available = (product.currentStock || 0) - (product.reservedStock || 0);
       const stockIcon = available > 0 ? '✅' : '❌';
       
       children.push({
@@ -206,7 +206,7 @@ const Catalog: React.FC = () => {
       
       // Фильтр по остаткам
       if (stockFilter !== 'all') {
-        const available = product.availableStock || (product.currentStock - product.reservedStock);
+        const available = product.availableStock || ((product.currentStock || 0) - (product.reservedStock || 0));
         const norm = product.normStock || 0;
         
         let statusMatch = false;
@@ -646,8 +646,10 @@ const Catalog: React.FC = () => {
                     width: 120,
                     align: 'center' as const,
                     render: (_: any, product: Product) => {
-                      const stockStatus = getStockStatus(product.currentStock, product.reservedStock);
-                      const available = product.currentStock - product.reservedStock;
+                      const currentStock = product.stock?.currentStock || product.currentStock || 0;
+                      const reservedStock = product.stock?.reservedStock || product.reservedStock || 0;
+                      const stockStatus = getStockStatus((product.currentStock || 0), (product.reservedStock || 0));
+                      const available = (product.currentStock || 0) - (product.reservedStock || 0);
                       return (
                         <div>
                           <Badge color={stockStatus.color} />
@@ -656,7 +658,7 @@ const Catalog: React.FC = () => {
                           </Text>
                           <br />
                           <Text type="secondary" style={{ fontSize: '11px' }}>
-                            всего: {product.currentStock}
+                            всего: {currentStock}
                           </Text>
                           {available < 0 && (
                             <>
@@ -795,10 +797,10 @@ const Catalog: React.FC = () => {
             <Card size="small">
               <Row gutter={16}>
                 <Col span={8}>
-                  <Text>💾 Остаток: <Text strong>{filteredProducts.reduce((sum, p) => sum + p.currentStock, 0)}</Text></Text>
+                  <Text>💾 Остаток: <Text strong>{filteredProducts.reduce((sum, p) => sum + (p.currentStock || 0), 0)}</Text></Text>
                 </Col>
                 <Col span={8}>
-                  <Text>📦 Доступно: <Text strong>{filteredProducts.reduce((sum, p) => sum + (p.currentStock - p.reservedStock), 0)}</Text></Text>
+                  <Text>📦 Доступно: <Text strong>{filteredProducts.reduce((sum, p) => sum + ((p.currentStock || 0) - (p.reservedStock || 0)), 0)}</Text></Text>
                 </Col>
                 <Col span={8}>
                   <Text>📊 Позиций: <Text strong>{filteredProducts.length}</Text></Text>

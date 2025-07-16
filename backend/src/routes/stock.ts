@@ -75,8 +75,8 @@ async function getProductionQuantities(productIds?: number[]) {
         quantity: sql<number>`
           COALESCE(SUM(
             CASE 
-              WHEN ${schema.productionTasks.status} IN ('approved', 'in_progress') 
-              THEN COALESCE(${schema.productionTasks.approvedQuantity}, ${schema.productionTasks.requestedQuantity})
+              WHEN ${schema.productionTasks.status} IN ('pending', 'in_progress') 
+              THEN ${schema.productionTasks.requestedQuantity}
               ELSE 0
             END
           ), 0)
@@ -85,7 +85,7 @@ async function getProductionQuantities(productIds?: number[]) {
       .from(schema.productionTasks)
       .where(
         and(
-          inArray(schema.productionTasks.status, ['approved', 'in_progress']),
+          inArray(schema.productionTasks.status, ['pending', 'in_progress']),
           inArray(schema.productionTasks.productId, productIds)
         )
       )
@@ -807,8 +807,8 @@ router.post('/audit', authenticateToken, authorizeRoles('director', 'manager'), 
         .select({
           total: sql<number>`COALESCE(SUM(
             CASE 
-              WHEN ${schema.productionTasks.status} IN ('approved', 'in_progress') 
-              THEN COALESCE(${schema.productionTasks.approvedQuantity}, ${schema.productionTasks.requestedQuantity})
+              WHEN ${schema.productionTasks.status} IN ('pending', 'in_progress') 
+              THEN ${schema.productionTasks.requestedQuantity}
               ELSE 0
             END
           ), 0)`
@@ -817,7 +817,7 @@ router.post('/audit', authenticateToken, authorizeRoles('director', 'manager'), 
         .where(
           and(
             eq(schema.productionTasks.productId, productId),
-            sql`${schema.productionTasks.status} IN ('approved', 'in_progress')`
+            sql`${schema.productionTasks.status} IN ('pending', 'in_progress')`
           )
         );
 
