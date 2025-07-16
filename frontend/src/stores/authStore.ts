@@ -27,6 +27,9 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
 
       login: (user: User, token: string) => {
+        // Сохраняем токен в localStorage для совместимости с API сервисами
+        localStorage.setItem('token', token);
+        
         set({
           user,
           token,
@@ -35,6 +38,9 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
+        // Удаляем токен из localStorage
+        localStorage.removeItem('token');
+        
         set({
           user: null,
           token: null,
@@ -58,6 +64,12 @@ export const useAuthStore = create<AuthState>()(
         token: state.token,
         isAuthenticated: state.isAuthenticated,
       }),
+      onRehydrateStorage: () => (state) => {
+        // При восстановлении состояния также восстанавливаем токен в localStorage
+        if (state?.token) {
+          localStorage.setItem('token', state.token);
+        }
+      },
     }
   )
 ); 

@@ -80,7 +80,8 @@ export interface QuickStats {
 
 // API методы
 class DashboardApi {
-  private getAuthHeaders(token: string) {
+  private getAuthHeaders() {
+    const token = localStorage.getItem('token');
     return {
       headers: {
         Authorization: `Bearer ${token}`
@@ -89,19 +90,19 @@ class DashboardApi {
   }
 
   // Получить все данные дашборда
-  async getDashboardData(token: string): Promise<DashboardData> {
+  async getDashboardData(): Promise<DashboardData> {
     const response = await axios.get<DashboardData>(
       `${API_BASE_URL}/dashboard`,
-      this.getAuthHeaders(token)
+      this.getAuthHeaders()
     );
     return response.data;
   }
 
   // Получить быструю статистику
-  async getQuickStats(token: string): Promise<QuickStats> {
+  async getQuickStats(): Promise<QuickStats> {
     const response = await axios.get<QuickStats>(
       `${API_BASE_URL}/dashboard/quick-stats`,
-      this.getAuthHeaders(token)
+      this.getAuthHeaders()
     );
     return response.data;
   }

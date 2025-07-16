@@ -12,6 +12,10 @@ import productsRoutes from './routes/products';
 import auditRoutes from './routes/audit';
 import dashboardRoutes from './routes/dashboard';
 import productionRoutes from './routes/production';
+import cuttingRoutes from './routes/cutting';
+import shipmentsRoutes from './routes/shipments';
+import usersRoutes from './routes/users';
+import permissionsRoutes from './routes/permissions';
 import surfacesRoutes from './routes/surfaces';
 import logosRoutes from './routes/logos';
 import materialsRoutes from './routes/materials';
@@ -54,6 +58,10 @@ app.use('/api/products', productsRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/production', productionRoutes);
+app.use('/api/cutting', cuttingRoutes);
+app.use('/api/shipments', shipmentsRoutes);
+app.use('/api/users', usersRoutes);
+app.use('/api/permissions', permissionsRoutes);
 app.use('/api/surfaces', surfacesRoutes);
 app.use('/api/logos', logosRoutes);
 app.use('/api/materials', materialsRoutes);
@@ -72,9 +80,14 @@ app.get('/api', (req, res) => {
       orders: '/api/orders',
       dashboard: '/api/dashboard',
       production: '/api/production',
+      cutting: '/api/cutting',
+      shipments: '/api/shipments',
+      users: '/api/users',
+      permissions: '/api/permissions',
       surfaces: '/api/surfaces',
       logos: '/api/logos',
-      materials: '/api/materials'
+      materials: '/api/materials',
+      audit: '/api/audit'
     }
   });
 });
@@ -99,6 +112,14 @@ const startServer = async () => {
     if (!dbConnected) {
       console.error('❌ Failed to connect to database. Exiting...');
       process.exit(1);
+    }
+
+    // Initialize default permissions
+    try {
+      const { initializeDefaultPermissions } = await import('./middleware/permissions');
+      await initializeDefaultPermissions();
+    } catch (error) {
+      console.warn('⚠️ Warning: Could not initialize permissions:', error);
     }
 
     app.listen(PORT, () => {

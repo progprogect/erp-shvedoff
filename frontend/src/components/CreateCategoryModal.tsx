@@ -35,7 +35,7 @@ const CreateCategoryModal: React.FC<CreateCategoryModalProps> = ({
         description: values.description || undefined
       };
 
-      const response = await catalogApi.createCategory(categoryData, token);
+      const response = await catalogApi.createCategory(categoryData);
       
       if (response.success) {
         message.success('Категория успешно создана');

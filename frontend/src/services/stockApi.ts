@@ -50,7 +50,8 @@ export interface ApiResponse<T> {
 }
 
 class StockApi {
-  private getAuthHeaders(token: string) {
+  private getAuthHeaders() {
+    const token = localStorage.getItem('token');
     return {
       headers: {
         Authorization: `Bearer ${token}`
@@ -58,7 +59,7 @@ class StockApi {
     };
   }
 
-  async getStock(filters: StockFilters, token: string): Promise<ApiResponse<StockItem[]>> {
+  async getStock(filters: StockFilters): Promise<ApiResponse<StockItem[]>> {
     const params = new URLSearchParams();
     
     if (filters.status && filters.status !== 'all') {
@@ -73,42 +74,69 @@ class StockApi {
 
     const response = await axios.get(
       `${API_BASE_URL}/stock?${params.toString()}`,
-      this.getAuthHeaders(token)
+      this.getAuthHeaders()
     );
     return response.data;
   }
 
-  async adjustStock(adjustment: StockAdjustment, token: string): Promise<ApiResponse<{ newStock: number }>> {
+  async adjustStock(adjustment: StockAdjustment): Promise<ApiResponse<{ newStock: number }>> {
     const response = await axios.post(
       `${API_BASE_URL}/stock/adjust`,
       adjustment,
-      this.getAuthHeaders(token)
+      this.getAuthHeaders()
     );
     return response.data;
   }
 
-  async getStockMovements(productId: number, token: string): Promise<ApiResponse<StockMovement[]>> {
+  async getStockMovements(productId: number): Promise<ApiResponse<StockMovement[]>> {
     const response = await axios.get(
       `${API_BASE_URL}/stock/movements/${productId}`,
-      this.getAuthHeaders(token)
+      this.getAuthHeaders()
     );
     return response.data;
   }
 
-  async reserveStock(productId: number, quantity: number, orderId: number, token: string): Promise<ApiResponse<void>> {
+  async reserveStock(productId: number, quantity: number, orderId: number): Promise<ApiResponse<void>> {
     const response = await axios.post(
       `${API_BASE_URL}/stock/reserve`,
       { productId, quantity, orderId },
-      this.getAuthHeaders(token)
+      this.getAuthHeaders()
     );
     return response.data;
   }
 
-  async releaseStock(productId: number, quantity: number, orderId: number, token: string): Promise<ApiResponse<void>> {
+  async releaseStock(productId: number, quantity: number, orderId: number): Promise<ApiResponse<void>> {
     const response = await axios.post(
       `${API_BASE_URL}/stock/release`,
       { productId, quantity, orderId },
-      this.getAuthHeaders(token)
+      this.getAuthHeaders()
+    );
+    return response.data;
+  }
+
+  async fixIntegrity(): Promise<ApiResponse<any>> {
+    const response = await axios.post(
+      `${API_BASE_URL}/stock/fix-integrity`,
+      {},
+      this.getAuthHeaders()
+    );
+    return response.data;
+  }
+
+  async recalculateNeeds(): Promise<ApiResponse<any>> {
+    const response = await axios.post(
+      `${API_BASE_URL}/production/recalculate`,
+      {},
+      this.getAuthHeaders()
+    );
+    return response.data;
+  }
+
+  async syncProduction(): Promise<ApiResponse<any>> {
+    const response = await axios.post(
+      `${API_BASE_URL}/production/sync/orders`,
+      {},
+      this.getAuthHeaders()
     );
     return response.data;
   }

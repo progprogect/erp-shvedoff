@@ -67,8 +67,8 @@ const DeleteCategoryModal: React.FC<DeleteCategoryModalProps> = ({
 
     try {
       const [detailsResponse, allCategories] = await Promise.all([
-        catalogApi.getCategoryDetails(category.id, token),
-        catalogApi.getCategories(token)
+        catalogApi.getCategoryDetails(category.id),
+        catalogApi.getCategories()
       ]);
 
       if (detailsResponse.success) {
@@ -154,8 +154,7 @@ const DeleteCategoryModal: React.FC<DeleteCategoryModalProps> = ({
 
       const result: CategoryDeleteResult = await catalogApi.deleteCategoryWithAction(
         category.id, 
-        options, 
-        token
+        options
       );
 
       if (result.success) {

@@ -55,7 +55,7 @@ const OrderDetail: React.FC = () => {
     
     setLoading(true);
     try {
-      const response = await ordersApi.getOrder(Number(id), token);
+      const response = await ordersApi.getOrder(Number(id));
       
       if (response.success) {
         setOrder(response.data);
@@ -76,7 +76,7 @@ const OrderDetail: React.FC = () => {
     if (!token) return;
     
     try {
-      const response = await catalogApi.getProducts({ page: 1, limit: 100 }, token);
+      const response = await catalogApi.getProducts({ page: 1, limit: 100 });
       if (response.success) {
         setProducts(response.data);
       }
@@ -93,8 +93,7 @@ const OrderDetail: React.FC = () => {
       const response = await ordersApi.updateOrderStatus(
         order.id,
         values.status,
-        values.comment,
-        token
+        values.comment
       );
 
       if (response.success) {
@@ -116,7 +115,7 @@ const OrderDetail: React.FC = () => {
     if (!order || !token) return;
 
     try {
-      const response = await ordersApi.addMessage(order.id, values.message, token);
+      const response = await ordersApi.addMessage(order.id, values.message);
 
       if (response.success) {
         message.success('Сообщение добавлено');
@@ -151,7 +150,7 @@ const OrderDetail: React.FC = () => {
         }))
       };
 
-      const response = await ordersApi.updateOrder(order.id, orderData, token);
+      const response = await ordersApi.updateOrder(order.id, orderData);
 
       if (response.success) {
         message.success('Заказ успешно обновлён');
@@ -250,7 +249,7 @@ const OrderDetail: React.FC = () => {
       cancelText: 'Отмена',
       onOk: async () => {
         try {
-          const response = await ordersApi.deleteOrder(order.id, token);
+          const response = await ordersApi.deleteOrder(order.id);
           
           if (response.success) {
             message.success('Заказ успешно удален');

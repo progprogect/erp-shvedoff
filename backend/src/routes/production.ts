@@ -3,6 +3,12 @@ import { db, schema } from '../db';
 import { eq, and, sql, desc, asc, inArray } from 'drizzle-orm';
 import { authenticateToken, authorizeRoles, AuthRequest } from '../middleware/auth';
 import { createError } from '../middleware/errorHandler';
+import { 
+  fullProductionSync, 
+  syncProductionQueueToTasks, 
+  createTasksForPendingOrders, 
+  getSyncStatistics 
+} from '../utils/productionSynchronizer.js';
 
 const router = express.Router();
 
@@ -445,7 +451,21 @@ router.get('/tasks', authenticateToken, authorizeRoles('manager', 'production', 
             fullName: true
           }
         },
+        assignedToUser: {
+          columns: {
+            id: true,
+            username: true,
+            fullName: true
+          }
+        },
         approvedByUser: {
+          columns: {
+            id: true,
+            username: true,
+            fullName: true
+          }
+        },
+        startedByUser: {
           columns: {
             id: true,
             username: true,
@@ -491,7 +511,7 @@ router.get('/tasks/by-product', authenticateToken, authorizeRoles('manager', 'pr
 
     // Получаем активные задания
     const tasks = await db.query.productionTasks.findMany({
-      where: sql`${schema.productionTasks.status} = ANY(${statusList})`,
+      where: inArray(schema.productionTasks.status, statusList as any),
       with: {
         order: {
           columns: {
@@ -837,13 +857,56 @@ router.post('/tasks/:id/complete', authenticateToken, authorizeRoles('production
         }
       }
 
+      // ДОБАВЛЕНО: Пересчитываем статус заказа после завершения производства
+      try {
+        const { analyzeOrderAvailability } = await import('../utils/orderStatusCalculator.js');
+        const orderAnalysis = await analyzeOrderAvailability(task.orderId);
+        
+        // Обновляем статус заказа если он изменился
+        if (orderAnalysis.status !== task.order.status) {
+          await tx.update(schema.orders)
+            .set({ 
+              status: orderAnalysis.status as any,
+              updatedAt: new Date()
+            })
+            .where(eq(schema.orders.id, task.orderId));
+
+          // Логируем изменение статуса
+          await tx.insert(schema.stockMovements).values({
+            productId: task.productId,
+            movementType: 'adjustment', 
+            quantity: 0,
+            referenceId: task.orderId,
+            referenceType: 'order_status_change',
+            comment: `Статус заказа изменен на "${orderAnalysis.status}" после завершения производства`,
+            userId
+          });
+
+          // Если заказ стал готов к отгрузке - добавляем сообщение в чат заказа
+          if (orderAnalysis.status === 'confirmed' || orderAnalysis.status === 'ready') {
+            const extraProductsText = extraProducts.length > 0 
+              ? `. Дополнительно произведено: ${extraProducts.map((extra: any) => `${extra.quantity} шт.`).join(', ')}` 
+              : '';
+            
+            await tx.insert(schema.orderMessages).values({
+              orderId: task.orderId,
+              userId,
+              message: `✅ Заказ готов к отгрузке! Завершено производство товара "${task.product.name}" (${qualityQuantity} шт.)${extraProductsText}.`
+            });
+          }
+        }
+      } catch (analysisError) {
+        // Не прерываем выполнение основной операции из-за ошибки анализа
+        console.error('Ошибка пересчета статуса заказа:', analysisError);
+      }
+
       return updatedTask[0];
     });
 
     res.json({
       success: true,
       data: result,
-      message: 'Задание успешно завершено'
+      message: 'Задание успешно завершено, статус заказа обновлен'
     });
   } catch (error) {
     next(error);
@@ -853,7 +916,7 @@ router.post('/tasks/:id/complete', authenticateToken, authorizeRoles('production
 // POST /api/production/tasks/suggest - Предложить производственное задание
 router.post('/tasks/suggest', authenticateToken, authorizeRoles('manager', 'director'), async (req: AuthRequest, res, next) => {
   try {
-    const { orderId, productId, requestedQuantity, priority = 3, notes } = req.body;
+    const { orderId, productId, requestedQuantity, priority = 3, notes, assignedTo } = req.body;
     const userId = req.user!.id;
 
     if (!orderId || !productId || !requestedQuantity || requestedQuantity <= 0) {
@@ -881,6 +944,7 @@ router.post('/tasks/suggest', authenticateToken, authorizeRoles('manager', 'dire
       requestedQuantity,
       priority,
       suggestedBy: userId,
+      assignedTo: assignedTo || userId, // По умолчанию назначаем на создателя
       notes: notes || `Предложено для заказа ${order.orderNumber}`,
       status: 'suggested'
     }).returning();
@@ -909,6 +973,116 @@ router.post('/tasks/suggest', authenticateToken, authorizeRoles('manager', 'dire
       success: true,
       data: fullTask,
       message: 'Предложение создано'
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/production/sync/full - Full synchronization between production_queue and production_tasks
+router.post('/sync/full', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+  try {
+    const syncResult = await fullProductionSync();
+
+    res.json({
+      success: true,
+      data: syncResult,
+      message: `Синхронизация завершена: мигрировано ${syncResult.summary.totalMigrated}, 
+                существующих ${syncResult.summary.totalExisting}, 
+                ошибок ${syncResult.summary.totalErrors}`
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/production/sync/queue - Sync production_queue to production_tasks
+router.post('/sync/queue', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+  try {
+    const syncResult = await syncProductionQueueToTasks();
+
+    res.json({
+      success: true,
+      data: syncResult,
+      message: `Синхронизация очереди завершена: мигрировано ${syncResult.migrated}, 
+                существующих ${syncResult.existing}, ошибок ${syncResult.errors.length}`
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/production/sync/orders - Create tasks for pending orders
+router.post('/sync/orders', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+  try {
+    const syncResult = await createTasksForPendingOrders();
+
+    res.json({
+      success: true,
+      data: syncResult,
+      message: `Создание заданий для заказов завершено: создано ${syncResult.migrated}, 
+                существующих ${syncResult.existing}, ошибок ${syncResult.errors.length}`
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/production/recalculate - Recalculate production needs
+router.post('/recalculate', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+  try {
+    const { recalculateProductionNeeds } = await import('../utils/productionSynchronizer.js');
+    const result = await recalculateProductionNeeds();
+
+    res.json({
+      success: true,
+      data: result,
+      message: `Пересчет потребностей завершен: создано ${result.created}, обновлено ${result.updated}, отменено ${result.cancelled}, ошибок ${result.errors.length}`
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/production/sync/stats - Get synchronization statistics
+router.get('/sync/stats', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+  try {
+    const { getSyncStatistics } = await import('../utils/productionSynchronizer.js');
+    const stats = await getSyncStatistics();
+
+    res.json({
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/production/notify-ready - Send notifications for ready orders
+router.post('/notify-ready', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+  try {
+    const { notifyReadyOrders } = await import('../utils/productionSynchronizer.js');
+    const result = await notifyReadyOrders();
+
+    res.json({
+      success: true,
+      data: result,
+      message: `Уведомления отправлены: ${result.notified} заказов, ошибок ${result.errors.length}`
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/production/sync/statistics - Get sync statistics
+router.get('/sync/statistics', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+  try {
+    const statistics = await getSyncStatistics();
+
+    res.json({
+      success: true,
+      data: statistics
     });
   } catch (error) {
     next(error);

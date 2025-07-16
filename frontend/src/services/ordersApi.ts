@@ -95,14 +95,15 @@ export interface ApiResponse<T> {
 }
 
 class OrdersApiService {
-  private getAuthHeaders(token: string) {
+  private getAuthHeaders() {
+    const token = localStorage.getItem('token');
     return {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json'
     };
   }
 
-  async getOrders(filters: OrderFilters = {}, token: string): Promise<ApiResponse<Order[]>> {
+  async getOrders(filters: OrderFilters = {}): Promise<ApiResponse<Order[]>> {
     try {
       const params = new URLSearchParams();
       
@@ -113,7 +114,7 @@ class OrdersApiService {
       if (filters.offset) params.append('offset', filters.offset.toString());
 
       const response = await axios.get(`${API_BASE_URL}/orders?${params}`, {
-        headers: this.getAuthHeaders(token)
+        headers: this.getAuthHeaders()
       });
 
       return response.data;
@@ -127,10 +128,10 @@ class OrdersApiService {
     }
   }
 
-  async getOrder(id: number, token: string): Promise<ApiResponse<Order>> {
+  async getOrder(id: number): Promise<ApiResponse<Order>> {
     try {
       const response = await axios.get(`${API_BASE_URL}/orders/${id}`, {
-        headers: this.getAuthHeaders(token)
+        headers: this.getAuthHeaders()
       });
 
       return response.data;
@@ -144,10 +145,10 @@ class OrdersApiService {
     }
   }
 
-  async createOrder(orderData: CreateOrderRequest, token: string): Promise<ApiResponse<Order>> {
+  async createOrder(orderData: CreateOrderRequest): Promise<ApiResponse<Order>> {
     try {
       const response = await axios.post(`${API_BASE_URL}/orders`, orderData, {
-        headers: this.getAuthHeaders(token)
+        headers: this.getAuthHeaders()
       });
 
       return response.data;
@@ -161,21 +162,18 @@ class OrdersApiService {
     }
   }
 
-  async updateOrder(orderId: number, orderData: any, token: string): Promise<ApiResponse<Order>> {
+  async updateOrder(orderId: number, orderData: any): Promise<ApiResponse<Order>> {
     const response = await axios.put(`${API_BASE_URL}/orders/${orderId}`, orderData, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
+      headers: this.getAuthHeaders()
     });
     return response.data;
   }
 
-  async updateOrderStatus(id: number, status: string, comment?: string, token?: string): Promise<ApiResponse<Order>> {
+  async updateOrderStatus(id: number, status: string, comment?: string): Promise<ApiResponse<Order>> {
     try {
       const response = await axios.put(`${API_BASE_URL}/orders/${id}/status`, 
         { status, comment },
-        { headers: this.getAuthHeaders(token!) }
+        { headers: this.getAuthHeaders() }
       );
 
       return response.data;
@@ -189,11 +187,11 @@ class OrdersApiService {
     }
   }
 
-  async addMessage(id: number, message: string, token: string): Promise<ApiResponse<OrderMessage>> {
+  async addMessage(id: number, message: string): Promise<ApiResponse<OrderMessage>> {
     try {
       const response = await axios.post(`${API_BASE_URL}/orders/${id}/messages`, 
         { message },
-        { headers: this.getAuthHeaders(token) }
+        { headers: this.getAuthHeaders() }
       );
 
       return response.data;
@@ -207,10 +205,10 @@ class OrdersApiService {
     }
   }
 
-  async deleteOrder(id: number, token: string): Promise<ApiResponse<void>> {
+  async deleteOrder(id: number): Promise<ApiResponse<void>> {
     try {
       const response = await axios.delete(`${API_BASE_URL}/orders/${id}`, {
-        headers: this.getAuthHeaders(token)
+        headers: this.getAuthHeaders()
       });
 
       return response.data;

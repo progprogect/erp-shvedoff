@@ -141,6 +141,14 @@ router.get('/products/:id', authenticateToken, async (req, res, next) => {
       where: eq(schema.products.id, productId),
       with: {
         category: true,
+        manager: {
+          columns: {
+            id: true,
+            fullName: true,
+            username: true,
+            role: true
+          }
+        },
         stock: true,
         stockMovements: {
           with: {

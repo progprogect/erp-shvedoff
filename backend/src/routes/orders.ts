@@ -4,6 +4,7 @@ import { eq, and, sql, inArray } from 'drizzle-orm';
 import { authenticateToken, authorizeRoles, AuthRequest } from '../middleware/auth';
 import { createError } from '../middleware/errorHandler';
 import { performStockOperation } from '../utils/stockManager';
+import { analyzeOrderAvailability, updateOrderStatus } from '../utils/orderStatusCalculator.js';
 
 const router = express.Router();
 
@@ -22,7 +23,12 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
     }
 
     if (status) {
-      whereConditions.push(eq(schema.orders.status, status as any));
+      const statusArray = (status as string).split(',').map(s => s.trim());
+      if (statusArray.length === 1) {
+        whereConditions.push(eq(schema.orders.status, statusArray[0] as any));
+      } else {
+        whereConditions.push(inArray(schema.orders.status, statusArray as any[]));
+      }
     }
 
     if (priority) {
@@ -125,24 +131,32 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
         return new Map<number, number>();
       }
 
-      const queueQuery = db
+      const tasksQuery = db
         .select({
-          productId: schema.productionQueue.productId,
-          quantity: sql<number>`SUM(${schema.productionQueue.quantity})`.as('quantity')
+          productId: schema.productionTasks.productId,
+          quantity: sql<number>`
+            SUM(
+              CASE 
+                WHEN ${schema.productionTasks.status} IN ('approved', 'in_progress') 
+                THEN COALESCE(${schema.productionTasks.approvedQuantity}, ${schema.productionTasks.requestedQuantity})
+                ELSE 0
+              END
+            )
+          `.as('quantity')
         })
-        .from(schema.productionQueue)
+        .from(schema.productionTasks)
         .where(
           and(
-            inArray(schema.productionQueue.status, ['queued', 'in_progress']),
-            inArray(schema.productionQueue.productId, productIds)
+            inArray(schema.productionTasks.status, ['approved', 'in_progress']),
+            inArray(schema.productionTasks.productId, productIds)
           )
         )
-        .groupBy(schema.productionQueue.productId);
+        .groupBy(schema.productionTasks.productId);
 
-      const inQueue = await queueQuery;
+      const inProduction = await tasksQuery;
       const productionMap = new Map<number, number>();
 
-      inQueue.forEach(item => {
+      inProduction.forEach(item => {
         productionMap.set(item.productId, item.quantity);
       });
 
@@ -330,22 +344,34 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
       }
     }
 
+    // Анализируем доступность товаров и автоматически определяем статус заказа
+    const availabilityAnalysis = await analyzeOrderAvailability(orderId);
+    
+    // Обновляем статус заказа на основе анализа
+    await db.update(schema.orders)
+      .set({ status: availabilityAnalysis.status })
+      .where(eq(schema.orders.id, orderId));
+
     // Предлагаем производственные задания для товаров с дефицитом
     const suggestedTasks = [];
-    if (itemsNeedingProduction.length > 0) {
+    if (availabilityAnalysis.should_suggest_production) {
       const taskPriority = priority === 'urgent' ? 5 : 
                           priority === 'high' ? 4 : 
                           priority === 'normal' ? 3 : 2;
 
+      const itemsNeedingProduction = availabilityAnalysis.items.filter(
+        item => item.shortage > 0
+      );
+
       for (const item of itemsNeedingProduction) {
         const task = await db.insert(schema.productionTasks).values({
           orderId,
-          productId: item.productId,
-          requestedQuantity: item.quantity,
+          productId: item.product_id,
+          requestedQuantity: item.shortage,
           priority: taskPriority,
           status: 'suggested',
           suggestedBy: managerId,
-          notes: `Автоматически предложено для заказа ${orderNumber}`
+          notes: `Автоматически предложено для заказа ${orderNumber}. Дефицит: ${item.shortage} шт.`
         }).returning();
         
         suggestedTasks.push(task[0]);
@@ -364,13 +390,31 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
       }
     });
 
+    // Сообщение зависит от статуса и наличия предложенных заданий
+    let message = 'Заказ создан';
+    if (availabilityAnalysis.status === 'confirmed') {
+      message = 'Заказ создан и подтвержден - все товары в наличии';
+    } else if (availabilityAnalysis.status === 'in_production') {
+      message = 'Заказ создан - товары уже производятся';
+    } else if (suggestedTasks.length > 0) {
+      message = `Заказ создан. Предложено ${suggestedTasks.length} производственных заданий для дефицитных товаров`;
+    }
+
     res.status(201).json({
       success: true,
-      data: completeOrder,
+      data: {
+        ...completeOrder,
+        status: availabilityAnalysis.status // обновляем статус в ответе
+      },
+      availabilityAnalysis: {
+        status: availabilityAnalysis.status,
+        can_be_fulfilled: availabilityAnalysis.can_be_fulfilled,
+        total_items: availabilityAnalysis.total_items,
+        available_items: availabilityAnalysis.available_items,
+        needs_production_items: availabilityAnalysis.needs_production_items
+      },
       suggestedTasks: suggestedTasks.length > 0 ? suggestedTasks : undefined,
-      message: suggestedTasks.length > 0 ? 
-        `Заказ создан. Предложено ${suggestedTasks.length} производственных заданий.` :
-        'Заказ создан'
+      message
     });
   } catch (error) {
     next(error);
@@ -837,6 +881,36 @@ router.post('/:id/messages', authenticateToken, async (req: AuthRequest, res, ne
     res.status(201).json({
       success: true,
       data: messageWithUser
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/orders/recalculate-statuses - Recalculate all order statuses
+router.post('/recalculate-statuses', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+  try {
+    const { recalculateAllOrderStatuses } = await import('../utils/orderStatusCalculator.js');
+    await recalculateAllOrderStatuses();
+
+    res.json({
+      success: true,
+      message: 'Статусы всех заказов пересчитаны на основе актуальной доступности товаров'
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/orders/:id/availability - Get order availability analysis
+router.get('/:id/availability', authenticateToken, async (req: AuthRequest, res, next) => {
+  try {
+    const orderId = Number(req.params.id);
+    const analysis = await analyzeOrderAvailability(orderId);
+
+    res.json({
+      success: true,
+      data: analysis
     });
   } catch (error) {
     next(error);

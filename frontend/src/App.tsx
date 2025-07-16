@@ -4,14 +4,18 @@ import { Layout, App as AntdApp } from 'antd';
 import { useAuthStore } from './stores/authStore';
 import LoginPage from './pages/LoginPage';
 import DashboardLayout from './components/Layout/DashboardLayout';
-import Dashboard from './pages/Dashboard';
+
 import Catalog from './pages/Catalog';
 import ProductDetail from './pages/ProductDetail';
 import Stock from './pages/Stock';
 import Orders from './pages/Orders';
 import OrderDetail from './pages/OrderDetail';
 import CreateOrder from './pages/CreateOrder';
-import Production from './pages/Production';
+import ProductionTasks from './pages/ProductionTasks';
+import CuttingOperations from './pages/CuttingOperations';
+import Shipments from './pages/Shipments';
+import UserManagement from './pages/UserManagement';
+import PermissionsManagement from './pages/PermissionsManagement';
 import AuditHistory from './pages/AuditHistory';
 
 const { Content } = Layout;
@@ -33,7 +37,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   if (requiredRoles.length > 0 && !requiredRoles.includes(user.role)) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/catalog" replace />;
   }
 
   return <>{children}</>;
@@ -56,15 +60,7 @@ const App: React.FC = () => {
       ) : (
         <DashboardLayout>
           <Routes>
-            {/* Дашборд */}
-            <Route 
-              path="/dashboard" 
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              } 
-            />
+
 
             {/* Каталог товаров */}
             <Route 
@@ -125,9 +121,55 @@ const App: React.FC = () => {
               path="/production" 
               element={
                 <ProtectedRoute requiredRoles={['manager', 'director', 'production']}>
-                  <Production />
+                  <ProductionTasks />
                 </ProtectedRoute>
               } 
+            />
+            
+            {/* Операции резки */}
+            <Route 
+              path="/cutting" 
+              element={
+                <ProtectedRoute requiredRoles={['manager', 'director', 'production']}>
+                  <CuttingOperations />
+                </ProtectedRoute>
+              } 
+            />
+
+            {/* Отгрузки */}
+            <Route 
+              path="/shipments" 
+              element={
+                <ProtectedRoute>
+                  <Shipments />
+                </ProtectedRoute>
+              } 
+            />
+
+            {/* Управление пользователями */}
+            <Route 
+              path="/users" 
+              element={
+                <ProtectedRoute requiredRoles={['director']}>
+                  <UserManagement />
+                </ProtectedRoute>
+              } 
+            />
+
+            {/* Управление разрешениями */}
+            <Route 
+              path="/permissions" 
+              element={
+                <ProtectedRoute requiredRoles={['director']}>
+                  <PermissionsManagement />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Redirect для совместимости */}
+            <Route 
+              path="/production-tasks" 
+              element={<Navigate to="/production" replace />}
             />
 
             {/* История изменений */}
@@ -141,8 +183,9 @@ const App: React.FC = () => {
             />
 
             {/* Redirect */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/" element={<Navigate to="/catalog" replace />} />
+            <Route path="/" element={<Navigate to="/catalog" replace />} />
+            <Route path="*" element={<Navigate to="/catalog" replace />} />
           </Routes>
         </DashboardLayout>
       )}

@@ -1,205 +1,495 @@
-import axios from 'axios';
+import { useAuthStore } from '../stores/authStore';
 
 const API_BASE_URL = 'http://localhost:5001/api';
 
-export interface ProductionQueueItem {
+// Функция для получения токена
+const getToken = () => {
+  return useAuthStore.getState().token;
+};
+
+// Типы для производственных заданий
+export interface ProductionTask {
   id: number;
-  orderId?: number;
+  orderId: number;
   productId: number;
-  quantity: number;
+  requestedQuantity: number;
+  approvedQuantity?: number;
+  producedQuantity?: number;
+  qualityQuantity?: number;
+  defectQuantity?: number;
+  status: 'suggested' | 'approved' | 'rejected' | 'postponed' | 'in_progress' | 'completed' | 'cancelled';
   priority: number;
-  estimatedStartDate?: string;
-  estimatedCompletionDate?: string;
-  actualStartDate?: string;
-  actualCompletionDate?: string;
-  status: 'queued' | 'in_progress' | 'completed' | 'cancelled';
   notes?: string;
   createdAt: string;
-  product?: {
+  updatedAt: string;
+  order: {
+    id: number;
+    customerName: string;
+    status: string;
+    orderNumber: string;
+    manager?: {
+      fullName: string;
+    };
+  };
+  product: {
     id: number;
     name: string;
     article?: string;
     category?: {
-      id: number;
       name: string;
     };
-    stock?: {
-      currentStock: number;
-      reservedStock: number;
-    };
   };
-  order?: {
+}
+
+export interface ProductionTaskExtra {
+  id: number;
+  task_id: number;
+  product_id: number;
+  quantity: number;
+  notes?: string;
+  product: {
     id: number;
-    orderNumber: string;
-    customerName: string;
-    status: string;
-    priority: string;
-    deliveryDate?: string;
-    manager?: {
-      id: number;
-      username: string;
-      fullName?: string;
-    };
+    name: string;
+    sku: string;
+  };
+}
+
+export interface ProductionQueueItem {
+  id: number;
+  order_id: number;
+  product_id: number;
+  quantity: number;
+  priority: number;
+  status: 'queued' | 'in_progress' | 'completed' | 'cancelled';
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+  order: {
+    id: number;
+    customer_name: string;
+  };
+  product: {
+    id: number;
+    name: string;
+    sku: string;
   };
 }
 
 export interface ProductionStats {
-  byStatus: {
-    status: string;
-    count: number;
-  }[];
   urgentItems: number;
   overdueItems: number;
-}
-
-export interface UpdateProductionStatusRequest {
-  status: 'queued' | 'in_progress' | 'completed' | 'cancelled';
-  notes?: string;
-}
-
-export interface CreateProductionItemRequest {
-  productId: number;
-  quantity: number;
-  priority?: number;
-  notes?: string;
 }
 
 export interface ProductionFilters {
   status?: string;
   priority?: number;
-  limit?: number;
+  page?: number;
   offset?: number;
 }
 
-export interface ApiResponse<T> {
-  success: boolean;
-  data: T;
-  message?: string;
-}
+// Функции API для производственных заданий
+export const getProductionTasks = async (params: { limit?: number; offset?: number; status?: string } = {}) => {
+  const token = getToken();
+  const queryParams = new URLSearchParams();
+  
+  if (params.limit) queryParams.append('limit', params.limit.toString());
+  if (params.offset) queryParams.append('offset', params.offset.toString());
+  if (params.status) queryParams.append('status', params.status);
 
-class ProductionApiService {
-  private getAuthHeaders(token: string) {
-    return {
+  const response = await fetch(`${API_BASE_URL}/production/tasks?${queryParams}`, {
+    headers: {
       'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    };
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
   }
 
-  async getProductionQueue(filters: ProductionFilters = {}, token: string): Promise<ApiResponse<ProductionQueueItem[]>> {
-    try {
-      const params = new URLSearchParams();
-      
-      if (filters.status) params.append('status', filters.status);
-      if (filters.priority) params.append('priority', filters.priority.toString());
-      if (filters.limit) params.append('limit', filters.limit.toString());
-      if (filters.offset) params.append('offset', filters.offset.toString());
+  return await response.json();
+};
 
-      const response = await axios.get(`${API_BASE_URL}/production/queue?${params}`, {
-        headers: this.getAuthHeaders(token)
-      });
+export const getProductionTasksByProduct = async () => {
+  const token = getToken();
+  
+  const response = await fetch(`${API_BASE_URL}/production/tasks/by-product`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
 
-      return response.data;
-    } catch (error: any) {
-      console.error('Error fetching production queue:', error);
-      return {
-        success: false,
-        data: [],
-        message: error.response?.data?.message || 'Ошибка загрузки очереди производства'
-      };
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return await response.json();
+};
+
+export const approveProductionTask = async (taskId: number, approvedQuantity: number, notes?: string) => {
+  const token = getToken();
+  
+  const response = await fetch(`${API_BASE_URL}/production/tasks/${taskId}/approve`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ approved_quantity: approvedQuantity, notes }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return await response.json();
+};
+
+export const rejectProductionTask = async (taskId: number, notes?: string) => {
+  const token = getToken();
+  
+  const response = await fetch(`${API_BASE_URL}/production/tasks/${taskId}/reject`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ notes }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return await response.json();
+};
+
+export const postponeProductionTask = async (taskId: number, notes?: string) => {
+  const token = getToken();
+  
+  const response = await fetch(`${API_BASE_URL}/production/tasks/${taskId}/postpone`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ notes }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return await response.json();
+};
+
+export const startProductionTask = async (taskId: number, notes?: string) => {
+  const token = getToken();
+  
+  const response = await fetch(`${API_BASE_URL}/production/tasks/${taskId}/start`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ notes }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return await response.json();
+};
+
+export const completeProductionTask = async (
+  taskId: number, 
+  data: {
+    produced_quantity: number;
+    quality_quantity: number;
+    defect_quantity: number;
+    notes?: string;
+    extras?: Array<{ product_id: number; quantity: number; notes?: string }>;
+  }
+) => {
+  const token = getToken();
+  
+  const response = await fetch(`${API_BASE_URL}/production/tasks/${taskId}/complete`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return await response.json();
+};
+
+export const reorderProductionTasks = async (taskIds: number[]) => {
+  const token = getToken();
+  
+  const response = await fetch(`${API_BASE_URL}/production/tasks/reorder`, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ taskIds }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return await response.json();
+};
+
+export const suggestProductionTasks = async (orderId: number) => {
+  const token = getToken();
+  
+  const response = await fetch(`${API_BASE_URL}/production/tasks/suggest`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ order_id: orderId }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return await response.json();
+};
+
+export const createProductionTask = async (data: {
+  orderId: number;
+  productId: number;
+  requestedQuantity: number;
+  priority?: number;
+  notes?: string;
+  assignedTo?: number;
+}) => {
+  const token = getToken();
+  
+  const response = await fetch(`${API_BASE_URL}/production/tasks/suggest`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return await response.json();
+};
+
+// Новые методы для управления системой
+export const recalculateProductionNeeds = async () => {
+  const token = getToken();
+  
+  const response = await fetch(`${API_BASE_URL}/production/recalculate`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return await response.json();
+};
+
+export const getSyncStatistics = async () => {
+  const token = getToken();
+  
+  const response = await fetch(`${API_BASE_URL}/production/sync/stats`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return await response.json();
+};
+
+export const notifyReadyOrders = async () => {
+  const token = getToken();
+  
+  const response = await fetch(`${API_BASE_URL}/production/notify-ready`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return await response.json();
+};
+
+export const syncOrdersToTasks = async () => {
+  const token = getToken();
+  
+  const response = await fetch(`${API_BASE_URL}/production/sync/orders`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return await response.json();
+};
+
+// Совместимость со старым API
+export const productionApi = {
+  // Новые методы для производственных заданий
+  getTasks: getProductionTasks,
+  getTasksByProduct: getProductionTasksByProduct,
+  approveTask: approveProductionTask,
+  rejectTask: rejectProductionTask,
+  postponeTask: postponeProductionTask,
+  startTask: startProductionTask,
+  completeTask: completeProductionTask,
+  reorderTasks: reorderProductionTasks,
+  suggestTasks: suggestProductionTasks,
+  
+  // Новые методы управления системой
+  recalculateNeeds: recalculateProductionNeeds,
+  getSyncStats: getSyncStatistics,
+  notifyReady: notifyReadyOrders,
+  syncOrders: syncOrdersToTasks,
+
+  // Старые методы для очереди производства
+  getQueue: async (params: any = {}) => {
+    const token = getToken();
+    const queryParams = new URLSearchParams();
+    
+    if (params.limit) queryParams.append('limit', params.limit.toString());
+    if (params.offset) queryParams.append('offset', params.offset.toString());
+
+    const response = await fetch(`${API_BASE_URL}/production/queue?${queryParams}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  }
 
-  async getProductionItem(id: number, token: string): Promise<ApiResponse<ProductionQueueItem>> {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/production/queue/${id}`, {
-        headers: this.getAuthHeaders(token)
-      });
+    const data = await response.json();
+    return { success: true, data: data.data || [] };
+  },
 
-      return response.data;
-    } catch (error: any) {
-      console.error('Error fetching production item:', error);
-      return {
-        success: false,
-        data: {} as ProductionQueueItem,
-        message: error.response?.data?.message || 'Ошибка загрузки элемента производства'
-      };
+  getStats: async () => {
+    const token = getToken();
+    
+    const response = await fetch(`${API_BASE_URL}/production/stats`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  }
 
-  async updateProductionStatus(id: number, data: UpdateProductionStatusRequest, token: string): Promise<ApiResponse<ProductionQueueItem>> {
-    try {
-      const response = await axios.put(`${API_BASE_URL}/production/queue/${id}/status`, data, {
-        headers: this.getAuthHeaders(token)
-      });
+    const data = await response.json();
+    return { success: true, data: data.data || { urgentItems: 0, overdueItems: 0 } };
+  },
 
-      return response.data;
-    } catch (error: any) {
-      console.error('Error updating production status:', error);
-      return {
-        success: false,
-        data: {} as ProductionQueueItem,
-        message: error.response?.data?.message || 'Ошибка обновления статуса производства'
-      };
+  updateStatus: async (id: number, status: string, notes?: string) => {
+    const token = getToken();
+    
+    const response = await fetch(`${API_BASE_URL}/production/queue/${id}/status`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ status, notes }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  }
 
-  async autoQueue(token: string): Promise<ApiResponse<ProductionQueueItem[]>> {
-    try {
-      const response = await axios.post(`${API_BASE_URL}/production/auto-queue`, {}, {
-        headers: this.getAuthHeaders(token)
-      });
+    const data = await response.json();
+    return { success: true, data };
+  },
 
-      return response.data;
-    } catch (error: any) {
-      console.error('Error auto-queueing production:', error);
-      return {
-        success: false,
-        data: [],
-        message: error.response?.data?.message || 'Ошибка автоматической постановки в очередь'
-      };
+  autoQueue: async () => {
+    const token = getToken();
+    
+    const response = await fetch(`${API_BASE_URL}/production/auto-queue`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  }
 
-  async createProductionItem(data: CreateProductionItemRequest, token: string): Promise<ApiResponse<ProductionQueueItem>> {
-    try {
-      const response = await axios.post(`${API_BASE_URL}/production/queue`, data, {
-        headers: this.getAuthHeaders(token)
-      });
-      return {
-        success: true,
-        data: response.data.data,
-        message: response.data.message
-      };
-    } catch (error: any) {
-      console.error('Ошибка создания задания на производство:', error);
-      return {
-        success: false,
-        data: null as any,
-        message: error.response?.data?.message || 'Ошибка создания задания на производство'
-      };
+    const data = await response.json();
+    return { success: true, data: data.data || [] };
+  },
+
+  addToQueue: async (productId: number, quantity: number, priority: number = 1, notes?: string) => {
+    const token = getToken();
+    
+    const response = await fetch(`${API_BASE_URL}/production/queue`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        product_id: productId,
+        quantity,
+        priority,
+        notes,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  }
 
-  async getProductionStats(token: string): Promise<ApiResponse<ProductionStats>> {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/production/stats`, {
-        headers: this.getAuthHeaders(token)
-      });
+    const data = await response.json();
+    return { success: true, data };
+  },
+};
 
-      return response.data;
-    } catch (error: any) {
-      console.error('Error fetching production stats:', error);
-      return {
-        success: false,
-        data: {
-          byStatus: [],
-          urgentItems: 0,
-          overdueItems: 0
-        },
-        message: error.response?.data?.message || 'Ошибка загрузки статистики производства'
-      };
-    }
-  }
-}
-
-export const productionApi = new ProductionApiService(); 
+export default productionApi; 

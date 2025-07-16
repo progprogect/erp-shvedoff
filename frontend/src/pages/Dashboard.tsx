@@ -32,7 +32,7 @@ const Dashboard: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const dashboardData = await dashboardApi.getDashboardData(token);
+      const dashboardData = await dashboardApi.getDashboardData();
       setData(dashboardData);
       setLastRefresh(new Date());
     } catch (err: any) {

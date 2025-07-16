@@ -1,0 +1,367 @@
+import axios from 'axios';
+
+const API_BASE_URL = 'http://localhost:5001/api';
+
+export interface Order {
+  id: number;
+  orderNumber: string;
+  customerName: string;
+  customerContact?: string;
+  status: string;
+  priority: string;
+  deliveryDate?: string;
+  totalAmount?: string;
+  notes?: string;
+  createdAt: string;
+  manager?: {
+    id: number;
+    username: string;
+    fullName?: string;
+  };
+  items?: Array<{
+    id: number;
+    productId: number;
+    quantity: number;
+    reservedQuantity: number;
+    price?: string;
+    product: {
+      id: number;
+      name: string;
+      article?: string;
+    };
+  }>;
+}
+
+export interface ShipmentItem {
+  id: number;
+  shipmentId: number;
+  productId: number;
+  plannedQuantity: number;
+  actualQuantity?: number;
+  createdAt: string;
+  product: {
+    id: number;
+    name: string;
+    article?: string;
+  };
+}
+
+export interface Shipment {
+  id: number;
+  shipmentNumber: string;
+  orderId?: number;
+  plannedDate?: string;
+  actualDate?: string;
+  transportInfo?: string;
+  status: 'planned' | 'loading' | 'shipped' | 'delivered' | 'cancelled';
+  documentsPhotos?: string[];
+  createdBy: number;
+  createdAt: string;
+  order?: Order;
+  createdByUser?: {
+    id: number;
+    username: string;
+    fullName?: string;
+  };
+  items?: ShipmentItem[];
+  relatedOrders?: Order[];
+}
+
+export interface CreateShipmentRequest {
+  orderIds: number[];
+  plannedDate?: string;
+  transportInfo?: string;
+  notes?: string;
+}
+
+export interface UpdateShipmentStatusRequest {
+  status: string;
+  actualQuantities?: Record<number, number>;
+  transportInfo?: string;
+  documentsPhotos?: string[];
+}
+
+export interface UpdateShipmentRequest {
+  plannedDate?: string;
+  transportInfo?: string;
+  documentsPhotos?: string[];
+}
+
+export interface ShipmentStatistics {
+  total: number;
+  todayCount: number;
+  thisMonthCount: number;
+  plannedCount: number;
+  shippedCount: number;
+  deliveredCount: number;
+}
+
+class ShipmentsApiService {
+  private getAuthHeaders() {
+    const token = localStorage.getItem('token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }
+
+  // Получить все отгрузки
+  async getShipments(params?: {
+    status?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<Shipment[]> {
+    const response = await axios.get(`${API_BASE_URL}/shipments`, {
+      headers: this.getAuthHeaders(),
+      params
+    });
+    return response.data.data;
+  }
+
+  // Получить готовые к отгрузке заказы
+  async getReadyOrders(): Promise<Order[]> {
+    const response = await axios.get(`${API_BASE_URL}/shipments/ready-orders`, {
+      headers: this.getAuthHeaders()
+    });
+    return response.data.data;
+  }
+
+  // Получить детали отгрузки
+  async getShipment(id: number): Promise<Shipment> {
+    const response = await axios.get(`${API_BASE_URL}/shipments/${id}`, {
+      headers: this.getAuthHeaders()
+    });
+    return response.data.data;
+  }
+
+  // Создать новую отгрузку
+  async createShipment(data: CreateShipmentRequest): Promise<Shipment> {
+    const response = await axios.post(`${API_BASE_URL}/shipments`, data, {
+      headers: this.getAuthHeaders()
+    });
+    return response.data.data;
+  }
+
+  // Обновить статус отгрузки
+  async updateShipmentStatus(id: number, data: UpdateShipmentStatusRequest): Promise<Shipment> {
+    const response = await axios.put(`${API_BASE_URL}/shipments/${id}/status`, data, {
+      headers: this.getAuthHeaders()
+    });
+    return response.data.data;
+  }
+
+  // Обновить детали отгрузки
+  async updateShipment(id: number, data: UpdateShipmentRequest): Promise<Shipment> {
+    const response = await axios.put(`${API_BASE_URL}/shipments/${id}`, data, {
+      headers: this.getAuthHeaders()
+    });
+    return response.data.data;
+  }
+
+  // Отменить отгрузку
+  async cancelShipment(id: number): Promise<Shipment> {
+    const response = await axios.delete(`${API_BASE_URL}/shipments/${id}`, {
+      headers: this.getAuthHeaders()
+    });
+    return response.data.data;
+  }
+
+  // Получить статистику отгрузок
+  async getShipmentStatistics(): Promise<ShipmentStatistics> {
+    const response = await axios.get(`${API_BASE_URL}/shipments/statistics`, {
+      headers: this.getAuthHeaders()
+    });
+    return response.data.data;
+  }
+
+  // Загрузить фото документов
+  async uploadDocumentPhoto(file: File): Promise<string> {
+    const formData = new FormData();
+    formData.append('photo', file);
+
+    const response = await axios.post(`${API_BASE_URL}/upload/shipment-documents`, formData, {
+      headers: {
+        ...this.getAuthHeaders(),
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+
+    return response.data.url;
+  }
+
+  // Вспомогательные методы
+  getStatusColor(status: Shipment['status']): string {
+    switch (status) {
+      case 'planned':
+        return 'blue';
+      case 'loading':
+        return 'orange';
+      case 'shipped':
+        return 'green';
+      case 'delivered':
+        return 'success';
+      case 'cancelled':
+        return 'red';
+      default:
+        return 'gray';
+    }
+  }
+
+  getStatusText(status: Shipment['status']): string {
+    switch (status) {
+      case 'planned':
+        return 'Запланирована';
+      case 'loading':
+        return 'Загрузка';
+      case 'shipped':
+        return 'Отгружена';
+      case 'delivered':
+        return 'Доставлена';
+      case 'cancelled':
+        return 'Отменена';
+      default:
+        return 'Неизвестно';
+    }
+  }
+
+  getPriorityColor(priority: string): string {
+    switch (priority) {
+      case 'urgent':
+        return 'red';
+      case 'high':
+        return 'orange';
+      case 'normal':
+        return 'blue';
+      case 'low':
+        return 'gray';
+      default:
+        return 'gray';
+    }
+  }
+
+  getPriorityText(priority: string): string {
+    switch (priority) {
+      case 'urgent':
+        return 'Срочный';
+      case 'high':
+        return 'Высокий';
+      case 'normal':
+        return 'Обычный';
+      case 'low':
+        return 'Низкий';
+      default:
+        return 'Неизвестно';
+    }
+  }
+
+  // Проверка прав доступа
+  canCreate(userRole: string): boolean {
+    return userRole === 'manager' || userRole === 'director';
+  }
+
+  canEdit(userRole: string): boolean {
+    return userRole === 'manager' || userRole === 'director';
+  }
+
+  canUpdateStatus(userRole: string): boolean {
+    return userRole === 'manager' || userRole === 'director' || userRole === 'warehouse';
+  }
+
+  canCancel(userRole: string): boolean {
+    return userRole === 'manager' || userRole === 'director';
+  }
+
+  canViewAll(userRole: string): boolean {
+    return true; // Все роли могут просматривать отгрузки
+  }
+
+  // Валидация статусных переходов
+  getValidNextStatuses(currentStatus: Shipment['status']): Shipment['status'][] {
+    const transitions: Record<Shipment['status'], Shipment['status'][]> = {
+      'planned': ['loading', 'cancelled'],
+      'loading': ['shipped', 'planned'],
+      'shipped': ['delivered'],
+      'delivered': [],
+      'cancelled': []
+    };
+
+    return transitions[currentStatus] || [];
+  }
+
+  canTransitionTo(currentStatus: Shipment['status'], newStatus: Shipment['status']): boolean {
+    const validStatuses = this.getValidNextStatuses(currentStatus);
+    return validStatuses.includes(newStatus);
+  }
+
+  // Расчет общего веса/объема отгрузки
+  calculateShipmentSummary(shipment: Shipment): {
+    totalItems: number;
+    totalProducts: number;
+    hasActualQuantities: boolean;
+  } {
+    if (!shipment.items) {
+      return {
+        totalItems: 0,
+        totalProducts: 0,
+        hasActualQuantities: false
+      };
+    }
+
+    const totalItems = shipment.items.reduce((sum, item) => sum + item.plannedQuantity, 0);
+    const totalProducts = shipment.items.length;
+    const hasActualQuantities = shipment.items.some(item => item.actualQuantity !== null && item.actualQuantity !== undefined);
+
+    return {
+      totalItems,
+      totalProducts,
+      hasActualQuantities
+    };
+  }
+
+  // Форматирование даты для отображения
+  formatDate(dateString: string): string {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  }
+
+  formatDateTime(dateString: string): string {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleString('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
+  // Проверка просроченности
+  isOverdue(shipment: Shipment): boolean {
+    if (!shipment.plannedDate || shipment.status === 'delivered' || shipment.status === 'cancelled') {
+      return false;
+    }
+
+    const today = new Date();
+    const plannedDate = new Date(shipment.plannedDate);
+    return plannedDate < today;
+  }
+
+  // Группировка отгрузок по статусам
+  groupByStatus(shipments: Shipment[]): Record<string, Shipment[]> {
+    return shipments.reduce((groups, shipment) => {
+      const status = shipment.status;
+      if (!groups[status]) {
+        groups[status] = [];
+      }
+      groups[status].push(shipment);
+      return groups;
+    }, {} as Record<string, Shipment[]>);
+  }
+}
+
+export const shipmentsApi = new ShipmentsApiService();
+export default shipmentsApi; 

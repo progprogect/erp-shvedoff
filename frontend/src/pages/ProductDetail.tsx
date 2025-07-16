@@ -23,9 +23,11 @@ const ProductDetail: React.FC = () => {
   
   const [product, setProduct] = useState<Product | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [users, setUsers] = useState<{id: number; fullName?: string; username: string; role: string}[]>([]);
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
   const [loading, setLoading] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
+  const [showAllMovements, setShowAllMovements] = useState(false);
   const [editForm] = Form.useForm();
 
   // Загрузка данных товара
@@ -40,11 +42,12 @@ const ProductDetail: React.FC = () => {
     
     setLoading(true);
     try {
-      // Загружаем данные товара, категории и историю движений параллельно
-      const [productResponse, categoriesResponse, movementsResponse] = await Promise.all([
-        catalogApi.getProduct(parseInt(id), token),
-        catalogApi.getCategories(token),
-        stockApi.getStockMovements(parseInt(id), token)
+      // Загружаем данные товара, категории, пользователей и историю движений параллельно
+      const [productResponse, categoriesResponse, usersResponse, movementsResponse] = await Promise.all([
+        catalogApi.getProduct(parseInt(id)),
+        catalogApi.getCategories(),
+        catalogApi.getUsers(),
+                  stockApi.getStockMovements(parseInt(id))
       ]);
 
       if (productResponse.success) {
@@ -57,6 +60,10 @@ const ProductDetail: React.FC = () => {
 
       if (categoriesResponse.success) {
         setCategories(categoriesResponse.data);
+      }
+
+      if (usersResponse.success) {
+        setUsers(usersResponse.data);
       }
 
       if (movementsResponse.success) {
@@ -79,6 +86,7 @@ const ProductDetail: React.FC = () => {
       name: product.name,
       article: product.article,
       categoryId: product.categoryId,
+      managerId: product.managerId,
       length: product.dimensions?.length,
       width: product.dimensions?.width,
       thickness: product.dimensions?.thickness,
@@ -101,6 +109,7 @@ const ProductDetail: React.FC = () => {
         name: values.name,
         article: values.article,
         categoryId: values.categoryId,
+        managerId: values.managerId,
         dimensions: {
           length: values.length || 0,
           width: values.width || 0,
@@ -115,7 +124,7 @@ const ProductDetail: React.FC = () => {
         notes: values.notes
       };
 
-      const response = await catalogApi.updateProduct(product.id, updateData, token);
+      const response = await catalogApi.updateProduct(product.id, updateData);
       
       if (response.success) {
         message.success('Товар успешно обновлен');
@@ -412,27 +421,7 @@ const ProductDetail: React.FC = () => {
                   </Row>
                 </Card>
 
-                {/* Быстрые действия */}
-                {(user?.role === 'manager' || user?.role === 'director') && (
-                  <Card title="⚡ Быстрые действия" size="small">
-                    <Space direction="vertical" style={{ width: '100%' }}>
-                      <Button 
-                        type="primary" 
-                        icon={<ShoppingCartOutlined />}
-                        block
-                      >
-                        Добавить в заказ
-                      </Button>
-                      <Button 
-                        icon={<HistoryOutlined />}
-                        block
-                        onClick={() => {/* TODO: Показать полную историю */}}
-                      >
-                        Полная история
-                      </Button>
-                    </Space>
-                  </Card>
-                )}
+
               </Space>
             </Col>
           </Row>
@@ -443,7 +432,7 @@ const ProductDetail: React.FC = () => {
           <Card title="📈 Последние движения остатков" size="small">
             <Table
               columns={movementColumns}
-              dataSource={stockMovements.slice(0, 10)} // Показываем только последние 10
+              dataSource={showAllMovements ? stockMovements : stockMovements.slice(0, 10)}
               rowKey="id"
               size="small"
               pagination={false}
@@ -451,10 +440,23 @@ const ProductDetail: React.FC = () => {
                 emptyText: 'Нет движений по товару'
               }}
             />
-            {stockMovements.length > 10 && (
+            {stockMovements.length > 10 && !showAllMovements && (
               <div style={{ textAlign: 'center', marginTop: 16 }}>
-                <Button size="small">
+                <Button 
+                  size="small"
+                  onClick={() => setShowAllMovements(true)}
+                >
                   Показать все {stockMovements.length} записей
+                </Button>
+              </div>
+            )}
+            {showAllMovements && stockMovements.length > 10 && (
+              <div style={{ textAlign: 'center', marginTop: 16 }}>
+                <Button 
+                  size="small"
+                  onClick={() => setShowAllMovements(false)}
+                >
+                  Скрыть ({stockMovements.length - 10} записей)
                 </Button>
               </div>
             )}
@@ -510,6 +512,23 @@ const ProductDetail: React.FC = () => {
                   {flatCategories(categories).map(category => (
                     <Option key={category.id} value={category.id}>
                       📁 {category.name}
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={24}>
+              <Form.Item
+                name="managerId"
+                label="Ответственный за товар"
+              >
+                <Select placeholder="Выберите ответственного пользователя" allowClear>
+                  {users.map(user => (
+                    <Option key={user.id} value={user.id}>
+                      {user.fullName || user.username} ({user.role === 'manager' ? 'Менеджер' : user.role === 'director' ? 'Директор' : user.role})
                     </Option>
                   ))}
                 </Select>

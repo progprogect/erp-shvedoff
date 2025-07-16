@@ -75,7 +75,7 @@ router.get('/', authenticateToken, async (req, res, next) => {
       .where(
         and(
           sql`${orders.priority} IN ('high', 'urgent')`,
-          sql`${orders.status} NOT IN ('delivered', 'cancelled')`
+          sql`${orders.status} IN ('new', 'confirmed', 'in_production')`
         )
       )
       .groupBy(orders.id, users.fullName)

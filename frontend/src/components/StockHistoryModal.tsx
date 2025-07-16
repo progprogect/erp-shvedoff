@@ -34,7 +34,7 @@ const StockHistoryModal: React.FC<StockHistoryModalProps> = ({
 
     setLoading(true);
     try {
-      const response = await stockApi.getStockMovements(stockItem.productId, token);
+      const response = await stockApi.getStockMovements(stockItem.productId);
       
       if (response.success) {
         setMovements(response.data);

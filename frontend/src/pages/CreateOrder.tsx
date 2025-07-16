@@ -53,7 +53,7 @@ const CreateOrder: React.FC = () => {
     if (!token) return;
     
     try {
-      const response = await catalogApi.getProducts({ page: 1, limit: 100 }, token);
+      const response = await catalogApi.getProducts({ page: 1, limit: 100 });
       
       if (response.success) {
         setProducts(response.data);
@@ -160,7 +160,7 @@ const CreateOrder: React.FC = () => {
 
     setLoading(true);
     try {
-      const response = await ordersApi.createOrder(orderData, token);
+      const response = await ordersApi.createOrder(orderData);
       
       if (response.success) {
         message.success('Заказ успешно создан');

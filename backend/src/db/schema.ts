@@ -7,8 +7,8 @@ export const orderStatusEnum = pgEnum('order_status', ['new', 'confirmed', 'in_p
 export const priorityLevelEnum = pgEnum('priority_level', ['low', 'normal', 'high', 'urgent']);
 export const movementTypeEnum = pgEnum('movement_type', ['incoming', 'outgoing', 'cutting_out', 'cutting_in', 'reservation', 'release_reservation', 'adjustment']);
 export const productionStatusEnum = pgEnum('production_status', ['queued', 'in_progress', 'completed', 'cancelled']);
-export const cuttingStatusEnum = pgEnum('cutting_status', ['planned', 'in_progress', 'completed', 'cancelled']);
-export const shipmentStatusEnum = pgEnum('shipment_status', ['planned', 'loading', 'shipped', 'delivered']);
+export const cuttingStatusEnum = pgEnum('cutting_status', ['planned', 'approved', 'in_progress', 'completed', 'cancelled']);
+export const shipmentStatusEnum = pgEnum('shipment_status', ['planned', 'loading', 'shipped', 'delivered', 'cancelled']);
 export const defectStatusEnum = pgEnum('defect_status', ['identified', 'under_review', 'for_repair', 'for_rework', 'written_off']);
 export const auditOperationEnum = pgEnum('audit_operation', ['INSERT', 'UPDATE', 'DELETE']);
 export const notificationStatusEnum = pgEnum('notification_status', ['pending', 'sent', 'failed']);
@@ -26,6 +26,31 @@ export const users = pgTable('users', {
   isActive: boolean('is_active').default(true),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow()
+});
+
+// Permissions system
+export const permissions = pgTable('permissions', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 100 }).notNull().unique(),
+  resource: varchar('resource', { length: 50 }).notNull(), // catalog, orders, stock, etc.
+  action: varchar('action', { length: 50 }).notNull(), // view, create, edit, delete, etc.
+  description: text('description'),
+  createdAt: timestamp('created_at').defaultNow()
+});
+
+export const rolePermissions = pgTable('role_permissions', {
+  id: serial('id').primaryKey(),
+  role: userRoleEnum('role').notNull(),
+  permissionId: integer('permission_id').notNull().references(() => permissions.id),
+  createdAt: timestamp('created_at').defaultNow()
+});
+
+export const userPermissions = pgTable('user_permissions', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id),
+  permissionId: integer('permission_id').notNull().references(() => permissions.id),
+  granted: boolean('granted').notNull().default(true), // true = grant, false = deny
+  createdAt: timestamp('created_at').defaultNow()
 });
 
 // Categories table - FR-002
@@ -73,6 +98,7 @@ export const products = pgTable('products', {
   name: varchar('name', { length: 500 }).notNull(),
   article: varchar('article', { length: 100 }).unique(),
   categoryId: integer('category_id').references(() => categories.id),
+  managerId: integer('manager_id').references(() => users.id), // ответственный за товар
   surfaceId: integer('surface_id').references(() => productSurfaces.id),
   logoId: integer('logo_id').references(() => productLogos.id),
   materialId: integer('material_id').references(() => productMaterials.id),
@@ -207,7 +233,9 @@ export const productionTasks = pgTable('production_tasks', {
   
   // Метаданные
   suggestedBy: integer('suggested_by').references(() => users.id), // кто предложил
+  assignedTo: integer('assigned_to').references(() => users.id),   // на кого назначено
   approvedBy: integer('approved_by').references(() => users.id),   // кто подтвердил
+  startedBy: integer('started_by').references(() => users.id),     // кто запустил
   completedBy: integer('completed_by').references(() => users.id), // кто завершил
   
   notes: text('notes'),
@@ -237,6 +265,7 @@ export const cuttingOperations = pgTable('cutting_operations', {
   wasteQuantity: integer('waste_quantity').default(0),
   status: cuttingStatusEnum('status').default('planned'),
   operatorId: integer('operator_id').references(() => users.id),
+  assignedTo: integer('assigned_to').references(() => users.id), // на кого назначена операция
   plannedDate: timestamp('planned_date'),
   completedAt: timestamp('completed_at'),
   createdAt: timestamp('created_at').defaultNow()
@@ -313,13 +342,19 @@ export const telegramNotifications = pgTable('telegram_notifications', {
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   orders: many(orders),
+  products: many(products), // товары под ответственностью пользователя
   messages: many(orderMessages),
   productions: many(productionQueue),
   notifications: many(telegramNotifications),
   stockMovements: many(stockMovements),
-  suggestedTasks: many(productionTasks),
-  approvedTasks: many(productionTasks), 
-  completedTasks: many(productionTasks)
+  userPermissions: many(userPermissions),
+  tasksSuggested: many(productionTasks, { relationName: 'tasksSuggested' }),
+  tasksAssigned: many(productionTasks, { relationName: 'tasksAssigned' }),
+  tasksApproved: many(productionTasks, { relationName: 'tasksApproved' }),
+  tasksStarted: many(productionTasks, { relationName: 'tasksStarted' }),
+  tasksCompleted: many(productionTasks, { relationName: 'tasksCompleted' }),
+  cuttingOperator: many(cuttingOperations, { relationName: 'cuttingOperator' }),
+  cuttingAssigned: many(cuttingOperations, { relationName: 'cuttingAssigned' })
 }));
 
 export const categoriesRelations = relations(categories, ({ one, many }) => ({
@@ -342,6 +377,7 @@ export const productMaterialsRelations = relations(productMaterials, ({ many }) 
 
 export const productsRelations = relations(products, ({ one, many }) => ({
   category: one(categories, { fields: [products.categoryId], references: [categories.id] }),
+  manager: one(users, { fields: [products.managerId], references: [users.id] }),
   surface: one(productSurfaces, { fields: [products.surfaceId], references: [productSurfaces.id] }),
   logo: one(productLogos, { fields: [products.logoId], references: [productLogos.id] }),
   material: one(productMaterials, { fields: [products.materialId], references: [productMaterials.id] }),
@@ -350,7 +386,9 @@ export const productsRelations = relations(products, ({ one, many }) => ({
   stockMovements: many(stockMovements),
   productionQueue: many(productionQueue),
   productionTasks: many(productionTasks),
-  productionTaskExtras: many(productionTaskExtras)
+  productionTaskExtras: many(productionTaskExtras),
+  sourceCuttingOperations: many(cuttingOperations, { relationName: 'sourceCuttingOperations' }),
+  targetCuttingOperations: many(cuttingOperations, { relationName: 'targetCuttingOperations' })
 }));
 
 export const ordersRelations = relations(orders, ({ one, many }) => ({
@@ -390,13 +428,50 @@ export const productionQueueRelations = relations(productionQueue, ({ one }) => 
 export const productionTasksRelations = relations(productionTasks, ({ one, many }) => ({
   order: one(orders, { fields: [productionTasks.orderId], references: [orders.id] }),
   product: one(products, { fields: [productionTasks.productId], references: [products.id] }),
-  suggestedByUser: one(users, { fields: [productionTasks.suggestedBy], references: [users.id] }),
-  approvedByUser: one(users, { fields: [productionTasks.approvedBy], references: [users.id] }),
-  completedByUser: one(users, { fields: [productionTasks.completedBy], references: [users.id] }),
+  suggestedByUser: one(users, { fields: [productionTasks.suggestedBy], references: [users.id], relationName: 'tasksSuggested' }),
+  assignedToUser: one(users, { fields: [productionTasks.assignedTo], references: [users.id], relationName: 'tasksAssigned' }),
+  approvedByUser: one(users, { fields: [productionTasks.approvedBy], references: [users.id], relationName: 'tasksApproved' }),
+  startedByUser: one(users, { fields: [productionTasks.startedBy], references: [users.id], relationName: 'tasksStarted' }),
+  completedByUser: one(users, { fields: [productionTasks.completedBy], references: [users.id], relationName: 'tasksCompleted' }),
   extras: many(productionTaskExtras)
 }));
 
 export const productionTaskExtrasRelations = relations(productionTaskExtras, ({ one }) => ({
   task: one(productionTasks, { fields: [productionTaskExtras.taskId], references: [productionTasks.id] }),
   product: one(products, { fields: [productionTaskExtras.productId], references: [products.id] })
-})); 
+}));
+
+// Relations для операций резки
+export const cuttingOperationsRelations = relations(cuttingOperations, ({ one }) => ({
+  sourceProduct: one(products, { fields: [cuttingOperations.sourceProductId], references: [products.id], relationName: 'sourceCuttingOperations' }),
+  targetProduct: one(products, { fields: [cuttingOperations.targetProductId], references: [products.id], relationName: 'targetCuttingOperations' }),
+  operator: one(users, { fields: [cuttingOperations.operatorId], references: [users.id], relationName: 'cuttingOperator' }),
+  assignedToUser: one(users, { fields: [cuttingOperations.assignedTo], references: [users.id], relationName: 'cuttingAssigned' })
+}));
+
+// Relations для отгрузок
+export const shipmentsRelations = relations(shipments, ({ one, many }) => ({
+  order: one(orders, { fields: [shipments.orderId], references: [orders.id] }),
+  createdByUser: one(users, { fields: [shipments.createdBy], references: [users.id] }),
+  items: many(shipmentItems)
+}));
+
+export const shipmentItemsRelations = relations(shipmentItems, ({ one }) => ({
+  shipment: one(shipments, { fields: [shipmentItems.shipmentId], references: [shipments.id] }),
+  product: one(products, { fields: [shipmentItems.productId], references: [products.id] })
+}));
+
+// Relations для системы разрешений
+export const permissionsRelations = relations(permissions, ({ many }) => ({
+  rolePermissions: many(rolePermissions),
+  userPermissions: many(userPermissions)
+}));
+
+export const rolePermissionsRelations = relations(rolePermissions, ({ one }) => ({
+  permission: one(permissions, { fields: [rolePermissions.permissionId], references: [permissions.id] })
+}));
+
+export const userPermissionsRelations = relations(userPermissions, ({ one }) => ({
+  user: one(users, { fields: [userPermissions.userId], references: [users.id] }),
+  permission: one(permissions, { fields: [userPermissions.permissionId], references: [permissions.id] })
+}));

@@ -336,7 +336,7 @@ export async function syncReservationsWithOrders(userId: number): Promise<{ sync
       })
       .from(schema.orderItems)
       .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
-      .where(sql`${schema.orders.status} NOT IN ('shipped', 'delivered', 'cancelled')`)
+      .where(sql`${schema.orders.status} IN ('new', 'confirmed', 'in_production')`)
       .groupBy(schema.orderItems.productId);
 
     // Получаем текущие резервы в stock

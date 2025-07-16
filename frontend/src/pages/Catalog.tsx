@@ -106,8 +106,8 @@ const Catalog: React.FC = () => {
     try {
       // Загружаем категории и товары параллельно
       const [categoriesResponse, productsResponse] = await Promise.all([
-        catalogApi.getCategories(token),
-        catalogApi.getProducts({ page: 1, limit: 100 }, token)
+        catalogApi.getCategories(),
+        catalogApi.getProducts({ page: 1, limit: 100 })
       ]);
 
       if (categoriesResponse.success) {
@@ -314,7 +314,7 @@ const Catalog: React.FC = () => {
       okType: 'danger',
       onOk: async () => {
         try {
-          const response = await catalogApi.deleteProduct(product.id, token!);
+          const response = await catalogApi.deleteProduct(product.id);
           if (response.success) {
             message.success('Товар успешно удален');
             loadData(); // Перезагружаем данные
@@ -701,11 +701,7 @@ const Catalog: React.FC = () => {
                         >
                           Детали
                         </Button>
-                        {(user?.role === 'manager' || user?.role === 'director') && (
-                          <Button size="small" type="primary">
-                            Заказать
-                          </Button>
-                        )}
+
                         {canEdit && (
                           <Button 
                             size="small" 

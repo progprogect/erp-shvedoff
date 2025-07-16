@@ -47,7 +47,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
         notes: values.notes || null
       };
 
-      const response = await catalogApi.createProduct(productData, token);
+      const response = await catalogApi.createProduct(productData);
       
       if (response.success) {
         message.success('Товар успешно создан');

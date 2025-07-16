@@ -47,7 +47,7 @@ const Orders: React.FC = () => {
       if (priorityFilter !== 'all') filters.priority = priorityFilter;
       if (managerFilter !== 'all') filters.managerId = Number(managerFilter);
 
-      const response = await ordersApi.getOrders(filters, token);
+      const response = await ordersApi.getOrders(filters);
       
       if (response.success) {
         setOrders(response.data);
@@ -117,8 +117,7 @@ const Orders: React.FC = () => {
       const response = await ordersApi.updateOrderStatus(
         selectedOrder.id,
         values.status,
-        values.comment,
-        token
+        values.comment
       );
 
       if (response.success) {
@@ -156,7 +155,7 @@ const Orders: React.FC = () => {
       cancelText: 'Отмена',
       onOk: async () => {
         try {
-          const response = await ordersApi.deleteOrder(order.id, token);
+          const response = await ordersApi.deleteOrder(order.id);
           
           if (response.success) {
             message.success('Заказ успешно удален');

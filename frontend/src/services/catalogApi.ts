@@ -18,6 +18,7 @@ export interface Product {
   name: string;
   article?: string;
   categoryId: number;
+  managerId?: number;
   surfaceId?: number;
   logoId?: number;
   materialId?: number;
@@ -40,6 +41,12 @@ export interface Product {
   updatedAt: string;
   categoryName?: string;
   categoryPath?: string;
+  manager?: {
+    id: number;
+    fullName?: string;
+    username: string;
+    role: string;
+  };
   surfaceName?: string;
   logoName?: string;
   materialName?: string;
@@ -93,7 +100,8 @@ export interface CategoryDeleteResult {
 }
 
 class CatalogApi {
-  private getAuthHeaders(token: string) {
+  private getAuthHeaders() {
+    const token = localStorage.getItem('token');
     return {
       headers: {
         Authorization: `Bearer ${token}`
@@ -101,15 +109,15 @@ class CatalogApi {
     };
   }
 
-  async getCategories(token: string): Promise<ApiResponse<Category[]>> {
+  async getCategories(): Promise<ApiResponse<Category[]>> {
     const response = await axios.get(
       `${API_BASE_URL}/categories`,
-      this.getAuthHeaders(token)
+      this.getAuthHeaders()
     );
     return response.data;
   }
 
-  async getProducts(filters: ProductFilters & { page?: number; limit?: number }, token: string): Promise<ApiResponse<Product[]>> {
+  async getProducts(filters: ProductFilters & { page?: number; limit?: number }): Promise<ApiResponse<Product[]>> {
     const params = new URLSearchParams();
     
     if (filters.search) {
@@ -130,75 +138,82 @@ class CatalogApi {
 
     const response = await axios.get(
       `${API_BASE_URL}/products?${params.toString()}`,
-      this.getAuthHeaders(token)
+      this.getAuthHeaders()
     );
     return response.data;
   }
 
-  async getProduct(id: number, token: string): Promise<ApiResponse<Product>> {
+  async getProduct(id: number): Promise<ApiResponse<Product>> {
     const response = await axios.get(
       `${API_BASE_URL}/products/${id}`,
-      this.getAuthHeaders(token)
+      this.getAuthHeaders()
     );
     return response.data;
   }
 
-  async createProduct(productData: Partial<Product>, token: string): Promise<ApiResponse<Product>> {
+  async getUsers(): Promise<ApiResponse<{ id: number; fullName?: string; username: string; role: string }[]>> {
+    const response = await axios.get(`${API_BASE_URL}/users/list`, 
+      this.getAuthHeaders()
+    );
+    return response.data;
+  }
+
+  async createProduct(productData: Partial<Product>): Promise<ApiResponse<Product>> {
     const response = await axios.post(
       `${API_BASE_URL}/products`,
       productData,
-      this.getAuthHeaders(token)
+      this.getAuthHeaders()
     );
     return response.data;
   }
 
-  async updateProduct(id: number, productData: Partial<Product>, token: string): Promise<ApiResponse<Product>> {
+  async updateProduct(id: number, productData: Partial<Product>): Promise<ApiResponse<Product>> {
     const response = await axios.put(
       `${API_BASE_URL}/products/${id}`,
       productData,
-      this.getAuthHeaders(token)
+      this.getAuthHeaders()
     );
     return response.data;
   }
 
-  async deleteProduct(id: number, token: string): Promise<ApiResponse<void>> {
+  async deleteProduct(id: number): Promise<ApiResponse<void>> {
     const response = await axios.delete(
       `${API_BASE_URL}/products/${id}`,
-      this.getAuthHeaders(token)
+      this.getAuthHeaders()
     );
     return response.data;
   }
 
-  async createCategory(categoryData: { name: string; parentId?: number; description?: string }, token: string): Promise<ApiResponse<Category>> {
+  async createCategory(categoryData: { name: string; parentId?: number; description?: string }): Promise<ApiResponse<Category>> {
     const response = await axios.post(
       `${API_BASE_URL}/categories`,
       categoryData,
-      this.getAuthHeaders(token)
+      this.getAuthHeaders()
     );
     return response.data;
   }
 
-  async deleteCategory(id: number, token: string): Promise<ApiResponse<void>> {
+  async deleteCategory(id: number): Promise<ApiResponse<void>> {
     const response = await axios.delete(
       `${API_BASE_URL}/categories/${id}`,
-      this.getAuthHeaders(token)
+      this.getAuthHeaders()
     );
     return response.data;
   }
 
-  async deleteCategoryWithAction(id: number, options: CategoryDeleteOptions, token: string): Promise<CategoryDeleteResult> {
+  async deleteCategoryWithAction(id: number, options: CategoryDeleteOptions): Promise<CategoryDeleteResult> {
     const response = await axios.post(
       `${API_BASE_URL}/categories/${id}/delete-with-action`,
       options,
-      this.getAuthHeaders(token)
+      this.getAuthHeaders()
     );
     return response.data;
   }
 
-  async getCategoryDetails(id: number, token: string): Promise<ApiResponse<Category & { productsCount: number }>> {
+  async getCategoryDetails(id: number): Promise<ApiResponse<Category & { productsCount: number }>> {
     const response = await axios.get(
       `${API_BASE_URL}/categories/${id}`,
-      this.getAuthHeaders(token)
+      this.getAuthHeaders()
     );
     return response.data;
   }

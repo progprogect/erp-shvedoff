@@ -6,12 +6,15 @@ import {
   InboxOutlined,
   ShoppingCartOutlined,
   ToolOutlined,
+  ScissorOutlined,
   TruckOutlined,
   UserOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   BellOutlined,
+  UsergroupAddOutlined,
+  SafetyOutlined,
   HistoryOutlined
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -39,14 +42,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const getMenuItems = () => {
     const baseItems = [
       {
-        key: '/dashboard',
-        icon: <DashboardOutlined />,
-        label: 'Дашборд',
-      }
-    ];
-
-    const allRolesItems = [
-      {
         key: '/catalog',
         icon: <AppstoreOutlined />,
         label: 'Каталог товаров',
@@ -57,6 +52,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         label: 'Остатки на складе',
       }
     ];
+
+
 
     const managerDirectorItems = [
       {
@@ -71,10 +68,15 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         key: '/production',
         icon: <ToolOutlined />,
         label: 'Производство',
+      },
+      {
+        key: '/cutting',
+        icon: <ScissorOutlined />,
+        label: 'Операции резки',
       }
     ];
 
-    const warehouseItems = [
+    const logisticsItems = [
       {
         key: '/shipments',
         icon: <TruckOutlined />,
@@ -84,13 +86,23 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
 
     const directorItems = [
       {
+        key: '/users',
+        icon: <UsergroupAddOutlined />,
+        label: 'Управление пользователями',
+      },
+      {
+        key: '/permissions',
+        icon: <SafetyOutlined />,
+        label: 'Разрешения',
+      },
+      {
         key: '/audit',
         icon: <HistoryOutlined />,
         label: 'История изменений',
       }
     ];
 
-    let menuItems = [...baseItems, ...allRolesItems];
+    let menuItems = [...baseItems];
 
     if (user?.role === 'manager' || user?.role === 'director') {
       menuItems = [...menuItems, ...managerDirectorItems];
@@ -100,9 +112,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       menuItems = [...menuItems, ...productionItems];
     }
 
-    if (user?.role === 'warehouse' || user?.role === 'director') {
-      menuItems = [...menuItems, ...warehouseItems];
-    }
+    // Отгрузки доступны всем ролям
+    menuItems = [...menuItems, ...logisticsItems];
 
     if (user?.role === 'director') {
       menuItems = [...menuItems, ...directorItems];

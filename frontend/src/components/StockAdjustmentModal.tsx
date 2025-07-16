@@ -112,7 +112,7 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
         } : {})
       };
 
-      const response = await stockApi.adjustStock(requestData, token);
+      const response = await stockApi.adjustStock(requestData);
 
       if (response.success) {
         message.success(`Остаток успешно скорректирован. ${response.message}`);

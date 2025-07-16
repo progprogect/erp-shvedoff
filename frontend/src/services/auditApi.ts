@@ -49,14 +49,15 @@ export interface ApiResponse<T> {
 }
 
 class AuditApiService {
-  private getAuthHeaders(token: string) {
+  private getAuthHeaders() {
+    const token = localStorage.getItem('token');
     return {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json'
     };
   }
 
-  async getAuditLogs(filters: AuditFilters = {}, token: string): Promise<ApiResponse<AuditLog[]>> {
+  async getAuditLogs(filters: AuditFilters = {}): Promise<ApiResponse<AuditLog[]>> {
     try {
       const params = new URLSearchParams();
       
@@ -70,7 +71,7 @@ class AuditApiService {
       if (filters.limit) params.append('limit', filters.limit.toString());
 
       const response = await axios.get(`${API_BASE_URL}/audit?${params}`, {
-        headers: this.getAuthHeaders(token)
+        headers: this.getAuthHeaders()
       });
 
       return response.data;
@@ -84,10 +85,10 @@ class AuditApiService {
     }
   }
 
-  async getAuditStats(token: string): Promise<ApiResponse<AuditStats>> {
+  async getAuditStats(): Promise<ApiResponse<AuditStats>> {
     try {
       const response = await axios.get(`${API_BASE_URL}/audit/stats`, {
-        headers: this.getAuthHeaders(token)
+        headers: this.getAuthHeaders()
       });
 
       return response.data;

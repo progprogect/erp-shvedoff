@@ -47,7 +47,7 @@ const AuditHistory: React.FC = () => {
     
     setLoading(true);
     try {
-      const response = await auditApi.getAuditLogs(filters, token);
+      const response = await auditApi.getAuditLogs(filters);
       if (response.success) {
         setLogs(response.data);
         setPagination(prev => ({
@@ -70,7 +70,7 @@ const AuditHistory: React.FC = () => {
     if (!token) return;
     
     try {
-      const response = await auditApi.getAuditStats(token);
+      const response = await auditApi.getAuditStats();
       if (response.success) {
         setStats(response.data);
       }

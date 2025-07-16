@@ -8,54 +8,28 @@ const router = express.Router();
 
 // Helper function to calculate production quantity for a single product
 async function getProductionQuantity(productId: number): Promise<number> {
-  // 1. Товары в заказах со статусом производства
-  const inProductionResult = await db
+  // Получаем количество из подтвержденных и активных производственных заданий
+  const productionTasksResult = await db
     .select({
-      quantity: sql<number>`SUM(${schema.orderItems.quantity})`.as('quantity')
+      quantity: sql<number>`
+        COALESCE(SUM(
+          CASE 
+            WHEN ${schema.productionTasks.status} IN ('approved', 'in_progress') 
+            THEN COALESCE(${schema.productionTasks.approvedQuantity}, ${schema.productionTasks.requestedQuantity})
+            ELSE 0
+          END
+        ), 0)
+      `.as('quantity')
     })
-    .from(schema.orderItems)
-    .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
+    .from(schema.productionTasks)
     .where(
       and(
-        eq(schema.orders.status, 'in_production'),
-        eq(schema.orderItems.productId, productId)
+        eq(schema.productionTasks.productId, productId),
+        inArray(schema.productionTasks.status, ['approved', 'in_progress'])
       )
     );
 
-  // 2. Недостающие товары в заказах (quantity > reservedQuantity)
-  const shortageResult = await db
-    .select({
-      quantity: sql<number>`SUM(${schema.orderItems.quantity} - COALESCE(${schema.orderItems.reservedQuantity}, 0))`.as('quantity')
-    })
-    .from(schema.orderItems)
-    .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
-    .where(
-      and(
-        inArray(schema.orders.status, ['new', 'confirmed', 'in_production']),
-        sql`${schema.orderItems.quantity} > COALESCE(${schema.orderItems.reservedQuantity}, 0)`,
-        eq(schema.orderItems.productId, productId)
-      )
-    );
-
-  // 3. Товары в очереди производства
-  const queueResult = await db
-    .select({
-      quantity: sql<number>`SUM(${schema.productionQueue.quantity})`.as('quantity')
-    })
-    .from(schema.productionQueue)
-    .where(
-      and(
-        inArray(schema.productionQueue.status, ['queued', 'in_progress']),
-        eq(schema.productionQueue.productId, productId)
-      )
-    );
-
-  // Суммируем все количества
-  const inProduction = inProductionResult[0]?.quantity || 0;
-  const shortage = Math.max(0, shortageResult[0]?.quantity || 0);
-  const inQueue = queueResult[0]?.quantity || 0;
-
-  return inProduction + shortage + inQueue;
+  return productionTasksResult[0]?.quantity || 0;
 }
 
 // GET /api/products - получить все товары с фильтрацией и поиском

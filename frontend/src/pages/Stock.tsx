@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Card, Typography, Button, Space, Tag, Input, Select, Row, Col, Statistic, message, Spin, Divider } from 'antd';
-import { SearchOutlined, InboxOutlined, EditOutlined, HistoryOutlined, ReloadOutlined, FilterOutlined } from '@ant-design/icons';
+import { SearchOutlined, InboxOutlined, EditOutlined, HistoryOutlined, ReloadOutlined, FilterOutlined, SettingOutlined, SyncOutlined, ToolOutlined } from '@ant-design/icons';
 import { useAuthStore } from '../stores/authStore';
 import { stockApi, StockItem, StockFilters } from '../services/stockApi';
 import StockAdjustmentModal from '../components/StockAdjustmentModal';
@@ -75,7 +75,7 @@ const Stock: React.FC = () => {
         search: searchText.trim() || undefined
       };
 
-      const response = await stockApi.getStock(filters, token);
+      const response = await stockApi.getStock(filters);
       
       if (response.success) {
         setStockData(response.data);
@@ -111,6 +111,67 @@ const Stock: React.FC = () => {
     if (available === 0) return { color: 'volcano', text: '❌ Нет в наличии' };
     if (available < norm * 0.5) return { color: 'orange', text: '⚠️ Мало' };
     return { color: 'green', text: '✅ В наличии' };
+  };
+
+  // Обработчики управления системой
+  const handleFixIntegrity = async () => {
+    if (!token) return;
+    
+    try {
+      setLoading(true);
+      const response = await stockApi.fixIntegrity();
+      if (response.success) {
+        message.success('Проверка целостности данных завершена успешно');
+        loadStockData(); // Перезагружаем данные
+      } else {
+        message.error('Ошибка проверки целостности данных');
+      }
+    } catch (error) {
+      console.error('Error fixing integrity:', error);
+      message.error('Ошибка проверки целостности данных');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRecalculateNeeds = async () => {
+    if (!token) return;
+    
+    try {
+      setLoading(true);
+      const response = await stockApi.recalculateNeeds();
+      if (response.success) {
+        message.success(`Пересчет завершен: создано ${response.data.created}, обновлено ${response.data.updated}, отменено ${response.data.cancelled}`);
+        loadStockData(); // Перезагружаем данные
+      } else {
+        message.error('Ошибка пересчета производственных потребностей');
+      }
+    } catch (error) {
+      console.error('Error recalculating needs:', error);
+      message.error('Ошибка пересчета производственных потребностей');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSyncProduction = async () => {
+    if (!token) return;
+    
+    try {
+      setLoading(true);
+      const response = await stockApi.syncProduction();
+      if (response.success) {
+        message.success(`Синхронизация завершена: создано ${response.data.migrated} заданий`);
+        loadStockData(); // Перезагружаем данные
+      } else {
+        message.error('Ошибка синхронизации производства');
+      }
+    } catch (error) {
+      console.error('Error syncing production:', error);
+      message.error('Ошибка синхронизации производства');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleStockAdjustment = (record: StockItem) => {
@@ -323,17 +384,7 @@ const Stock: React.FC = () => {
             📦 Учет остатков
           </Title>
         </Col>
-        <Col>
-          <Button 
-            type="primary"
-            icon={<ReloadOutlined />} 
-            onClick={loadStockData}
-            loading={loading}
-            size="large"
-          >
-            Обновить
-          </Button>
-        </Col>
+
       </Row>
 
       {/* Статистика */}
@@ -435,6 +486,22 @@ const Stock: React.FC = () => {
         </Row>
         
         <Divider />
+        
+        {/* Поиск */}
+        <div style={{ marginBottom: '16px' }}>
+          <Row gutter={16} align="middle">
+            <Col xs={24} md={12} lg={8}>
+              <Search
+                placeholder="Поиск по названию или артикулу..."
+                allowClear
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                size="large"
+                style={{ width: '100%' }}
+              />
+            </Col>
+          </Row>
+        </div>
         
         {/* Быстрые фильтры */}
         <div style={{ marginBottom: '8px' }}>
