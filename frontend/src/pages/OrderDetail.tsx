@@ -229,9 +229,9 @@ const OrderDetail: React.FC = () => {
       product: {
         ...product,
         stock: {
-          currentStock: (product as any).currentStock || 0,
-          reservedStock: (product as any).reservedStock || 0,
-          availableStock: ((product as any).currentStock || 0) - ((product as any).reservedStock || 0),
+          currentStock: product.stock?.currentStock || 0,
+          reservedStock: product.stock?.reservedStock || 0,
+          availableStock: (product.stock?.currentStock || 0) - (product.stock?.reservedStock || 0),
           inProductionQuantity: 0
         }
       }
@@ -260,8 +260,8 @@ const OrderDetail: React.FC = () => {
   // Check if order can be edited
   const canEditOrder = () => {
     if (!order) return false;
-    // Can't edit shipped, delivered, or cancelled orders
-    const nonEditableStatuses = ['shipped', 'delivered', 'cancelled'];
+            // Can't edit completed or cancelled orders
+        const nonEditableStatuses = ['completed', 'cancelled'];
     return !nonEditableStatuses.includes(order.status);
   };
 
@@ -309,8 +309,7 @@ const OrderDetail: React.FC = () => {
       confirmed: { color: 'cyan', text: 'Подтверждён', icon: <CheckCircleOutlined /> },
       in_production: { color: 'orange', text: 'В производстве', icon: <ExclamationCircleOutlined /> },
       ready: { color: 'green', text: 'Готов', icon: <CheckCircleOutlined /> },
-      shipped: { color: 'purple', text: 'Отгружен', icon: <CheckCircleOutlined /> },
-      delivered: { color: 'success', text: 'Доставлен', icon: <CheckCircleOutlined /> },
+              completed: { color: 'success', text: 'Выполнен', icon: <CheckCircleOutlined /> },
       cancelled: { color: 'red', text: 'Отменён', icon: <ExclamationCircleOutlined /> }
     };
     return statusMap[status as keyof typeof statusMap] || { color: 'default', text: status, icon: <ClockCircleOutlined /> };
@@ -804,8 +803,7 @@ const OrderDetail: React.FC = () => {
               <Option value="confirmed">Подтверждён</Option>
               <Option value="in_production">В производстве</Option>
               <Option value="ready">Готов</Option>
-              <Option value="shipped">Отгружен</Option>
-              <Option value="delivered">Доставлен</Option>
+                              <Option value="completed">Выполнен</Option>
               <Option value="cancelled">Отменён</Option>
             </Select>
           </Form.Item>

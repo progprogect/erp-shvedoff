@@ -125,8 +125,7 @@ router.get('/', authenticateToken, async (req, res, next) => {
       confirmed: 0,
       in_production: 0,
       ready: 0,
-      shipped: 0,
-      delivered: 0,
+      completed: 0,
       total: 0,
       totalAmount: 0
     };
@@ -196,7 +195,7 @@ router.get('/quick-stats', authenticateToken, async (req, res, next) => {
   try {
     const [quickStats] = await db.select({
       activeOrders: sql<number>`count(*) filter (where status in ('new', 'confirmed', 'in_production', 'ready'))::int`,
-      urgentOrders: sql<number>`count(*) filter (where priority in ('high', 'urgent') and status not in ('delivered', 'cancelled'))::int`,
+      urgentOrders: sql<number>`count(*) filter (where priority in ('high', 'urgent') and status not in ('completed', 'cancelled'))::int`,
       criticalStock: sql<number>`(select count(*) from stock s join products p on s.product_id = p.id where p.is_active = true and (s.current_stock - s.reserved_stock) <= 0)::int`,
       lowStock: sql<number>`(select count(*) from stock s join products p on s.product_id = p.id where p.is_active = true and (s.current_stock - s.reserved_stock) <= COALESCE(p.norm_stock, 0) and (s.current_stock - s.reserved_stock) > 0)::int`
     })

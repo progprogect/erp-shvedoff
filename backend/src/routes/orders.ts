@@ -192,7 +192,7 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
 
       let whereConditions = [
         inArray(schema.orderItems.productId, validProductIds),
-        inArray(schema.orders.status, ['new', 'confirmed', 'in_production', 'shipped'])
+        inArray(schema.orders.status, ['new', 'confirmed', 'in_production', 'completed'])
       ];
 
       // Исключаем текущий заказ из расчета резерва
@@ -314,7 +314,8 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
     // Generate order number
     const orderCountResult = await db.select({ count: sql`count(*)` }).from(schema.orders);
     const orderCount = Number(orderCountResult[0]?.count || 0);
-    const orderNumber = `ORD-${Date.now()}-${orderCount + 1}`;
+    const currentYear = new Date().getFullYear();
+    const orderNumber = `ORD-${currentYear}-${String(orderCount + 1).padStart(3, '0')}`;
 
     // Calculate total amount
     let totalAmount = 0;
@@ -516,7 +517,7 @@ router.put('/:id', authenticateToken, authorizeRoles('manager', 'director'), asy
     }
 
     // Check if order can be edited
-    const nonEditableStatuses = ['shipped', 'delivered', 'cancelled'];
+    const nonEditableStatuses = ['completed', 'cancelled'];
     if (existingOrder.status && nonEditableStatuses.includes(existingOrder.status)) {
       return next(createError('Order cannot be edited in current status', 400));
     }
@@ -831,8 +832,8 @@ router.put('/:id/status', authenticateToken, async (req: AuthRequest, res, next)
     }
 
     // Handle reservation release for completed/cancelled orders
-    const statusesRequiringReservationRelease = ['shipped', 'delivered', 'cancelled'];
-    const statusesRequiringStockReduction = ['shipped', 'delivered'];
+    const statusesRequiringReservationRelease = ['completed', 'cancelled'];
+    const statusesRequiringStockReduction = ['completed'];
     
     if (statusesRequiringReservationRelease.includes(status) && existingOrder.status !== status) {
       const orderItems = existingOrder.items || [];
@@ -842,7 +843,7 @@ router.put('/:id/status', authenticateToken, async (req: AuthRequest, res, next)
         
         if (reservedQty > 0) {
           if (statusesRequiringStockReduction.includes(status)) {
-            // For shipped/delivered: reduce both reserved and current stock
+            // For completed: reduce both reserved and current stock
             await db.update(schema.stock)
               .set({
                 currentStock: sql`${schema.stock.currentStock} - ${reservedQty}`,
@@ -899,8 +900,7 @@ router.put('/:id/status', authenticateToken, async (req: AuthRequest, res, next)
 
     // Add message about status change
     const statusMessages: Record<string, string> = {
-      'shipped': 'Заказ отгружен',
-      'delivered': 'Заказ доставлен',
+              'completed': 'Заказ выполнен',
       'cancelled': 'Заказ отменен',
       'ready': 'Заказ готов к отгрузке'
     };

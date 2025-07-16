@@ -57,7 +57,7 @@ export async function syncProductionQueueToTasks(): Promise<SyncResult> {
         }
 
         // Конвертируем статус из старой системы в новую
-        let newStatus: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+        let newStatus: 'pending' | 'in_progress' | 'paused' | 'completed' | 'cancelled';
         
         switch (item.status) {
           case 'queued':
@@ -299,7 +299,7 @@ export async function recalculateProductionNeeds(): Promise<{
         status: productionTasks.status
       })
       .from(productionTasks)
-      .where(sql`${productionTasks.status} IN ('pending', 'in_progress')`);
+      .where(sql`${productionTasks.status} IN ('pending', 'in_progress', 'paused')`);
 
     // Группируем задания по заказам для анализа
     const tasksByOrder = activeTasks.reduce((acc, task) => {

@@ -492,6 +492,7 @@ export const CuttingOperations: React.FC = () => {
             <Option value="planned">Запланированные</Option>
             <Option value="approved">Утвержденные</Option>
             <Option value="in_progress">В процессе</Option>
+            <Option value="paused">На паузе</Option>
             <Option value="completed">Завершенные</Option>
             <Option value="cancelled">Отмененные</Option>
           </Select>
@@ -532,7 +533,7 @@ export const CuttingOperations: React.FC = () => {
         }}
         onOk={() => createForm.submit()}
         confirmLoading={actionLoading}
-        width={600}
+        width={1000}
       >
         <Form
           form={createForm}
@@ -547,28 +548,67 @@ export const CuttingOperations: React.FC = () => {
             <Select
               showSearch
               placeholder="Выберите товар для резки"
-              optionFilterProp="children"
+              optionFilterProp="label"
               filterOption={(input, option) =>
-                (option?.children?.toString().toLowerCase().includes(input.toLowerCase())) ?? false
+                (option?.label?.toString().toLowerCase().includes(input.toLowerCase())) ?? false
               }
+              style={{ width: '100%' }}
+              size="large"
+              dropdownStyle={{ maxHeight: 400, overflowY: 'auto' }}
             >
               {products.map(product => {
                 const available = getAvailableStock(product);
+                const isDisabled = available <= 0;
+                const label = product.name;
+                
                 return (
-                  <Option key={product.id} value={product.id} disabled={available <= 0}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                      <div style={{ fontWeight: 'bold', fontSize: '14px' }}>
+                  <Option 
+                    key={product.id} 
+                    value={product.id} 
+                    disabled={isDisabled}
+                    label={label}
+                  >
+                    <div style={{ 
+                      padding: '8px 0',
+                      opacity: isDisabled ? 0.5 : 1 
+                    }}>
+                      <div style={{ 
+                        fontWeight: '500',
+                        fontSize: '14px',
+                        lineHeight: '1.4',
+                        marginBottom: '4px',
+                        wordBreak: 'break-word'
+                      }}>
                         {product.name}
                       </div>
-                      <div style={{ fontSize: '12px', color: '#666' }}>
-                        {product.article ? `Артикул: ${product.article}` : 'Без артикула'}
-                        {' • '}
-                        <span style={{ color: available <= 0 ? '#ff4d4f' : '#52c41a' }}>
-                          Доступно: {available} шт.
+                      <div style={{ 
+                        fontSize: '12px',
+                        color: '#666',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '8px'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {product.article && (
+                            <span style={{ 
+                              backgroundColor: '#f5f5f5',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontFamily: 'monospace'
+                            }}>
+                              {product.article}
+                            </span>
+                          )}
+                        </div>
+                        <span style={{ 
+                          color: isDisabled ? '#ff4d4f' : '#52c41a',
+                          fontWeight: '600',
+                          fontSize: '12px'
+                        }}>
+                          {available > 0 ? `✅ ${available} шт.` : '❌ Нет в наличии'}
                         </span>
-                        {available <= 0 && (
-                          <span style={{ color: '#ff4d4f' }}> (недостаточно товара)</span>
-                        )}
                       </div>
                     </div>
                   </Option>
@@ -585,23 +625,53 @@ export const CuttingOperations: React.FC = () => {
             <Select
               showSearch
               placeholder="Выберите товар для получения"
-              optionFilterProp="children"
+              optionFilterProp="label"
               filterOption={(input, option) =>
-                (option?.children?.toString().toLowerCase().includes(input.toLowerCase())) ?? false
+                (option?.label?.toString().toLowerCase().includes(input.toLowerCase())) ?? false
               }
+              style={{ width: '100%' }}
+              size="large"
+              dropdownStyle={{ maxHeight: 400, overflowY: 'auto' }}
             >
-              {getAvailableTargetProducts(createForm.getFieldValue('sourceProductId')).map(product => (
-                <Option key={product.id} value={product.id}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <div style={{ fontWeight: 'bold', fontSize: '14px' }}>
-                      {product.name}
+              {getAvailableTargetProducts(createForm.getFieldValue('sourceProductId')).map(product => {
+                const label = product.name;
+                
+                return (
+                  <Option 
+                    key={product.id} 
+                    value={product.id}
+                    label={label}
+                  >
+                    <div style={{ padding: '8px 0' }}>
+                      <div style={{ 
+                        fontWeight: '500',
+                        fontSize: '14px',
+                        lineHeight: '1.4',
+                        marginBottom: '4px',
+                        wordBreak: 'break-word'
+                      }}>
+                        {product.name}
+                      </div>
+                      {product.article && (
+                        <div style={{ 
+                          fontSize: '12px',
+                          color: '#666'
+                        }}>
+                          <span style={{ 
+                            backgroundColor: '#f5f5f5',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            fontFamily: 'monospace'
+                          }}>
+                            {product.article}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                    <div style={{ fontSize: '12px', color: '#666' }}>
-                      {product.article ? `Артикул: ${product.article}` : 'Без артикула'}
-                    </div>
-                  </div>
-                </Option>
-              ))}
+                  </Option>
+                );
+              })}
             </Select>
           </Form.Item>
 
@@ -619,6 +689,7 @@ export const CuttingOperations: React.FC = () => {
                   min={1}
                   style={{ width: '100%' }}
                   placeholder="Количество для резки"
+                  size="large"
                 />
               </Form.Item>
             </Col>
@@ -632,6 +703,7 @@ export const CuttingOperations: React.FC = () => {
                   min={1}
                   style={{ width: '100%' }}
                   placeholder="Ожидаемый выход"
+                  size="large"
                 />
               </Form.Item>
             </Col>
@@ -644,6 +716,8 @@ export const CuttingOperations: React.FC = () => {
             <DatePicker 
               style={{ width: '100%' }}
               format="DD.MM.YYYY"
+              placeholder="Выберите дату"
+              size="large"
             />
           </Form.Item>
 
@@ -655,10 +729,15 @@ export const CuttingOperations: React.FC = () => {
             <Select
               placeholder="Выберите исполнителя"
               allowClear
+              size="large"
+              style={{ width: '100%' }}
             >
               {users.map(user => (
                 <Option key={user.id} value={user.id}>
-                  {user.fullName} (@{user.username})
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontWeight: '500' }}>{user.fullName}</span>
+                    <span style={{ color: '#666', fontSize: '12px' }}>@{user.username}</span>
+                  </div>
                 </Option>
               ))}
             </Select>
@@ -669,8 +748,9 @@ export const CuttingOperations: React.FC = () => {
             label="Примечания"
           >
             <TextArea 
-              rows={3} 
+              rows={4} 
               placeholder="Дополнительная информация об операции резки..."
+              style={{ resize: 'vertical' }}
             />
           </Form.Item>
         </Form>
@@ -687,14 +767,26 @@ export const CuttingOperations: React.FC = () => {
         }}
         onOk={() => completeForm.submit()}
         confirmLoading={actionLoading}
-        width={500}
+        width={600}
       >
         {selectedOperation && (
           <>
-            <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#f5f5f5', borderRadius: '6px' }}>
-              <div><strong>Операция:</strong> {selectedOperation.sourceProduct.name} → {selectedOperation.targetProduct.name}</div>
-              <div><strong>Планировалось:</strong> {selectedOperation.targetQuantity} шт.</div>
-              <div><strong>Ожидаемый брак:</strong> {selectedOperation.wasteQuantity} шт.</div>
+            <div style={{ 
+              marginBottom: '24px', 
+              padding: '16px', 
+              backgroundColor: '#f8f9fa', 
+              borderRadius: '8px',
+              border: '1px solid #e9ecef'
+            }}>
+              <div style={{ marginBottom: '8px' }}>
+                <strong>Операция:</strong> {selectedOperation.sourceProduct.name} → {selectedOperation.targetProduct.name}
+              </div>
+              <div style={{ marginBottom: '8px' }}>
+                <strong>Планировалось:</strong> {selectedOperation.targetQuantity} шт.
+              </div>
+              <div>
+                <strong>Ожидаемый брак:</strong> {selectedOperation.wasteQuantity} шт.
+              </div>
             </div>
             
             <Form
@@ -711,6 +803,7 @@ export const CuttingOperations: React.FC = () => {
                   min={0}
                   style={{ width: '100%' }}
                   placeholder="Фактический выход"
+                  size="large"
                 />
               </Form.Item>
 
@@ -722,6 +815,7 @@ export const CuttingOperations: React.FC = () => {
                   min={0}
                   style={{ width: '100%' }}
                   placeholder="Количество брака"
+                  size="large"
                 />
               </Form.Item>
 
@@ -730,8 +824,9 @@ export const CuttingOperations: React.FC = () => {
                 label="Примечания к завершению"
               >
                 <TextArea 
-                  rows={3} 
+                  rows={4} 
                   placeholder="Комментарии о результатах операции..."
+                  style={{ resize: 'vertical' }}
                 />
               </Form.Item>
             </Form>

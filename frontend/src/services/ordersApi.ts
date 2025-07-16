@@ -8,7 +8,7 @@ export interface Order {
   orderNumber: string;
   customerName: string;
   customerContact?: string;
-  status: 'new' | 'confirmed' | 'in_production' | 'ready' | 'shipped' | 'delivered' | 'cancelled';
+  status: 'new' | 'confirmed' | 'in_production' | 'ready' | 'completed' | 'cancelled';
   priority: 'low' | 'normal' | 'high' | 'urgent';
   deliveryDate?: string;
   managerId: number;

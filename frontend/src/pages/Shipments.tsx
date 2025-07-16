@@ -47,7 +47,7 @@ import shipmentsApi, {
   UpdateShipmentStatusRequest,
   UpdateShipmentRequest
 } from '../services/shipmentsApi';
-import { SHIPMENT_STATUS_COLORS } from '../constants/shipmentStatuses';
+import { SHIPMENT_STATUS_COLORS, SHIPMENT_STATUS_LABELS, SHIPMENT_STATUSES } from '../constants/shipmentStatuses';
 import dayjs from 'dayjs';
 
 const { Option } = Select;
@@ -61,18 +61,16 @@ export const Shipments: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   
-  // Модальные окна
+  // Состояния модальных окон
   const [createModalVisible, setCreateModalVisible] = useState(false);
-  const [detailsModalVisible, setDetailsModalVisible] = useState(false);
-  const [statusModalVisible, setStatusModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
+  const [detailsModalVisible, setDetailsModalVisible] = useState(false);
   
   // Данные для модальных окон
   const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null);
   
   // Формы
   const [createForm] = Form.useForm();
-  const [statusForm] = Form.useForm();
   const [editForm] = Form.useForm();
   
   // Фильтры
@@ -84,9 +82,10 @@ export const Shipments: React.FC = () => {
     total: 0,
     todayCount: 0,
     thisMonthCount: 0,
-    plannedCount: 0,
-    shippedCount: 0,
-    deliveredCount: 0
+    pendingCount: 0,
+    completedCount: 0,
+    cancelledCount: 0,
+    pausedCount: 0
   });
 
   // Загрузка данных
@@ -191,8 +190,7 @@ export const Shipments: React.FC = () => {
       await shipmentsApi.updateShipmentStatus(selectedShipment.id, request);
       message.success('Статус отгрузки обновлен');
       
-      setStatusModalVisible(false);
-      statusForm.resetFields();
+      setDetailsModalVisible(false);
       setSelectedShipment(null);
       loadData();
       loadStatistics();
@@ -260,14 +258,25 @@ export const Shipments: React.FC = () => {
     }
   };
 
-  // Открытие модального окна изменения статуса
-  const openStatusModal = (shipment: Shipment) => {
-    setSelectedShipment(shipment);
-    statusForm.setFieldsValue({
-      status: shipment.status,
-      transportInfo: shipment.transportInfo
-    });
-    setStatusModalVisible(true);
+  // Изменение статуса отгрузки напрямую
+  const handleChangeStatus = async (shipmentId: number, newStatus: Shipment['status']) => {
+    try {
+      setActionLoading(true);
+      
+      const request: UpdateShipmentStatusRequest = {
+        status: newStatus
+      };
+      
+      await shipmentsApi.updateShipmentStatus(shipmentId, request);
+      message.success('Статус отгрузки изменен');
+      
+      loadData();
+      loadStatistics();
+    } catch (error: any) {
+      message.error(error.response?.data?.message || 'Ошибка изменения статуса');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   // Открытие модального окна редактирования
@@ -341,10 +350,18 @@ export const Shipments: React.FC = () => {
       key: 'status',
       width: 130,
       render: (status: Shipment['status']) => (
-        <Badge 
-          color={shipmentsApi.getStatusColor(status)} 
-          text={shipmentsApi.getStatusText(status)} 
-        />
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <div 
+            style={{ 
+              width: '8px', 
+              height: '8px', 
+              borderRadius: '50%', 
+              backgroundColor: shipmentsApi.getStatusColor(status),
+              marginRight: '8px'
+            }} 
+          />
+          {shipmentsApi.getStatusText(status)}
+        </div>
       )
     },
     {
@@ -388,7 +405,7 @@ export const Shipments: React.FC = () => {
               />
             </Tooltip>
             
-            {(record.status === 'planned' || record.status === 'loading') && shipmentsApi.canEdit(userRole) && (
+            {(record.status === 'pending' || record.status === 'paused') && shipmentsApi.canEdit(userRole) && (
               <Tooltip title="Редактировать">
                 <Button 
                   type="text" 
@@ -398,18 +415,26 @@ export const Shipments: React.FC = () => {
               </Tooltip>
             )}
             
-            {shipmentsApi.canUpdateStatus(userRole) && record.status !== 'delivered' && record.status !== 'cancelled' && (
-              <Tooltip title="Изменить статус">
-                <Button 
-                  type="text" 
-                  icon={<CheckCircleOutlined />} 
-                  style={{ color: '#52c41a' }}
-                  onClick={() => openStatusModal(record)}
-                />
-              </Tooltip>
+            {shipmentsApi.canUpdateStatus(userRole) && record.status !== 'completed' && record.status !== 'cancelled' && (
+              <Select
+                size="small"
+                value={record.status}
+                style={{ minWidth: 140 }}
+                onChange={(newStatus) => handleChangeStatus(record.id, newStatus as Shipment['status'])}
+                loading={actionLoading}
+              >
+                <Option value={record.status} disabled>
+                  {shipmentsApi.getStatusText(record.status)}
+                </Option>
+                {shipmentsApi.getValidNextStatuses(record.status).map(status => (
+                  <Option key={status} value={status}>
+                    {shipmentsApi.getStatusText(status)}
+                  </Option>
+                ))}
+              </Select>
             )}
             
-            {record.status === 'planned' && shipmentsApi.canCancel(userRole) && (
+            {record.status === 'pending' && shipmentsApi.canCancel(userRole) && (
               <Tooltip title="Отменить">
                 <Popconfirm
                   title="Отменить отгрузку?"
@@ -460,8 +485,8 @@ export const Shipments: React.FC = () => {
         <Col span={4}>
           <Card>
             <Statistic 
-              title="Запланировано" 
-              value={statistics.plannedCount} 
+              title="В очереди" 
+              value={statistics.pendingCount} 
               valueStyle={{ color: '#1890ff' }}
             />
           </Card>
@@ -469,8 +494,8 @@ export const Shipments: React.FC = () => {
         <Col span={4}>
           <Card>
             <Statistic 
-              title="Отгружено" 
-              value={statistics.shippedCount} 
+              title="Выполнено" 
+              value={statistics.completedCount} 
               valueStyle={{ color: '#52c41a' }}
             />
           </Card>
@@ -478,9 +503,9 @@ export const Shipments: React.FC = () => {
         <Col span={4}>
           <Card>
             <Statistic 
-              title="Доставлено" 
-              value={statistics.deliveredCount} 
-              valueStyle={{ color: '#722ed1' }}
+              title="На паузе" 
+              value={statistics.pausedCount} 
+              valueStyle={{ color: '#fa8c16' }}
             />
           </Card>
         </Col>
@@ -518,28 +543,22 @@ export const Shipments: React.FC = () => {
                 Все отгрузки
               </div>
             </Option>
-            <Option value="planned">
+            <Option value="pending">
               <div style={{ display: 'flex', alignItems: 'center' }}>
-                <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: SHIPMENT_STATUS_COLORS.planned, marginRight: '8px' }} />
-                Запланированные
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: SHIPMENT_STATUS_COLORS.pending, marginRight: '8px' }} />
+                В очереди
               </div>
             </Option>
-            <Option value="loading">
+            <Option value="paused">
               <div style={{ display: 'flex', alignItems: 'center' }}>
-                <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: SHIPMENT_STATUS_COLORS.loading, marginRight: '8px' }} />
-                Загрузка
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: SHIPMENT_STATUS_COLORS.paused, marginRight: '8px' }} />
+                На паузе
               </div>
             </Option>
-            <Option value="shipped">
+            <Option value="completed">
               <div style={{ display: 'flex', alignItems: 'center' }}>
-                <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: SHIPMENT_STATUS_COLORS.shipped, marginRight: '8px' }} />
-                Отгруженные
-              </div>
-            </Option>
-            <Option value="delivered">
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: SHIPMENT_STATUS_COLORS.delivered, marginRight: '8px' }} />
-                Доставленные
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: SHIPMENT_STATUS_COLORS.completed, marginRight: '8px' }} />
+                Выполнены
               </div>
             </Option>
             <Option value="cancelled">
@@ -662,97 +681,6 @@ export const Shipments: React.FC = () => {
         </Form>
       </Modal>
 
-      {/* Модальное окно изменения статуса */}
-      <Modal
-        title="Изменить статус отгрузки"
-        open={statusModalVisible}
-        onCancel={() => {
-          setStatusModalVisible(false);
-          statusForm.resetFields();
-          setSelectedShipment(null);
-        }}
-        onOk={() => statusForm.submit()}
-        confirmLoading={actionLoading}
-        width={600}
-      >
-        {selectedShipment && (
-          <>
-            <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#f5f5f5', borderRadius: '6px' }}>
-              <div><strong>Отгрузка:</strong> {selectedShipment.shipmentNumber}</div>
-              <div><strong>Текущий статус:</strong> 
-                <Badge 
-                  color={shipmentsApi.getStatusColor(selectedShipment.status)} 
-                  text={shipmentsApi.getStatusText(selectedShipment.status)}
-                  style={{ marginLeft: '8px' }}
-                />
-              </div>
-            </div>
-            
-            <Form
-              form={statusForm}
-              layout="vertical"
-              onFinish={handleUpdateStatus}
-            >
-              <Form.Item
-                name="status"
-                label="Новый статус"
-                rules={[{ required: true, message: 'Выберите новый статус' }]}
-              >
-                <Select placeholder="Выберите статус">
-                  {shipmentsApi.getValidNextStatuses(selectedShipment.status).map(status => (
-                    <Option key={status} value={status}>
-                      <div style={{ display: 'flex', alignItems: 'center' }}>
-                        <div 
-                          style={{ 
-                            width: '8px', 
-                            height: '8px', 
-                            borderRadius: '50%', 
-                            backgroundColor: shipmentsApi.getStatusColor(status),
-                            marginRight: '8px'
-                          }} 
-                        />
-                        {shipmentsApi.getStatusText(status)}
-                      </div>
-                    </Option>
-                  ))}
-                </Select>
-              </Form.Item>
-
-              <Form.Item
-                name="transportInfo"
-                label="Информация о транспорте"
-              >
-                <TextArea 
-                  rows={3} 
-                  placeholder="Обновите информацию о транспорте..."
-                />
-              </Form.Item>
-
-              {/* Поля для фактических количеств при отгрузке */}
-              {statusForm.getFieldValue('status') === 'shipped' && selectedShipment.items && (
-                <div>
-                  <Divider>Фактические количества</Divider>
-                  {selectedShipment.items.map(item => (
-                    <Form.Item
-                      key={item.id}
-                      name={['actualQuantities', item.id]}
-                      label={`${item.product.name} (планировалось: ${item.plannedQuantity})`}
-                      initialValue={item.plannedQuantity}
-                    >
-                      <InputNumber
-                        min={0}
-                        style={{ width: '100%' }}
-                        placeholder="Фактическое количество"
-                      />
-                    </Form.Item>
-                  ))}
-                </div>
-              )}
-            </Form>
-          </>
-        )}
-      </Modal>
-
       {/* Модальное окно редактирования отгрузки */}
       <Modal
         title="Редактировать отгрузку"
@@ -814,10 +742,18 @@ export const Shipments: React.FC = () => {
             <Descriptions column={2} bordered>
               <Descriptions.Item label="Номер отгрузки">{selectedShipment.shipmentNumber}</Descriptions.Item>
               <Descriptions.Item label="Статус">
-                <Badge 
-                  color={shipmentsApi.getStatusColor(selectedShipment.status)} 
-                  text={shipmentsApi.getStatusText(selectedShipment.status)} 
-                />
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <div 
+                    style={{ 
+                      width: '8px', 
+                      height: '8px', 
+                      borderRadius: '50%', 
+                      backgroundColor: shipmentsApi.getStatusColor(selectedShipment.status),
+                      marginRight: '8px'
+                    }} 
+                  />
+                  {shipmentsApi.getStatusText(selectedShipment.status)}
+                </div>
               </Descriptions.Item>
               <Descriptions.Item label="Плановая дата">
                 {shipmentsApi.formatDate(selectedShipment.plannedDate || '')}

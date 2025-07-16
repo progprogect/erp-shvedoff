@@ -85,8 +85,7 @@ const Orders: React.FC = () => {
       confirmed: { color: 'cyan', text: 'Подтверждён' },
       in_production: { color: 'orange', text: 'В производстве' },
       ready: { color: 'green', text: 'Готов' },
-      shipped: { color: 'purple', text: 'Отгружен' },
-      delivered: { color: 'success', text: 'Доставлен' },
+          completed: { color: 'success', text: 'Выполнен' },
       cancelled: { color: 'red', text: 'Отменён' }
     };
     return statusMap[status as keyof typeof statusMap] || { color: 'default', text: status };
@@ -438,8 +437,7 @@ const Orders: React.FC = () => {
                   <Option value="confirmed">Подтверждённые</Option>
                   <Option value="in_production">В производстве</Option>
                   <Option value="ready">Готовые</Option>
-                  <Option value="shipped">Отгруженные</Option>
-                  <Option value="delivered">Доставленные</Option>
+                              <Option value="completed">Выполненные</Option>
                   <Option value="cancelled">Отменённые</Option>
                 </Select>
               </Col>
@@ -512,8 +510,7 @@ const Orders: React.FC = () => {
               <Option value="confirmed">Подтверждён</Option>
               <Option value="in_production">В производстве</Option>
               <Option value="ready">Готов</Option>
-              <Option value="shipped">Отгружен</Option>
-              <Option value="delivered">Доставлен</Option>
+              <Option value="completed">Выполнен</Option>
               <Option value="cancelled">Отменён</Option>
             </Select>
           </Form.Item>

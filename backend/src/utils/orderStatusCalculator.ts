@@ -3,7 +3,7 @@ import { stock, productionTasks, productionQueue, orderItems, orders } from '../
 import { eq, and, inArray, sql } from 'drizzle-orm';
 
 // Используем существующие статусы из базы данных
-export type OrderStatus = 'new' | 'confirmed' | 'in_production' | 'ready' | 'shipped' | 'delivered' | 'cancelled';
+export type OrderStatus = 'new' | 'confirmed' | 'in_production' | 'ready' | 'completed' | 'cancelled';
 
 export interface OrderItemAvailability {
   product_id: number;
@@ -61,7 +61,7 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
       total_in_production: sql<number>`
         COALESCE(SUM(
           CASE 
-            WHEN ${productionTasks.status} IN ('pending', 'in_progress') 
+            WHEN ${productionTasks.status} IN ('pending', 'in_progress', 'paused') 
             THEN ${productionTasks.requestedQuantity}
             ELSE 0
           END
@@ -72,7 +72,7 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
     .where(
       and(
         inArray(productionTasks.productId, productIds),
-        inArray(productionTasks.status, ['pending', 'in_progress'])
+        inArray(productionTasks.status, ['pending', 'in_progress', 'paused'])
       )
     )
     .groupBy(productionTasks.productId);
@@ -176,7 +176,7 @@ export async function recalculateAllOrderStatuses(): Promise<void> {
   const ordersData = await db
     .select({ id: orders.id })
     .from(orders)
-    .where(sql`${orders.status} NOT IN ('delivered', 'cancelled')`);
+    .where(sql`${orders.status} NOT IN ('completed', 'cancelled')`);
 
   for (const order of ordersData) {
     try {

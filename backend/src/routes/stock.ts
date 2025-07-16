@@ -75,7 +75,7 @@ async function getProductionQuantities(productIds?: number[]) {
         quantity: sql<number>`
           COALESCE(SUM(
             CASE 
-              WHEN ${schema.productionTasks.status} IN ('pending', 'in_progress') 
+              WHEN ${schema.productionTasks.status} IN ('pending', 'in_progress', 'paused') 
               THEN ${schema.productionTasks.requestedQuantity}
               ELSE 0
             END
@@ -85,7 +85,7 @@ async function getProductionQuantities(productIds?: number[]) {
       .from(schema.productionTasks)
       .where(
         and(
-          inArray(schema.productionTasks.status, ['pending', 'in_progress']),
+          inArray(schema.productionTasks.status, ['pending', 'in_progress', 'paused']),
           inArray(schema.productionTasks.productId, productIds)
         )
       )

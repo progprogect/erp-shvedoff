@@ -13,7 +13,7 @@ export interface ProductionTask {
   orderId?: number;
   productId: number;
   requestedQuantity: number;
-  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  status: 'pending' | 'in_progress' | 'paused' | 'completed' | 'cancelled';
   priority: number;
   sortOrder: number;
   createdAt: string;
@@ -295,7 +295,7 @@ export const suggestProductionTasks = async (orderId: number) => {
 // Создать производственное задание
 export const createProductionTask = async (data: CreateProductionTaskRequest): Promise<{ success: boolean; data: ProductionTask; message: string }> => {
   const token = localStorage.getItem('token');
-  const response = await fetch('/api/production/tasks/suggest', {
+  const response = await fetch(`${API_BASE_URL}/production/tasks/suggest`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -327,6 +327,26 @@ export const updateProductionTask = async (taskId: number, data: UpdateProductio
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.message || 'Ошибка обновления задания');
+  }
+
+  return response.json();
+};
+
+// Изменить статус задания
+export const updateTaskStatus = async (taskId: number, status: string): Promise<{ success: boolean; data: ProductionTask; message: string }> => {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}/production/tasks/${taskId}/status`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ status })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Ошибка изменения статуса задания');
   }
 
   return response.json();
@@ -529,7 +549,7 @@ export const productionApi = {
 // Удаление производственного задания
 export const deleteProductionTask = async (taskId: number): Promise<{ success: boolean; message: string }> => {
   const token = localStorage.getItem('token');
-  const response = await fetch(`/api/production/tasks/${taskId}`, {
+  const response = await fetch(`${API_BASE_URL}/production/tasks/${taskId}`, {
     method: 'DELETE',
     headers: {
       'Authorization': `Bearer ${token}`

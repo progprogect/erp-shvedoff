@@ -9,7 +9,7 @@ export interface CuttingOperation {
   sourceQuantity: number;
   targetQuantity: number;
   wasteQuantity: number;
-  status: 'in_progress' | 'completed' | 'cancelled'; // Упрощенные статусы без этапа утверждения
+  status: 'in_progress' | 'paused' | 'completed' | 'cancelled'; // Добавлен статус paused
   operatorId?: number;
   plannedDate?: string;
   completedAt?: string;
@@ -194,6 +194,7 @@ class CuttingApiService {
   getStatusColor(status: CuttingOperation['status']): string {
     const statusColors: Record<CuttingOperation['status'], string> = {
       'in_progress': 'processing',
+      'paused': 'warning',
       'completed': 'success',
       'cancelled': 'error'
     };
@@ -203,6 +204,7 @@ class CuttingApiService {
   getStatusText(status: CuttingOperation['status']): string {
     const statusTexts: Record<CuttingOperation['status'], string> = {
       'in_progress': 'В процессе',
+      'paused': 'На паузе',
       'completed': 'Завершена',
       'cancelled': 'Отменена'
     };
@@ -243,15 +245,15 @@ class CuttingApiService {
   }
   */
 
-  // Получить возможные следующие статусы
+  // Получить валидные следующие статусы для данного статуса
   getValidNextStatuses(currentStatus: CuttingOperation['status']): CuttingOperation['status'][] {
-    const transitions: Record<CuttingOperation['status'], CuttingOperation['status'][]> = {
-      'in_progress': ['completed', 'cancelled'],
-      'completed': [], // Завершенные операции нельзя изменять
-      'cancelled': ['in_progress'] // Можно вернуть отмененную обратно в процесс
+    const validTransitions: Record<CuttingOperation['status'], CuttingOperation['status'][]> = {
+      'in_progress': ['paused', 'completed', 'cancelled'],
+      'paused': ['in_progress', 'cancelled'],
+      'completed': [], // Завершенные операции нельзя изменить
+      'cancelled': ['in_progress'] // Можно возобновить отмененную операцию
     };
-
-    return transitions[currentStatus] || [];
+    return validTransitions[currentStatus] || [];
   }
 }
 

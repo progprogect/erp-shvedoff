@@ -648,8 +648,8 @@ const Catalog: React.FC = () => {
                     render: (_: any, product: Product) => {
                       const currentStock = product.stock?.currentStock || product.currentStock || 0;
                       const reservedStock = product.stock?.reservedStock || product.reservedStock || 0;
-                      const stockStatus = getStockStatus((product.currentStock || 0), (product.reservedStock || 0));
-                      const available = (product.currentStock || 0) - (product.reservedStock || 0);
+                      const stockStatus = getStockStatus(currentStock, reservedStock);
+                      const available = currentStock - reservedStock;
                       return (
                         <div>
                           <Badge color={stockStatus.color} />

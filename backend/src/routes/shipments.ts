@@ -104,7 +104,7 @@ router.get('/ready-orders', authenticateToken, authorizeRoles('manager', 'direct
       .from(schema.shipments)
       .where(
         and(
-          inArray(schema.shipments.status, ['planned', 'loading', 'shipped']),
+          inArray(schema.shipments.status, ['pending', 'paused']),
           sql`${schema.shipments.orderId} IS NOT NULL`
         )
       );
@@ -178,7 +178,8 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
     // Генерируем номер отгрузки
     const shipmentCountResult = await db.select({ count: sql`count(*)` }).from(schema.shipments);
     const shipmentCount = Number(shipmentCountResult[0]?.count || 0);
-    const shipmentNumber = `SHIP-${Date.now()}-${shipmentCount + 1}`;
+    const currentYear = new Date().getFullYear();
+    const shipmentNumber = `SHIP-${currentYear}-${String(shipmentCount + 1).padStart(3, '0')}`;
 
     // Создаем отгрузку в транзакции
     const result = await db.transaction(async (tx) => {
@@ -188,7 +189,7 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
         orderId: validOrderIds.length === 1 ? validOrderIds[0] : null, // Для одного заказа указываем orderId
         plannedDate: plannedDate ? new Date(plannedDate) : null,
         transportInfo,
-        status: 'planned',
+        status: 'pending',
         createdBy: userId
       }).returning();
 
@@ -266,25 +267,29 @@ router.get('/statistics', authenticateToken, async (req: AuthRequest, res, next)
     
     // Инициализируем статистику
     const totalStats = {
-      total: shipments.length,
-      todayCount: 0,
-      thisMonthCount: 0,
-      plannedCount: 0,
-      shippedCount: 0,
-      deliveredCount: 0
+          total: shipments.length,
+    todayCount: 0,
+    thisMonthCount: 0,
+    pendingCount: 0,
+    completedCount: 0,
+    cancelledCount: 0,
+    pausedCount: 0
     };
 
     // Подсчитываем статистику по статусам
     shipments.forEach(shipment => {
       switch (shipment.status) {
-        case 'planned':
-          totalStats.plannedCount++;
+        case 'pending':
+          totalStats.pendingCount++;
           break;
-        case 'shipped':
-          totalStats.shippedCount++;
+        case 'completed':
+          totalStats.completedCount++;
           break;
-        case 'delivered':
-          totalStats.deliveredCount++;
+        case 'cancelled':
+          totalStats.cancelledCount++;
+          break;
+        case 'paused':
+          totalStats.pausedCount++;
           break;
       }
     });
@@ -444,15 +449,16 @@ router.put('/:id/status', authenticateToken, async (req: AuthRequest, res, next)
 
     // Валидация переходов статусов
     const validTransitions: Record<string, string[]> = {
-      'planned': ['loading', 'cancelled'],
-      'loading': ['shipped', 'planned'],
-      'shipped': ['delivered'],
-      'delivered': [], // финальный статус
+      'pending': ['completed', 'cancelled', 'paused'],
+      'paused': ['pending', 'cancelled'],
+      'completed': [], // финальный статус
       'cancelled': [] // финальный статус
     };
 
     if (!shipment.status || !validTransitions[shipment.status]?.includes(status)) {
-      return next(createError(`Невозможно изменить статус с '${shipment.status || 'неизвестно'}' на '${status}'`, 400));
+      const currentStatus = shipment.status || 'неизвестно';
+      const availableTransitions = shipment.status ? validTransitions[shipment.status]?.join(', ') || 'нет' : 'нет';
+      return next(createError(`Невозможно изменить статус с '${currentStatus}' на '${status}'. Доступные переходы: ${availableTransitions}`, 400));
     }
 
     // Обновляем отгрузку в транзакции
@@ -462,7 +468,7 @@ router.put('/:id/status', authenticateToken, async (req: AuthRequest, res, next)
         updatedAt: new Date()
       };
 
-      if (status === 'shipped' || status === 'delivered') {
+      if (status === 'completed') {
         updateData.actualDate = new Date();
       }
 
@@ -493,8 +499,8 @@ router.put('/:id/status', authenticateToken, async (req: AuthRequest, res, next)
          }
        }
 
-             // При отгрузке (shipped) автоматически списываем товары
-       if (status === 'shipped') {
+             // При завершении автоматически списываем товары
+       if (status === 'completed') {
          for (const item of shipment.items || []) {
            const quantityToShip = (actualQuantities && actualQuantities[item.id]) ? Number(actualQuantities[item.id]) : item.plannedQuantity;
            
@@ -514,21 +520,11 @@ router.put('/:id/status', authenticateToken, async (req: AuthRequest, res, next)
         if (shipment.orderId) {
           await tx.update(schema.orders)
             .set({
-              status: 'shipped',
+              status: 'completed',
               updatedAt: new Date()
             })
             .where(eq(schema.orders.id, shipment.orderId));
         }
-      }
-
-      // При доставке обновляем статус заказа
-      if (status === 'delivered' && shipment.orderId) {
-        await tx.update(schema.orders)
-          .set({
-            status: 'delivered',
-            updatedAt: new Date()
-          })
-          .where(eq(schema.orders.id, shipment.orderId));
       }
 
       // Логируем изменение
@@ -545,10 +541,10 @@ router.put('/:id/status', authenticateToken, async (req: AuthRequest, res, next)
     });
 
          const statusTextMap: Record<string, string> = {
-       'loading': 'загрузка',
-       'shipped': 'отгружена',
-       'delivered': 'доставлена',
-       'cancelled': 'отменена'
+       'pending': 'в очереди',
+       'completed': 'выполнена',
+       'cancelled': 'отменена',
+       'paused': 'на паузе'
      };
      const statusText = statusTextMap[status] || status;
 
@@ -577,9 +573,9 @@ router.put('/:id', authenticateToken, authorizeRoles('manager', 'director'), asy
       return next(createError('Отгрузка не найдена', 404));
     }
 
-    // Можно редактировать только запланированные и загружаемые отгрузки
-    if (!shipment.status || !['planned', 'loading'].includes(shipment.status)) {
-      return next(createError('Нельзя редактировать отгруженную или доставленную отгрузку', 400));
+    // Можно редактировать только ожидающие и на паузе отгрузки
+    if (!shipment.status || !['pending', 'paused'].includes(shipment.status)) {
+      return next(createError('Нельзя редактировать завершенную или отмененную отгрузку', 400));
     }
 
     const updateData: any = {};
@@ -638,9 +634,9 @@ router.delete('/:id', authenticateToken, authorizeRoles('manager', 'director'), 
       return next(createError('Отгрузка не найдена', 404));
     }
 
-    // Можно отменить только запланированные отгрузки
-    if (shipment.status !== 'planned') {
-      return next(createError('Можно отменить только запланированные отгрузки', 400));
+    // Можно отменить только ожидающие отгрузки
+    if (shipment.status !== 'pending') {
+      return next(createError('Можно отменить только ожидающие отгрузки', 400));
     }
 
     const result = await db.transaction(async (tx) => {

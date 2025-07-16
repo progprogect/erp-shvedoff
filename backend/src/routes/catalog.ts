@@ -1,10 +1,110 @@
 import express from 'express';
 import { db, schema } from '../db';
-import { eq, like, isNull, and, sql } from 'drizzle-orm';
+import { eq, like, isNull, and, sql, inArray } from 'drizzle-orm';
 import { authenticateToken, authorizeRoles, AuthRequest } from '../middleware/auth';
 import { createError } from '../middleware/errorHandler';
 
 const router = express.Router();
+
+// Helper function to calculate reserved quantities from active orders
+async function getReservedQuantities(productIds?: number[]) {
+  if (!productIds || productIds.length === 0) {
+    return new Map<number, number>();
+  }
+
+  try {
+    // Резерв = сумма всех товаров в активных заказах (не отмененных и не доставленных)
+    const reservedQuery = db
+      .select({
+        productId: schema.orderItems.productId,
+        quantity: sql<number>`COALESCE(SUM(${schema.orderItems.quantity}), 0)`.as('quantity')
+      })
+      .from(schema.orderItems)
+      .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
+      .where(
+        and(
+          inArray(schema.orderItems.productId, productIds),
+          inArray(schema.orders.status, ['new', 'confirmed', 'in_production'])
+        )
+      )
+      .groupBy(schema.orderItems.productId);
+
+    const reservedData = await reservedQuery;
+    const reservedMap = new Map<number, number>();
+
+    reservedData.forEach(item => {
+      // Добавляем валидацию и обработку числовых данных
+      const quantity = Number(item.quantity) || 0;
+      
+      // Проверяем на разумность значения (максимум 1 миллион штук на товар)
+      if (quantity < 0 || quantity > 1000000) {
+        console.warn(`⚠️ Подозрительное значение резерва для товара ${item.productId}: ${quantity}. Устанавливаем 0.`);
+        reservedMap.set(item.productId, 0);
+      } else {
+        reservedMap.set(item.productId, quantity);
+      }
+    });
+
+    return reservedMap;
+  } catch (error) {
+    console.error('Ошибка при расчете резервов:', error);
+    return new Map<number, number>();
+  }
+}
+
+// Helper function to calculate production quantity for products
+async function getProductionQuantities(productIds?: number[]) {
+  // Если нет productIds или пустой массив, возвращаем пустую Map
+  if (!productIds || productIds.length === 0) {
+    return new Map<number, number>();
+  }
+
+  try {
+    // К производству = товары из подтвержденных и активных производственных заданий
+    const tasksQuery = db
+      .select({
+        productId: schema.productionTasks.productId,
+        quantity: sql<number>`
+          COALESCE(SUM(
+            CASE 
+              WHEN ${schema.productionTasks.status} IN ('pending', 'in_progress', 'paused') 
+              THEN ${schema.productionTasks.requestedQuantity}
+              ELSE 0
+            END
+          ), 0)
+        `.as('quantity')
+      })
+      .from(schema.productionTasks)
+      .where(
+        and(
+          inArray(schema.productionTasks.status, ['pending', 'in_progress', 'paused']),
+          inArray(schema.productionTasks.productId, productIds)
+        )
+      )
+      .groupBy(schema.productionTasks.productId);
+
+    const inProduction = await tasksQuery;
+    const productionMap = new Map<number, number>();
+
+    inProduction.forEach(item => {
+      // Добавляем валидацию и обработку числовых данных
+      const quantity = Number(item.quantity) || 0;
+      
+      // Проверяем на разумность значения
+      if (quantity < 0 || quantity > 1000000) {
+        console.warn(`⚠️ Подозрительное значение производства для товара ${item.productId}: ${quantity}. Устанавливаем 0.`);
+        productionMap.set(item.productId, 0);
+      } else {
+        productionMap.set(item.productId, quantity);
+      }
+    });
+
+    return productionMap;
+  } catch (error) {
+    console.error('Ошибка при расчете производственных количеств:', error);
+    return new Map<number, number>();
+  }
+}
 
 // GET /api/catalog/categories - Get categories tree
 router.get('/categories', authenticateToken, async (req, res, next) => {
@@ -96,13 +196,42 @@ router.get('/products', authenticateToken, async (req, res, next) => {
       orderBy: schema.products.name
     });
 
-    // Filter by stock status if requested
-    let filteredProducts = products;
+    // Получаем ID всех продуктов для расчета резервов и производства
+    const productIds = products.map(product => product.id);
+    
+    // Получаем точные резервы и производственные количества
+    const [reservedQuantities, productionQuantities] = await Promise.all([
+      getReservedQuantities(productIds),
+      getProductionQuantities(productIds)
+    ]);
+
+    // Применяем точные расчеты вместо данных из таблицы stock
+    let filteredProducts = products.map(product => {
+      const currentStock = product.stock?.currentStock || 0;
+      const reservedStock = reservedQuantities.get(product.id) || 0;
+      const inProductionQuantity = productionQuantities.get(product.id) || 0;
+      const availableStock = currentStock - reservedStock;
+
+      return {
+        ...product,
+        currentStock,
+        reservedStock,
+        availableStock,
+        inProductionQuantity,
+        // Обновляем объект stock для консистентности
+        stock: {
+          ...product.stock,
+          currentStock,
+          reservedStock,
+          availableStock,
+          inProductionQuantity
+        }
+      };
+    });
+    
     if (stockStatus) {
-      filteredProducts = products.filter(product => {
-        if (!product.stock) return stockStatus === 'out_of_stock';
-        
-        const available = product.stock.currentStock - product.stock.reservedStock;
+      filteredProducts = filteredProducts.filter(product => {
+        const available = product.availableStock;
         const norm = product.normStock || 0;
         
         switch (stockStatus) {
@@ -168,9 +297,37 @@ router.get('/products/:id', authenticateToken, async (req, res, next) => {
       return next(createError('Product not found', 404));
     }
 
+    // Получаем точные резервы и производственные количества для этого товара
+    const [reservedQuantities, productionQuantities] = await Promise.all([
+      getReservedQuantities([productId]),
+      getProductionQuantities([productId])
+    ]);
+
+    const currentStock = product.stock?.currentStock || 0;
+    const reservedStock = reservedQuantities.get(productId) || 0;
+    const inProductionQuantity = productionQuantities.get(productId) || 0;
+    const availableStock = currentStock - reservedStock;
+
+    // Обновляем данные продукта с точными расчетами
+    const productWithAccurateStock = {
+      ...product,
+      currentStock,
+      reservedStock,
+      availableStock,
+      inProductionQuantity,
+      // Обновляем объект stock для консистентности
+      stock: {
+        ...product.stock,
+        currentStock,
+        reservedStock,
+        availableStock,
+        inProductionQuantity
+      }
+    };
+
     res.json({
       success: true,
-      data: product
+      data: productWithAccurateStock
     });
   } catch (error) {
     next(error);

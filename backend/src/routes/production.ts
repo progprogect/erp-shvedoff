@@ -511,15 +511,15 @@ router.get('/tasks/by-product', authenticateToken, authorizeRoles('manager', 'pr
     const { status = 'pending,in_progress' } = req.query;
     
     // Валидируем и очищаем статусы
-    const validStatuses = ['pending', 'in_progress', 'completed', 'cancelled'];
+    const validStatuses = ['pending', 'in_progress', 'paused', 'completed', 'cancelled'];
     const statusList = (status as string)
       .split(',')
       .map(s => s.trim())
       .filter(s => validStatuses.includes(s));
 
-    // Если нет валидных статусов, используем значения по умолчанию
+    // Если нет валидных статусов, используем все
     if (statusList.length === 0) {
-      statusList.push('pending', 'in_progress');
+      statusList.push(...validStatuses);
     }
 
     // Получаем активные задания
@@ -633,7 +633,7 @@ router.post('/tasks/complete-by-product', authenticateToken, authorizeRoles('pro
     const activeTasks = await db.query.productionTasks.findMany({
       where: and(
         eq(schema.productionTasks.productId, productId),
-        sql`${schema.productionTasks.status} IN ('pending', 'in_progress')`
+        sql`${schema.productionTasks.status} IN ('pending', 'in_progress', 'paused')`
       ),
       orderBy: [
         desc(schema.productionTasks.priority),     // Сначала высокоприоритетные
@@ -849,6 +849,84 @@ router.post('/tasks/:id/start', authenticateToken, authorizeRoles('production', 
       success: true,
       data: updatedTask[0],
       message: 'Задание запущено в производство'
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PUT /api/production/tasks/:id/status - Изменить статус задания
+router.put('/tasks/:id/status', authenticateToken, authorizeRoles('production', 'director'), async (req: AuthRequest, res, next) => {
+  try {
+    const taskId = Number(req.params.id);
+    const { status } = req.body;
+    const userId = req.user!.id;
+
+    if (!status) {
+      return next(createError('Статус обязателен', 400));
+    }
+
+    // Валидные статусы для производственных заданий
+    const validStatuses = ['pending', 'in_progress', 'paused', 'completed', 'cancelled'];
+    if (!validStatuses.includes(status)) {
+      return next(createError(`Недопустимый статус: ${status}. Допустимые: ${validStatuses.join(', ')}`, 400));
+    }
+
+    const task = await db.query.productionTasks.findFirst({
+      where: eq(schema.productionTasks.id, taskId)
+    });
+
+    if (!task) {
+      return next(createError('Задание не найдено', 404));
+    }
+
+    const currentStatus = task.status || 'pending'; // default to pending if null
+
+    // Нельзя изменить статус завершенного задания
+    if (currentStatus === 'completed') {
+      return next(createError('Нельзя изменить статус завершенного задания', 400));
+    }
+
+    // Валидные переходы статусов
+    const validTransitions: Record<string, string[]> = {
+      'pending': ['in_progress', 'cancelled'],
+      'in_progress': ['paused', 'completed', 'cancelled'],
+      'paused': ['in_progress', 'cancelled'],
+      'cancelled': ['pending'] // Можно восстановить отмененное задание
+    };
+
+    if (!validTransitions[currentStatus]?.includes(status)) {
+      return next(createError(`Невозможно изменить статус с '${currentStatus}' на '${status}'`, 400));
+    }
+
+    // Обновляем задание с учетом специальных полей для разных статусов
+    const updateData: any = { status, updatedAt: new Date() };
+
+    if (status === 'in_progress' && currentStatus !== 'paused') {
+      // Запуск задания (не из паузы)
+      updateData.startedBy = userId;
+      updateData.startedAt = new Date();
+    } else if (status === 'in_progress' && currentStatus === 'paused') {
+      // Возобновление из паузы - не меняем startedBy и startedAt
+    }
+
+    const updatedTask = await db.update(schema.productionTasks)
+      .set(updateData)
+      .where(eq(schema.productionTasks.id, taskId))
+      .returning();
+
+    const statusMessages: Record<string, string> = {
+      'pending': 'Задание возвращено в очередь',
+      'in_progress': currentStatus === 'paused' ? 'Задание возобновлено' : 'Задание запущено в производство',
+      'paused': 'Задание поставлено на паузу',
+      'completed': 'Задание завершено',
+      'cancelled': 'Задание отменено'
+    };
+
+    res.json({
+      success: true,
+      data: updatedTask[0],
+      message: statusMessages[status] || 'Статус задания изменен'
     });
   } catch (error) {
     next(error);
@@ -1109,27 +1187,27 @@ router.post('/tasks/:id/complete', authenticateToken, authorizeRoles('production
       try {
         // Только если задание связано с заказом
         if (task.orderId && task.order) {
-          const { analyzeOrderAvailability } = await import('../utils/orderStatusCalculator.js');
-          const orderAnalysis = await analyzeOrderAvailability(task.orderId);
-          
-          // Обновляем статус заказа если он изменился
-          if (orderAnalysis.status !== task.order.status) {
-            await tx.update(schema.orders)
-              .set({ 
-                status: orderAnalysis.status as any,
-                updatedAt: new Date()
-              })
-              .where(eq(schema.orders.id, task.orderId));
+        const { analyzeOrderAvailability } = await import('../utils/orderStatusCalculator.js');
+        const orderAnalysis = await analyzeOrderAvailability(task.orderId);
+        
+        // Обновляем статус заказа если он изменился
+        if (orderAnalysis.status !== task.order.status) {
+          await tx.update(schema.orders)
+            .set({ 
+              status: orderAnalysis.status as any,
+              updatedAt: new Date()
+            })
+            .where(eq(schema.orders.id, task.orderId));
           }
 
           // Добавляем уведомление о завершении задания (НЕ о готовности заказа)
-          const extraProductsText = extraProducts.length > 0 
-            ? `. Дополнительно произведено: ${extraProducts.map((extra: any) => `${extra.quantity} шт.`).join(', ')}` 
-            : '';
-          
-          await tx.insert(schema.orderMessages).values({
-            orderId: task.orderId,
-            userId,
+            const extraProductsText = extraProducts.length > 0 
+              ? `. Дополнительно произведено: ${extraProducts.map((extra: any) => `${extra.quantity} шт.`).join(', ')}` 
+              : '';
+            
+            await tx.insert(schema.orderMessages).values({
+              orderId: task.orderId,
+              userId,
             message: `📦 Задание на производство выполнено: "${task.product.name}" произведено ${qualityQuantity} шт.${extraProductsText}`
           });
 
@@ -1191,9 +1269,9 @@ router.post('/tasks/suggest', authenticateToken, authorizeRoles('manager', 'dire
         where: eq(schema.orders.id, orderId) 
       });
 
-      if (!order) {
-        return next(createError('Заказ не найден', 404));
-      }
+    if (!order) {
+      return next(createError('Заказ не найден', 404));
+    }
     }
 
     // Создаем производственное задание
@@ -1516,6 +1594,70 @@ router.get('/tasks/by-product/:productId', authenticateToken, authorizeRoles('ma
     res.json({
       success: true,
       data: tasks
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// DELETE /api/production/tasks/:id - Удалить производственное задание
+router.delete('/tasks/:id', authenticateToken, authorizeRoles('manager', 'production', 'director'), async (req: AuthRequest, res, next) => {
+  try {
+    const taskId = Number(req.params.id);
+    const userId = req.user!.id;
+
+    const task = await db.query.productionTasks.findFirst({
+      where: eq(schema.productionTasks.id, taskId)
+    });
+
+    if (!task) {
+      return next(createError('Задание не найдено', 404));
+    }
+
+    // Можно удалять только задания в статусе pending
+    if (task.status !== 'pending') {
+      return next(createError('Можно удалять только ожидающие задания', 400));
+    }
+
+    // Удаляем задание
+    await db.delete(schema.productionTasks)
+      .where(eq(schema.productionTasks.id, taskId));
+
+    res.json({
+      success: true,
+      message: 'Производственное задание удалено'
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// DELETE /api/production/tasks/:id - Удалить производственное задание
+router.delete('/tasks/:id', authenticateToken, authorizeRoles('manager', 'production', 'director'), async (req: AuthRequest, res, next) => {
+  try {
+    const taskId = Number(req.params.id);
+    const userId = req.user!.id;
+
+    const task = await db.query.productionTasks.findFirst({
+      where: eq(schema.productionTasks.id, taskId)
+    });
+
+    if (!task) {
+      return next(createError('Задание не найдено', 404));
+    }
+
+    // Можно удалять только задания в статусе pending
+    if (task.status !== 'pending') {
+      return next(createError('Можно удалять только ожидающие задания', 400));
+    }
+
+    // Удаляем задание
+    await db.delete(schema.productionTasks)
+      .where(eq(schema.productionTasks.id, taskId));
+
+    res.json({
+      success: true,
+      message: 'Производственное задание удалено'
     });
   } catch (error) {
     next(error);

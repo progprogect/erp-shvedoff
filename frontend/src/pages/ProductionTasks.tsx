@@ -49,6 +49,7 @@ import {
   completeTask,
   completeTasksByProduct,
   updateProductionTask,
+  updateTaskStatus,
   deleteProductionTask,
   reorderProductionTasks,
   createProductionTask,
@@ -86,12 +87,13 @@ const ProductionTasks: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   
   // Фильтры
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'in_progress' | 'completed' | 'cancelled'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'in_progress' | 'paused' | 'completed' | 'cancelled'>('all');
   
   // Состояние для статистики
   const [stats, setStats] = useState({
     pending: 0,
     inProgress: 0,
+    paused: 0,
     completed: 0,
     cancelled: 0
   });
@@ -246,6 +248,7 @@ const ProductionTasks: React.FC = () => {
     const newStats = {
       pending: tasksList.filter(t => t.status === 'pending').length,
       inProgress: tasksList.filter(t => t.status === 'in_progress').length,
+      paused: tasksList.filter(t => t.status === 'paused').length,
       completed: tasksList.filter(t => t.status === 'completed').length,
       cancelled: tasksList.filter(t => t.status === 'cancelled').length
     };
@@ -303,6 +306,28 @@ const ProductionTasks: React.FC = () => {
     }
   };
 
+  const handlePauseTask = async (task: ProductionTask) => {
+    try {
+      await updateTaskStatus(task.id, 'paused');
+      message.success('Задание поставлено на паузу');
+      loadTasks();
+      loadTasksByProduct();
+    } catch (error) {
+      message.error(`Ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
+    }
+  };
+
+  const handleResumeTask = async (task: ProductionTask) => {
+    try {
+      await updateTaskStatus(task.id, 'in_progress');
+      message.success('Задание возобновлено');
+      loadTasks();
+      loadTasksByProduct();
+    } catch (error) {
+      message.error(`Ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
+    }
+  };
+
   const handleEditTask = (task: ProductionTask) => {
     setEditingTask(task);
     editForm.setFieldsValue({
@@ -353,10 +378,10 @@ const ProductionTasks: React.FC = () => {
   };
 
   const handleUpdateTask = async (values: any) => {
-    if (!selectedTask) return;
+    if (!editingTask) return;
 
     try {
-      await updateProductionTask(selectedTask.id, values);
+      await updateProductionTask(editingTask.id, values);
       message.success('Задание обновлено');
       setEditModalVisible(false);
       setEditingTask(null);
@@ -508,7 +533,8 @@ const ProductionTasks: React.FC = () => {
       pending: 'blue',
       in_progress: 'cyan',
       completed: 'purple',
-      cancelled: 'gray'
+      cancelled: 'gray',
+      paused: 'orange'
     };
     return colors[status as keyof typeof colors] || 'default';
   };
@@ -519,7 +545,8 @@ const ProductionTasks: React.FC = () => {
       pending: 'Ожидает',
       in_progress: 'В работе',
       completed: 'Завершено',
-      cancelled: 'Отменено'
+      cancelled: 'Отменено',
+      paused: 'На паузе'
     };
     return names[status as keyof typeof names] || status;
   };
@@ -598,7 +625,8 @@ const ProductionTasks: React.FC = () => {
           pending: { color: 'blue', text: 'Ожидает' },
           in_progress: { color: 'processing', text: 'В работе' },
           completed: { color: 'success', text: 'Завершено' },
-          cancelled: { color: 'error', text: 'Отменено' }
+          cancelled: { color: 'error', text: 'Отменено' },
+          paused: { color: 'orange', text: 'На паузе' }
         };
         const config = statusConfig[status as keyof typeof statusConfig];
         return <Tag color={config?.color}>{config?.text || status}</Tag>;
@@ -650,27 +678,48 @@ const ProductionTasks: React.FC = () => {
           )}
           
           {record.status === 'in_progress' && (
+            <>
+              <Button
+                type="primary"
+                size="small"
+                icon={<PauseCircleOutlined />}
+                onClick={() => handlePauseTask(record)}
+              >
+                На паузу
+              </Button>
+              <Button
+                type="primary"
+                size="small"
+                icon={<CheckCircleOutlined />}
+                onClick={() => {
+                  setSelectedTask(record);
+                  const initialProduced = record.requestedQuantity;
+                  const initialValues = {
+                    producedQuantity: initialProduced,
+                    qualityQuantity: initialProduced,
+                    defectQuantity: 0
+                  };
+                  setCompleteFormValues(initialValues);
+                  completeForm.setFieldsValue(initialValues);
+                  setCompleteModalVisible(true);
+                }}
+              >
+                Завершить
+              </Button>
+            </>
+          )}
+          
+          {record.status === 'paused' && (
             <Button
               type="primary"
               size="small"
-              icon={<CheckCircleOutlined />}
-              onClick={() => {
-                setSelectedTask(record);
-                const initialProduced = record.requestedQuantity;
-                const initialValues = {
-                  producedQuantity: initialProduced,
-                  qualityQuantity: initialProduced,
-                  defectQuantity: 0
-                };
-                setCompleteFormValues(initialValues);
-                completeForm.setFieldsValue(initialValues);
-                setCompleteModalVisible(true);
-              }}
+              icon={<PlayCircleOutlined />}
+              onClick={() => handleResumeTask(record)}
             >
-              Завершить
+              Возобновить
             </Button>
           )}
-          
+
           {record.status === 'completed' && (
             <Button
               type="default"
@@ -769,7 +818,7 @@ const ProductionTasks: React.FC = () => {
       
       {/* Статистика */}
       <Row gutter={16} style={{ marginBottom: '24px' }}>
-        <Col span={6}>
+        <Col span={5}>
           <Card>
             <Statistic
               title="Предложено"
@@ -778,7 +827,7 @@ const ProductionTasks: React.FC = () => {
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col span={5}>
           <Card>
             <Statistic
               title="В производстве"
@@ -787,7 +836,16 @@ const ProductionTasks: React.FC = () => {
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col span={5}>
+          <Card>
+            <Statistic
+              title="На паузе"
+              value={stats.paused}
+              valueStyle={{ color: '#fa8c16' }}
+            />
+          </Card>
+        </Col>
+        <Col span={5}>
           <Card>
             <Statistic
               title="Завершено"
@@ -796,7 +854,7 @@ const ProductionTasks: React.FC = () => {
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col span={4}>
           <Card>
             <Statistic
               title="Отменено"
@@ -815,7 +873,7 @@ const ProductionTasks: React.FC = () => {
             type={statusFilter === 'all' ? 'primary' : 'default'}
             onClick={() => setStatusFilter('all')}
           >
-            Все ({stats.pending + stats.inProgress + stats.completed + stats.cancelled})
+            Все ({stats.pending + stats.inProgress + stats.paused + stats.completed + stats.cancelled})
           </Button>
           <Button
             type={statusFilter === 'pending' ? 'primary' : 'default'}
@@ -838,6 +896,17 @@ const ProductionTasks: React.FC = () => {
             }}
           >
             В работе ({stats.inProgress})
+          </Button>
+          <Button
+            type={statusFilter === 'paused' ? 'primary' : 'default'}
+            onClick={() => setStatusFilter('paused')}
+            style={{
+              backgroundColor: statusFilter === 'paused' ? '#fa8c16' : undefined,
+              borderColor: '#fa8c16',
+              color: statusFilter === 'paused' ? '#fff' : '#fa8c16'
+            }}
+          >
+            На паузе ({stats.paused})
           </Button>
           <Button
             type={statusFilter === 'completed' ? 'primary' : 'default'}
@@ -1465,6 +1534,97 @@ const ProductionTasks: React.FC = () => {
           </Form>
         )}
       </Modal>
+
+      {/* Модальное окно редактирования задания */}
+      <Modal
+        title="Редактировать производственное задание"
+        open={editModalVisible}
+        onCancel={() => {
+          setEditModalVisible(false);
+          setEditingTask(null);
+          editForm.resetFields();
+        }}
+        footer={null}
+        width={600}
+      >
+        {editingTask && (
+          <Form
+            form={editForm}
+            layout="vertical"
+            onFinish={handleUpdateTask}
+          >
+            <div style={{ marginBottom: '16px' }}>
+              <Text strong>Заказ:</Text> {editingTask.orderId ? `#${editingTask.order?.orderNumber} - ${editingTask.order?.customerName}` : 'Задание на будущее'}
+            </div>
+            <div style={{ marginBottom: '16px' }}>
+              <Text strong>Товар:</Text> {editingTask.product?.name}
+            </div>
+            
+            <Form.Item
+              name="requestedQuantity"
+              label="Запрошенное количество"
+              rules={[
+                { required: true, message: 'Введите количество' },
+                { type: 'number', min: 1, message: 'Количество должно быть больше 0' }
+              ]}
+            >
+              <InputNumber min={1} style={{ width: '100%' }} />
+            </Form.Item>
+
+            <Form.Item
+              name="priority"
+              label="Приоритет"
+            >
+              <Select placeholder="Выберите приоритет">
+                <Option value={1}>1 - Низкий</Option>
+                <Option value={2}>2 - Ниже среднего</Option>
+                <Option value={3}>3 - Средний</Option>
+                <Option value={4}>4 - Высокий</Option>
+                <Option value={5}>5 - Критический</Option>
+              </Select>
+            </Form.Item>
+
+            <Form.Item
+              name="assignedTo"
+              label="Назначить на"
+            >
+              <Select
+                placeholder="Выберите исполнителя"
+                allowClear
+              >
+                {users.map(user => (
+                  <Option key={user.id} value={user.id}>
+                    {user.fullName} (@{user.username})
+                  </Option>
+                ))}
+              </Select>
+            </Form.Item>
+
+            <Form.Item
+              name="notes"
+              label="Примечания"
+            >
+              <TextArea rows={3} placeholder="Дополнительная информация..." />
+            </Form.Item>
+
+            <Form.Item>
+              <Space>
+                <Button type="primary" htmlType="submit">
+                  Сохранить изменения
+                </Button>
+                <Button onClick={() => {
+                  setEditModalVisible(false);
+                  setEditingTask(null);
+                  editForm.resetFields();
+                }}>
+                  Отмена
+                </Button>
+              </Space>
+            </Form.Item>
+          </Form>
+        )}
+      </Modal>
+
       </div>
     </App>
   );

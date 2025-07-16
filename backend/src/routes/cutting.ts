@@ -438,7 +438,7 @@ router.put('/:id/status', authenticateToken, authorizeRoles('production', 'direc
     }
 
     // Валидные статусы для операций резки (убираем planned и approved)
-    const validStatuses = ['in_progress', 'completed', 'cancelled'];
+    const validStatuses = ['in_progress', 'paused', 'completed', 'cancelled'];
     if (!validStatuses.includes(status)) {
       return next(createError(`Недопустимый статус: ${status}. Допустимые: ${validStatuses.join(', ')}`, 400));
     }
@@ -464,7 +464,8 @@ router.put('/:id/status', authenticateToken, authorizeRoles('production', 'direc
 
     // Простые переходы статусов
     const validTransitions: Record<string, string[]> = {
-      'in_progress': ['completed', 'cancelled'],
+      'in_progress': ['paused', 'completed', 'cancelled'],
+      'paused': ['in_progress', 'cancelled'],
       'cancelled': ['in_progress'] // Можно возобновить отмененную операцию
     };
 
@@ -518,6 +519,7 @@ router.put('/:id/status', authenticateToken, authorizeRoles('production', 'direc
 
     const statusMessages: Record<string, string> = {
       'in_progress': 'Операция возобновлена',
+      'paused': 'Операция поставлена на паузу',
       'completed': 'Операция завершена',
       'cancelled': 'Операция отменена'
     };

@@ -59,7 +59,7 @@ export interface Shipment {
   plannedDate?: string;
   actualDate?: string;
   transportInfo?: string;
-  status: 'planned' | 'loading' | 'shipped' | 'delivered' | 'cancelled';
+  status: 'pending' | 'completed' | 'cancelled' | 'paused';
   documentsPhotos?: string[];
   createdBy: number;
   createdAt: string;
@@ -97,9 +97,10 @@ export interface ShipmentStatistics {
   total: number;
   todayCount: number;
   thisMonthCount: number;
-  plannedCount: number;
-  shippedCount: number;
-  deliveredCount: number;
+  pendingCount: number;
+  completedCount: number;
+  cancelledCount: number;
+  pausedCount: number;
 }
 
 class ShipmentsApiService {
@@ -313,7 +314,7 @@ class ShipmentsApiService {
 
   // Проверка просроченности
   isOverdue(shipment: Shipment): boolean {
-    if (!shipment.plannedDate || shipment.status === 'delivered' || shipment.status === 'cancelled') {
+    if (!shipment.plannedDate || shipment.status === 'completed' || shipment.status === 'cancelled') {
       return false;
     }
 

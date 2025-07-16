@@ -3,12 +3,12 @@ import { relations } from 'drizzle-orm';
 
 // Enums
 export const userRoleEnum = pgEnum('user_role', ['manager', 'director', 'production', 'warehouse']);
-export const orderStatusEnum = pgEnum('order_status', ['new', 'confirmed', 'in_production', 'ready', 'shipped', 'delivered', 'cancelled']);
+export const orderStatusEnum = pgEnum('order_status', ['new', 'confirmed', 'in_production', 'ready', 'completed', 'cancelled']);
 export const priorityLevelEnum = pgEnum('priority_level', ['low', 'normal', 'high', 'urgent']);
 export const movementTypeEnum = pgEnum('movement_type', ['incoming', 'outgoing', 'cutting_out', 'cutting_in', 'reservation', 'release_reservation', 'adjustment']);
 export const productionStatusEnum = pgEnum('production_status', ['queued', 'in_progress', 'completed', 'cancelled']);
-export const cuttingStatusEnum = pgEnum('cutting_status', ['planned', 'approved', 'in_progress', 'completed', 'cancelled']);
-export const shipmentStatusEnum = pgEnum('shipment_status', ['planned', 'loading', 'shipped', 'delivered', 'cancelled']);
+export const cuttingStatusEnum = pgEnum('cutting_status', ['planned', 'approved', 'in_progress', 'paused', 'completed', 'cancelled']);
+export const shipmentStatusEnum = pgEnum('shipment_status', ['pending', 'completed', 'cancelled', 'paused']);
 export const defectStatusEnum = pgEnum('defect_status', ['identified', 'under_review', 'for_repair', 'for_rework', 'written_off']);
 export const auditOperationEnum = pgEnum('audit_operation', ['INSERT', 'UPDATE', 'DELETE']);
 export const notificationStatusEnum = pgEnum('notification_status', ['pending', 'sent', 'failed']);
@@ -203,6 +203,7 @@ export const productionQueue = pgTable('production_queue', {
 export const productionTaskStatusEnum = pgEnum('production_task_status', [
   'pending',       // ожидает выполнения (заменяет suggested + approved)  
   'in_progress',   // в работе
+  'paused',        // на паузе
   'completed',     // завершено
   'cancelled'      // отменено
 ]);
@@ -271,10 +272,11 @@ export const shipments = pgTable('shipments', {
   plannedDate: timestamp('planned_date'),
   actualDate: timestamp('actual_date'),
   transportInfo: text('transport_info'),
-  status: shipmentStatusEnum('status').default('planned'),
+  status: shipmentStatusEnum('status').default('pending'),
   documentsPhotos: text('documents_photos').array(),
   createdBy: integer('created_by').references(() => users.id),
-  createdAt: timestamp('created_at').defaultNow()
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
 });
 
 // Shipment items - FR-006
@@ -352,10 +354,10 @@ export const categoriesRelations = relations(categories, ({ one, many }) => ({
   parent: one(categories, {
     fields: [categories.parentId],
     references: [categories.id],
-    relationName: "categoryParent"
+    relationName: "categoryHierarchy"
   }),
   children: many(categories, {
-    relationName: "categoryParent"
+    relationName: "categoryHierarchy"
   }),
   products: many(products)
 }));
