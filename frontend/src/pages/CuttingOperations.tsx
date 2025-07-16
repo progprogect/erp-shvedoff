@@ -189,6 +189,30 @@ export const CuttingOperations: React.FC = () => {
 
   // Изменение статуса операции
   const handleChangeStatus = async (id: number, newStatus: CuttingOperation['status']) => {
+    // Находим операцию для специальных действий
+    const operation = operations.find(op => op.id === id);
+    if (!operation) return;
+
+    // Перехватываем специальные статусы
+    if (newStatus === 'completed') {
+      // Для завершения открываем модал с формой
+      openCompleteModal(operation);
+      return;
+    }
+
+    if (newStatus === 'cancelled') {
+      // Для отмены показываем подтверждение
+      Modal.confirm({
+        title: 'Отменить операцию резки?',
+        content: 'Резерв будет снят. Это действие можно будет отменить.',
+        okText: 'Отменить операцию',
+        cancelText: 'Отмена',
+        onOk: () => handleCancelOperation(id)
+      });
+      return;
+    }
+
+    // Для остальных статусов выполняем обычное изменение
     try {
       setActionLoading(true);
       await cuttingApi.changeOperationStatus(id, newStatus);
@@ -385,19 +409,8 @@ export const CuttingOperations: React.FC = () => {
                 onClick={() => handleViewDetails(record)}
               />
             </Tooltip>
-            
-            {record.status === 'in_progress' && cuttingApi.canComplete(userRole) && (
-              <Tooltip title="Завершить">
-                <Button 
-                  type="text" 
-                  icon={<StopOutlined />} 
-                  style={{ color: '#722ed1' }}
-                  onClick={() => openCompleteModal(record)}
-                />
-              </Tooltip>
-            )}
 
-            {/* Кнопки изменения статуса (кроме завершенных операций) */}
+            {/* Управление статусом через Select (кроме завершенных операций) */}
             {record.status !== 'completed' && validNextStatuses.length > 0 && (
               <Select
                 size="small"
@@ -415,23 +428,6 @@ export const CuttingOperations: React.FC = () => {
                   </Option>
                 ))}
               </Select>
-            )}
-            
-            {(record.status === 'in_progress' || record.status === 'cancelled') && cuttingApi.canCancel(userRole) && (
-              <Tooltip title="Отменить">
-                <Popconfirm
-                  title="Отменить операцию резки?"
-                  description="Резерв будет снят"
-                  onConfirm={() => handleCancelOperation(record.id)}
-                >
-                  <Button 
-                    type="text" 
-                    icon={<DeleteOutlined />} 
-                    danger 
-                    loading={actionLoading}
-                  />
-                </Popconfirm>
-              </Tooltip>
             )}
           </Space>
         );
@@ -569,43 +565,24 @@ export const CuttingOperations: React.FC = () => {
                     label={label}
                   >
                     <div style={{ 
-                      padding: '8px 0',
+                      padding: '4px 0',
                       opacity: isDisabled ? 0.5 : 1 
                     }}>
                       <div style={{ 
                         fontWeight: '500',
                         fontSize: '14px',
-                        lineHeight: '1.4',
-                        marginBottom: '4px',
-                        wordBreak: 'break-word'
-                      }}>
-                        {product.name}
-                      </div>
-                      <div style={{ 
-                        fontSize: '12px',
-                        color: '#666',
+                        lineHeight: '1.2',
+                        wordBreak: 'break-word',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '8px'
+                        justifyContent: 'space-between'
                       }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          {product.article && (
-                            <span style={{ 
-                              backgroundColor: '#f5f5f5',
-                              padding: '2px 6px',
-                              borderRadius: '4px',
-                              fontSize: '11px',
-                              fontFamily: 'monospace'
-                            }}>
-                              {product.article}
-                            </span>
-                          )}
-                        </div>
+                        <span>{product.name}</span>
                         <span style={{ 
                           color: isDisabled ? '#ff4d4f' : '#52c41a',
                           fontWeight: '600',
-                          fontSize: '12px'
+                          fontSize: '12px',
+                          marginLeft: '8px'
                         }}>
                           {available > 0 ? `✅ ${available} шт.` : '❌ Нет в наличии'}
                         </span>
@@ -642,32 +619,15 @@ export const CuttingOperations: React.FC = () => {
                     value={product.id}
                     label={label}
                   >
-                    <div style={{ padding: '8px 0' }}>
+                    <div style={{ padding: '4px 0' }}>
                       <div style={{ 
                         fontWeight: '500',
                         fontSize: '14px',
-                        lineHeight: '1.4',
-                        marginBottom: '4px',
+                        lineHeight: '1.2',
                         wordBreak: 'break-word'
                       }}>
                         {product.name}
                       </div>
-                      {product.article && (
-                        <div style={{ 
-                          fontSize: '12px',
-                          color: '#666'
-                        }}>
-                          <span style={{ 
-                            backgroundColor: '#f5f5f5',
-                            padding: '2px 6px',
-                            borderRadius: '4px',
-                            fontSize: '11px',
-                            fontFamily: 'monospace'
-                          }}>
-                            {product.article}
-                          </span>
-                        </div>
-                      )}
                     </div>
                   </Option>
                 );

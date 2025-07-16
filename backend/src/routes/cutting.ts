@@ -340,7 +340,7 @@ router.put('/:id/complete', authenticateToken, authorizeRoles('production', 'dir
         .where(eq(schema.cuttingOperations.id, operationId))
         .returning();
 
-      // Release reservation and reduce source stock
+      // 1. Снимаем резерв товара
       await performStockOperation({
         productId: operation.sourceProductId,
         type: 'release',
@@ -349,16 +349,16 @@ router.put('/:id/complete', authenticateToken, authorizeRoles('production', 'dir
         comment: `Снятие резерва при завершении резки #${operationId}`
       });
 
-      // Reduce source stock (cutting out)
+      // 2. Списываем исходный товар (без проверки резерва)
       await performStockOperation({
         productId: operation.sourceProductId,
-        type: 'outgoing',
-        quantity: operation.sourceQuantity,
+        type: 'adjustment',
+        quantity: -operation.sourceQuantity,
         userId,
         comment: `Списание при резке #${operationId}: ${operation.sourceProduct.name} → ${operation.targetProduct.name}`
       });
 
-      // Add target product to stock (cutting in)
+      // 3. Добавляем целевой товар на склад
       if (actualTargetQuantity > 0) {
         await performStockOperation({
           productId: operation.targetProductId,

@@ -34,7 +34,8 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
   const orderItemsData = await db
     .select({
       product_id: orderItems.productId,
-      quantity: orderItems.quantity
+      quantity: orderItems.quantity,
+      reserved_quantity: orderItems.reservedQuantity
     })
     .from(orderItems)
     .where(eq(orderItems.orderId, orderId));
@@ -45,11 +46,12 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
 
   const productIds = orderItemsData.map(item => item.product_id);
 
-  // Получаем текущие остатки
+  // Получаем текущие остатки включая резерв
   const stockData = await db
     .select({
       product_id: stock.productId,
-      quantity: stock.currentStock
+      current_stock: stock.currentStock,
+      reserved_stock: stock.reservedStock
     })
     .from(stock)
     .where(inArray(stock.productId, productIds));
@@ -78,21 +80,30 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
     .groupBy(productionTasks.productId);
 
   // Создаем карты для быстрого доступа
-  const stockMap = new Map(stockData.map(s => [s.product_id, s.quantity]));
+  const stockMap = new Map(stockData.map(s => [s.product_id, { 
+    currentStock: s.current_stock, 
+    reservedStock: s.reserved_stock 
+  }]));
   const productionTasksMap = new Map(productionTasksData.map(p => [p.product_id, p.total_in_production]));
 
   // Анализируем каждый товар
   const itemsAnalysis: OrderItemAvailability[] = orderItemsData.map(orderItem => {
-    const availableStock = stockMap.get(orderItem.product_id) || 0;
+    const stockInfo = stockMap.get(orderItem.product_id);
+    const currentStock = stockInfo?.currentStock || 0;
+    const totalReserved = stockInfo?.reservedStock || 0;
+    const reservedForThisOrder = orderItem.reserved_quantity || 0;
     const totalInProduction = productionTasksMap.get(orderItem.product_id) || 0;
     
-    const shortage = Math.max(0, orderItem.quantity - availableStock);
+    // ИСПРАВЛЕННАЯ ЛОГИКА: доступно для этого заказа = общий остаток - (общий резерв - резерв для этого заказа)
+    const availableForThisOrder = currentStock - (totalReserved - reservedForThisOrder);
+    
+    const shortage = Math.max(0, orderItem.quantity - availableForThisOrder);
     
     let itemStatus: 'available' | 'partially_available' | 'needs_production';
     
-    if (availableStock >= orderItem.quantity) {
+    if (availableForThisOrder >= orderItem.quantity) {
       itemStatus = 'available';
-    } else if (availableStock > 0) {
+    } else if (availableForThisOrder > 0) {
       itemStatus = 'partially_available';
     } else {
       itemStatus = 'needs_production';
@@ -101,7 +112,7 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
     return {
       product_id: orderItem.product_id,
       required_quantity: orderItem.quantity,
-      available_quantity: availableStock,
+      available_quantity: Math.max(0, availableForThisOrder),
       in_production_quantity: totalInProduction,
       shortage,
       status: itemStatus

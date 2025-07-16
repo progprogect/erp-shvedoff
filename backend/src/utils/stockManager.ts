@@ -178,14 +178,7 @@ export async function performStockOperation(operation: StockOperation): Promise<
       };
     }
 
-    if (newReservedStock > newCurrentStock) {
-      return {
-        success: false,
-        message: `Резерв не может превышать общий остаток. Остаток: ${newCurrentStock}, резерв: ${newReservedStock}`
-      };
-    }
-
-    // Специальная проверка для корректировок
+    // Специальная логика для корректировок - ПЕРЕМЕЩЕНО СЮДА!
     if (type === 'adjustment' && newReservedStock > newCurrentStock) {
       // При корректировке остатка автоматически корректируем резерв
       const excessReserve = newReservedStock - newCurrentStock;
@@ -196,9 +189,17 @@ export async function performStockOperation(operation: StockOperation): Promise<
         productId,
         movementType: 'release_reservation',
         quantity: -excessReserve,
-        comment: `Автокорректировка резерва при изменении остатка`,
+        comment: `Автокорректировка резерва при изменении остатка: снято ${excessReserve} шт.`,
         userId
       });
+    }
+
+    // Основная валидация резерва (для всех операций кроме корректировок)
+    if (newReservedStock > newCurrentStock && type !== 'adjustment') {
+      return {
+        success: false,
+        message: `Резерв не может превышать общий остаток. Остаток: ${newCurrentStock}, резерв: ${newReservedStock}`
+      };
     }
 
     // Обновляем остатки

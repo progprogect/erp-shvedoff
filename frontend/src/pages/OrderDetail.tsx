@@ -358,10 +358,13 @@ const OrderDetail: React.FC = () => {
       if (!product?.stock) continue;
 
       const { availableStock, inProductionQuantity, currentStock, reservedStock } = product.stock;
-      const available = availableStock || (currentStock - Number(reservedStock || 0));
+      const generallyAvailable = availableStock || (currentStock - Number(reservedStock || 0));
       const inProduction = Number(inProductionQuantity || 0);
+      
+      // ИСПРАВЛЕННАЯ ЛОГИКА: учитываем резерв для ЭТОГО заказа
+      const availableForThisOrder = generallyAvailable + (item.reservedQuantity || 0);
 
-      if (available < item.quantity) {
+      if (availableForThisOrder < item.quantity) {
         allAvailable = false;
         if (inProduction > 0) {
           anyInProduction = true;
@@ -423,20 +426,23 @@ const OrderDetail: React.FC = () => {
         }
 
         const { currentStock, reservedStock, availableStock, inProductionQuantity } = product.stock;
-        const available = availableStock || (currentStock - Number(reservedStock || 0));
+        const generallyAvailable = availableStock || (currentStock - Number(reservedStock || 0));
         const inProduction = Number(inProductionQuantity || 0);
         const reserved = Number(reservedStock || 0);
+        
+        // ИСПРАВЛЕННАЯ ЛОГИКА: учитываем резерв для ЭТОГО заказа
+        const availableForThisOrder = generallyAvailable + (record.reservedQuantity || 0);
 
         // Определяем статус товара
-        if (available < 0) {
+        if (generallyAvailable < 0) {
           return <Tag color="red">⚠️ Перезаказ</Tag>;
-        } else if (available === 0) {
+        } else if (generallyAvailable === 0 && (record.reservedQuantity || 0) === 0) {
           if (inProduction > 0) {
             return <Tag color="orange">🏭 В производстве</Tag>;
           } else {
             return <Tag color="red">❌ Нет на складе</Tag>;
           }
-        } else if (available < record.quantity) {
+        } else if (availableForThisOrder < record.quantity) {
           if (inProduction > 0) {
             return <Tag color="orange">🏭 В производстве</Tag>;
           } else {
