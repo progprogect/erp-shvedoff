@@ -8,13 +8,12 @@
     "client:dev": "cd frontend && npm start",
     "server:install": "cd backend && npm install",
     "client:install": "cd frontend && npm install",
-    "install:all": "npm install && npm run server:install && npm run client:install",
-    "build": "npm run client:install && npm run server:install && cd frontend && npm run build && cd ../backend && npm run build",
+    "install:all": "npm run server:install && npm run client:install",
+    "build": "cd frontend && npm run build && cd ../backend && npm run build",
     "build:frontend": "cd frontend && npm run build",
     "build:backend": "cd backend && npm run build",
     "start": "cd backend && npm start",
-    "postinstall": "npm run install:all",
-    "heroku-postbuild": "npm run build",
+    "railway:build": "cd frontend && npm install && npm run build && cd ../backend && npm install && npm run build",
     "db:migrate": "cd backend && npm run db:migrate",
     "db:seed": "cd backend && npm run db:seed"
   },
@@ -26,6 +25,10 @@
   ],
   "author": "Development Team",
   "license": "PROPRIETARY",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
   "devDependencies": {
     "concurrently": "^8.2.0",
     "fork-ts-checker-webpack-plugin": "^9.1.0"
