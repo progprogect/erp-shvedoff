@@ -37,7 +37,7 @@ console.log('   CORS_ORIGINS present:', !!process.env.CORS_ORIGINS);
 console.log('   Total env vars:', Object.keys(process.env).length);
 
 const app = express();
-const PORT = process.env.PORT || 5001;
+const PORT = parseInt(process.env.PORT || '5001');
 
 // Middleware
 app.use(helmet());
@@ -151,9 +151,9 @@ const startServer = async () => {
       console.error('   Health check will be available for troubleshooting');
       
       // Start server without database functionality for diagnostics
-      app.listen(PORT, () => {
+      app.listen(PORT, '0.0.0.0', () => {
         console.log(`🚀 Server running in DIAGNOSTIC MODE on port ${PORT}`);
-        console.log(`📍 Health check: http://localhost:${PORT}/health`);
+        console.log(`📍 Health check: http://0.0.0.0:${PORT}/health`);
         console.log(`⚠️  Database not connected - API will not work`);
         console.log(`🌟 Environment: ${process.env.NODE_ENV}`);
       });
@@ -231,10 +231,10 @@ const startServer = async () => {
       console.warn('⚠️ Warning: Could not initialize permissions:', error);
     }
 
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server is running on port ${PORT}`);
-      console.log(`📍 Health check: http://localhost:${PORT}/health`);
-      console.log(`🔧 API docs: http://localhost:${PORT}/api`);
+      console.log(`📍 Health check: http://0.0.0.0:${PORT}/health`);
+      console.log(`🔧 API docs: http://0.0.0.0:${PORT}/api`);
       console.log(`🌟 Environment: ${process.env.NODE_ENV}`);
       console.log(`✅ All systems operational`);
     });
@@ -243,9 +243,9 @@ const startServer = async () => {
     
     // Try to start in diagnostic mode
     try {
-      app.listen(PORT, () => {
+      app.listen(PORT, '0.0.0.0', () => {
         console.log(`🚀 Server running in EMERGENCY MODE on port ${PORT}`);
-        console.log(`📍 Health check: http://localhost:${PORT}/health`);
+        console.log(`📍 Health check: http://0.0.0.0:${PORT}/health`);
         console.log(`❌ Critical error occurred - check logs`);
       });
     } catch (emergencyError) {
