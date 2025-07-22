@@ -37,7 +37,7 @@ console.log('   CORS_ORIGINS present:', !!process.env.CORS_ORIGINS);
 console.log('   Total env vars:', Object.keys(process.env).length);
 
 const app = express();
-const PORT = parseInt(process.env.PORT || '5001');
+const PORT = 5001; // Фиксированный порт для Railway
 
 // Middleware
 app.use(helmet());
