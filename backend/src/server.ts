@@ -196,7 +196,7 @@ const startServer = async () => {
           
           // Run migrations
           console.log('1️⃣ Running database migrations...');
-          execSync('npx drizzle-kit push:pg --force', { 
+          execSync('npx drizzle-kit push:pg', { 
             stdio: 'inherit',
             env: { ...process.env }
           });
