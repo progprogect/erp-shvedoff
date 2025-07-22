@@ -36,7 +36,7 @@ const Stock: React.FC = () => {
     const normal = stockData.filter((item: StockItem) => {
       const available = item.availableStock;
       const norm = item.normStock || 0;
-      return available >= norm * 0.5;
+      return available > 0 && available >= norm * 0.5; // ИСПРАВЛЕНО: только товары в наличии И выше нормы
     }).length;
     const totalAvailable = stockData.reduce((sum: number, item: StockItem) => sum + item.availableStock, 0);
     const totalReserved = stockData.reduce((sum: number, item: StockItem) => sum + item.reservedStock, 0);

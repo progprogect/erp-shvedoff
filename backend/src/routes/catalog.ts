@@ -188,7 +188,7 @@ router.get('/products', authenticateToken, async (req, res, next) => {
           case 'low_stock':
             return available > 0 && available < norm * 0.5;
           case 'in_stock':
-            return available >= norm * 0.5;
+            return available > 0; // ИСПРАВЛЕНО: только товары в наличии
           default:
             return true;
         }

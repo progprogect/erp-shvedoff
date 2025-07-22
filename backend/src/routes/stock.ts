@@ -209,7 +209,7 @@ router.get('/', authenticateToken, async (req, res, next) => {
           case 'low':
             return available > 0 && available < norm * 0.5;
           case 'normal':
-            return available >= norm * 0.5;
+            return available > 0; // ИСПРАВЛЕНО: только товары в наличии
           case 'in_production':
             return inProduction > 0;
           default:
@@ -231,7 +231,7 @@ router.get('/', authenticateToken, async (req, res, next) => {
       normal: stockWithCalculations.filter(item => {
         const available = item.availableStock;
         const norm = item.normStock || 0;
-        return available >= norm * 0.5;
+        return available > 0 && available >= norm * 0.5; // ИСПРАВЛЕНО: только товары в наличии И выше нормы
       }).length,
       inProduction: stockWithCalculations.filter(item => item.inProductionQuantity > 0).length
     };

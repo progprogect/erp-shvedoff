@@ -218,7 +218,7 @@ const Catalog: React.FC = () => {
             statusMatch = available > 0 && available < norm * 0.5;
             break;
           case 'normal':
-            statusMatch = available >= norm * 0.5;
+            statusMatch = available > 0; // ИСПРАВЛЕНО: только товары которые есть в наличии
             break;
         }
         
