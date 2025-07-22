@@ -14,9 +14,11 @@ const getDatabaseConfig = () => {
     const config = {
       connectionString: process.env.DATABASE_URL,
       ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-      connectionTimeoutMillis: 30000,
-      idleTimeoutMillis: 30000,
-      max: 20
+      connectionTimeoutMillis: 60000,  // Увеличили до 60 секунд
+      idleTimeoutMillis: 60000,
+      max: 10,  // Уменьшили пул соединений
+      acquireTimeoutMillis: 60000,
+      createTimeoutMillis: 60000
     };
     console.log('   SSL enabled:', !!config.ssl);
     return config;

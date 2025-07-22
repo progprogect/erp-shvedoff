@@ -3,7 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import path from 'path';
-import { testConnection } from './db';
+import { testConnection, db, schema } from './db';
 import authRoutes from './routes/auth';
 import catalogRoutes from './routes/catalog';
 import stockRoutes from './routes/stock';
@@ -161,6 +161,66 @@ const startServer = async () => {
     }
 
     console.log('✅ Database connected successfully');
+    
+    // Auto-setup database in production (Railway)
+    if (process.env.NODE_ENV === 'production') {
+      try {
+        console.log('🔄 Checking database schema...');
+        
+        // Try to count users to see if tables exist
+        const { sql } = await import('drizzle-orm');
+        let needsSetup = false;
+        
+        try {
+          const usersCountResult = await db.select({ count: sql`count(*)` }).from(schema.users);
+          const usersCount = Number(usersCountResult[0]?.count || 0);
+          
+          if (usersCount === 0) {
+            console.log('📊 Database schema exists but is empty, need to seed');
+            needsSetup = true;
+          } else {
+            console.log(`✅ Database ready with ${usersCount} users`);
+          }
+        } catch (error: any) {
+          if (error.code === '42P01') { // Table does not exist
+            console.log('🔧 Database schema missing, need to migrate and seed');
+            needsSetup = true;
+          } else {
+            throw error;
+          }
+        }
+        
+        if (needsSetup) {
+          console.log('🚀 Auto-setting up database...');
+          const { execSync } = await import('child_process');
+          
+          // Run migrations
+          console.log('1️⃣ Running database migrations...');
+          execSync('npx drizzle-kit push:pg --force', { 
+            stdio: 'inherit',
+            env: { ...process.env }
+          });
+          console.log('✅ Migrations completed');
+          
+          // Run seeding
+          console.log('2️⃣ Seeding database with initial data...');
+          execSync('npm run db:seed', { 
+            stdio: 'inherit',
+            env: { ...process.env }
+          });
+          console.log('✅ Database seeded successfully');
+          
+          console.log('🎉 Database setup completed! Test users:');
+          console.log('   - director/123456 (Директор)');
+          console.log('   - manager1/123456 (Менеджер)');
+          console.log('   - production1/123456 (Производство)');
+          console.log('   - warehouse1/123456 (Склад)');
+        }
+      } catch (error) {
+        console.error('❌ Database setup failed:', error);
+        console.error('   Continuing startup, but app may not work properly');
+      }
+    }
 
     // Initialize default permissions
     try {
