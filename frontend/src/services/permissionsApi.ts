@@ -1,6 +1,5 @@
 import { useAuthStore } from '../stores/authStore';
-
-const API_BASE = 'http://localhost:5001/api/permissions';
+import { API_PERMISSIONS_BASE as API_BASE } from '../config/api';
 
 export interface Permission {
   id: number;

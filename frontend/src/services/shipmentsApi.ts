@@ -5,8 +5,7 @@ import {
   SHIPMENT_STATUS_TRANSITIONS,
   type ShipmentStatus 
 } from '../constants/shipmentStatuses';
-
-const API_BASE_URL = 'http://localhost:5001/api';
+import { API_BASE_URL } from '../config/api';
 
 export interface Order {
   id: number;

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { User } from '../stores/authStore';
+import { API_BASE_URL } from '../config/api';
 
 export interface LoginResponse {
   success: boolean;
@@ -18,7 +19,7 @@ class AuthApi {
   // Логин пользователя - ПРАВИЛЬНЫЙ ПУТЬ!
   async login(username: string, password: string): Promise<LoginResponse> {
     console.log('🔐 Авторизация через:', '/api/auth/login');
-    const response = await axios.post('http://localhost:5001/api/auth/login', {
+    const response = await axios.post(`${API_BASE_URL}/auth/login`, {
       username,
       password
     });
@@ -27,7 +28,7 @@ class AuthApi {
 
   // Обновление токена - ПРАВИЛЬНЫЙ ПУТЬ!
   async refreshToken(token: string): Promise<LoginResponse> {
-    const response = await axios.post('http://localhost:5001/api/auth/refresh', {}, {
+    const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {}, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -37,7 +38,7 @@ class AuthApi {
 
   // Получение данных пользователя - ПРАВИЛЬНЫЙ ПУТЬ!
   async getMe(token: string): Promise<{ success: boolean; user: User }> {
-    const response = await axios.get('http://localhost:5001/api/auth/me', {
+    const response = await axios.get(`${API_BASE_URL}/auth/me`, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -47,7 +48,7 @@ class AuthApi {
 
   // Выход из системы - ПРАВИЛЬНЫЙ ПУТЬ!
   async logout(token: string): Promise<{ success: boolean; message: string }> {
-    const response = await axios.post('http://localhost:5001/api/auth/logout', {}, {
+    const response = await axios.post(`${API_BASE_URL}/auth/logout`, {}, {
       headers: {
         Authorization: `Bearer ${token}`
       }
