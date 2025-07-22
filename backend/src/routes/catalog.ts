@@ -358,4 +358,48 @@ router.put('/products/:id', authenticateToken, authorizeRoles('director', 'manag
   }
 });
 
+// DELETE /api/catalog/products/:id - Delete product (деактивация)
+router.delete('/products/:id', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+  try {
+    const productId = Number(req.params.id);
+    const userId = req.user!.id;
+
+    // Получаем товар
+    const product = await db.query.products.findFirst({
+      where: eq(schema.products.id, productId)
+    });
+
+    if (!product) {
+      return next(createError('Product not found', 404));
+    }
+
+    // Мягкое удаление (деактивация)
+    const updatedProduct = await db.update(schema.products)
+      .set({
+        isActive: false,
+        updatedAt: new Date()
+      })
+      .where(eq(schema.products.id, productId))
+      .returning();
+
+    // Логируем деактивацию
+    await db.insert(schema.auditLog).values({
+      tableName: 'products',
+      recordId: productId,
+      operation: 'UPDATE',
+      oldValues: product,
+      newValues: updatedProduct[0],
+      userId,
+      createdAt: new Date()
+    });
+
+    res.json({
+      success: true,
+      message: 'Товар деактивирован'
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router; 

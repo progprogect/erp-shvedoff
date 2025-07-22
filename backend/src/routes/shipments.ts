@@ -73,7 +73,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
 });
 
 // GET /api/shipments/ready-orders - Get orders ready for shipment
-router.get('/ready-orders', authenticateToken, authorizeRoles('manager', 'director'), async (req: AuthRequest, res, next) => {
+router.get('/ready-orders', authenticateToken, authorizeRoles('manager', 'director', 'warehouse'), async (req: AuthRequest, res, next) => {
   try {
     // Получаем заказы готовые к отгрузке (статус 'ready')
     const readyOrders = await db.query.orders.findMany({
@@ -128,7 +128,7 @@ router.get('/ready-orders', authenticateToken, authorizeRoles('manager', 'direct
 });
 
 // POST /api/shipments - Create new shipment
-router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async (req: AuthRequest, res, next) => {
+router.post('/', authenticateToken, authorizeRoles('manager', 'director', 'warehouse'), async (req: AuthRequest, res, next) => {
   try {
     const { 
       orderIds, 
@@ -559,7 +559,7 @@ router.put('/:id/status', authenticateToken, async (req: AuthRequest, res, next)
 });
 
 // PUT /api/shipments/:id - Update shipment details
-router.put('/:id', authenticateToken, authorizeRoles('manager', 'director'), async (req: AuthRequest, res, next) => {
+router.put('/:id', authenticateToken, authorizeRoles('manager', 'director', 'warehouse'), async (req: AuthRequest, res, next) => {
   try {
     const shipmentId = Number(req.params.id);
     const { plannedDate, transportInfo, documentsPhotos } = req.body;
@@ -618,7 +618,7 @@ router.put('/:id', authenticateToken, authorizeRoles('manager', 'director'), asy
 });
 
 // DELETE /api/shipments/:id - Cancel shipment
-router.delete('/:id', authenticateToken, authorizeRoles('manager', 'director'), async (req: AuthRequest, res, next) => {
+router.delete('/:id', authenticateToken, authorizeRoles('manager', 'director', 'warehouse'), async (req: AuthRequest, res, next) => {
   try {
     const shipmentId = Number(req.params.id);
     const userId = req.user!.id;

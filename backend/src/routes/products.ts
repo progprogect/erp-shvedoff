@@ -507,54 +507,7 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
   }
 });
 
-// DELETE /api/products/:id - деактивировать товар (мягкое удаление)
-router.delete('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user!.id;
-
-    // Проверка прав доступа
-    if (req.user!.role !== 'director') {
-      return next(createError('Только директор может удалять товары', 403));
-    }
-
-    // Получаем товар
-    const product = await db.query.products.findFirst({
-      where: eq(schema.products.id, parseInt(id))
-    });
-
-    if (!product) {
-      return next(createError('Товар не найден', 404));
-    }
-
-    // Мягкое удаление (деактивация)
-    const [updatedProduct] = await db.update(schema.products)
-      .set({
-        isActive: false,
-        updatedAt: new Date()
-      })
-      .where(eq(schema.products.id, parseInt(id)))
-      .returning();
-
-    // Логируем деактивацию
-    await db.insert(schema.auditLog).values({
-      tableName: 'products',
-      recordId: parseInt(id),
-      operation: 'UPDATE',
-      oldValues: product,
-      newValues: updatedProduct,
-      userId,
-      createdAt: new Date()
-    });
-
-    res.json({
-      success: true,
-      message: 'Товар деактивирован'
-    });
-  } catch (error) {
-    next(error);
-  }
-});
+// DELETE роут убран - используется /api/catalog/products/:id
 
 // Вспомогательная функция для определения статуса остатков
 function getStockStatus(available: number, norm: number) {

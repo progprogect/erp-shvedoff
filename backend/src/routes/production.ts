@@ -1600,68 +1600,6 @@ router.get('/tasks/by-product/:productId', authenticateToken, authorizeRoles('ma
   }
 });
 
-// DELETE /api/production/tasks/:id - Удалить производственное задание
-router.delete('/tasks/:id', authenticateToken, authorizeRoles('manager', 'production', 'director'), async (req: AuthRequest, res, next) => {
-  try {
-    const taskId = Number(req.params.id);
-    const userId = req.user!.id;
 
-    const task = await db.query.productionTasks.findFirst({
-      where: eq(schema.productionTasks.id, taskId)
-    });
-
-    if (!task) {
-      return next(createError('Задание не найдено', 404));
-    }
-
-    // Можно удалять только задания в статусе pending
-    if (task.status !== 'pending') {
-      return next(createError('Можно удалять только ожидающие задания', 400));
-    }
-
-    // Удаляем задание
-    await db.delete(schema.productionTasks)
-      .where(eq(schema.productionTasks.id, taskId));
-
-    res.json({
-      success: true,
-      message: 'Производственное задание удалено'
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// DELETE /api/production/tasks/:id - Удалить производственное задание
-router.delete('/tasks/:id', authenticateToken, authorizeRoles('manager', 'production', 'director'), async (req: AuthRequest, res, next) => {
-  try {
-    const taskId = Number(req.params.id);
-    const userId = req.user!.id;
-
-    const task = await db.query.productionTasks.findFirst({
-      where: eq(schema.productionTasks.id, taskId)
-    });
-
-    if (!task) {
-      return next(createError('Задание не найдено', 404));
-    }
-
-    // Можно удалять только задания в статусе pending
-    if (task.status !== 'pending') {
-      return next(createError('Можно удалять только ожидающие задания', 400));
-    }
-
-    // Удаляем задание
-    await db.delete(schema.productionTasks)
-      .where(eq(schema.productionTasks.id, taskId));
-
-    res.json({
-      success: true,
-      message: 'Производственное задание удалено'
-    });
-  } catch (error) {
-    next(error);
-  }
-});
 
 export default router; 

@@ -133,26 +133,7 @@ const LoginPage: React.FC = () => {
             </Form.Item>
           </Form>
 
-          {/* Test Users Info */}
-          <div style={{ marginTop: '24px', padding: '16px', background: '#f5f5f5', borderRadius: '8px' }}>
-            <Text strong style={{ display: 'block', marginBottom: '8px' }}>
-              Тестовые пользователи:
-            </Text>
-            <Space direction="vertical" size="small" style={{ width: '100%' }}>
-              <Text type="secondary" style={{ fontSize: '12px' }}>
-                director / 123456 (Директор)
-              </Text>
-              <Text type="secondary" style={{ fontSize: '12px' }}>
-                manager1 / 123456 (Менеджер)
-              </Text>
-              <Text type="secondary" style={{ fontSize: '12px' }}>
-                production1 / 123456 (Производство)
-              </Text>
-              <Text type="secondary" style={{ fontSize: '12px' }}>
-                warehouse1 / 123456 (Склад)
-              </Text>
-            </Space>
-          </div>
+
         </Space>
       </Card>
     </div>

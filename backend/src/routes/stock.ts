@@ -430,7 +430,7 @@ router.post('/release', authenticateToken, async (req: AuthRequest, res, next) =
 });
 
 // POST /api/stock/outgoing - Process outgoing shipment (UPDATED)
-router.post('/outgoing', authenticateToken, authorizeRoles('manager', 'director'), async (req: AuthRequest, res, next) => {
+router.post('/outgoing', authenticateToken, authorizeRoles('manager', 'director', 'warehouse'), async (req: AuthRequest, res, next) => {
   try {
     const { productId, quantity, orderId } = req.body;
     const userId = req.user!.id;
