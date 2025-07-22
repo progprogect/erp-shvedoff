@@ -7,11 +7,14 @@ import {
 import {
   ArrowLeftOutlined, EditOutlined, SaveOutlined, CloseOutlined,
   ShoppingCartOutlined, HistoryOutlined, InboxOutlined, FileTextOutlined,
-  SettingOutlined
+  SettingOutlined, PlusOutlined
 } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { catalogApi, Product, Category } from '../services/catalogApi';
+import { surfacesApi, Surface } from '../services/surfacesApi';
+import { logosApi, Logo } from '../services/logosApi';
+import { materialsApi, Material } from '../services/materialsApi';
 import { stockApi, StockMovement } from '../services/stockApi';
 import { getOrdersByProduct } from '../services/ordersApi';
 import { getProductionTasksByProduct } from '../services/productionApi';
@@ -27,6 +30,9 @@ const ProductDetail: React.FC = () => {
   
   const [product, setProduct] = useState<Product | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [surfaces, setSurfaces] = useState<Surface[]>([]);
+  const [logos, setLogos] = useState<Logo[]>([]);
+  const [materials, setMaterials] = useState<Material[]>([]);
   const [users, setUsers] = useState<{id: number; fullName?: string; username: string; role: string}[]>([]);
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
   const [productOrders, setProductOrders] = useState<any[]>([]);
@@ -34,6 +40,8 @@ const ProductDetail: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [showAllMovements, setShowAllMovements] = useState(false);
+  const [newLogoName, setNewLogoName] = useState('');
+  const [creatingLogo, setCreatingLogo] = useState(false);
   const [editForm] = Form.useForm();
 
   // Функции для перевода статусов
@@ -71,10 +79,23 @@ const ProductDetail: React.FC = () => {
     
     setLoading(true);
     try {
-      // Загружаем данные товара, категории, пользователей и историю движений параллельно
-      const [productResponse, categoriesResponse, usersResponse, movementsResponse, ordersResponse, tasksResponse] = await Promise.all([
+      // Загружаем данные товара, категории, пользователей, справочники и историю движений параллельно
+      const [
+        productResponse,
+        categoriesResponse,
+        surfacesResponse,
+        logosResponse,
+        materialsResponse,
+        usersResponse,
+        movementsResponse,
+        ordersResponse,
+        tasksResponse
+      ] = await Promise.all([
         catalogApi.getProduct(parseInt(id)),
         catalogApi.getCategories(),
+        surfacesApi.getSurfaces(token),
+        logosApi.getLogos(token),
+        materialsApi.getMaterials(token),
         catalogApi.getUsers(),
         stockApi.getStockMovements(parseInt(id)),
         getOrdersByProduct(parseInt(id)),
@@ -91,6 +112,18 @@ const ProductDetail: React.FC = () => {
 
       if (categoriesResponse.success) {
         setCategories(categoriesResponse.data);
+      }
+
+      if (surfacesResponse.success) {
+        setSurfaces(surfacesResponse.data);
+      }
+
+      if (logosResponse.success) {
+        setLogos(logosResponse.data);
+      }
+
+      if (materialsResponse.success) {
+        setMaterials(materialsResponse.data);
       }
 
       if (usersResponse.success) {
@@ -125,6 +158,36 @@ const ProductDetail: React.FC = () => {
     }
   };
 
+  // Создание нового логотипа
+  const createNewLogo = async () => {
+    if (!token || !newLogoName.trim()) {
+      message.error('Введите название логотипа');
+      return;
+    }
+
+    setCreatingLogo(true);
+    try {
+      const response = await logosApi.createLogo({
+        name: newLogoName.trim(),
+        description: `Пользовательский логотип: ${newLogoName.trim()}`
+      }, token);
+
+      if (response.success) {
+        // Добавляем новый логотип в список
+        setLogos(prev => [...prev, response.data]);
+        // Устанавливаем его в форме
+        editForm.setFieldsValue({ logoId: response.data.id });
+        setNewLogoName('');
+        message.success('Логотип успешно создан');
+      }
+    } catch (error: any) {
+      console.error('Ошибка создания логотипа:', error);
+      message.error(error.response?.data?.error?.message || 'Ошибка создания логотипа');
+    } finally {
+      setCreatingLogo(false);
+    }
+  };
+
   // Обработка редактирования товара
   const handleEdit = () => {
     if (!product) return;
@@ -134,11 +197,12 @@ const ProductDetail: React.FC = () => {
       article: product.article,
       categoryId: product.categoryId,
       managerId: product.managerId,
+      surfaceId: product.surfaceId,
+      logoId: product.logoId,
+      materialId: product.materialId,
       length: product.dimensions?.length,
       width: product.dimensions?.width,
       thickness: product.dimensions?.thickness,
-      surface: product.characteristics?.surface,
-      material: product.characteristics?.material,
       price: product.price,
       normStock: product.normStock,
       notes: product.notes
@@ -157,14 +221,13 @@ const ProductDetail: React.FC = () => {
         article: values.article,
         categoryId: values.categoryId,
         managerId: values.managerId,
+        surfaceId: values.surfaceId || null,
+        logoId: values.logoId || null,
+        materialId: values.materialId || null,
         dimensions: {
           length: values.length || 0,
           width: values.width || 0,
           thickness: values.thickness || 0
-        },
-        characteristics: {
-          surface: values.surface,
-          material: values.material
         },
         price: values.price,
         normStock: values.normStock,
@@ -750,21 +813,66 @@ const ProductDetail: React.FC = () => {
           </Row>
 
           <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item name="surface" label="Поверхность">
+            <Col span={8}>
+              <Form.Item name="surfaceId" label="Поверхность">
                 <Select placeholder="Выберите поверхность" allowClear>
-                  <Option value="гладкая">Гладкая</Option>
-                  <Option value="рифленая">Рифленая</Option>
-                  <Option value="с узором">С узором</Option>
+                  {surfaces.map(surface => (
+                    <Option key={surface.id} value={surface.id}>
+                      🎨 {surface.name}
+                    </Option>
+                  ))}
                 </Select>
               </Form.Item>
             </Col>
-            <Col span={12}>
-              <Form.Item name="material" label="Материал">
+            <Col span={8}>
+              <Form.Item name="logoId" label="Логотип">
+                <Select 
+                  placeholder="Выберите логотип или создайте новый"
+                  allowClear
+                  dropdownRender={(menu) => (
+                    <>
+                      {menu}
+                      {user?.role === 'director' && (
+                        <div style={{ padding: '8px', borderTop: '1px solid #f0f0f0' }}>
+                          <Input
+                            placeholder="Название нового логотипа"
+                            value={newLogoName}
+                            onChange={(e) => setNewLogoName(e.target.value)}
+                            onPressEnter={createNewLogo}
+                            style={{ marginBottom: 8 }}
+                          />
+                          <Button
+                            type="primary"
+                            size="small"
+                            icon={<PlusOutlined />}
+                            onClick={createNewLogo}
+                            loading={creatingLogo}
+                            disabled={!newLogoName.trim()}
+                            style={{ width: '100%' }}
+                          >
+                            Создать новый логотип
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                >
+                  {logos.map(logo => (
+                    <Option key={logo.id} value={logo.id}>
+                      📝 {logo.name}
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="materialId" label="Материал">
                 <Select placeholder="Выберите материал" allowClear>
-                  <Option value="резина">Резина</Option>
-                  <Option value="ПВХ">ПВХ</Option>
-                  <Option value="полиуретан">Полиуретан</Option>
+                  {materials.map(material => (
+                    <Option key={material.id} value={material.id}>
+                      🛠️ {material.name}
+                    </Option>
+                  ))}
                 </Select>
               </Form.Item>
             </Col>

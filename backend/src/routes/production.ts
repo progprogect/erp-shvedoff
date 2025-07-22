@@ -8,7 +8,7 @@ import {
   syncProductionQueueToTasks, 
   createTasksForPendingOrders, 
   getSyncStatistics 
-} from '../utils/productionSynchronizer.js';
+} from '../utils/productionSynchronizer';
 
 const router = express.Router();
 
@@ -1376,7 +1376,7 @@ router.post('/sync/orders', authenticateToken, authorizeRoles('director'), async
 // POST /api/production/recalculate - Recalculate production needs
 router.post('/recalculate', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
   try {
-    const { recalculateProductionNeeds } = await import('../utils/productionSynchronizer.js');
+    const { recalculateProductionNeeds } = await import('../utils/productionSynchronizer');
     const result = await recalculateProductionNeeds();
 
     res.json({
@@ -1392,7 +1392,7 @@ router.post('/recalculate', authenticateToken, authorizeRoles('director'), async
 // GET /api/production/sync/stats - Get synchronization statistics
 router.get('/sync/stats', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
   try {
-    const { getSyncStatistics } = await import('../utils/productionSynchronizer.js');
+    const { getSyncStatistics } = await import('../utils/productionSynchronizer');
     const stats = await getSyncStatistics();
 
     res.json({
@@ -1407,7 +1407,7 @@ router.get('/sync/stats', authenticateToken, authorizeRoles('director'), async (
 // POST /api/production/notify-ready - Send notifications for ready orders
 router.post('/notify-ready', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
   try {
-    const { notifyReadyOrders } = await import('../utils/productionSynchronizer.js');
+    const { notifyReadyOrders } = await import('../utils/productionSynchronizer');
     const result = await notifyReadyOrders();
 
     res.json({

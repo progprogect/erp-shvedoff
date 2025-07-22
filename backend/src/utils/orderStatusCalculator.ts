@@ -1,5 +1,5 @@
-import { db } from '../db/index.js';
-import { stock, productionTasks, productionQueue, orderItems, orders } from '../db/schema.js';
+import { db } from '../db/index';
+import { stock, productionTasks, productionQueue, orderItems, orders } from '../db/schema';
 import { eq, and, inArray, sql } from 'drizzle-orm';
 
 // Используем существующие статусы из базы данных

@@ -1,5 +1,5 @@
-import { db } from '../db/index.js';
-import { productionQueue, productionTasks, orders, orderMessages, stock, stockMovements, productionTaskExtras } from '../db/schema.js';
+import { db } from '../db/index';
+import { productionQueue, productionTasks, orders, orderMessages, stock, stockMovements, productionTaskExtras } from '../db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 
 export interface SyncResult {

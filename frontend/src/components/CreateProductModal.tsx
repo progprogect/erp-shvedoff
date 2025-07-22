@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal, Form, Input, Select, InputNumber, Row, Col, Button, Space, message } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { catalogApi, Category } from '../services/catalogApi';
+import { surfacesApi, Surface } from '../services/surfacesApi';
+import { logosApi, Logo } from '../services/logosApi';
+import { materialsApi, Material } from '../services/materialsApi';
 import { useAuthStore } from '../stores/authStore';
 
 const { Option } = Select;
@@ -22,7 +25,78 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
 }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [surfaces, setSurfaces] = useState<Surface[]>([]);
+  const [logos, setLogos] = useState<Logo[]>([]);
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [loadingReferences, setLoadingReferences] = useState(false);
+  const [newLogoName, setNewLogoName] = useState('');
+  const [creatingLogo, setCreatingLogo] = useState(false);
   const { token } = useAuthStore();
+
+  // Загрузка справочников при открытии модала
+  useEffect(() => {
+    if (visible && token) {
+      loadReferences();
+    }
+  }, [visible, token]);
+
+  const loadReferences = async () => {
+    if (!token) return;
+    
+    setLoadingReferences(true);
+    try {
+      const [surfacesResponse, logosResponse, materialsResponse] = await Promise.all([
+        surfacesApi.getSurfaces(token),
+        logosApi.getLogos(token),
+        materialsApi.getMaterials(token)
+      ]);
+
+      if (surfacesResponse.success) {
+        setSurfaces(surfacesResponse.data);
+      }
+      if (logosResponse.success) {
+        setLogos(logosResponse.data);
+      }
+      if (materialsResponse.success) {
+        setMaterials(materialsResponse.data);
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки справочников:', error);
+      message.error('Ошибка загрузки справочников');
+    } finally {
+      setLoadingReferences(false);
+    }
+  };
+
+  // Создание нового логотипа
+  const createNewLogo = async () => {
+    if (!token || !newLogoName.trim()) {
+      message.error('Введите название логотипа');
+      return;
+    }
+
+    setCreatingLogo(true);
+    try {
+      const response = await logosApi.createLogo({
+        name: newLogoName.trim(),
+        description: `Пользовательский логотип: ${newLogoName.trim()}`
+      }, token);
+
+      if (response.success) {
+        // Добавляем новый логотип в список
+        setLogos(prev => [...prev, response.data]);
+        // Устанавливаем его в форме
+        form.setFieldsValue({ logoId: response.data.id });
+        setNewLogoName('');
+        message.success('Логотип успешно создан');
+      }
+    } catch (error: any) {
+      console.error('Ошибка создания логотипа:', error);
+      message.error(error.response?.data?.error?.message || 'Ошибка создания логотипа');
+    } finally {
+      setCreatingLogo(false);
+    }
+  };
 
   const handleSubmit = async (values: any) => {
     if (!token) return;
@@ -33,15 +107,14 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
         name: values.name,
         article: values.article || null,
         categoryId: values.categoryId,
+        surfaceId: values.surfaceId || null,
+        logoId: values.logoId || null,
+        materialId: values.materialId || null,
         dimensions: values.length && values.width && values.thickness ? {
           length: Number(values.length),
           width: Number(values.width),
           thickness: Number(values.thickness)
         } : undefined,
-        characteristics: {
-          surface: values.surface || null,
-          material: values.material || null
-        },
         price: values.price ? parseFloat(values.price) : undefined,
         normStock: values.normStock || 0,
         notes: values.notes || null
@@ -223,35 +296,88 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
 
         {/* Характеристики */}
         <Row gutter={16}>
-          <Col span={12}>
+          <Col span={8}>
             <Form.Item
-              name="surface"
+              name="surfaceId"
               label="Поверхность"
             >
               <Select 
                 placeholder="Выберите тип поверхности"
+                loading={loadingReferences}
+                showSearch
+                optionFilterProp="children"
                 allowClear
               >
-                <Option value="чертёная">Чертёная</Option>
-                <Option value="гладкая">Гладкая</Option>
-                <Option value="рифлёная">Рифлёная</Option>
-                <Option value="текстурная">Текстурная</Option>
+                {surfaces.map(surface => (
+                  <Option key={surface.id} value={surface.id}>
+                    🎨 {surface.name}
+                  </Option>
+                ))}
               </Select>
             </Form.Item>
           </Col>
-          <Col span={12}>
+          <Col span={8}>
             <Form.Item
-              name="material"
+              name="logoId"
+              label="Логотип"
+            >
+              <Select 
+                placeholder="Выберите логотип или создайте новый"
+                loading={loadingReferences}
+                showSearch
+                optionFilterProp="children"
+                allowClear
+                dropdownRender={(menu) => (
+                  <>
+                    {menu}
+                    <div style={{ padding: '8px', borderTop: '1px solid #f0f0f0' }}>
+                      <Input
+                        placeholder="Название нового логотипа"
+                        value={newLogoName}
+                        onChange={(e) => setNewLogoName(e.target.value)}
+                        onPressEnter={createNewLogo}
+                        style={{ marginBottom: 8 }}
+                      />
+                      <Button
+                        type="primary"
+                        size="small"
+                        icon={<PlusOutlined />}
+                        onClick={createNewLogo}
+                        loading={creatingLogo}
+                        disabled={!newLogoName.trim()}
+                        style={{ width: '100%' }}
+                      >
+                        Создать новый логотип
+                      </Button>
+                    </div>
+                  </>
+                )}
+              >
+                {logos.map(logo => (
+                  <Option key={logo.id} value={logo.id}>
+                    📝 {logo.name}
+                  </Option>
+                ))}
+              </Select>
+            </Form.Item>
+          </Col>
+          <Col span={8}>
+            <Form.Item
+              name="materialId"
               label="Материал"
             >
               <Select 
                 placeholder="Выберите материал"
+                loading={loadingReferences}
+                showSearch
+                optionFilterProp="children"
                 allowClear
               >
-                <Option value="резина">Резина</Option>
-                <Option value="резина + ткань">Резина + ткань</Option>
-                <Option value="каучук">Каучук</Option>
-                <Option value="полиуретан">Полиуретан</Option>
+                {materials.map(material => (
+                  <Option key={material.id} value={material.id}>
+                    🛠️ {material.name}
+                  </Option>
+                ))}
               </Select>
             </Form.Item>
           </Col>
