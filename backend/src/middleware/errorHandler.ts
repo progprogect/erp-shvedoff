@@ -14,10 +14,21 @@ export const errorHandler = (
   const statusCode = err.statusCode || 500;
   const message = err.message || 'Internal Server Error';
   
-  // Log error
-  console.error(`Error ${statusCode}: ${message}`);
+  // Enhanced logging with request details
+  console.error('🚨 API Error:', {
+    statusCode,
+    message,
+    method: req.method,
+    path: req.originalUrl,
+    body: req.body,
+    params: req.params,
+    query: req.query,
+    userAgent: req.get('User-Agent'),
+    timestamp: new Date().toISOString()
+  });
+  
   if (process.env.NODE_ENV === 'development') {
-    console.error(err.stack);
+    console.error('Stack trace:', err.stack);
   }
 
   // Send error response

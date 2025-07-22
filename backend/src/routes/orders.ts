@@ -4,7 +4,7 @@ import { eq, and, sql, inArray } from 'drizzle-orm';
 import { authenticateToken, authorizeRoles, AuthRequest } from '../middleware/auth';
 import { createError } from '../middleware/errorHandler';
 import { performStockOperation } from '../utils/stockManager';
-import { analyzeOrderAvailability, updateOrderStatus } from '../utils/orderStatusCalculator.js';
+import { analyzeOrderAvailability, updateOrderStatus } from '../utils/orderStatusCalculator';
 
 const router = express.Router();
 
@@ -967,7 +967,7 @@ router.post('/:id/messages', authenticateToken, async (req: AuthRequest, res, ne
 // POST /api/orders/recalculate-statuses - Recalculate all order statuses
 router.post('/recalculate-statuses', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
   try {
-    const { recalculateAllOrderStatuses } = await import('../utils/orderStatusCalculator.js');
+    const { recalculateAllOrderStatuses } = await import('../utils/orderStatusCalculator');
     await recalculateAllOrderStatuses();
 
     res.json({

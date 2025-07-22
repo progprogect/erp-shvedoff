@@ -48,28 +48,33 @@ const seedSurfaces = async () => {
   
   const surfaces = [
     {
-      name: 'Чешуйки',
-      description: 'Поверхность с рисунком в виде чешуек',
-      isSystem: true
-    },
-    {
       name: 'Черточки',
       description: 'Поверхность с рисунком в виде черточек',
       isSystem: true
     },
     {
-      name: 'Одна коровка',
+      name: 'Чешуйки',
+      description: 'Поверхность с рисунком в виде чешуек',
+      isSystem: true
+    },
+    {
+      name: 'Гладкая',
+      description: 'Гладкая поверхность без рисунка',
+      isSystem: true
+    },
+    {
+      name: '1 коровка',
       description: 'Поверхность с одним логотипом коровки',
       isSystem: true
     },
     {
-      name: 'Три коровки',
+      name: '3 коровки',
       description: 'Поверхность с тремя логотипами коровок',
       isSystem: true
     },
     {
-      name: 'Лого',
-      description: 'Поверхность с логотипом (требует указания конкретного логотипа)',
+      name: 'Чешуйка с лого',
+      description: 'Поверхность с чешуйками и логотипом',
       isSystem: true
     }
   ];
@@ -83,18 +88,28 @@ const seedLogos = async () => {
   
   const logos = [
     {
-      name: 'Велес',
-      description: 'Логотип бренда Велес',
+      name: 'GEA',
+      description: 'Логотип бренда GEA',
       isSystem: true
     },
     {
-      name: 'Геа',
-      description: 'Логотип бренда Геа',
+      name: 'Maximilk',
+      description: 'Логотип бренда Maximilk',
+      isSystem: true
+    },
+    {
+      name: 'VELES',
+      description: 'Логотип бренда VELES',
       isSystem: true
     },
     {
       name: 'Агротек',
       description: 'Логотип бренда Агротек',
+      isSystem: true
+    },
+    {
+      name: 'Арнтьен',
+      description: 'Логотип бренда Арнтьен',
       isSystem: true
     }
   ];

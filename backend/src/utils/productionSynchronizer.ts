@@ -160,7 +160,7 @@ export async function createTasksForPendingOrders(): Promise<SyncResult> {
     for (const order of activeOrders) {
       try {
         // Анализируем доступность товаров заказа
-        const { analyzeOrderAvailability } = await import('./orderStatusCalculator.js');
+        const { analyzeOrderAvailability } = await import('./orderStatusCalculator');
         const analysis = await analyzeOrderAvailability(order.orderId);
 
         if (analysis.should_suggest_production) {
@@ -318,7 +318,7 @@ export async function recalculateProductionNeeds(): Promise<{
     for (const order of activeOrders) {
       try {
         // Анализируем текущие потребности заказа
-        const { analyzeOrderAvailability } = await import('./orderStatusCalculator.js');
+        const { analyzeOrderAvailability } = await import('./orderStatusCalculator');
         const analysis = await analyzeOrderAvailability(order.orderId);
 
         const currentTasks = tasksByOrder[order.orderId] || [];

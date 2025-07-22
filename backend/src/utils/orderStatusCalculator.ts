@@ -44,6 +44,14 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
     throw new Error('Заказ не содержит товаров');
   }
 
+  // Получаем текущий статус заказа для правильного определения нового статуса
+  const currentOrder = await db.query.orders.findFirst({
+    where: eq(orders.id, orderId),
+    columns: { status: true }
+  });
+
+  const currentStatus = currentOrder?.status || 'new';
+
   const productIds = orderItemsData.map(item => item.product_id);
 
   // Получаем текущие остатки включая резерв
@@ -126,23 +134,34 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
 
   let orderStatus: OrderStatus;
   const hasProduction = itemsAnalysis.some(item => item.in_production_quantity > 0);
-  const allItemsAvailable = availableItems === itemsAnalysis.length;
+  const allItemsFullyAvailable = availableItems === itemsAnalysis.length;
   const hasUnavailableItems = needsProductionItems > 0 || partiallyAvailableItems > 0;
 
-  // Логика определения статуса заказа:
-  // 1. Если все товары доступны - статус может быть 'confirmed' или 'ready'
-  // 2. Если есть товары в производстве - статус 'in_production'
-  // 3. Если товары недоступны и нет производства - остается 'new'
-  
-  if (allItemsAvailable) {
-    // Все товары доступны - заказ может быть подтвержден или готов
-    orderStatus = 'confirmed'; // или 'ready' в зависимости от бизнес-логики
+  // ИСПРАВЛЕННАЯ ЛОГИКА определения статуса заказа:
+  if (allItemsFullyAvailable) {
+    // ВСЕ товары в ПОЛНОМ объеме доступны для отгрузки
+    if (currentStatus === 'confirmed' || currentStatus === 'in_production') {
+      // Заказ уже был подтвержден - теперь готов к отгрузке
+      orderStatus = 'ready';
+    } else {
+      // Новый заказ с доступными товарами - подтверждаем
+      orderStatus = 'confirmed';
+    }
   } else if (hasProduction) {
-    // Есть товары в производстве
+    // Есть товары в производстве - заказ в работе
     orderStatus = 'in_production';
-  } else {
+  } else if (hasUnavailableItems) {
     // Товары недоступны, производство не запущено
-    orderStatus = 'new'; // остается в статусе создания
+    if (currentStatus === 'confirmed') {
+      // Подтвержденный заказ, но товары недоступны - отправляем в производство
+      orderStatus = 'in_production';
+    } else {
+      // Новый заказ с недоступными товарами
+      orderStatus = 'new';
+    }
+  } else {
+    // Остальные случаи - сохраняем текущий статус
+    orderStatus = currentStatus;
   }
 
   const canBeFulfilled = itemsAnalysis.every(item => 

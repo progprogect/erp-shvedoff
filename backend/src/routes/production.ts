@@ -180,7 +180,7 @@ router.put('/queue/:id/status', authenticateToken, authorizeRoles('production', 
       if (productionItem.orderId) {
         // Пересчитываем статус заказа на основе реального анализа доступности
         try {
-          const { analyzeOrderAvailability } = await import('../utils/orderStatusCalculator.js');
+          const { analyzeOrderAvailability } = await import('../utils/orderStatusCalculator');
           const orderAnalysis = await analyzeOrderAvailability(productionItem.orderId);
           
           await db.update(schema.orders)
@@ -748,7 +748,7 @@ router.post('/tasks/complete-by-product', authenticateToken, authorizeRoles('pro
       // Пересчитываем статусы заказов и отправляем уведомления
       for (const orderId of updatedOrders) {
         try {
-          const { analyzeOrderAvailability } = await import('../utils/orderStatusCalculator.js');
+          const { analyzeOrderAvailability } = await import('../utils/orderStatusCalculator');
           const orderAnalysis = await analyzeOrderAvailability(orderId);
           
           await tx.update(schema.orders)
@@ -1187,7 +1187,7 @@ router.post('/tasks/:id/complete', authenticateToken, authorizeRoles('production
       try {
         // Только если задание связано с заказом
         if (task.orderId && task.order) {
-        const { analyzeOrderAvailability } = await import('../utils/orderStatusCalculator.js');
+        const { analyzeOrderAvailability } = await import('../utils/orderStatusCalculator');
         const orderAnalysis = await analyzeOrderAvailability(task.orderId);
         
         // Обновляем статус заказа если он изменился
