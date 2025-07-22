@@ -90,7 +90,8 @@ app.get('/api', (req, res) => {
     endpoints: {
       health: '/health',
       auth: '/api/auth',
-      catalog: '/api/catalog',
+      catalog: '/api/catalog (products only)',
+      categories: '/api/categories',
       stock: '/api/stock',
       orders: '/api/orders',
       dashboard: '/api/dashboard',

@@ -118,7 +118,7 @@ class CatalogApi {
 
   async getCategories(): Promise<ApiResponse<Category[]>> {
     const response = await axios.get(
-      `${API_BASE_URL}/catalog/categories`,
+      `${API_BASE_URL}/categories`,
       this.getAuthHeaders()
     );
     return response.data;
@@ -195,7 +195,7 @@ class CatalogApi {
 
   async createCategory(categoryData: { name: string; parentId?: number; description?: string }): Promise<ApiResponse<Category>> {
     const response = await axios.post(
-      `${API_BASE_URL}/catalog/categories`,
+      `${API_BASE_URL}/categories`,
       categoryData,
       this.getAuthHeaders()
     );
@@ -204,7 +204,7 @@ class CatalogApi {
 
   async deleteCategory(id: number): Promise<ApiResponse<void>> {
     const response = await axios.delete(
-      `${API_BASE_URL}/catalog/categories/${id}`,
+      `${API_BASE_URL}/categories/${id}`,
       this.getAuthHeaders()
     );
     return response.data;
@@ -212,7 +212,7 @@ class CatalogApi {
 
   async deleteCategoryWithAction(id: number, options: CategoryDeleteOptions): Promise<CategoryDeleteResult> {
     const response = await axios.post(
-      `${API_BASE_URL}/catalog/categories/${id}/delete-with-action`,
+      `${API_BASE_URL}/categories/${id}/delete-with-action`,
       options,
       this.getAuthHeaders()
     );
@@ -221,7 +221,7 @@ class CatalogApi {
 
   async getCategoryDetails(id: number): Promise<ApiResponse<Category & { productsCount: number }>> {
     const response = await axios.get(
-      `${API_BASE_URL}/catalog/categories/${id}`,
+      `${API_BASE_URL}/categories/${id}`,
       this.getAuthHeaders()
     );
     return response.data;

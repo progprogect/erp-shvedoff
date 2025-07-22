@@ -106,58 +106,6 @@ async function getProductionQuantities(productIds?: number[]) {
   }
 }
 
-// GET /api/catalog/categories - Get categories tree
-router.get('/categories', authenticateToken, async (req, res, next) => {
-  try {
-    const categories = await db.query.categories.findMany({
-      with: {
-        children: true,
-        products: {
-          with: {
-            stock: true
-          }
-        }
-      },
-      orderBy: [schema.categories.sortOrder, schema.categories.name]
-    });
-
-    // Build tree structure
-    const rootCategories = categories.filter(cat => !cat.parentId);
-    
-    res.json({
-      success: true,
-      data: rootCategories
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// POST /api/catalog/categories - Create category
-router.post('/categories', authenticateToken, authorizeRoles('director', 'manager'), async (req: AuthRequest, res, next) => {
-  try {
-    const { name, parentId, description } = req.body;
-
-    if (!name) {
-      return next(createError('Category name is required', 400));
-    }
-
-    const newCategory = await db.insert(schema.categories).values({
-      name,
-      parentId: parentId || null,
-      description,
-      path: parentId ? `${parentId}.` : null
-    }).returning();
-
-    res.status(201).json({
-      success: true,
-      data: newCategory[0]
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
 // GET /api/catalog/products - Get products with search and filters
 router.get('/products', authenticateToken, async (req, res, next) => {
   try {
