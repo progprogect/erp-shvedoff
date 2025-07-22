@@ -4,18 +4,30 @@ import * as schema from './schema';
 
 // Database configuration with improved Railway support
 const getDatabaseConfig = () => {
+  console.log('🔧 DB Config Debug:');
+  console.log('   NODE_ENV:', process.env.NODE_ENV);
+  console.log('   DATABASE_URL length:', process.env.DATABASE_URL?.length || 0);
+  console.log('   DATABASE_URL starts with:', process.env.DATABASE_URL?.substring(0, 20) || 'N/A');
+  
   if (process.env.DATABASE_URL) {
     console.log('🔗 Using DATABASE_URL for connection');
-    return {
+    const config = {
       connectionString: process.env.DATABASE_URL,
       ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
       connectionTimeoutMillis: 30000,
       idleTimeoutMillis: 30000,
       max: 20
     };
+    console.log('   SSL enabled:', !!config.ssl);
+    return config;
   }
   
   console.log('🔗 Using individual DB variables for connection');
+  console.log('   DB_HOST:', process.env.DB_HOST || 'localhost');
+  console.log('   DB_PORT:', process.env.DB_PORT || '5432');
+  console.log('   DB_USER:', process.env.DB_USER || 'mikitavalkunovich');
+  console.log('   DB_NAME:', process.env.DB_NAME || 'erp_shvedoff');
+  
   return {
     host: process.env.DB_HOST || 'localhost',
     port: parseInt(process.env.DB_PORT || '5432'),
@@ -61,7 +73,14 @@ export const testConnection = async () => {
       console.error('   💡 Suggestion: Database host not found, check connection string');
     }
     
-    console.error('   📋 Available env vars:', Object.keys(process.env).filter(k => k.includes('DB')));
+    console.error('   📋 All env vars count:', Object.keys(process.env).length);
+    console.error('   📋 DB-related env vars:', Object.keys(process.env).filter(k => k.includes('DB') || k.includes('DATABASE')));
+    console.error('   📋 Railway env vars:', Object.keys(process.env).filter(k => k.includes('RAILWAY')));
+    console.error('   📋 Important env vars present:');
+    console.error('      - NODE_ENV:', !!process.env.NODE_ENV);
+    console.error('      - DATABASE_URL:', !!process.env.DATABASE_URL);
+    console.error('      - JWT_SECRET:', !!process.env.JWT_SECRET);
+    console.error('      - CORS_ORIGINS:', !!process.env.CORS_ORIGINS);
     
     return false;
   }

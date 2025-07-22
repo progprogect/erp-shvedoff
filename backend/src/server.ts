@@ -23,8 +23,18 @@ import materialsRoutes from './routes/materials';
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/logger';
 
-// Load environment variables
-dotenv.config();
+// Load environment variables - only in development
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config();
+}
+
+// Debug environment variables loading
+console.log('🔧 Environment loading debug:');
+console.log('   NODE_ENV:', process.env.NODE_ENV);
+console.log('   DATABASE_URL present:', !!process.env.DATABASE_URL);
+console.log('   JWT_SECRET present:', !!process.env.JWT_SECRET);
+console.log('   CORS_ORIGINS present:', !!process.env.CORS_ORIGINS);
+console.log('   Total env vars:', Object.keys(process.env).length);
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -45,7 +55,11 @@ app.get('/health', (req, res) => {
     status: 'OK', 
     timestamp: new Date().toISOString(),
     version: '1.0.0',
-    environment: process.env.NODE_ENV 
+    environment: process.env.NODE_ENV,
+    envVarsCount: Object.keys(process.env).length,
+    databaseConfigured: !!process.env.DATABASE_URL,
+    jwtConfigured: !!process.env.JWT_SECRET,
+    corsConfigured: !!process.env.CORS_ORIGINS
   });
 });
 
@@ -129,16 +143,30 @@ app.use(errorHandler);
 const startServer = async () => {
   try {
     // Test database connection
+    console.log('🔄 Testing database connection...');
     const dbConnected = await testConnection();
+    
     if (!dbConnected) {
-      console.error('❌ Failed to connect to database. Exiting...');
-      process.exit(1);
+      console.error('❌ Database connection failed, but starting server for diagnostics...');
+      console.error('   Health check will be available for troubleshooting');
+      
+      // Start server without database functionality for diagnostics
+      app.listen(PORT, () => {
+        console.log(`🚀 Server running in DIAGNOSTIC MODE on port ${PORT}`);
+        console.log(`📍 Health check: http://localhost:${PORT}/health`);
+        console.log(`⚠️  Database not connected - API will not work`);
+        console.log(`🌟 Environment: ${process.env.NODE_ENV}`);
+      });
+      return;
     }
+
+    console.log('✅ Database connected successfully');
 
     // Initialize default permissions
     try {
       const { initializeDefaultPermissions } = await import('./middleware/permissions');
       await initializeDefaultPermissions();
+      console.log('✅ Permissions initialized');
     } catch (error) {
       console.warn('⚠️ Warning: Could not initialize permissions:', error);
     }
@@ -148,10 +176,22 @@ const startServer = async () => {
       console.log(`📍 Health check: http://localhost:${PORT}/health`);
       console.log(`🔧 API docs: http://localhost:${PORT}/api`);
       console.log(`🌟 Environment: ${process.env.NODE_ENV}`);
+      console.log(`✅ All systems operational`);
     });
   } catch (error) {
-    console.error('❌ Failed to start server:', error);
-    process.exit(1);
+    console.error('❌ Critical error starting server:', error);
+    
+    // Try to start in diagnostic mode
+    try {
+      app.listen(PORT, () => {
+        console.log(`🚀 Server running in EMERGENCY MODE on port ${PORT}`);
+        console.log(`📍 Health check: http://localhost:${PORT}/health`);
+        console.log(`❌ Critical error occurred - check logs`);
+      });
+    } catch (emergencyError) {
+      console.error('❌ Cannot start server even in emergency mode:', emergencyError);
+      process.exit(1);
+    }
   }
 };
 

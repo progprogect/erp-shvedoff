@@ -1,5 +1,9 @@
 import type { Config } from 'drizzle-kit';
-import 'dotenv/config';
+
+// Load environment variables only in development
+if (process.env.NODE_ENV !== 'production') {
+  require('dotenv/config');
+}
 
 export default {
   schema: './src/db/schema.ts',
