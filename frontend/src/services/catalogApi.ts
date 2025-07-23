@@ -30,6 +30,14 @@ export interface Product {
     surface?: string;
     material?: string;
   };
+  puzzleOptions?: {
+    sides?: '1_side' | '2_sides' | '3_sides' | '4_sides';
+    type?: string;
+    enabled?: boolean;
+  };
+  matArea?: number; // Площадь мата в м² (автоматический расчет + коррекция)
+  weight?: number; // Вес товара в кг (опционально)
+  grade: 'usual' | 'grade_2'; // Сорт товара: обычный по умолчанию
   tags?: string[];
   price?: number;
   normStock: number;

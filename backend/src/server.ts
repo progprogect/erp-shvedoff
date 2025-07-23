@@ -20,6 +20,7 @@ import permissionsRoutes from './routes/permissions';
 import surfacesRoutes from './routes/surfaces';
 import logosRoutes from './routes/logos';
 import materialsRoutes from './routes/materials';
+import puzzleTypesRoutes from './routes/puzzle-types';
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/logger';
 
@@ -80,6 +81,7 @@ app.use('/api/permissions', permissionsRoutes);
 app.use('/api/surfaces', surfacesRoutes);
 app.use('/api/logos', logosRoutes);
 app.use('/api/materials', materialsRoutes);
+app.use('/api/puzzle-types', puzzleTypesRoutes);
 
 // API Info endpoint
 app.get('/api', (req, res) => {
@@ -103,6 +105,7 @@ app.get('/api', (req, res) => {
       surfaces: '/api/surfaces',
       logos: '/api/logos',
       materials: '/api/materials',
+      puzzleTypes: '/api/puzzle-types',
       audit: '/api/audit'
     }
   });

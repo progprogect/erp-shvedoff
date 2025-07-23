@@ -92,6 +92,19 @@ export const productMaterials = pgTable('product_materials', {
   createdAt: timestamp('created_at').defaultNow()
 });
 
+// Puzzle types table - для динамического управления типами паззлов
+export const puzzleTypes = pgTable('puzzle_types', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 100 }).notNull().unique(),
+  code: varchar('code', { length: 50 }).notNull().unique(), // old, new, narrow, wide и т.д.
+  description: text('description'),
+  isSystem: boolean('is_system').default(false), // предустановленные типы
+  createdAt: timestamp('created_at').defaultNow()
+});
+
+// Enum для сортов товаров
+export const productGradeEnum = pgEnum('product_grade', ['usual', 'grade_2']);
+
 // Products table - FR-002
 export const products = pgTable('products', {
   id: serial('id').primaryKey(),
@@ -104,6 +117,10 @@ export const products = pgTable('products', {
   materialId: integer('material_id').references(() => productMaterials.id),
   dimensions: jsonb('dimensions'), // {length: 1800, width: 1200, height: 30}
   characteristics: jsonb('characteristics'), // {surface: "чертёная", material: "резина"}
+  puzzleOptions: jsonb('puzzle_options'), // {sides: "1_side", type: "old", enabled: false} - опции для поверхности "Паззл"
+  matArea: decimal('mat_area', { precision: 10, scale: 4 }), // Площадь мата в м² (автоматический расчет + коррекция)
+  weight: decimal('weight', { precision: 8, scale: 3 }), // Вес товара в кг (опционально)
+  grade: productGradeEnum('grade').default('usual'), // Сорт товара: обычный по умолчанию
   tags: text('tags').array(),
   price: decimal('price', { precision: 10, scale: 2 }),
   costPrice: decimal('cost_price', { precision: 10, scale: 2 }),
@@ -217,7 +234,9 @@ export const productionTasks = pgTable('production_tasks', {
   priority: integer('priority').default(1), // 1-5, где 5 - срочный
   sortOrder: integer('sort_order').default(0), // для drag-and-drop сортировки
   
-  // Даты
+  // Планирование и даты
+  plannedDate: timestamp('planned_date'), // планируемая дата выполнения задания
+  plannedStartTime: varchar('planned_start_time', { length: 8 }), // планируемое время начала (HH:MM)
   createdAt: timestamp('created_at').defaultNow(),
   startedAt: timestamp('started_at'),
   completedAt: timestamp('completed_at'),

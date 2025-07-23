@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Form, Input, Select, InputNumber, Row, Col, Button, Space, message } from 'antd';
+import { Modal, Form, Input, Select, InputNumber, Row, Col, Button, Space, message, Typography } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { catalogApi, Category } from '../services/catalogApi';
 import { surfacesApi, Surface } from '../services/surfacesApi';
 import { logosApi, Logo } from '../services/logosApi';
 import { materialsApi, Material } from '../services/materialsApi';
+import { puzzleTypesApi, PuzzleType } from '../services/puzzleTypesApi';
 import { useAuthStore } from '../stores/authStore';
 
 const { Option } = Select;
 const { TextArea } = Input;
+const { Text } = Typography;
 
 interface CreateProductModalProps {
   visible: boolean;
@@ -28,9 +30,20 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
   const [surfaces, setSurfaces] = useState<Surface[]>([]);
   const [logos, setLogos] = useState<Logo[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
+  const [puzzleTypes, setPuzzleTypes] = useState<PuzzleType[]>([]);
   const [loadingReferences, setLoadingReferences] = useState(false);
   const [newLogoName, setNewLogoName] = useState('');
   const [creatingLogo, setCreatingLogo] = useState(false);
+  const [newPuzzleTypeName, setNewPuzzleTypeName] = useState('');
+  const [creatingPuzzleType, setCreatingPuzzleType] = useState(false);
+  const [selectedSurfaceId, setSelectedSurfaceId] = useState<number | null>(null);
+  const [puzzleOptions, setPuzzleOptions] = useState({
+    sides: '1_side' as '1_side' | '2_sides' | '3_sides' | '4_sides',
+    type: 'old' as string,
+    enabled: false
+  });
+  const [calculatedMatArea, setCalculatedMatArea] = useState<number | null>(null);
+  const [matAreaOverride, setMatAreaOverride] = useState<string>('');
   const { token } = useAuthStore();
 
   // Загрузка справочников при открытии модала
@@ -45,10 +58,11 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
     
     setLoadingReferences(true);
     try {
-      const [surfacesResponse, logosResponse, materialsResponse] = await Promise.all([
+      const [surfacesResponse, logosResponse, materialsResponse, puzzleTypesResponse] = await Promise.all([
         surfacesApi.getSurfaces(token),
         logosApi.getLogos(token),
-        materialsApi.getMaterials(token)
+        materialsApi.getMaterials(token),
+        puzzleTypesApi.getPuzzleTypes(token)
       ]);
 
       if (surfacesResponse.success) {
@@ -59,6 +73,9 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
       }
       if (materialsResponse.success) {
         setMaterials(materialsResponse.data);
+      }
+      if (puzzleTypesResponse.success) {
+        setPuzzleTypes(puzzleTypesResponse.data);
       }
     } catch (error) {
       console.error('Ошибка загрузки справочников:', error);
@@ -98,11 +115,44 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
     }
   };
 
+  // Создание нового типа паззла
+  const createNewPuzzleType = async () => {
+    if (!token || !newPuzzleTypeName.trim()) {
+      message.error('Введите название типа паззла');
+      return;
+    }
+
+    setCreatingPuzzleType(true);
+    try {
+      const response = await puzzleTypesApi.createPuzzleType({
+        name: newPuzzleTypeName.trim(),
+        description: `Пользовательский тип паззла: ${newPuzzleTypeName.trim()}`
+      }, token);
+
+      if (response.success) {
+        // Добавляем новый тип в список
+        setPuzzleTypes(prev => [...prev, response.data]);
+        // Устанавливаем его в состоянии паззла
+        setPuzzleOptions(prev => ({ ...prev, type: response.data.code as string }));
+        setNewPuzzleTypeName('');
+        message.success('Тип паззла успешно создан');
+      }
+    } catch (error: any) {
+      console.error('Ошибка создания типа паззла:', error);
+      message.error(error.response?.data?.error?.message || 'Ошибка создания типа паззла');
+    } finally {
+      setCreatingPuzzleType(false);
+    }
+  };
+
   const handleSubmit = async (values: any) => {
     if (!token) return;
 
     setLoading(true);
     try {
+      // Проверяем выбрана ли поверхность "Паззл"
+      const isPuzzleSurface = surfaces.find(s => s.id === values.surfaceId)?.name === 'Паззл';
+
       const productData = {
         name: values.name,
         article: values.article || null,
@@ -115,6 +165,10 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
           width: Number(values.width),
           thickness: Number(values.thickness)
         } : undefined,
+        puzzleOptions: isPuzzleSurface && puzzleOptions.enabled ? puzzleOptions : undefined,
+        matArea: values.matArea ? parseFloat(values.matArea) : undefined,
+        weight: values.weight ? parseFloat(values.weight) : undefined,
+        grade: values.grade || 'usual',
         price: values.price ? parseFloat(values.price) : undefined,
         normStock: values.normStock || 0,
         notes: values.notes || null
@@ -125,6 +179,12 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
       if (response.success) {
         message.success('Товар успешно создан');
         form.resetFields();
+        setSelectedSurfaceId(null);
+        setPuzzleOptions({ sides: '1_side', type: (puzzleTypes[0]?.code || 'old') as string, enabled: false });
+        setCalculatedMatArea(null);
+        setMatAreaOverride('');
+        // Устанавливаем значения по умолчанию
+        form.setFieldsValue({ grade: 'usual' });
         onSuccess();
         onClose();
       } else {
@@ -138,25 +198,61 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
     }
   };
 
-  // Генерация артикула на основе названия
+  // Генерация артикула на основе названия и расчет площади мата
   const generateArticle = () => {
     const name = form.getFieldValue('name');
-    if (name) {
-      const length = form.getFieldValue('length');
-      const width = form.getFieldValue('width');
-      const thickness = form.getFieldValue('thickness');
+    const length = form.getFieldValue('length');
+    const width = form.getFieldValue('width');
+    const thickness = form.getFieldValue('thickness');
+    const surfaceId = form.getFieldValue('surfaceId');
+    
+            // Генерация артикула
+        if (name) {
+          // Краткий символ из названия
+          let article = name
+            .replace(/[^а-яё\s]/gi, '')
+            .split(' ')
+            .map((word: string) => word.slice(0, 3).toUpperCase())
+            .join('-');
+          
+          // Размер через x
+          if (length && width && thickness) {
+            article += `-${length}x${width}x${thickness}`;
+          }
+          
+          // Краткое обозначение поверхности
+          if (surfaceId) {
+            const surface = surfaces.find(s => s.id === surfaceId);
+            if (surface) {
+              const surfaceCode = surface.name
+                .replace(/[^а-яё\s]/gi, '')
+                .split(' ')
+                .map((word: string) => word.slice(0, 2).toUpperCase())
+                .join('');
+              if (surfaceCode) {
+                article += `-${surfaceCode}`;
+              }
+            }
+          }
+          
+          form.setFieldsValue({ article });
+        }
+
+    // Расчет площади мата (длина × ширина в м²)
+    if (length && width) {
+      const areaM2 = (length * width) / 1000000; // мм² в м²
+      const roundedArea = Number(areaM2.toFixed(4));
+      setCalculatedMatArea(roundedArea);
       
-      let article = name
-        .replace(/[^а-яё\s]/gi, '')
-        .split(' ')
-        .map((word: string) => word.slice(0, 3).toUpperCase())
-        .join('-');
-      
-      if (length && width && thickness) {
-        article += `-${length}-${width}-${thickness}`;
+      // Если пользователь не переопределил площадь, используем расчетную
+      if (!matAreaOverride) {
+        form.setFieldsValue({ matArea: roundedArea });
       }
-      
-      form.setFieldsValue({ article });
+    } else {
+      setCalculatedMatArea(null);
+      if (!matAreaOverride) {
+        form.setFieldsValue({ matArea: undefined });
+      }
     }
   };
 
@@ -307,6 +403,16 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                 showSearch
                 optionFilterProp="children"
                 allowClear
+                onChange={(value) => {
+                  setSelectedSurfaceId(value);
+                  const isPuzzle = surfaces.find(s => s.id === value)?.name === 'Паззл';
+                  if (isPuzzle) {
+                    // Автоматически включаем опции паззла при выборе поверхности "Паззл"
+                    setPuzzleOptions({ sides: '1_side', type: 'old', enabled: true });
+                  } else {
+                    setPuzzleOptions({ sides: '1_side', type: 'old', enabled: false });
+                  }
+                }}
               >
                 {surfaces.map(surface => (
                   <Option key={surface.id} value={surface.id}>
@@ -380,6 +486,171 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                 ))}
               </Select>
             </Form.Item>
+          </Col>
+        </Row>
+
+        {/* Дополнительные характеристики */}
+        <Row gutter={16}>
+          <Col span={8}>
+            <Form.Item
+              name="weight"
+              label="Вес (кг)"
+            >
+              <InputNumber 
+                placeholder="Например: 15.5"
+                style={{ width: '100%' }}
+                min={0}
+                precision={3}
+                step={0.1}
+              />
+            </Form.Item>
+          </Col>
+          <Col span={8}>
+            <Form.Item
+              name="grade"
+              label="Сорт товара"
+              initialValue="usual"
+            >
+              <Select style={{ width: '100%' }}>
+                <Option value="usual">Обычный</Option>
+                <Option value="grade_2">2 сорт</Option>
+              </Select>
+            </Form.Item>
+          </Col>
+          <Col span={8}>
+            {/* Пустая колонка для симметрии */}
+          </Col>
+        </Row>
+
+        {/* Опции паззла - показываются только при выборе поверхности "Паззл" */}
+        {surfaces.find(s => s.id === selectedSurfaceId)?.name === 'Паззл' && (
+          <Row gutter={16} style={{ backgroundColor: '#f0f8ff', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
+            <Col span={24}>
+              <div style={{ marginBottom: '12px' }}>
+                                 <span style={{ fontWeight: 'bold', color: '#1890ff' }}>🧩 Настройки паззловой поверхности</span>
+              </div>
+            </Col>
+            <Col span={6}>
+              <div style={{ marginBottom: '8px' }}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={puzzleOptions.enabled}
+                    onChange={(e) => setPuzzleOptions({...puzzleOptions, enabled: e.target.checked})}
+                    style={{ marginRight: '8px' }}
+                  />
+                                     <span>Включить опции паззла</span>
+                </label>
+              </div>
+            </Col>
+            {puzzleOptions.enabled && (
+              <>
+                <Col span={9}>
+                  <div style={{ marginBottom: '8px' }}>
+                                         <span>Количество сторон:</span>
+                  </div>
+                  <Select
+                    value={puzzleOptions.sides}
+                    onChange={(value) => setPuzzleOptions({...puzzleOptions, sides: value})}
+                    style={{ width: '100%' }}
+                  >
+                    <Option value="1_side">1 сторона</Option>
+                    <Option value="2_sides">2 стороны</Option>
+                    <Option value="3_sides">3 стороны</Option>
+                    <Option value="4_sides">4 стороны</Option>
+                  </Select>
+                </Col>
+                <Col span={9}>
+                  <div style={{ marginBottom: '8px' }}>
+                                         <span>Тип паззла:</span>
+                  </div>
+                  <Select
+                    value={puzzleOptions.type}
+                    onChange={(value) => setPuzzleOptions({...puzzleOptions, type: value})}
+                    style={{ width: '100%' }}
+                    loading={loadingReferences}
+                    dropdownRender={(menu) => (
+                      <>
+                        {menu}
+                        <div style={{ padding: '8px', borderTop: '1px solid #f0f0f0' }}>
+                          <Input
+                            placeholder="Название нового типа паззла"
+                            value={newPuzzleTypeName}
+                            onChange={(e) => setNewPuzzleTypeName(e.target.value)}
+                            onPressEnter={createNewPuzzleType}
+                            style={{ marginBottom: 8 }}
+                          />
+                          <Button
+                            type="primary"
+                            size="small"
+                            icon={<PlusOutlined />}
+                            onClick={createNewPuzzleType}
+                            loading={creatingPuzzleType}
+                            disabled={!newPuzzleTypeName.trim()}
+                            style={{ width: '100%' }}
+                          >
+                            Создать новый тип
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  >
+                    {puzzleTypes.map(type => (
+                      <Option key={type.id} value={type.code}>
+                        🧩 {type.name}
+                      </Option>
+                    ))}
+                  </Select>
+                </Col>
+              </>
+            )}
+          </Row>
+        )}
+
+        {/* Площадь мата */}
+        <Row gutter={16} style={{ backgroundColor: '#f9f9f9', padding: '12px', borderRadius: '6px', marginBottom: '16px' }}>
+          <Col span={24}>
+            <div style={{ marginBottom: '8px' }}>
+              <span style={{ fontWeight: 'bold', color: '#52c41a' }}>📐 Площадь мата</span>
+            </div>
+          </Col>
+          <Col span={12}>
+            <Form.Item
+              name="matArea"
+              label={
+                <span>
+                  Площадь (м²)
+                  {calculatedMatArea && (
+                    <span style={{ color: '#1890ff', fontWeight: 'normal', marginLeft: 8 }}>
+                      (автоматически: {calculatedMatArea} м²)
+                    </span>
+                  )}
+                </span>
+              }
+            >
+              <InputNumber 
+                placeholder="Рассчитается автоматически"
+                style={{ width: '100%' }}
+                min={0}
+                precision={4}
+                step={0.0001}
+                onChange={(value: number | null) => {
+                  setMatAreaOverride(value ? value.toString() : '');
+                }}
+              />
+            </Form.Item>
+          </Col>
+          <Col span={12}>
+            <div style={{ paddingTop: '30px', color: '#666', fontSize: '12px' }}>
+              {calculatedMatArea ? (
+                <>
+                  📏 Расчет: {form.getFieldValue('length') || 0} × {form.getFieldValue('width') || 0} мм = {calculatedMatArea} м²<br/>
+                  💡 Можете скорректировать значение при необходимости
+                </>
+              ) : (
+                '📏 Введите длину и ширину для автоматического расчета площади'
+              )}
+            </div>
           </Col>
         </Row>
 

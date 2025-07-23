@@ -57,6 +57,8 @@ import {
   ProductionTaskExtra,
   UpdateProductionTaskRequest
 } from '../services/productionApi';
+import ProductionCalendar from '../components/ProductionCalendar';
+import ProductionStatistics from '../components/ProductionStatistics';
 import { catalogApi } from '../services/catalogApi';
 import { useAuthStore } from '../stores/authStore';
 
@@ -260,9 +262,10 @@ const ProductionTasks: React.FC = () => {
     setActiveTab(key);
     if (key === 'by-product') {
       loadTasksByProduct();
-    } else {
+    } else if (key === 'list' || key === 'calendar') {
       loadTasks();
     }
+    // Для статистики не нужно дополнительно загружать данные
   };
 
   // Обработчик drag and drop
@@ -1029,6 +1032,23 @@ const ProductionTasks: React.FC = () => {
                     rowExpandable: (record) => record.tasks.length > 0,
                   }}
                 />
+              )
+            },
+            {
+              key: 'calendar',
+              label: 'Календарь',
+              children: (
+                <ProductionCalendar 
+                  tasks={tasks}
+                  onTaskUpdate={loadTasks}
+                />
+              )
+            },
+            {
+              key: 'statistics',
+              label: 'Статистика',
+              children: (
+                <ProductionStatistics />
               )
             }
           ]}

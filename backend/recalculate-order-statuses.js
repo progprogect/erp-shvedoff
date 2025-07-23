@@ -115,6 +115,8 @@ async function recalculateOrderStatus(client, orderId) {
 
     let newStatus = currentStatus;
 
+    // КАРДИНАЛЬНО ИСПРАВЛЕННАЯ ЛОГИКА определения статуса заказа:
+    // ПРИОРИТЕТ 1: Если ВСЕ товары доступны - заказ готов (независимо от производства)
     if (allItemsFullyAvailable) {
       // ВСЕ товары в ПОЛНОМ объеме доступны для отгрузки
       if (currentStatus === 'confirmed' || currentStatus === 'in_production') {
@@ -124,11 +126,13 @@ async function recalculateOrderStatus(client, orderId) {
         // Новый заказ с доступными товарами - подтверждаем
         newStatus = 'confirmed';
       }
-    } else if (hasProduction) {
-      // Есть товары в производстве - заказ в работе
+    } 
+    // ПРИОРИТЕТ 2: Если товары НЕДОступны И есть производство - в работе
+    else if (hasUnavailableItems && hasProduction) {
       newStatus = 'in_production';
-    } else if (hasUnavailableItems) {
-      // Товары недоступны, производство не запущено
+    } 
+    // ПРИОРИТЕТ 3: Если товары НЕДОступны И НЕТ производства - нужно запустить
+    else if (hasUnavailableItems && !hasProduction) {
       if (currentStatus === 'confirmed') {
         // Подтвержденный заказ, но товары недоступны - отправляем в производство
         newStatus = 'in_production';

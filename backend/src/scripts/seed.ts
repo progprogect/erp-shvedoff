@@ -76,6 +76,11 @@ const seedSurfaces = async () => {
       name: 'Чешуйка с лого',
       description: 'Поверхность с чешуйками и логотипом',
       isSystem: true
+    },
+    {
+      name: 'Паззл',
+      description: 'Поверхность с паззловой текстурой и дополнительными опциями (1-4 стороны, типы: старый/новый/узкий/широкий)',
+      isSystem: true
     }
   ];
 
@@ -116,6 +121,46 @@ const seedLogos = async () => {
 
   await db.insert(schema.productLogos).values(logos).onConflictDoNothing();
   console.log('✅ Product logos seeded successfully');
+};
+
+const seedPuzzleTypes = async () => {
+  console.log('🌱 Seeding puzzle types...');
+  
+  const puzzleTypes = [
+    {
+      name: 'Старый',
+      code: 'old',
+      description: 'Стандартный старый тип паззла',
+      isSystem: true
+    },
+    {
+      name: 'Старый 04.2025',
+      code: 'old_04_2025',
+      description: 'Обновленная версия старого типа паззла',
+      isSystem: true
+    },
+    {
+      name: 'Новый',
+      code: 'new',
+      description: 'Новый тип паззла с улучшенными характеристиками',
+      isSystem: true
+    },
+    {
+      name: 'Узкий',
+      code: 'narrow',
+      description: 'Узкий паззл для специальных применений',
+      isSystem: true
+    },
+    {
+      name: 'Широкий',
+      code: 'wide',
+      description: 'Широкий паззл для больших площадей',
+      isSystem: true
+    }
+  ];
+
+  await db.insert(schema.puzzleTypes).values(puzzleTypes).onConflictDoNothing();
+  console.log('✅ Puzzle types seeded successfully');
 };
 
 const seedMaterials = async () => {
@@ -247,11 +292,12 @@ const main = async () => {
     console.log('🚀 Starting database seeding...');
     
     await seedUsers();
-    await seedSurfaces();
-    await seedLogos();
-    await seedMaterials();
-    await seedCategories(); 
-    await seedProducts();
+      await seedSurfaces();
+  await seedLogos();
+  await seedMaterials();
+  await seedPuzzleTypes();
+  await seedCategories();
+  await seedProducts();
     
     console.log('✅ Database seeding completed successfully!');
     console.log('');

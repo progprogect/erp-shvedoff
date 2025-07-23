@@ -137,7 +137,8 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
   const allItemsFullyAvailable = availableItems === itemsAnalysis.length;
   const hasUnavailableItems = needsProductionItems > 0 || partiallyAvailableItems > 0;
 
-  // ИСПРАВЛЕННАЯ ЛОГИКА определения статуса заказа:
+  // КАРДИНАЛЬНО ИСПРАВЛЕННАЯ ЛОГИКА определения статуса заказа:
+  // ПРИОРИТЕТ 1: Если ВСЕ товары доступны - заказ готов (независимо от производства)
   if (allItemsFullyAvailable) {
     // ВСЕ товары в ПОЛНОМ объеме доступны для отгрузки
     if (currentStatus === 'confirmed' || currentStatus === 'in_production') {
@@ -147,11 +148,13 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
       // Новый заказ с доступными товарами - подтверждаем
       orderStatus = 'confirmed';
     }
-  } else if (hasProduction) {
-    // Есть товары в производстве - заказ в работе
+  } 
+  // ПРИОРИТЕТ 2: Если товары НЕДОступны И есть производство - в работе
+  else if (hasUnavailableItems && hasProduction) {
     orderStatus = 'in_production';
-  } else if (hasUnavailableItems) {
-    // Товары недоступны, производство не запущено
+  } 
+  // ПРИОРИТЕТ 3: Если товары НЕДОступны И НЕТ производства - нужно запустить
+  else if (hasUnavailableItems && !hasProduction) {
     if (currentStatus === 'confirmed') {
       // Подтвержденный заказ, но товары недоступны - отправляем в производство
       orderStatus = 'in_production';
@@ -159,8 +162,9 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
       // Новый заказ с недоступными товарами
       orderStatus = 'new';
     }
-  } else {
-    // Остальные случаи - сохраняем текущий статус
+  } 
+  // ПРИОРИТЕТ 4: Остальные случаи - сохраняем текущий статус
+  else {
     orderStatus = currentStatus;
   }
 
@@ -199,7 +203,67 @@ export async function updateOrderStatus(orderId: number): Promise<OrderStatus> {
 }
 
 /**
- * Пересчитывает статусы всех заказов
+ * Отменяет ненужные производственные задания для заказа
+ * Если все товары заказа доступны, связанные задания отменяются
+ */
+export async function cancelUnnecessaryProductionTasks(orderId: number): Promise<{
+  cancelled: number;
+  tasks: any[];
+}> {
+  try {
+    const analysis = await analyzeOrderAvailability(orderId);
+    
+    // Если все товары доступны, отменяем связанные производственные задания
+    if (analysis.status === 'ready' || analysis.status === 'confirmed') {
+      const unnecessaryTasks = await db
+        .select({
+          id: productionTasks.id,
+          productId: productionTasks.productId,
+          requestedQuantity: productionTasks.requestedQuantity,
+          status: productionTasks.status
+        })
+        .from(productionTasks)
+        .where(
+          and(
+            eq(productionTasks.orderId, orderId),
+            inArray(productionTasks.status, ['pending', 'in_progress', 'paused'])
+          )
+        );
+
+      if (unnecessaryTasks.length > 0) {
+        // Отменяем ненужные задания
+        await db
+          .update(productionTasks)
+          .set({
+            status: 'cancelled',
+            notes: sql`COALESCE(${productionTasks.notes}, '') || ' | Автоматически отменено: товары уже доступны'`,
+            updatedAt: new Date()
+          })
+          .where(
+            and(
+              eq(productionTasks.orderId, orderId),
+              inArray(productionTasks.status, ['pending', 'in_progress', 'paused'])
+            )
+          );
+
+        console.log(`🚫 Отменено ${unnecessaryTasks.length} ненужных производственных заданий для заказа ${orderId}`);
+        
+        return {
+          cancelled: unnecessaryTasks.length,
+          tasks: unnecessaryTasks
+        };
+      }
+    }
+
+    return { cancelled: 0, tasks: [] };
+  } catch (error) {
+    console.error(`Ошибка отмены производственных заданий для заказа ${orderId}:`, error);
+    return { cancelled: 0, tasks: [] };
+  }
+}
+
+/**
+ * Пересчитывает статусы всех заказов и очищает ненужные производственные задания
  */
 export async function recalculateAllOrderStatuses(): Promise<void> {
   // Получаем все активные заказы (исключаем завершенные и отмененные)
@@ -211,6 +275,9 @@ export async function recalculateAllOrderStatuses(): Promise<void> {
   for (const order of ordersData) {
     try {
       await updateOrderStatus(order.id);
+      
+      // Отменяем ненужные производственные задания
+      await cancelUnnecessaryProductionTasks(order.id);
     } catch (error) {
       console.error(`Ошибка пересчета статуса заказа ${order.id}:`, error);
     }

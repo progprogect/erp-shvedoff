@@ -972,7 +972,29 @@ router.post('/recalculate-statuses', authenticateToken, authorizeRoles('director
 
     res.json({
       success: true,
-      message: 'Статусы всех заказов пересчитаны на основе актуальной доступности товаров'
+      message: '✅ ИСПРАВЛЕНА ЛОГИКА СТАТУСОВ: Статусы всех заказов пересчитаны с новой логикой приоритета готовности товаров. Ненужные производственные задания отменены автоматически.'
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/orders/:id/analyze-availability - Analyze order availability (for testing)
+router.post('/:id/analyze-availability', authenticateToken, authorizeRoles('director', 'manager'), async (req: AuthRequest, res, next) => {
+  try {
+    const orderId = Number(req.params.id);
+    const { analyzeOrderAvailability, cancelUnnecessaryProductionTasks } = await import('../utils/orderStatusCalculator');
+    
+    const analysis = await analyzeOrderAvailability(orderId);
+    const cancelled = await cancelUnnecessaryProductionTasks(orderId);
+
+    res.json({
+      success: true,
+      data: {
+        analysis,
+        cancelled_tasks: cancelled
+      },
+      message: `Анализ завершен. Статус: ${analysis.status}. Отменено заданий: ${cancelled.cancelled}`
     });
   } catch (error) {
     next(error);

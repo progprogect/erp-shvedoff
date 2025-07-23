@@ -284,6 +284,9 @@ const Catalog: React.FC = () => {
 
   // Проверка есть ли активные фильтры размеров
   const hasSizeFilters = Object.values(sizeFilters).some(value => value !== null);
+  
+  // Проверка есть ли любые активные фильтры
+  const hasActiveFilters = hasSizeFilters || stockFilter !== 'all' || checkedCategories.length > 0;
 
   const canEdit = user?.role === 'director' || user?.role === 'manager';
 
@@ -387,11 +390,11 @@ const Catalog: React.FC = () => {
         <Col span={24}>
           <Card>
             <Space direction="vertical" style={{ width: '100%' }}>
-              {/* Основная строка поиска и фильтров */}
+              {/* Упрощенная строка поиска */}
               <Row gutter={[16, 16]} align="middle">
-                <Col xs={24} md={8}>
+                <Col xs={24} md={16}>
                   <Search
-                    placeholder="Поиск: Лежак, LCH-1800, 1800×1200..."
+                    placeholder="Поиск по названию, артикулу или размеру (например: Лежак, LCH-1800, 1800×1200)..."
                     allowClear
                     value={searchText}
                     onChange={(e) => setSearchText(e.target.value)}
@@ -400,131 +403,141 @@ const Catalog: React.FC = () => {
                 </Col>
                 
                 <Col xs={24} md={8}>
-                  <Space>
-                    <Text>📦 Остатки:</Text>
-                    <Select value={stockFilter} onChange={setStockFilter} style={{ width: 120 }}>
-                      <Option value="all">Все</Option>
-                      <Option value="normal">В наличии</Option>
-                      <Option value="low">Мало</Option>
-                      <Option value="critical">Закончились</Option>
-                    </Select>
-                  </Space>
-                </Col>
-                
-                <Col xs={24} md={8}>
                   <div style={{ textAlign: 'right' }}>
                     <Button
                       icon={<FilterOutlined />}
                       type={showSizeFilters ? 'primary' : 'default'}
                       onClick={() => setShowSizeFilters(!showSizeFilters)}
+                      size="large"
                     >
-                      Фильтры размеров {hasSizeFilters ? '(активны)' : ''}
+                      Расширенный фильтр {hasSizeFilters || stockFilter !== 'all' || checkedCategories.length > 0 ? '(активен)' : ''}
                     </Button>
                   </div>
                 </Col>
               </Row>
 
-              {/* Быстрые размеры */}
-              <Row gutter={[8, 8]} align="middle">
-                <Col>
-                  <Text>📏 Быстрый поиск:</Text>
-                </Col>
-                {popularSizes.map(size => (
-                  <Col key={size}>
-                    <Button
-                      size="small"
-                      type={searchText === size ? 'primary' : 'default'}
-                      onClick={() => setSearchText(searchText === size ? '' : size)}
-                    >
-                      {size}
-                    </Button>
-                  </Col>
-                ))}
-                <Col>
-                  <Text style={{ marginLeft: 16 }}>🔧 По размеру:</Text>
-                </Col>
-                {quickSizeRanges.map((range, index) => (
-                  <Col key={index}>
-                    <Button
-                      size="small"
-                      onClick={() => applyQuickSizeRange(range)}
-                    >
-                      {range.label}
-                    </Button>
-                  </Col>
-                ))}
-                {hasSizeFilters && (
-                  <Col>
-                    <Button size="small" icon={<ClearOutlined />} onClick={clearSizeFilters}>
-                      Сбросить
-                    </Button>
-                  </Col>
-                )}
-              </Row>
-
-              {/* Расширенные фильтры размеров */}
+              {/* Расширенный фильтр */}
               {showSizeFilters && (
                 <Collapse>
-                  <Panel header="🎯 Точные диапазоны размеров" key="1">
+                  <Panel header="🎯 Расширенный фильтр товаров" key="1">
                     <Row gutter={16}>
+                      {/* Фильтры по остаткам */}
                       <Col span={8}>
-                        <Text strong>Длина (мм)</Text>
-                        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                          <InputNumber
-                            placeholder="от"
-                            value={sizeFilters.lengthMin}
-                            onChange={(value) => setSizeFilters({...sizeFilters, lengthMin: value})}
-                            style={{ width: '50%' }}
-                            min={0}
-                          />
-                          <InputNumber
-                            placeholder="до"
-                            value={sizeFilters.lengthMax}
-                            onChange={(value) => setSizeFilters({...sizeFilters, lengthMax: value})}
-                            style={{ width: '50%' }}
-                            min={0}
-                          />
+                        <Text strong>Наличие на складе</Text>
+                        <div style={{ marginTop: 8 }}>
+                          <Select value={stockFilter} onChange={setStockFilter} style={{ width: '100%' }}>
+                            <Option value="all">📦 Все товары</Option>
+                            <Option value="normal">✅ В наличии</Option>
+                            <Option value="low">⚠️ Мало</Option>
+                            <Option value="critical">❌ Закончились</Option>
+                          </Select>
                         </div>
                       </Col>
+
+                      {/* Быстрые размеры */}
                       <Col span={8}>
-                        <Text strong>Ширина (мм)</Text>
-                        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                          <InputNumber
-                            placeholder="от"
-                            value={sizeFilters.widthMin}
-                            onChange={(value) => setSizeFilters({...sizeFilters, widthMin: value})}
-                            style={{ width: '50%' }}
-                            min={0}
-                          />
-                          <InputNumber
-                            placeholder="до"
-                            value={sizeFilters.widthMax}
-                            onChange={(value) => setSizeFilters({...sizeFilters, widthMax: value})}
-                            style={{ width: '50%' }}
-                            min={0}
-                          />
+                        <Text strong>Быстрые размеры</Text>
+                        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {popularSizes.map(size => (
+                            <Button
+                              key={size}
+                              size="small"
+                              type={searchText === size ? 'primary' : 'default'}
+                              onClick={() => setSearchText(searchText === size ? '' : size)}
+                              style={{ textAlign: 'left' }}
+                            >
+                              📏 {size}
+                            </Button>
+                          ))}
                         </div>
                       </Col>
+
+                      {/* Диапазоны размеров */}
                       <Col span={8}>
-                        <Text strong>Толщина (мм)</Text>
-                        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                          <InputNumber
-                            placeholder="от"
-                            value={sizeFilters.thicknessMin}
-                            onChange={(value) => setSizeFilters({...sizeFilters, thicknessMin: value})}
-                            style={{ width: '50%' }}
-                            min={0}
-                          />
-                          <InputNumber
-                            placeholder="до"
-                            value={sizeFilters.thicknessMax}
-                            onChange={(value) => setSizeFilters({...sizeFilters, thicknessMax: value})}
-                            style={{ width: '50%' }}
-                            min={0}
-                          />
+                        <Text strong>По категории размера</Text>
+                        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {quickSizeRanges.map((range, index) => (
+                            <Button
+                              key={index}
+                              size="small"
+                              onClick={() => applyQuickSizeRange(range)}
+                              style={{ textAlign: 'left' }}
+                            >
+                              📐 {range.label}
+                            </Button>
+                          ))}
+                          {hasSizeFilters && (
+                            <Button size="small" icon={<ClearOutlined />} onClick={clearSizeFilters} danger>
+                              Сбросить размеры
+                            </Button>
+                          )}
                         </div>
                       </Col>
                     </Row>
+
+                    {/* Точные диапазоны размеров */}
+                    <div style={{ marginTop: 16 }}>
+                      <Text strong>Точные диапазоны размеров (мм)</Text>
+                      <Row gutter={16} style={{ marginTop: 8 }}>
+                        <Col span={8}>
+                          <Text>Длина</Text>
+                          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                            <InputNumber
+                              placeholder="от"
+                              value={sizeFilters.lengthMin}
+                              onChange={(value) => setSizeFilters({...sizeFilters, lengthMin: value})}
+                              style={{ width: '50%' }}
+                              min={0}
+                            />
+                            <InputNumber
+                              placeholder="до"
+                              value={sizeFilters.lengthMax}
+                              onChange={(value) => setSizeFilters({...sizeFilters, lengthMax: value})}
+                              style={{ width: '50%' }}
+                              min={0}
+                            />
+                          </div>
+                        </Col>
+                        <Col span={8}>
+                          <Text>Ширина</Text>
+                          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                            <InputNumber
+                              placeholder="от"
+                              value={sizeFilters.widthMin}
+                              onChange={(value) => setSizeFilters({...sizeFilters, widthMin: value})}
+                              style={{ width: '50%' }}
+                              min={0}
+                            />
+                            <InputNumber
+                              placeholder="до"
+                              value={sizeFilters.widthMax}
+                              onChange={(value) => setSizeFilters({...sizeFilters, widthMax: value})}
+                              style={{ width: '50%' }}
+                              min={0}
+                            />
+                          </div>
+                        </Col>
+                        <Col span={8}>
+                          <Text>Толщина</Text>
+                          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                            <InputNumber
+                              placeholder="от"
+                              value={sizeFilters.thicknessMin}
+                              onChange={(value) => setSizeFilters({...sizeFilters, thicknessMin: value})}
+                              style={{ width: '50%' }}
+                              min={0}
+                            />
+                            <InputNumber
+                              placeholder="до"
+                              value={sizeFilters.thicknessMax}
+                              onChange={(value) => setSizeFilters({...sizeFilters, thicknessMax: value})}
+                              style={{ width: '50%' }}
+                              min={0}
+                            />
+                          </div>
+                        </Col>
+                      </Row>
+                    </div>
                   </Panel>
                 </Collapse>
               )}

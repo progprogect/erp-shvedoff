@@ -15,6 +15,10 @@ export interface ProductionTask {
   status: 'pending' | 'in_progress' | 'paused' | 'completed' | 'cancelled';
   priority: number;
   sortOrder: number;
+  // Календарное планирование
+  plannedDate?: string;
+  plannedStartTime?: string; // HH:MM формат
+  estimatedDuration?: number; // в минутах
   createdAt: string;
   startedAt?: string;
   completedAt?: string;
@@ -121,6 +125,9 @@ export interface CreateProductionTaskRequest {
   priority?: number;
   notes?: string;
   assignedTo?: number;
+  // Календарное планирование
+  plannedDate?: string;
+  plannedStartTime?: string; // HH:MM формат
 }
 
 export interface UpdateProductionTaskRequest {
@@ -128,6 +135,9 @@ export interface UpdateProductionTaskRequest {
   priority?: number;
   notes?: string;
   assignedTo?: number;
+  // Календарное планирование
+  plannedDate?: string;
+  plannedStartTime?: string; // HH:MM формат
 }
 
 export interface CompleteTaskRequest {
@@ -150,6 +160,32 @@ export interface GetProductionTasksParams {
   status?: string;
   limit?: number;
   offset?: number;
+  startDate?: string; // для календарной фильтрации
+  endDate?: string;   // для календарной фильтрации
+}
+
+// Новые типы для календарного планирования
+export interface DayStatistics {
+  dayDate: string;
+  totalTasks: number;
+  pendingTasks: number;
+  inProgressTasks: number;
+  completedTasks: number;
+  totalQuantity: number;
+  totalEstimatedHours: number;
+}
+
+export interface CalendarTask {
+  id: number;
+  plannedDate: string;
+  plannedStartTime?: string;
+  productName: string;
+  requestedQuantity: number;
+  status: string;
+  priority: number;
+  orderId?: number;
+  orderNumber?: string;
+  customerName?: string;
 }
 
 // Функции API для производственных заданий
@@ -605,4 +641,92 @@ export const getProductionTasksByProduct = async (productId: number): Promise<{ 
       message: error instanceof Error ? error.message : 'Ошибка при получении производственных заданий'
     };
   }
+};
+
+// === НОВЫЕ API ФУНКЦИИ ДЛЯ КАЛЕНДАРНОГО ПЛАНИРОВАНИЯ ===
+
+// Получить задания за период для календаря  
+export const getTasksByDateRange = async (startDate: string, endDate: string): Promise<{ success: boolean; data: CalendarTask[] }> => {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}/production/tasks/calendar?startDate=${startDate}&endDate=${endDate}`, {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Ошибка загрузки календарных заданий');
+  }
+
+  return response.json();
+};
+
+// Получить статистику по дням за период
+export const getDayStatistics = async (startDate: string, endDate: string): Promise<{ success: boolean; data: DayStatistics[] }> => {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}/production/statistics/daily?startDate=${startDate}&endDate=${endDate}`, {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Ошибка загрузки статистики');
+  }
+
+  return response.json();
+};
+
+// Обновить календарное планирование задания
+export const updateTaskSchedule = async (taskId: number, scheduleData: {
+  plannedDate?: string;
+  plannedStartTime?: string;
+}): Promise<{ success: boolean; data: ProductionTask }> => {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}/production/tasks/${taskId}/schedule`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify(scheduleData)
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Ошибка обновления планирования');
+  }
+
+  return response.json();
+};
+
+// === ДОПОЛНИТЕЛЬНЫЕ КАЛЕНДАРНЫЕ ФУНКЦИИ ===
+
+// Получить детальную статистику с разбивкой по товарам
+export const getDetailedStatistics = async (
+  startDate: string, 
+  endDate: string, 
+  period: 'day' | 'week' | 'month' = 'day'
+): Promise<{ success: boolean; data: any[] }> => {
+  const token = localStorage.getItem('token');
+  
+  if (!token) {
+    throw new Error('Нет токена авторизации');
+  }
+
+  const response = await fetch(`${API_BASE_URL}/production/statistics/detailed?startDate=${startDate}&endDate=${endDate}&period=${period}`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    throw new Error(errorData?.message || `HTTP error! status: ${response.status}`);
+  }
+
+  return await response.json();
 }; 
