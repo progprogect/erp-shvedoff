@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Row, Col, Card, Tree, Input, Button, Space, Typography, Tag, Badge, Select, InputNumber, Collapse, message, Spin, Table, Modal, Checkbox } from 'antd';
+import { Row, Col, Card, Tree, Input, Button, Space, Typography, Tag, Badge, Select, InputNumber, Collapse, Spin, Table, Modal, Checkbox, App } from 'antd';
 import {
   SearchOutlined,
   PlusOutlined,
@@ -14,6 +14,10 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { catalogApi, Category, Product, ProductFilters } from '../services/catalogApi';
+import { logosApi } from '../services/logosApi';
+import { puzzleTypesApi } from '../services/puzzleTypesApi';
+import { materialsApi } from '../services/materialsApi';
+import { surfacesApi } from '../services/surfacesApi';
 import CreateProductModal from '../components/CreateProductModal';
 import CreateCategoryModal from '../components/CreateCategoryModal';
 import DeleteCategoryModal from '../components/DeleteCategoryModal';
@@ -89,9 +93,20 @@ const Catalog: React.FC = () => {
   });
   const [onlyInStock, setOnlyInStock] = useState(false);
   
+  // Расширенные фильтры для системного архитектора
+  const [selectedLogos, setSelectedLogos] = useState<number[]>([]);
+  const [selectedPuzzleTypes, setSelectedPuzzleTypes] = useState<number[]>([]);
+  const [selectedPuzzleSides, setSelectedPuzzleSides] = useState<string[]>([]);
+  const [stockRangeFilter, setStockRangeFilter] = useState({
+    min: null as number | null,
+    max: null as number | null
+  });
+  
   // Справочники для фильтров
   const [materials, setMaterials] = useState<any[]>([]);
   const [surfaces, setSurfaces] = useState<any[]>([]);
+  const [logos, setLogos] = useState<any[]>([]);
+  const [puzzleTypes, setPuzzleTypes] = useState<any[]>([]);
   const [loadingReferences, setLoadingReferences] = useState(false);
   
   // Фильтры по размерам
@@ -106,6 +121,7 @@ const Catalog: React.FC = () => {
 
   const { user, token } = useAuthStore();
   const navigate = useNavigate();
+  const { message } = App.useApp();
 
   // Загрузка данных
   useEffect(() => {
@@ -141,30 +157,49 @@ const Catalog: React.FC = () => {
     }
   };
 
-  // Загрузка справочников для фильтров
+  // Загрузка справочников для фильтров (унифицированная для системного архитектора)
   const loadReferences = async () => {
+    if (!token) return;
+    
     setLoadingReferences(true);
     try {
-      const [materialsResponse, surfacesResponse] = await Promise.all([
-        fetch('/api/materials', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        fetch('/api/surfaces', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
+      const [materialsResponse, surfacesResponse, logosResponse, puzzleTypesResponse] = await Promise.all([
+        materialsApi.getMaterials(token),
+        surfacesApi.getSurfaces(token),
+        logosApi.getLogos(token),
+        puzzleTypesApi.getPuzzleTypes(token)
       ]);
 
-      if (materialsResponse.ok) {
-        const materialsData = await materialsResponse.json();
-        setMaterials(materialsData.success ? materialsData.data : []);
+      if (materialsResponse.success) {
+        setMaterials(materialsResponse.data);
+        console.log('📦 Материалы загружены:', materialsResponse.data.length);
+      } else {
+        console.error('❌ Ошибка загрузки материалов:', materialsResponse);
       }
 
-      if (surfacesResponse.ok) {
-        const surfacesData = await surfacesResponse.json();
-        setSurfaces(surfacesData.success ? surfacesData.data : []);
+      if (surfacesResponse.success) {
+        setSurfaces(surfacesResponse.data);
+        console.log('🎨 Поверхности загружены:', surfacesResponse.data.length);
+      } else {
+        console.error('❌ Ошибка загрузки поверхностей:', surfacesResponse);
+      }
+
+      if (logosResponse.success) {
+        setLogos(logosResponse.data);
+        console.log('🏷️ Логотипы загружены:', logosResponse.data.length);
+      } else {
+        console.error('❌ Ошибка загрузки логотипов:', logosResponse);
+      }
+
+      if (puzzleTypesResponse.success) {
+        setPuzzleTypes(puzzleTypesResponse.data);
+        console.log('🧩 Типы паззлов загружены:', puzzleTypesResponse.data.length);
+      } else {
+        console.error('❌ Ошибка загрузки типов паззлов:', puzzleTypesResponse);
       }
     } catch (error) {
-      console.error('Error loading references:', error);
+      console.error('❌ Критическая ошибка загрузки справочников:', error);
+      message.error('Ошибка загрузки справочников для фильтров');
     } finally {
       setLoadingReferences(false);
     }
@@ -305,6 +340,42 @@ const Catalog: React.FC = () => {
         if (weightFilter.max !== null && weight > weightFilter.max) return false;
       }
       
+      // Фильтр по логотипам (расширение для системного архитектора)
+      if (selectedLogos.length > 0) {
+        if (!product.logoId || !selectedLogos.includes(product.logoId)) {
+          return false;
+        }
+      }
+      
+      // Фильтр по типам паззлов (условный, только для поверхности "Паззл")
+      if (selectedPuzzleTypes.length > 0 || selectedPuzzleSides.length > 0) {
+        if (!product.puzzleOptions || !product.puzzleOptions.enabled) {
+          return false;
+        }
+        
+        // Фильтр по типу паззла
+        if (selectedPuzzleTypes.length > 0) {
+          const puzzleType = puzzleTypes.find(pt => pt.code === product.puzzleOptions?.type);
+          if (!puzzleType || !selectedPuzzleTypes.includes(puzzleType.id)) {
+            return false;
+          }
+        }
+        
+        // Фильтр по количеству сторон паззла
+        if (selectedPuzzleSides.length > 0) {
+          if (!product.puzzleOptions.sides || !selectedPuzzleSides.includes(product.puzzleOptions.sides)) {
+            return false;
+          }
+        }
+      }
+      
+      // Фильтр по диапазону остатков (замена onlyInStock)
+      if (stockRangeFilter.min !== null || stockRangeFilter.max !== null) {
+        const available = product.availableStock || ((product.currentStock || 0) - (product.reservedStock || 0));
+        if (stockRangeFilter.min !== null && available < stockRangeFilter.min) return false;
+        if (stockRangeFilter.max !== null && available > stockRangeFilter.max) return false;
+      }
+      
       // Фильтры по размерам
       if (product.dimensions) {
         const { length, width, thickness } = product.dimensions;
@@ -319,7 +390,7 @@ const Catalog: React.FC = () => {
       
       return true;
     });
-  }, [products, searchText, checkedCategories, stockFilter, sizeFilters, selectedMaterials, selectedSurfaces, selectedGrades, weightFilter, onlyInStock]);
+  }, [products, searchText, checkedCategories, stockFilter, sizeFilters, selectedMaterials, selectedSurfaces, selectedGrades, weightFilter, onlyInStock, selectedLogos, selectedPuzzleTypes, selectedPuzzleSides, stockRangeFilter, puzzleTypes]);
 
   // Пагинация
   const totalPages = Math.ceil(filteredProducts.length / pageSize);
@@ -349,7 +420,7 @@ const Catalog: React.FC = () => {
     setCurrentPage(1);
   };
 
-  // Очистка всех фильтров (WBS 2 - Adjustments Задача 2.1)
+  // Очистка всех фильтров (расширенная для системного архитектора)
   const clearAllFilters = () => {
     setSearchText('');
     setCheckedCategories([]);
@@ -367,6 +438,13 @@ const Catalog: React.FC = () => {
     setSelectedGrades([]);
     setWeightFilter({ min: null, max: null });
     setOnlyInStock(false);
+    
+    // Новые фильтры
+    setSelectedLogos([]);
+    setSelectedPuzzleTypes([]);
+    setSelectedPuzzleSides([]);
+    setStockRangeFilter({ min: null, max: null });
+    
     setCurrentPage(1);
   };
 
@@ -383,20 +461,69 @@ const Catalog: React.FC = () => {
     setCurrentPage(1);
   };
 
+  // Сброс фильтров материалов и поверхностей
+  const clearMaterialFilters = () => {
+    setSelectedMaterials([]);
+    setSelectedSurfaces([]);
+    setSelectedLogos([]);
+    setCurrentPage(1);
+  };
+
+  // Сброс фильтров товарных характеристик
+  const clearProductFilters = () => {
+    setSelectedGrades([]);
+    setWeightFilter({ min: null, max: null });
+    setSelectedPuzzleTypes([]);
+    setSelectedPuzzleSides([]);
+    setCurrentPage(1);
+  };
+
+  // Сброс фильтров остатков
+  const clearStockFilters = () => {
+    setStockFilter('all');
+    setOnlyInStock(false);
+    setStockRangeFilter({ min: null, max: null });
+    setCurrentPage(1);
+  };
+
   // Проверка есть ли активные фильтры размеров
   const hasSizeFilters = Object.values(sizeFilters).some(value => value !== null);
   
-  // Проверка активности расширенных фильтров (WBS 2 - Adjustments Задача 2.1)
+  // Проверка активности расширенных фильтров (расширенная для системного архитектора)
   const hasAdvancedFilters = 
     onlyInStock || 
     selectedMaterials.length > 0 || 
     selectedSurfaces.length > 0 || 
     selectedGrades.length > 0 || 
     weightFilter.min !== null || 
-    weightFilter.max !== null;
+    weightFilter.max !== null ||
+    selectedLogos.length > 0 ||
+    selectedPuzzleTypes.length > 0 ||
+    selectedPuzzleSides.length > 0 ||
+    stockRangeFilter.min !== null ||
+    stockRangeFilter.max !== null;
   
+  // Подсчет активных фильтров
+  const getActiveFiltersCount = () => {
+    return (
+      (searchText ? 1 : 0) +
+      (stockFilter !== 'all' ? 1 : 0) +
+      (checkedCategories.length > 0 ? 1 : 0) +
+      (hasSizeFilters ? 1 : 0) +
+      (selectedMaterials.length > 0 ? 1 : 0) +
+      (selectedSurfaces.length > 0 ? 1 : 0) +
+      (selectedLogos.length > 0 ? 1 : 0) +
+      (selectedPuzzleTypes.length > 0 ? 1 : 0) +
+      (selectedPuzzleSides.length > 0 ? 1 : 0) +
+      (selectedGrades.length > 0 ? 1 : 0) +
+      (weightFilter.min !== null || weightFilter.max !== null ? 1 : 0) +
+      (stockRangeFilter.min !== null || stockRangeFilter.max !== null ? 1 : 0) +
+      (onlyInStock ? 1 : 0)
+    );
+  };
+
   // Проверка есть ли любые активные фильтры
-  const hasActiveFilters = hasSizeFilters || stockFilter !== 'all' || checkedCategories.length > 0 || hasAdvancedFilters;
+  const hasActiveFilters = getActiveFiltersCount() > 0;
 
   const canEdit = user?.role === 'director' || user?.role === 'manager';
 
@@ -520,7 +647,7 @@ const Catalog: React.FC = () => {
                       onClick={() => setShowSizeFilters(!showSizeFilters)}
                       size="large"
                     >
-                      Расширенный фильтр {hasSizeFilters || stockFilter !== 'all' || checkedCategories.length > 0 || hasAdvancedFilters ? '(активен)' : ''}
+                      Расширенный фильтр {hasActiveFilters ? `(активно: ${getActiveFiltersCount()})` : ''}
                     </Button>
                   </div>
                 </Col>
@@ -610,12 +737,33 @@ const Catalog: React.FC = () => {
                           </Select>
                         </div>
                       </Col>
+                      
+                      {/* Фильтр по логотипам (системный архитектор) */}
+                      <Col span={6}>
+                        <Text strong>Логотип</Text>
+                        <div style={{ marginTop: 8 }}>
+                          <Select
+                            mode="multiple"
+                            value={selectedLogos}
+                            onChange={setSelectedLogos}
+                            placeholder="Выберите логотипы"
+                            style={{ width: '100%' }}
+                            loading={loadingReferences}
+                          >
+                            {logos.map(logo => (
+                              <Option key={logo.id} value={logo.id}>
+                                🏷️ {logo.name}
+                              </Option>
+                            ))}
+                          </Select>
+                        </div>
+                      </Col>
                     </Row>
 
                     {/* Вторая строка фильтров */}
                     <Row gutter={16} style={{ marginTop: 16 }}>
                       {/* Фильтр по весу (WBS 2 - Adjustments Задача 2.1) */}
-                      <Col span={8}>
+                      <Col span={6}>
                         <Text strong>Вес (кг)</Text>
                         <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
                           <InputNumber
@@ -637,9 +785,83 @@ const Catalog: React.FC = () => {
                           />
                         </div>
                       </Col>
+                      
+                      {/* Фильтр по диапазону остатков (системный архитектор) */}
+                      <Col span={6}>
+                        <Text strong>Остатки на складе (шт)</Text>
+                        <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <InputNumber
+                            placeholder="От"
+                            value={stockRangeFilter.min}
+                            onChange={(value) => setStockRangeFilter(prev => ({ ...prev, min: value }))}
+                            min={0}
+                            style={{ width: '100%' }}
+                          />
+                          <span>–</span>
+                          <InputNumber
+                            placeholder="До"
+                            value={stockRangeFilter.max}
+                            onChange={(value) => setStockRangeFilter(prev => ({ ...prev, max: value }))}
+                            min={0}
+                            style={{ width: '100%' }}
+                          />
+                        </div>
+                        <div style={{ marginTop: 4 }}>
+                          <Checkbox
+                            checked={onlyInStock}
+                            onChange={(e) => setOnlyInStock(e.target.checked)}
+                          >
+                            Только в наличии
+                          </Checkbox>
+                        </div>
+                      </Col>
+
+                                              {/* Условные фильтры для паззлов (системный архитектор) */}
+                      <Col span={6}>
+                        <Text strong>Тип паззла</Text>
+                        <div style={{ marginTop: 8 }}>
+                          <Select
+                            mode="multiple"
+                            value={selectedPuzzleTypes}
+                            onChange={setSelectedPuzzleTypes}
+                            placeholder="Выберите типы паззлов"
+                            style={{ width: '100%' }}
+                            loading={loadingReferences}
+                            disabled={!selectedSurfaces.some(surfaceId => {
+                              const surface = surfaces.find(s => s.id === surfaceId);
+                              return surface?.name === 'Паззл';
+                            })}
+                          >
+                            {puzzleTypes.map(type => (
+                              <Option key={type.id} value={type.id}>
+                                🧩 {type.name}
+                              </Option>
+                            ))}
+                          </Select>
+                        </div>
+                        <div style={{ marginTop: 8 }}>
+                          <Text strong>Стороны паззла</Text>
+                          <Select
+                            mode="multiple"
+                            value={selectedPuzzleSides}
+                            onChange={setSelectedPuzzleSides}
+                            placeholder="Количество сторон"
+                            style={{ width: '100%', marginTop: 4 }}
+                            disabled={!selectedSurfaces.some(surfaceId => {
+                              const surface = surfaces.find(s => s.id === surfaceId);
+                              return surface?.name === 'Паззл';
+                            })}
+                          >
+                            <Option value="1_side">🧩 1 сторона</Option>
+                            <Option value="2_sides">🧩 2 стороны</Option>
+                            <Option value="3_sides">🧩 3 стороны</Option>
+                            <Option value="4_sides">🧩 4 стороны</Option>
+                          </Select>
+                        </div>
+                      </Col>
 
                       {/* Быстрые размеры */}
-                      <Col span={8}>
+                      <Col span={6}>
                         <Text strong>Быстрые размеры</Text>
                         <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
                           {popularSizes.map(size => (
@@ -657,7 +879,7 @@ const Catalog: React.FC = () => {
                       </Col>
 
                       {/* Диапазоны размеров */}
-                      <Col span={8}>
+                      <Col span={6}>
                         <Text strong>По категории размера</Text>
                         <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
                           {quickSizeRanges.map((range, index) => (
@@ -742,6 +964,103 @@ const Catalog: React.FC = () => {
                         </Col>
                       </Row>
                     </div>
+
+                    {/* Кнопки управления фильтрами */}
+                    {hasActiveFilters && (
+                      <div style={{ 
+                        marginTop: 20, 
+                        padding: '12px 16px', 
+                        backgroundColor: '#f8f9fa', 
+                        borderRadius: '8px',
+                        border: '1px solid #e9ecef'
+                      }}>
+                        <div style={{ 
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          marginBottom: '12px'
+                        }}>
+                          <div>
+                            <Text type="secondary" style={{ fontSize: '14px' }}>
+                              🎯 Активных фильтров: <Text strong>{getActiveFiltersCount()}</Text>
+                            </Text>
+                          </div>
+                          <Button 
+                            type="primary"
+                            danger
+                            icon={<ClearOutlined />} 
+                            onClick={clearAllFilters}
+                            size="middle"
+                          >
+                            Сбросить все
+                          </Button>
+                        </div>
+                        
+                        {/* Быстрый сброс групп фильтров */}
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                          {(stockFilter !== 'all' || onlyInStock || stockRangeFilter.min !== null || stockRangeFilter.max !== null) && (
+                            <Button 
+                              size="small" 
+                              onClick={clearStockFilters}
+                              icon={<ClearOutlined />}
+                            >
+                              📦 Остатки
+                            </Button>
+                          )}
+                          {(selectedMaterials.length > 0 || selectedSurfaces.length > 0 || selectedLogos.length > 0) && (
+                            <Button 
+                              size="small" 
+                              onClick={clearMaterialFilters}
+                              icon={<ClearOutlined />}
+                            >
+                              🧱 Материалы
+                            </Button>
+                          )}
+                          {(selectedGrades.length > 0 || weightFilter.min !== null || weightFilter.max !== null || selectedPuzzleTypes.length > 0 || selectedPuzzleSides.length > 0) && (
+                            <Button 
+                              size="small" 
+                              onClick={clearProductFilters}
+                              icon={<ClearOutlined />}
+                            >
+                              🏷️ Характеристики
+                            </Button>
+                          )}
+                          {hasSizeFilters && (
+                            <Button 
+                              size="small" 
+                              onClick={clearSizeFilters}
+                              icon={<ClearOutlined />}
+                            >
+                              📏 Размеры
+                            </Button>
+                          )}
+                          {checkedCategories.length > 0 && (
+                            <Button 
+                              size="small" 
+                              onClick={() => {
+                                setCheckedCategories([]);
+                                setCurrentPage(1);
+                              }}
+                              icon={<ClearOutlined />}
+                            >
+                              📂 Категории
+                            </Button>
+                          )}
+                          {searchText && (
+                            <Button 
+                              size="small" 
+                              onClick={() => {
+                                setSearchText('');
+                                setCurrentPage(1);
+                              }}
+                              icon={<ClearOutlined />}
+                            >
+                              🔍 Поиск
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </Panel>
                 </Collapse>
               )}

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   Row, Col, Card, Typography, Button, Space, Divider, Tag, Table, Statistic,
-  Form, Input, InputNumber, Select, Modal, message, Spin, Badge, Descriptions,
-  List, Avatar
+  Form, Input, InputNumber, Select, Modal, Spin, Badge, Descriptions,
+  List, Avatar, App
 } from 'antd';
 import {
   ArrowLeftOutlined, EditOutlined, SaveOutlined, CloseOutlined,
@@ -27,6 +27,7 @@ const ProductDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, token } = useAuthStore();
+  const { message } = App.useApp();
   
   const [product, setProduct] = useState<Product | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -363,52 +364,33 @@ const ProductDetail: React.FC = () => {
 
     setStockEditLoading(true);
     try {
-      // Используем API корректировки остатков
       const currentStock = product?.stock?.currentStock || product?.currentStock || 0;
-      const difference = editStockValue - currentStock;
+      const adjustment = editStockValue - currentStock;
       
-      if (difference !== 0) {
-        // Простое обновление остатка без использования API корректировки
-        const requestData = {
+      if (adjustment !== 0) {
+        // Используем точно такой же API как в разделе "Остатки на складе"
+        const adjustmentData = {
           productId: product.id,
-          newStock: editStockValue,
+          adjustment: adjustment,
           comment: 'Корректировка остатка через карточку товара'
         };
         
-        const response = await fetch('/api/stock/adjust', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify(requestData)
-        });
+        const response = await stockApi.adjustStock(adjustmentData);
         
-        const result = await response.json();
-        
-        if (result.success) {
-          message.success('Остаток успешно обновлен');
-          
-          // Обновляем данные товара
-          setProduct(prev => prev ? {
-            ...prev,
-            currentStock: editStockValue,
-            stock: prev.stock ? {
-              ...prev.stock,
-              currentStock: editStockValue
-            } : { currentStock: editStockValue, reservedStock: 0 }
-          } : null);
+        if (response.success) {
+          message.success(`Остаток успешно обновлен. ${response.message || ''}`);
           
           setIsEditingStock(false);
           setEditStockValue(null);
           
-          // Перезагружаем движения склада
+          // Перезагружаем данные для синхронизации с сервером (получим актуальные резервы)
           loadProductData();
         } else {
           message.error('Ошибка обновления остатка');
         }
       } else {
-        // Если значение не изменилось, просто выходим из режима редактирования
+        // Если изменений нет, просто закрываем редактирование
+        message.info('Остаток не изменился');
         setIsEditingStock(false);
         setEditStockValue(null);
       }

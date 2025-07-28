@@ -1,5 +1,6 @@
 import { useAuthStore } from '../stores/authStore';
 import { API_BASE_URL } from '../config/api';
+import axios from 'axios'; // Added for searchProducts
 
 // Функция для получения токена
 const getToken = () => {
@@ -188,6 +189,27 @@ export interface CalendarTask {
   customerName?: string;
 }
 
+// Интерфейс для результата поиска товаров
+export interface ProductSearchResult {
+  id: number;
+  name: string;
+  article: string;
+  categoryName?: string;
+  price?: number;
+  currentStock: number;
+  reservedStock: number;
+  availableStock: number;
+}
+
+// Интерфейс для ответа частичного выполнения задания
+export interface PartialCompleteTaskResponse {
+  task: ProductionTask;
+  wasCompleted: boolean;
+  remainingQuantity: number;
+  overproductionQuantity: number;
+  overproductionQuality: number;
+}
+
 // Функции API для производственных заданий
 export const getProductionTasks = async (params: GetProductionTasksParams = {}): Promise<{ success: boolean; data: ProductionTask[] }> => {
   const token = localStorage.getItem('token');
@@ -270,7 +292,7 @@ export const completeTask = async (taskId: number, data: CompleteTaskRequest): P
 };
 
 // Частичное выполнение задания (WBS 2 - Adjustments Задача 4.1)
-export const partialCompleteTask = async (taskId: number, data: CompleteTaskRequest): Promise<{ success: boolean; data: ProductionTask; message: string }> => {
+export const partialCompleteTask = async (taskId: number, data: CompleteTaskRequest): Promise<{ success: boolean; data: PartialCompleteTaskResponse; message: string }> => {
   const token = localStorage.getItem('token');
   const response = await fetch(`${API_BASE_URL}/production/tasks/${taskId}/partial-complete`, {
     method: 'POST',
@@ -778,4 +800,21 @@ export const getDetailedStatistics = async (
   }
 
   return await response.json();
+}; 
+
+// Поиск товаров для массовой регистрации (новая функция)
+export const searchProducts = async (query: string): Promise<{ success: boolean; data: ProductSearchResult[] }> => {
+  const token = localStorage.getItem('token');
+  if (!token) {
+    throw new Error('Нет токена авторизации');
+  }
+
+  const response = await axios.get(`${API_BASE_URL}/products/search`, {
+    params: { q: query },
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
+  });
+  return response.data;
 }; 

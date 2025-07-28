@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, DatePicker, Select, Table, Statistic, Row, Col, Typography, Spin, message, Tag, Space, Button } from 'antd';
+import { Card, DatePicker, Select, Table, Statistic, Row, Col, Typography, Spin, Tag, Space, Button, App } from 'antd';
 import { BarChartOutlined, CalendarOutlined, ProductOutlined, TrophyOutlined } from '@ant-design/icons';
 import { getDayStatistics, getDetailedStatistics } from '../services/productionApi';
 import { useAuthStore } from '../stores/authStore';
@@ -11,6 +11,7 @@ const { Title, Text } = Typography;
 
 const ProductionStatistics: React.FC = () => {
   const { token } = useAuthStore();
+  const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
   const [period, setPeriod] = useState<'day' | 'week' | 'month'>('day');
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([

@@ -48,6 +48,7 @@ const CreateOrder: React.FC = () => {
   const [searchText, setSearchText] = useState('');
   const [orderItems, setOrderItems] = useState<OrderItemForm[]>([]);
   const [currentStep, setCurrentStep] = useState(0);
+  const [selectedSource, setSelectedSource] = useState('database');
   
   // Modal states
   const [productModalVisible, setProductModalVisible] = useState(false);
@@ -178,6 +179,8 @@ const CreateOrder: React.FC = () => {
       customerContact: values.customerContact,
       deliveryDate: values.deliveryDate ? values.deliveryDate.toISOString() : undefined,
       priority: values.priority || 'normal',
+      source: values.source || 'database',
+      customSource: values.source === 'other' ? values.customSource : undefined,
       notes: values.notes,
       managerId: values.managerId, // Добавляем назначенного менеджера
       items: orderItems.map(item => ({
@@ -402,7 +405,8 @@ const CreateOrder: React.FC = () => {
               layout="vertical"
               onFinish={handleSubmit}
               initialValues={{
-                priority: 'normal'
+                priority: 'normal',
+                source: 'database'
               }}
             >
               <Row gutter={24}>
@@ -421,6 +425,57 @@ const CreateOrder: React.FC = () => {
                     label="Контактные данные"
                   >
                     <Input placeholder="+7 (999) 123-45-67" />
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              <Row gutter={24}>
+                <Col span={12}>
+                  <Form.Item
+                    name="source"
+                    label="Источник заказа"
+                    rules={[{ required: true, message: 'Выберите источник заказа' }]}
+                    initialValue="database"
+                  >
+                    <Select 
+                      placeholder="Выберите источник заказа"
+                      onChange={(value) => {
+                        setSelectedSource(value);
+                        if (value !== 'other') {
+                          form.setFieldValue('customSource', '');
+                        }
+                      }}
+                    >
+                      <Option value="database">Из базы клиентов</Option>
+                      <Option value="website">С сайта</Option>
+                      <Option value="avito">С Авито</Option>
+                      <Option value="referral">По рекомендации</Option>
+                      <Option value="cold_call">Холодные звонки</Option>
+                      <Option value="other">Другое</Option>
+                    </Select>
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item
+                    name="customSource"
+                    label="Описание источника"
+                    rules={[
+                      {
+                        required: false,
+                        validator: (_, value) => {
+                          if (selectedSource === 'other' && (!value || value.trim() === '')) {
+                            return Promise.reject(new Error('Укажите описание источника'));
+                          }
+                          return Promise.resolve();
+                        },
+                      },
+                    ]}
+                    dependencies={['source']}
+                  >
+                    <Input 
+                      placeholder="Укажите источник заказа" 
+                      disabled={selectedSource !== 'other'}
+                    />
                   </Form.Item>
                 </Col>
               </Row>

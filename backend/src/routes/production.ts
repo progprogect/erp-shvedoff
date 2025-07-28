@@ -585,33 +585,45 @@ router.get('/statistics/daily', authenticateToken, authorizeRoles('manager', 'pr
       return next(createError('Укажите даты начала и окончания периода', 400));
     }
 
-    // Получаем статистику по дням через обычный SQL
+    // Валидация дат
+    const start = new Date(startDate as string);
+    const end = new Date(endDate as string);
+    
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return next(createError('Некорректный формат даты', 400));
+    }
+
+    // Правильная SQL конструкция для группировки по дням
+    const dateExpression = sql`DATE(${schema.productionTasks.completedAt})`;
+
     const dailyStats = await db
       .select({
-        production_date: sql<string>`DATE(${schema.productionTasks.completedAt})`.as('production_date'),
+        production_date: dateExpression.as('production_date'),
         completed_tasks: sql<number>`COUNT(*)`.as('completed_tasks'),
-        total_produced: sql<number>`SUM(${schema.productionTasks.producedQuantity})`.as('total_produced'),
-        total_quality: sql<number>`SUM(${schema.productionTasks.qualityQuantity})`.as('total_quality'),
-        total_defects: sql<number>`SUM(${schema.productionTasks.defectQuantity})`.as('total_defects')
+        total_produced: sql<number>`COALESCE(SUM(${schema.productionTasks.producedQuantity}), 0)`.as('total_produced'),
+        total_quality: sql<number>`COALESCE(SUM(${schema.productionTasks.qualityQuantity}), 0)`.as('total_quality'),
+        total_defects: sql<number>`COALESCE(SUM(${schema.productionTasks.defectQuantity}), 0)`.as('total_defects')
       })
       .from(schema.productionTasks)
       .where(and(
         eq(schema.productionTasks.status, 'completed'),
-        sql`DATE(${schema.productionTasks.completedAt}) BETWEEN ${startDate}::date AND ${endDate}::date`
+        sql`${schema.productionTasks.completedAt} >= ${start.toISOString()}::timestamp`,
+        sql`${schema.productionTasks.completedAt} <= ${end.toISOString()}::timestamp + INTERVAL '1 day'`
       ))
-      .groupBy(sql`DATE(${schema.productionTasks.completedAt})`)
-      .orderBy(sql`DATE(${schema.productionTasks.completedAt})`);
+      .groupBy(dateExpression)
+      .orderBy(dateExpression);
 
     res.json({
       success: true,
       data: dailyStats
     });
   } catch (error) {
+    console.error('❌ Ошибка получения дневной статистики:', error);
     next(error);
   }
 });
 
-// GET /api/production/statistics/detailed - Получить детальную статистику с разбивкой по товарам
+// GET /api/production/statistics/detailed - Получить детальную статистику с разбивкой по товарам  
 router.get('/statistics/detailed', authenticateToken, authorizeRoles('manager', 'production', 'director'), async (req: AuthRequest, res, next) => {
   try {
     const { startDate, endDate, period = 'day' } = req.query;
@@ -620,48 +632,45 @@ router.get('/statistics/detailed', authenticateToken, authorizeRoles('manager', 
       return next(createError('Укажите даты начала и окончания периода', 400));
     }
 
-    let groupBy: string;
-    let dateFormat: string;
-
-    switch (period) {
-      case 'week':
-        groupBy = `DATE_TRUNC('week', ${schema.productionTasks.completedAt})`;
-        dateFormat = 'YYYY-"W"WW';
-        break;
-      case 'month':
-        groupBy = `DATE_TRUNC('month', ${schema.productionTasks.completedAt})`;
-        dateFormat = 'YYYY-MM';
-        break;
-      default:
-        groupBy = `DATE(${schema.productionTasks.completedAt})`;
-        dateFormat = 'YYYY-MM-DD';
+    // Валидация дат
+    const start = new Date(startDate as string);
+    const end = new Date(endDate as string);
+    
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return next(createError('Некорректный формат даты', 400));
     }
 
+    // Более простой подход - группировка только по товарам в заданном периоде
     const detailedStats = await db
       .select({
-        period: sql`${sql.raw(groupBy)}`.as('period'),
         productId: schema.productionTasks.productId,
         productName: schema.products.name,
         productArticle: schema.products.article,
         totalTasks: sql<number>`COUNT(*)`,
-        totalQuantity: sql<number>`SUM(${schema.productionTasks.producedQuantity})`,
-        qualityQuantity: sql<number>`SUM(${schema.productionTasks.qualityQuantity})`,
-        defectQuantity: sql<number>`SUM(${schema.productionTasks.defectQuantity})`
+        totalQuantity: sql<number>`COALESCE(SUM(${schema.productionTasks.producedQuantity}), 0)`,
+        qualityQuantity: sql<number>`COALESCE(SUM(${schema.productionTasks.qualityQuantity}), 0)`,
+        defectQuantity: sql<number>`COALESCE(SUM(${schema.productionTasks.defectQuantity}), 0)`
       })
       .from(schema.productionTasks)
       .leftJoin(schema.products, eq(schema.productionTasks.productId, schema.products.id))
       .where(and(
         eq(schema.productionTasks.status, 'completed'),
-        sql`${schema.productionTasks.completedAt} BETWEEN ${startDate}::date AND ${endDate}::date + INTERVAL '1 day'`
+        sql`${schema.productionTasks.completedAt} >= ${start.toISOString()}::timestamp`,
+        sql`${schema.productionTasks.completedAt} <= ${end.toISOString()}::timestamp + INTERVAL '1 day'`
       ))
-      .groupBy(sql.raw(groupBy), schema.productionTasks.productId, schema.products.name, schema.products.article)
-      .orderBy(sql.raw(groupBy), schema.products.name);
+      .groupBy(
+        schema.productionTasks.productId, 
+        schema.products.name, 
+        schema.products.article
+      )
+      .orderBy(schema.products.name);
 
     res.json({
       success: true,
       data: detailedStats
     });
   } catch (error) {
+    console.error('❌ Ошибка получения детальной статистики:', error);
     next(error);
   }
 });

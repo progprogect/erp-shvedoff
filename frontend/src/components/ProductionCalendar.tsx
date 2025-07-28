@@ -1,8 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Badge, Card, Modal, List, Tag, Button, Form, Select, DatePicker, message, Typography, Space } from 'antd';
-import { CalendarOutlined, ClockCircleOutlined, UserOutlined } from '@ant-design/icons';
+import { Calendar, Badge, Card, List, Tag, Button, Form, Select, DatePicker, Typography, Space, Table, Popconfirm, Tooltip, Modal, message, App } from 'antd';
+import { 
+  CalendarOutlined, ClockCircleOutlined, UserOutlined, EditOutlined,
+  PlayCircleOutlined, PauseCircleOutlined, CheckCircleOutlined, DeleteOutlined,
+  PlusOutlined, MoreOutlined
+} from '@ant-design/icons';
 import { Dayjs } from 'dayjs';
-import { getTasksByDateRange, updateTaskSchedule, CalendarTask, ProductionTask } from '../services/productionApi';
+import { 
+  getTasksByDateRange, updateTaskSchedule, CalendarTask, ProductionTask,
+  startTask
+} from '../services/productionApi';
 import { useAuthStore } from '../stores/authStore';
 import dayjs from 'dayjs';
 
@@ -16,10 +23,10 @@ interface ProductionCalendarProps {
 
 const ProductionCalendar: React.FC<ProductionCalendarProps> = ({ tasks, onTaskUpdate }) => {
   const { token } = useAuthStore();
+  const { message } = App.useApp();
   const [calendarTasks, setCalendarTasks] = useState<CalendarTask[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTasks, setSelectedTasks] = useState<CalendarTask[]>([]);
-  const [modalVisible, setModalVisible] = useState(false);
   const [scheduleModalVisible, setScheduleModalVisible] = useState(false);
   const [selectedTask, setSelectedTask] = useState<ProductionTask | null>(null);
   const [loading, setLoading] = useState(false);
@@ -54,70 +61,46 @@ const ProductionCalendar: React.FC<ProductionCalendarProps> = ({ tasks, onTaskUp
     );
   };
 
-  // Рендер содержимого дня в календаре
+  // Отображение событий на календаре
   const dateCellRender = (value: Dayjs) => {
-    const tasksForDate = getTasksForDate(value);
+    const dayTasks = getTasksForDate(value);
     
-    if (tasksForDate.length === 0) return null;
+    if (dayTasks.length === 0) return null;
 
     return (
-      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-        {tasksForDate.slice(0, 3).map(task => (
-          <li key={task.id} style={{ marginBottom: 2 }}>
+      <div style={{ padding: '2px' }}>
+        {dayTasks.slice(0, 2).map((task, index) => (
+          <div key={task.id} style={{ fontSize: '10px', lineHeight: '12px', marginBottom: '1px' }}>
             <Badge 
-              status={getTaskStatusBadge(task.status)} 
+              status={
+                task.status === 'completed' ? 'success' : 
+                task.status === 'in_progress' ? 'processing' : 
+                task.status === 'paused' ? 'warning' : 'default'
+              } 
               text={
-                <span style={{ fontSize: 10 }}>
-                  {task.productName.length > 20 ? 
-                    `${task.productName.substring(0, 20)}...` : 
-                    task.productName
-                  }
+                <span style={{ fontSize: '10px' }}>
+                  {task.productName.length > 10 ? `${task.productName.substring(0, 10)}...` : task.productName}
                 </span>
               }
             />
-          </li>
+          </div>
         ))}
-        {tasksForDate.length > 3 && (
-          <li style={{ fontSize: 10, color: '#666' }}>
-            +{tasksForDate.length - 3} еще...
-          </li>
+        {dayTasks.length > 2 && (
+          <div style={{ fontSize: '9px', color: '#999', textAlign: 'center' }}>
+            +{dayTasks.length - 2} еще
+          </div>
         )}
-      </ul>
+      </div>
     );
   };
 
-  // Получение статуса Badge для задания
-  const getTaskStatusBadge = (status: string) => {
-    const statusMap: Record<string, any> = {
-      'pending': 'processing',
-      'in_progress': 'success',
-      'completed': 'default',
-      'cancelled': 'error',
-      'paused': 'warning'
-    };
-    return statusMap[status] || 'default';
-  };
-
-  // Получение текста статуса
-  const getStatusText = (status: string) => {
-    const statusMap: Record<string, string> = {
-      'pending': 'Ожидает',
-      'in_progress': 'В работе',
-      'completed': 'Завершено',
-      'cancelled': 'Отменено',
-      'paused': 'На паузе'
-    };
-    return statusMap[status] || status;
-  };
-
-  // Обработчик клика по дате
+  // Обработчик выбора даты
   const onDateSelect = (date: Dayjs) => {
     const dateStr = date.format('YYYY-MM-DD');
     const tasksForDate = getTasksForDate(date);
     
     setSelectedDate(dateStr);
     setSelectedTasks(tasksForDate);
-    setModalVisible(true);
   };
 
   // Обработчик изменения месяца
@@ -162,123 +145,184 @@ const ProductionCalendar: React.FC<ProductionCalendarProps> = ({ tasks, onTaskUp
     }
   };
 
+  // Функции управления заданиями
+  const handleStartTask = async (taskId: number) => {
+    try {
+      const result = await startTask(taskId);
+      message.success('Задание запущено в производство');
+      await loadCalendarTasks();
+      onTaskUpdate();
+    } catch (error) {
+      message.error(`Ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
+    }
+  };
+
+  // Колонки для таблицы заданий
+  const taskColumns = [
+    {
+      title: 'Товар',
+      dataIndex: 'productName',
+      key: 'productName',
+      width: 200,
+      render: (text: string, record: CalendarTask) => (
+        <div>
+          <Text strong>{text}</Text>
+          <br />
+          <Text type="secondary" style={{ fontSize: '12px' }}>
+            ID: {record.id}
+          </Text>
+        </div>
+      ),
+    },
+    {
+      title: 'Количество',
+      key: 'quantity',
+      width: 120,
+      render: (record: CalendarTask) => (
+        <div>
+          <Text>{record.requestedQuantity} шт.</Text>
+        </div>
+      ),
+    },
+    {
+      title: 'Статус',
+      dataIndex: 'status',
+      key: 'status',
+      width: 100,
+      render: (status: string) => {
+        const statusConfig = {
+          pending: { color: 'default', text: 'Ожидает' },
+          in_progress: { color: 'blue', text: 'В работе' },
+          paused: { color: 'orange', text: 'Пауза' },
+          completed: { color: 'green', text: 'Завершено' }
+        };
+        const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.pending;
+        return <Tag color={config.color}>{config.text}</Tag>;
+      },
+    },
+    {
+      title: 'Время',
+      key: 'time',
+      width: 100,
+      render: (record: CalendarTask) => (
+        <div>
+          {record.plannedStartTime && (
+            <Tag icon={<ClockCircleOutlined />} color="blue">
+              {record.plannedStartTime}
+            </Tag>
+          )}
+        </div>
+      ),
+    },
+    {
+      title: 'Заказ',
+      key: 'order',
+      width: 120,
+      render: (record: CalendarTask) => (
+        record.orderNumber ? (
+          <div>
+            <Text>{record.orderNumber}</Text>
+            {record.customerName && (
+              <div style={{ fontSize: '12px', color: '#666' }}>
+                {record.customerName}
+              </div>
+            )}
+          </div>
+        ) : <Text type="secondary">Без заказа</Text>
+      ),
+    },
+    {
+      title: 'Действия',
+      key: 'actions',
+      width: 200,
+      render: (record: CalendarTask) => (
+        <Space size="small">
+          {record.status === 'pending' && (
+            <Tooltip title="Запустить в производство">
+              <Button
+                type="primary"
+                size="small"
+                icon={<PlayCircleOutlined />}
+                onClick={() => handleStartTask(record.id)}
+              >
+                Запустить
+              </Button>
+            </Tooltip>
+          )}
+          
+          <Tooltip title="Изменить план">
+            <Button
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => openScheduleModal(record as any)}
+            >
+              План
+            </Button>
+          </Tooltip>
+        </Space>
+      ),
+    },
+  ];
+
   return (
     <div>
-      <Card 
-        title={
-          <Space>
-            <CalendarOutlined />
-            Календарь производственных заданий
-          </Space>
-        }
-        style={{ marginBottom: '16px' }}
-      >
+      <Card title="Календарь производственных заданий">
         <Calendar
-          cellRender={dateCellRender}
+          dateCellRender={dateCellRender}
           onSelect={onDateSelect}
           onPanelChange={onPanelChange}
         />
       </Card>
 
-      {/* Планирование неспланированных заданий */}
-      {tasks.filter(task => !task.plannedDate).length > 0 && (
+      {/* Нижняя панель с заданиями выбранной даты */}
+      {selectedDate && (
         <Card 
+          style={{ marginTop: 16 }}
           title={
             <Space>
-              <ClockCircleOutlined />
-              Неспланированные задания
+              <CalendarOutlined />
+              {`Задания на ${dayjs(selectedDate).format('DD.MM.YYYY (dddd)')}`}
+              {selectedTasks.length > 0 && (
+                <Tag color="blue">{selectedTasks.length} заданий</Tag>
+              )}
             </Space>
           }
-          size="small"
+          extra={
+            <Button 
+              type="text" 
+              onClick={() => {
+                setSelectedDate(null);
+                setSelectedTasks([]);
+              }}
+            >
+              Скрыть
+            </Button>
+          }
         >
-          <List
-            dataSource={tasks.filter(task => !task.plannedDate)}
-            renderItem={(task) => (
-              <List.Item
-                actions={[
-                  <Button 
-                    size="small" 
-                    onClick={() => openScheduleModal(task)}
-                  >
-                    Запланировать
-                  </Button>
-                ]}
-              >
-                <List.Item.Meta
-                  title={
-                    <Space>
-                      <Tag color={getTaskStatusBadge(task.status)}>
-                        {getStatusText(task.status)}
-                      </Tag>
-                      {task.product.name}
-                    </Space>
-                  }
-                  description={
-                    <Space>
-                      <Text type="secondary">Количество: {task.requestedQuantity}</Text>
-                      {task.order && (
-                        <Text type="secondary">
-                          Заказ: {task.order.orderNumber} ({task.order.customerName})
-                        </Text>
-                      )}
-                    </Space>
-                  }
-                />
-              </List.Item>
-            )}
-          />
+          {selectedTasks.length === 0 ? (
+            <div style={{ 
+              textAlign: 'center', 
+              padding: '40px 20px',
+              color: '#999'
+            }}>
+              <CalendarOutlined style={{ fontSize: '48px', marginBottom: '16px' }} />
+              <div>На эту дату заданий нет</div>
+              <div style={{ marginTop: '8px' }}>
+                Вы можете запланировать задания на эту дату в разделе "Планирование заданий"
+              </div>
+            </div>
+          ) : (
+            <Table
+              columns={taskColumns}
+              dataSource={selectedTasks}
+              rowKey="id"
+              pagination={false}
+              size="middle"
+              scroll={{ x: 900 }}
+            />
+          )}
         </Card>
       )}
-
-      {/* Модал просмотра заданий дня */}
-      <Modal
-        title={`Задания на ${selectedDate ? dayjs(selectedDate).format('DD.MM.YYYY') : ''}`}
-        open={modalVisible}
-        onCancel={() => setModalVisible(false)}
-        footer={null}
-        width={600}
-      >
-        <List
-          dataSource={selectedTasks}
-          renderItem={(task) => (
-            <List.Item
-              actions={[
-                <Button 
-                  size="small" 
-                  onClick={() => {
-                    const fullTask = tasks.find(t => t.id === task.id);
-                    if (fullTask) openScheduleModal(fullTask);
-                  }}
-                >
-                  Изменить
-                </Button>
-              ]}
-            >
-              <List.Item.Meta
-                title={
-                  <Space>
-                    <Tag color={getTaskStatusBadge(task.status)}>
-                      {getStatusText(task.status)}
-                    </Tag>
-                    {task.productName}
-                  </Space>
-                }
-                description={
-                  <Space direction="vertical" size={4}>
-                    <Text>Количество: {task.requestedQuantity} шт.</Text>
-                    {task.orderNumber && (
-                      <Text type="secondary">
-                        Заказ: {task.orderNumber} 
-                        {task.customerName && ` (${task.customerName})`}
-                      </Text>
-                    )}
-                  </Space>
-                }
-              />
-            </List.Item>
-          )}
-        />
-      </Modal>
 
       {/* Модал планирования задания */}
       <Modal
@@ -318,8 +362,6 @@ const ProductionCalendar: React.FC<ProductionCalendarProps> = ({ tasks, onTaskUp
               placeholder="Выберите дату выполнения"
             />
           </Form.Item>
-
-
         </Form>
       </Modal>
     </div>

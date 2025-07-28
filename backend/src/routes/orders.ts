@@ -276,6 +276,8 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
       customerContact, 
       deliveryDate, 
       priority = 'normal', 
+      source = 'database',
+      customSource,
       items, 
       notes,
       managerId // Добавляем возможность назначить заказ на другого менеджера
@@ -285,6 +287,17 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
 
     if (!customerName || !items || !Array.isArray(items) || items.length === 0) {
       return next(createError('Customer name and items are required', 400));
+    }
+
+    // Валидация источника заказа
+    const validSources = ['database', 'website', 'avito', 'referral', 'cold_call', 'other'];
+    if (source && !validSources.includes(source)) {
+      return next(createError('Invalid order source', 400));
+    }
+
+    // Если источник "other", то customSource обязателен
+    if (source === 'other' && (!customSource || customSource.trim() === '')) {
+      return next(createError('Custom source description is required when source is "other"', 400));
     }
 
     // Определяем менеджера заказа
@@ -332,6 +345,8 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
       customerContact,
       status: 'new',
       priority,
+      source,
+      customSource: source === 'other' ? customSource : null,
       deliveryDate: deliveryDate ? new Date(deliveryDate) : null,
       managerId: assignedManagerId, // Используем назначенного менеджера
       totalAmount: totalAmount.toString(),

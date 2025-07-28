@@ -9,6 +9,8 @@ export interface Order {
   customerContact?: string;
   status: 'new' | 'confirmed' | 'in_production' | 'ready' | 'completed' | 'cancelled';
   priority: 'low' | 'normal' | 'high' | 'urgent';
+  source?: 'database' | 'website' | 'avito' | 'referral' | 'cold_call' | 'other';
+  customSource?: string;
   deliveryDate?: string;
   managerId: number;
   totalAmount: string;
@@ -66,6 +68,8 @@ export interface CreateOrderRequest {
   customerContact?: string;
   deliveryDate?: string;
   priority?: 'low' | 'normal' | 'high' | 'urgent';
+  source?: 'database' | 'website' | 'avito' | 'referral' | 'cold_call' | 'other';
+  customSource?: string;
   notes?: string;
   managerId?: number; // Добавляем поле для назначения менеджера
   items: {

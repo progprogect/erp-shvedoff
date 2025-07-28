@@ -555,7 +555,7 @@ export const CuttingOperations: React.FC = () => {
               {products.map(product => {
                 const available = getAvailableStock(product);
                 const isDisabled = available <= 0;
-                const label = product.name;
+                const label = `${product.name}${product.article ? ` (${product.article})` : ''}`;
                 
                 return (
                   <Option 
@@ -569,23 +569,39 @@ export const CuttingOperations: React.FC = () => {
                       opacity: isDisabled ? 0.5 : 1 
                     }}>
                       <div style={{ 
-                        fontWeight: '500',
-                        fontSize: '14px',
-                        lineHeight: '1.2',
-                        wordBreak: 'break-word',
                         display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between'
+                        flexDirection: 'column',
+                        gap: '2px'
                       }}>
-                        <span>{product.name}</span>
-                        <span style={{ 
-                          color: isDisabled ? '#ff4d4f' : '#52c41a',
-                          fontWeight: '600',
-                          fontSize: '12px',
-                          marginLeft: '8px'
+                        <div style={{ 
+                          fontWeight: '500',
+                          fontSize: '14px',
+                          lineHeight: '1.2',
+                          wordBreak: 'break-word'
                         }}>
-                          {available > 0 ? `✅ ${available} шт.` : '❌ Нет в наличии'}
-                        </span>
+                          {product.name}
+                        </div>
+                        {product.article && (
+                          <div style={{
+                            fontSize: '12px',
+                            color: '#666',
+                            fontFamily: 'monospace'
+                          }}>
+                            Арт: {product.article}
+                          </div>
+                        )}
+                        <div style={{ 
+                          display: 'flex',
+                          justifyContent: 'flex-end'
+                        }}>
+                          <span style={{ 
+                            color: isDisabled ? '#ff4d4f' : '#52c41a',
+                            fontWeight: '600',
+                            fontSize: '12px'
+                          }}>
+                            {available > 0 ? `✅ ${available} шт.` : '❌ Нет в наличии'}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </Option>
@@ -611,7 +627,7 @@ export const CuttingOperations: React.FC = () => {
               dropdownStyle={{ maxHeight: 400, overflowY: 'auto' }}
             >
               {getAvailableTargetProducts(createForm.getFieldValue('sourceProductId')).map(product => {
-                const label = product.name;
+                const label = `${product.name}${product.article ? ` (${product.article})` : ''}`;
                 
                 return (
                   <Option 
@@ -621,12 +637,27 @@ export const CuttingOperations: React.FC = () => {
                   >
                     <div style={{ padding: '4px 0' }}>
                       <div style={{ 
-                        fontWeight: '500',
-                        fontSize: '14px',
-                        lineHeight: '1.2',
-                        wordBreak: 'break-word'
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '2px'
                       }}>
-                        {product.name}
+                        <div style={{ 
+                          fontWeight: '500',
+                          fontSize: '14px',
+                          lineHeight: '1.2',
+                          wordBreak: 'break-word'
+                        }}>
+                          {product.name}
+                        </div>
+                        {product.article && (
+                          <div style={{
+                            fontSize: '12px',
+                            color: '#666',
+                            fontFamily: 'monospace'
+                          }}>
+                            Арт: {product.article}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </Option>
@@ -739,7 +770,36 @@ export const CuttingOperations: React.FC = () => {
               border: '1px solid #e9ecef'
             }}>
               <div style={{ marginBottom: '8px' }}>
-                <strong>Операция:</strong> {selectedOperation.sourceProduct.name} → {selectedOperation.targetProduct.name}
+                <strong>Операция:</strong>
+                <div style={{ marginTop: '4px' }}>
+                  <div style={{ marginBottom: '4px' }}>
+                    <span style={{ fontWeight: '500' }}>{selectedOperation.sourceProduct.name}</span>
+                    {selectedOperation.sourceProduct.article && (
+                      <span style={{ 
+                        fontSize: '12px', 
+                        color: '#666', 
+                        fontFamily: 'monospace',
+                        marginLeft: '8px'
+                      }}>
+                        (Арт: {selectedOperation.sourceProduct.article})
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ textAlign: 'center', margin: '4px 0' }}>↓</div>
+                  <div>
+                    <span style={{ fontWeight: '500' }}>{selectedOperation.targetProduct.name}</span>
+                    {selectedOperation.targetProduct.article && (
+                      <span style={{ 
+                        fontSize: '12px', 
+                        color: '#666', 
+                        fontFamily: 'monospace',
+                        marginLeft: '8px'
+                      }}>
+                        (Арт: {selectedOperation.targetProduct.article})
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
               <div style={{ marginBottom: '8px' }}>
                 <strong>Планировалось:</strong> {selectedOperation.targetQuantity} шт.

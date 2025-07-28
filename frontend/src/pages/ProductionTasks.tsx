@@ -20,7 +20,8 @@ import {
   Tooltip,
   Divider,
   Alert,
-  message
+  AutoComplete,
+  DatePicker
 } from 'antd';
 import {
   PlayCircleOutlined,
@@ -30,7 +31,11 @@ import {
   EyeOutlined,
   EditOutlined,
   DragOutlined,
-  PlusOutlined
+  PlusOutlined,
+  CalendarOutlined,
+  ClockCircleOutlined,
+  ExclamationCircleOutlined,
+  QuestionCircleOutlined
 } from '@ant-design/icons';
 
 import {
@@ -57,12 +62,16 @@ import {
   createProductionTask,
   ProductionTask,
   ProductionTaskExtra,
-  UpdateProductionTaskRequest
+  UpdateProductionTaskRequest,
+  searchProducts,
+  ProductSearchResult,
+  PartialCompleteTaskResponse
 } from '../services/productionApi';
 import ProductionCalendar from '../components/ProductionCalendar';
 import ProductionStatistics from '../components/ProductionStatistics';
 import { catalogApi } from '../services/catalogApi';
 import { useAuthStore } from '../stores/authStore';
+import dayjs, { Dayjs } from 'dayjs';
 
 const { Title, Text } = Typography;
 // Убрали устаревший TabPane, теперь используем items
@@ -83,6 +92,7 @@ interface TasksByProduct {
 
 const ProductionTasks: React.FC = () => {
   const { user, token } = useAuthStore();
+  const { message } = App.useApp();
   const [activeTab, setActiveTab] = useState<string>('list');
   
   // Состояние для списка заданий
@@ -139,12 +149,43 @@ const ProductionTasks: React.FC = () => {
   // Состояние для формы массовой регистрации (WBS 2 - Adjustments Задача 4.2)
   const [bulkRegisterItems, setBulkRegisterItems] = useState<Array<{
     id: number;
+    productId?: number;
     article: string;
     productName?: string;
     producedQuantity: number;
     qualityQuantity: number;
     defectQuantity: number;
   }>>([{ id: 1, article: '', producedQuantity: 10, qualityQuantity: 10, defectQuantity: 0 }]);
+
+  // Состояние для поиска товаров в массовой регистрации
+  const [productSearchOptions, setProductSearchOptions] = useState<Array<{
+    value: string;
+    label: string;
+    product: ProductSearchResult;
+  }>>([]);
+
+  // Функция поиска товаров для автокомплита
+  const handleProductSearch = async (searchText: string) => {
+    if (!searchText || searchText.length < 3) {
+      setProductSearchOptions([]);
+      return;
+    }
+
+    try {
+      const response = await searchProducts(searchText);
+      if (response.success) {
+        const options = response.data.map(product => ({
+          value: product.article,
+          label: `${product.article} - ${product.name} (остаток: ${product.availableStock})`,
+          product
+        }));
+        setProductSearchOptions(options);
+      }
+    } catch (error) {
+      console.error('Ошибка поиска товаров:', error);
+      setProductSearchOptions([]);
+    }
+  };
 
   // Состояние для модального окна редактирования
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -278,6 +319,91 @@ const ProductionTasks: React.FC = () => {
       cancelled: tasksList.filter(t => t.status === 'cancelled').length
     };
     setStats(newStats);
+  };
+
+  // Группировка заданий по дням для календарного планирования
+  const groupTasksByDays = (tasksList: ProductionTask[]) => {
+    const today = dayjs().startOf('day');
+    const tomorrow = today.add(1, 'day');
+    
+    const groups = {
+      unplanned: [] as ProductionTask[],
+      today: [] as ProductionTask[],
+      tomorrow: [] as ProductionTask[],
+      later: [] as ProductionTask[],
+      overdue: [] as ProductionTask[]
+    };
+
+    tasksList.forEach(task => {
+      if (!task.plannedDate) {
+        groups.unplanned.push(task);
+        return;
+      }
+
+      const plannedDate = dayjs(task.plannedDate).startOf('day');
+      
+      if (plannedDate.isBefore(today)) {
+        groups.overdue.push(task);
+      } else if (plannedDate.isSame(today)) {
+        groups.today.push(task);
+      } else if (plannedDate.isSame(tomorrow)) {
+        groups.tomorrow.push(task);
+      } else {
+        groups.later.push(task);
+      }
+    });
+
+    return groups;
+  };
+
+  // Рендер группы заданий с заголовком
+  const renderTaskGroup = (
+    title: string, 
+    tasks: ProductionTask[], 
+    color: string, 
+    icon: React.ReactNode,
+    description?: string
+  ) => {
+    if (tasks.length === 0) return null;
+
+    return (
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ 
+          padding: '12px 16px', 
+          backgroundColor: color, 
+          borderRadius: '6px 6px 0 0',
+          borderBottom: '1px solid #e6e6e6'
+        }}>
+          <Space>
+            {icon}
+            <Text strong style={{ color: 'white' }}>
+              {title} ({tasks.length})
+            </Text>
+            {description && (
+              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: '12px' }}>
+                {description}
+              </Text>
+            )}
+          </Space>
+        </div>
+        <div style={{ 
+          border: '1px solid #e6e6e6', 
+          borderTop: 'none',
+          borderRadius: '0 0 6px 6px'
+        }}>
+          <Table
+            columns={taskColumns}
+            dataSource={tasks}
+            rowKey="id"
+            loading={loading}
+            pagination={false}
+            size="middle"
+            showHeader={false}
+            style={{ marginBottom: 0 }}
+          />
+        </div>
+      </div>
+    );
   };
 
   // Обработчик изменения вкладки
@@ -486,12 +612,12 @@ const ProductionTasks: React.FC = () => {
         return;
       }
 
-      // Проверяем что не превышаем оставшееся количество
+      // Информируем о сверхплановом производстве если применимо
       const currentProduced = selectedTask.producedQuantity || 0;
       const remainingQuantity = selectedTask.requestedQuantity - currentProduced;
       if (produced > remainingQuantity) {
-        message.error(`Нельзя произвести больше чем осталось: ${remainingQuantity} шт.`);
-        return;
+        const overproduction = produced - remainingQuantity;
+        message.info(`Будет произведено ${overproduction} шт. сверх плана. Излишки добавятся в остатки товара.`);
       }
 
       // Подготовка данных для отправки
@@ -502,7 +628,18 @@ const ProductionTasks: React.FC = () => {
         notes: values.notes
       });
 
+      // Показываем детальную информацию о результате
       message.success(result.message);
+      
+      // Дополнительные уведомления о сверхплановом производстве
+      if (result.data.overproductionQuality && result.data.overproductionQuality > 0) {
+        message.info(`Сверхплановое производство: ${result.data.overproductionQuality} шт. добавлено в остатки товара`, 5);
+      }
+      
+      if (result.data.wasCompleted) {
+        message.success(`Задание полностью выполнено!`, 3);
+      }
+
       setPartialCompleteModalVisible(false);
       setSelectedTask(null);
       partialCompleteForm.resetFields();
@@ -664,6 +801,15 @@ const ProductionTasks: React.FC = () => {
         taskData.orderId = values.orderId;
       }
 
+      // Добавляем планирование выполнения если указано
+      if (values.plannedDate) {
+        taskData.plannedDate = values.plannedDate.format('YYYY-MM-DD');
+      }
+      
+      if (values.plannedStartTime) {
+        taskData.plannedStartTime = values.plannedStartTime;
+      }
+
       const result = await createProductionTask(taskData);
       
       if (result.success) {
@@ -671,6 +817,13 @@ const ProductionTasks: React.FC = () => {
         setCreateTaskModalVisible(false);
         createTaskForm.resetFields();
         loadTasks();
+        
+        // Если задание запланировано, показываем дополнительное сообщение
+        if (values.plannedDate) {
+          const dateStr = values.plannedDate.format('DD.MM.YYYY');
+          const timeStr = values.plannedStartTime ? ` в ${values.plannedStartTime}` : '';
+          message.info(`Задание запланировано на ${dateStr}${timeStr}`);
+        }
       } else {
         message.error(result.message || 'Ошибка создания задания');
       }
@@ -1203,54 +1356,73 @@ const ProductionTasks: React.FC = () => {
           items={[
             {
               key: 'list',
-              label: 'Список заданий',
-                            children: (
-                <DragDropWrapper>
-                  <Droppable droppableId="tasks-table" direction="vertical" type="task">
-                    {(provided: DroppableProvided) => (
-                      <div {...provided.droppableProps} ref={provided.innerRef}>
-                        <Table
-                          columns={taskColumns}
-                          dataSource={filteredTasks}
-                          rowKey="id"
-                          loading={loading}
-                          pagination={false} // Отключаем пагинацию для drag-and-drop
-                          components={{
-                            body: {
-                              row: ({ children, index, record, ...restProps }: any) => {
-                                const taskIndex = filteredTasks.findIndex(task => task.id === record?.id);
-                                if (!record || !record.id || taskIndex === -1) {
-                                  return <tr {...restProps}>{children}</tr>;
-                                }
-                                return (
-                                  <Draggable draggableId={`task-${record.id}`} index={taskIndex} key={`task-${record.id}`}>
-                                    {(provided: DraggableProvided, snapshot) => (
-                                      <tr
-                                        ref={provided.innerRef}
-                                        {...provided.draggableProps}
-                                        {...provided.dragHandleProps}
-                                        {...restProps}
-                                        style={{
-                                          ...provided.draggableProps.style,
-                                          cursor: snapshot.isDragging ? 'grabbing' : 'grab',
-                                          backgroundColor: snapshot.isDragging ? '#f0f0f0' : 'white'
-                                        }}
-                                      >
-                                        {children}
-                                      </tr>
-                                    )}
-                                  </Draggable>
-                                );
-                              }
-                            }
-                          }}
-                        />
-                        {provided.placeholder}
+              label: 'Планирование заданий',
+              children: (() => {
+                const groupedTasks = groupTasksByDays(filteredTasks);
+                return (
+                  <div>
+                    {/* Просроченные задания */}
+                    {renderTaskGroup(
+                      "Просроченные",
+                      groupedTasks.overdue,
+                      "#ff4d4f",
+                      <ExclamationCircleOutlined />,
+                      "Требуют немедленного внимания"
+                    )}
+
+                    {/* Задания на сегодня */}
+                    {renderTaskGroup(
+                      "Сегодня",
+                      groupedTasks.today,
+                      "#52c41a",
+                      <CalendarOutlined />,
+                      dayjs().format('DD.MM.YYYY')
+                    )}
+
+                    {/* Задания на завтра */}
+                    {renderTaskGroup(
+                      "Завтра",
+                      groupedTasks.tomorrow,
+                      "#1890ff",
+                      <CalendarOutlined />,
+                      dayjs().add(1, 'day').format('DD.MM.YYYY')
+                    )}
+
+                    {/* Задания на дальние даты */}
+                    {renderTaskGroup(
+                      "Запланированные",
+                      groupedTasks.later,
+                      "#722ed1",
+                      <ClockCircleOutlined />,
+                      "На будущие даты"
+                    )}
+
+                    {/* Незапланированные задания */}
+                    {renderTaskGroup(
+                      "Без плана",
+                      groupedTasks.unplanned,
+                      "#8c8c8c",
+                      <QuestionCircleOutlined />,
+                      "Требуют планирования"
+                    )}
+
+                    {/* Если нет заданий вообще */}
+                    {filteredTasks.length === 0 && (
+                      <div style={{ 
+                        textAlign: 'center', 
+                        padding: '60px 20px',
+                        color: '#999'
+                      }}>
+                        <CalendarOutlined style={{ fontSize: '48px', marginBottom: '16px' }} />
+                        <div>Нет производственных заданий</div>
+                        <div style={{ marginTop: '8px' }}>
+                          Создайте первое задание для планирования производства
+                        </div>
                       </div>
                     )}
-                  </Droppable>
-                </DragDropWrapper>
-              )
+                  </div>
+                );
+              })()
             },
             {
               key: 'by-product',
@@ -1650,6 +1822,51 @@ const ProductionTasks: React.FC = () => {
             </Select>
           </Form.Item>
 
+          <Divider />
+          
+          <Title level={5}>Планирование выполнения</Title>
+          
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="plannedDate"
+                label="Планируемая дата выполнения"
+                help="Задание будет отображено в календаре на выбранную дату"
+              >
+                <DatePicker 
+                  style={{ width: '100%' }}
+                  placeholder="Выберите дату"
+                  format="DD.MM.YYYY"
+                  disabledDate={(current: Dayjs) => {
+                    // Запрещаем выбор прошедших дат
+                    return current && current.isBefore(dayjs().startOf('day'));
+                  }}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="plannedStartTime"
+                label="Планируемое время начала"
+                help="Время в формате ЧЧ:ММ (необязательно)"
+              >
+                <Input 
+                  placeholder="09:00"
+                  style={{ width: '100%' }}
+                  maxLength={5}
+                  onChange={(e) => {
+                    // Автоформатирование ввода времени
+                    let value = e.target.value.replace(/[^\d]/g, '');
+                    if (value.length >= 2) {
+                      value = value.slice(0, 2) + ':' + value.slice(2, 4);
+                    }
+                    e.target.value = value;
+                  }}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
           <Form.Item
             name="notes"
             label="Примечания"
@@ -1916,6 +2133,7 @@ const ProductionTasks: React.FC = () => {
                   <strong>Осталось произвести:</strong> {selectedTask.requestedQuantity - (selectedTask.producedQuantity || 0)} шт.
                 </div>
               }
+              description="Вы можете произвести любое количество. Если больше чем нужно - излишки добавятся в остатки товара."
               type="info"
               showIcon
             />
@@ -1931,14 +2149,10 @@ const ProductionTasks: React.FC = () => {
                 <Form.Item
                   name="producedQuantity"
                   label="Произведено (шт)"
+                  help="Можно указать любое количество. Если больше запланированного - излишки добавятся в остатки"
                   rules={[
                     { required: true, message: 'Укажите количество' },
-                    { type: 'number', min: 1, message: 'Минимум 1 шт' },
-                    { 
-                      type: 'number', 
-                      max: selectedTask.requestedQuantity - (selectedTask.producedQuantity || 0), 
-                      message: `Максимум ${selectedTask.requestedQuantity - (selectedTask.producedQuantity || 0)} шт` 
-                    }
+                    { type: 'number', min: 1, message: 'Минимум 1 шт' }
                   ]}
                 >
                   <InputNumber
@@ -1958,7 +2172,7 @@ const ProductionTasks: React.FC = () => {
                       });
                     }}
                     min={1}
-                    max={selectedTask.requestedQuantity - (selectedTask.producedQuantity || 0)}
+                    placeholder="Укажите количество"
                   />
                 </Form.Item>
               </Col>
@@ -2131,14 +2345,36 @@ const ProductionTasks: React.FC = () => {
               {bulkRegisterItems.map((item, index) => (
                 <div key={item.id} style={{ display: 'flex', padding: '8px 12px', borderBottom: index < bulkRegisterItems.length - 1 ? '1px solid #f0f0f0' : 'none', alignItems: 'center' }}>
                   <div style={{ flex: 3, paddingRight: 8 }}>
-                    <Input
-                      placeholder="Введите артикул товара"
+                    <AutoComplete
+                      style={{ width: '100%' }}
+                      placeholder="Введите артикул или название товара (мин. 3 символа)"
                       value={item.article}
-                      onChange={(e) => {
+                      options={productSearchOptions}
+                      onSearch={handleProductSearch}
+                      onSelect={(value, option) => {
                         const newItems = [...bulkRegisterItems];
-                        newItems[index] = { ...item, article: e.target.value };
+                        newItems[index] = { 
+                          ...item, 
+                          productId: option?.product?.id,
+                          article: option?.product?.article || value,
+                          productName: option?.product?.name
+                        };
+                        setBulkRegisterItems(newItems);
+                        setProductSearchOptions([]);
+                      }}
+                      onChange={(value) => {
+                        // Если пользователь стирает значение или вводит вручную
+                        const newItems = [...bulkRegisterItems];
+                        newItems[index] = { 
+                          ...item, 
+                          article: value || '', 
+                          productId: undefined,
+                          productName: undefined 
+                        };
                         setBulkRegisterItems(newItems);
                       }}
+                      filterOption={false}
+                      allowClear
                     />
                   </div>
                   <div style={{ flex: 2, paddingRight: 8 }}>

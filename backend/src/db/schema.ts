@@ -4,6 +4,7 @@ import { relations } from 'drizzle-orm';
 // Enums
 export const userRoleEnum = pgEnum('user_role', ['manager', 'director', 'production', 'warehouse']);
 export const orderStatusEnum = pgEnum('order_status', ['new', 'confirmed', 'in_production', 'ready', 'completed', 'cancelled']);
+export const orderSourceEnum = pgEnum('order_source', ['database', 'website', 'avito', 'referral', 'cold_call', 'other']);
 export const priorityLevelEnum = pgEnum('priority_level', ['low', 'normal', 'high', 'urgent']);
 export const movementTypeEnum = pgEnum('movement_type', ['incoming', 'outgoing', 'cutting_out', 'cutting_in', 'reservation', 'release_reservation', 'adjustment']);
 export const productionStatusEnum = pgEnum('production_status', ['queued', 'in_progress', 'completed', 'cancelled']);
@@ -172,6 +173,8 @@ export const orders = pgTable('orders', {
   customerContact: varchar('customer_contact', { length: 255 }),
   status: orderStatusEnum('status').default('new'),
   priority: priorityLevelEnum('priority').default('normal'),
+  source: orderSourceEnum('source').default('database'),
+  customSource: varchar('custom_source', { length: 255 }), // для "другое"
   deliveryDate: timestamp('delivery_date'),
   managerId: integer('manager_id').references(() => users.id),
   totalAmount: decimal('total_amount', { precision: 12, scale: 2 }),
