@@ -171,6 +171,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
         grade: values.grade || 'usual',
         price: values.price ? parseFloat(values.price) : undefined,
         normStock: values.normStock || 0,
+        initialStock: values.initialStock || 0,
         notes: values.notes || null
       };
 
@@ -190,9 +191,20 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
       } else {
         message.error('Ошибка создания товара');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Ошибка создания товара:', error);
-      message.error('Ошибка связи с сервером');
+      
+      // Специальная обработка ошибки дублирования артикула
+      if (error.response?.data?.message?.includes('Товар с таким артикулом уже существует')) {
+        message.error(error.response.data.message);
+        // Подсвечиваем поле артикула с ошибкой
+        form.setFields([{
+          name: 'article',
+          errors: [error.response.data.message]
+        }]);
+      } else {
+        message.error(error.response?.data?.message || 'Ошибка связи с сервером');
+      }
     } finally {
       setLoading(false);
     }
@@ -676,6 +688,19 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
             >
               <InputNumber 
                 placeholder="10"
+                style={{ width: '100%' }}
+                min={0}
+              />
+            </Form.Item>
+          </Col>
+          <Col span={8}>
+            <Form.Item
+              name="initialStock"
+              label="Начальный остаток (шт)"
+              help="Количество товара для начального оприходования на склад"
+            >
+              <InputNumber 
+                placeholder="0"
                 style={{ width: '100%' }}
                 min={0}
               />

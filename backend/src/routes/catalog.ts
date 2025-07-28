@@ -289,12 +289,20 @@ router.post('/products', authenticateToken, authorizeRoles('director', 'manager'
       name, 
       article, 
       categoryId, 
+      surfaceId,
+      logoId,
+      materialId,
       dimensions, 
-      characteristics, 
+      characteristics,
+      puzzleOptions,
+      matArea,
+      weight,
+      grade,
       tags, 
       price, 
       costPrice, 
-      normStock, 
+      normStock,
+      initialStock,
       notes 
     } = req.body;
 
@@ -302,25 +310,69 @@ router.post('/products', authenticateToken, authorizeRoles('director', 'manager'
       return next(createError('Product name and category are required', 400));
     }
 
+    // Проверяем уникальность артикула (если указан) - проверка без учета регистра
+    if (article) {
+      const normalizedArticle = article.trim().toLowerCase();
+      
+      // Ищем существующий товар с таким же артикулом (игнорируя регистр)
+      const existingProducts = await db.query.products.findMany({
+        columns: {
+          id: true,
+          article: true,
+          name: true
+        }
+      });
+      
+      const duplicateProduct = existingProducts.find(p => 
+        p.article && p.article.toLowerCase() === normalizedArticle
+      );
+
+      if (duplicateProduct) {
+        return next(createError(`Товар с таким артикулом уже существует. Выберите другой. (Существующий товар: "${duplicateProduct.name}")`, 400));
+      }
+    }
+
     const newProduct = await db.insert(schema.products).values({
       name,
       article,
       categoryId,
+      surfaceId: surfaceId || null,
+      logoId: logoId || null,
+      materialId: materialId || null,
       dimensions,
       characteristics,
+      puzzleOptions: puzzleOptions || null,
+      matArea: matArea ? parseFloat(matArea).toString() : null,
+      weight: weight ? parseFloat(weight).toString() : null,
+      grade: grade || 'usual',
       tags,
       price,
       costPrice,
-      normStock,
+      normStock: normStock || 0,
       notes
     }).returning();
 
-    // Create initial stock record
+    // Create initial stock record with initial quantity
+    const initialStockValue = initialStock ? parseInt(initialStock) : 0;
     await db.insert(schema.stock).values({
       productId: newProduct[0].id,
-      currentStock: 0,
-      reservedStock: 0
+      currentStock: initialStockValue,
+      reservedStock: 0,
+      updatedAt: new Date()
     });
+
+    // Create stock movement record if initial stock > 0
+    if (initialStockValue > 0) {
+      await db.insert(schema.stockMovements).values({
+        productId: newProduct[0].id,
+        movementType: 'incoming',
+        quantity: initialStockValue,
+        referenceType: 'initial_stock',
+        comment: 'Начальное оприходование при создании товара',
+        userId: req.user!.id,
+        createdAt: new Date()
+      });
+    }
 
     res.status(201).json({
       success: true,

@@ -279,6 +279,7 @@ router.post('/', authenticateToken, async (req: AuthRequest, res, next) => {
       price,
       costPrice,
       normStock,
+      initialStock,
       notes,
       photos
     } = req.body;
@@ -340,14 +341,25 @@ router.post('/', authenticateToken, async (req: AuthRequest, res, next) => {
       }
     }
 
-    // Проверяем уникальность артикула (если указан)
+    // Проверяем уникальность артикула (если указан) - проверка без учета регистра
     if (article) {
-      const existingProduct = await db.query.products.findFirst({
-        where: eq(schema.products.article, article.trim())
+      const normalizedArticle = article.trim().toLowerCase();
+      
+      // Ищем существующий товар с таким же артикулом (игнорируя регистр)
+      const existingProducts = await db.query.products.findMany({
+        columns: {
+          id: true,
+          article: true,
+          name: true
+        }
       });
+      
+      const duplicateProduct = existingProducts.find(p => 
+        p.article && p.article.toLowerCase() === normalizedArticle
+      );
 
-      if (existingProduct) {
-        return next(createError('Товар с таким артикулом уже существует', 400));
+      if (duplicateProduct) {
+        return next(createError(`Товар с таким артикулом уже существует. Выберите другой. (Существующий товар: "${duplicateProduct.name}")`, 400));
       }
     }
 
@@ -376,13 +388,27 @@ router.post('/', authenticateToken, async (req: AuthRequest, res, next) => {
       updatedAt: new Date()
     }]).returning();
 
-    // Создаем запись в таблице остатков
+    // Создаем запись в таблице остатков с начальным количеством
+    const initialStockValue = initialStock ? parseInt(initialStock) : 0;
     await db.insert(schema.stock).values({
       productId: newProduct.id,
-      currentStock: 0,
+      currentStock: initialStockValue,
       reservedStock: 0,
       updatedAt: new Date()
     }).onConflictDoNothing();
+
+    // Если указан начальный остаток, создаем запись в движениях склада
+    if (initialStockValue > 0) {
+      await db.insert(schema.stockMovements).values({
+        productId: newProduct.id,
+        movementType: 'incoming',
+        quantity: initialStockValue,
+        referenceType: 'initial_stock',
+        comment: 'Начальное оприходование при создании товара',
+        userId,
+        createdAt: new Date()
+      });
+    }
 
     // Логируем создание
     await db.insert(schema.auditLog).values({

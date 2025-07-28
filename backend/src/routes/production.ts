@@ -853,11 +853,47 @@ router.post('/tasks/complete-by-product', authenticateToken, authorizeRoles('pro
       }
     });
 
+    const completionDate = productionDate ? new Date(productionDate) : new Date();
+    
+    // Обработка случая когда нет активных заданий (WBS 2 - Adjustments Задача 4.4)
     if (activeTasks.length === 0) {
-      return next(createError('Нет активных заданий для данного товара', 404));
+      const result = await db.transaction(async (tx) => {
+        // Все произведенное количество добавляется на склад без заданий
+        await tx.update(schema.stock)
+          .set({
+            currentStock: sql`${schema.stock.currentStock} + ${qualityQuantity}`,
+            updatedAt: new Date()
+          })
+          .where(eq(schema.stock.productId, productId));
+
+        // Логируем внеплановое производство
+        if (qualityQuantity > 0) {
+          await tx.insert(schema.stockMovements).values({
+            productId: productId,
+            movementType: 'incoming',
+            quantity: qualityQuantity,
+            referenceType: 'unplanned_production',
+            comment: `Внеплановое производство - нет активных заданий`,
+            userId
+          });
+        }
+
+        return { 
+          completedTasks: [],
+          isUnplanned: true,
+          totalProduced: producedQuantity,
+          totalQuality: qualityQuantity
+        };
+      });
+
+      res.json({
+        success: true,
+        data: result,
+        message: `Произведено ${producedQuantity} шт. без заданий - добавлено на склад как внеплановое производство`
+      });
+      return;
     }
 
-    const completionDate = productionDate ? new Date(productionDate) : new Date();
     const result = await db.transaction(async (tx) => {
       let remainingProduced = producedQuantity;
       let remainingQuality = qualityQuantity;
@@ -1288,6 +1324,458 @@ router.put('/tasks/reorder', authenticateToken, authorizeRoles('production', 'di
       success: true,
       message: 'Порядок заданий обновлен'
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/production/tasks/bulk-register - Массовая регистрация выпуска продукции (WBS 2 - Adjustments Задача 4.2)
+router.post('/tasks/bulk-register', authenticateToken, authorizeRoles('production', 'director'), async (req: AuthRequest, res, next) => {
+  try {
+    const { items, productionDate, notes } = req.body;
+    const userId = req.user!.id;
+
+    // Валидация входных данных
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return next(createError('Необходимо указать список товаров для регистрации', 400));
+    }
+
+    // Валидация каждого элемента
+    for (const item of items) {
+      if (!item.article || !item.producedQuantity || item.producedQuantity <= 0) {
+        return next(createError('Каждый товар должен иметь артикул и положительное количество', 400));
+      }
+      if ((item.qualityQuantity || 0) + (item.defectQuantity || 0) !== item.producedQuantity) {
+        return next(createError(`Для товара ${item.article}: сумма годных и брака должна равняться произведенному количеству`, 400));
+      }
+    }
+
+    const completionDate = productionDate ? new Date(productionDate) : new Date();
+    const results: Array<{
+      article: string;
+      status: 'success' | 'warning' | 'error';
+      message: string;
+      tasksCompleted?: number;
+      overproduction?: number;
+    }> = [];
+
+    // Обрабатываем каждый товар в транзакции
+    await db.transaction(async (tx) => {
+      for (const item of items) {
+        const { article, producedQuantity, qualityQuantity = producedQuantity, defectQuantity = 0 } = item;
+
+        // Находим товар по артикулу
+        const product = await tx.query.products.findFirst({
+          where: eq(schema.products.article, article)
+        });
+
+        if (!product) {
+          results.push({
+            article,
+            status: 'error',
+            message: `Товар с артикулом "${article}" не найден`
+          });
+          continue;
+        }
+
+        // Получаем активные задания для этого товара, отсортированные по приоритету (WBS 2 - Adjustments Задача 4.3)
+        const activeTasks = await tx.query.productionTasks.findMany({
+          where: and(
+            eq(schema.productionTasks.productId, product.id),
+            sql`${schema.productionTasks.status} IN ('pending', 'in_progress', 'paused')`
+          ),
+          with: {
+            order: true
+          }
+        });
+
+        // Интеллектуальная сортировка по приоритетам (WBS 2 - Adjustments Задача 4.3)
+        activeTasks.sort((a, b) => {
+          // 1. Задания с заказами клиентов (orderId) имеют приоритет над заданиями на пополнение склада
+          const aHasOrder = !!a.orderId;
+          const bHasOrder = !!b.orderId;
+          
+          if (aHasOrder && !bHasOrder) return -1; // a - заказ клиента, b - пополнение → a приоритетнее
+          if (!aHasOrder && bHasOrder) return 1;  // b - заказ клиента, a - пополнение → b приоритетнее
+          
+          // 2. Если оба задания для заказов клиентов - сортируем по приоритету и дате заказа
+          if (aHasOrder && bHasOrder) {
+            // Сначала по приоритету заказа (urgent > high > normal > low)
+            const priorityMap = { 'urgent': 4, 'high': 3, 'normal': 2, 'low': 1 };
+            const aPriority = a.order?.priority ? priorityMap[a.order.priority] || 2 : 2;
+            const bPriority = b.order?.priority ? priorityMap[b.order.priority] || 2 : 2;
+            
+            if (aPriority !== bPriority) {
+              return bPriority - aPriority; // Высокий приоритет сначала
+            }
+            
+            // Затем по дате доставки заказа (раньше - приоритетнее)
+            let aDeliveryDate = Infinity;
+            let bDeliveryDate = Infinity;
+            
+            if (a.order?.deliveryDate) {
+              aDeliveryDate = new Date(a.order.deliveryDate.toString()).getTime();
+            }
+            if (b.order?.deliveryDate) {
+              bDeliveryDate = new Date(b.order.deliveryDate.toString()).getTime();
+            }
+            
+            if (aDeliveryDate !== bDeliveryDate) {
+              return aDeliveryDate - bDeliveryDate;
+            }
+          }
+          
+          // 3. Если оба задания на пополнение склада - сортируем по плановой дате
+          if (!aHasOrder && !bHasOrder) {
+            let aPlannedDate = Infinity;
+            let bPlannedDate = Infinity;
+            
+            if (a.plannedDate) {
+              aPlannedDate = new Date(a.plannedDate.toString()).getTime();
+            }
+            if (b.plannedDate) {
+              bPlannedDate = new Date(b.plannedDate.toString()).getTime();
+            }
+            
+            if (aPlannedDate !== bPlannedDate) {
+              return aPlannedDate - bPlannedDate; // Раньше - приоритетнее
+            }
+          }
+          
+          // 4. При равных условиях - сортируем по приоритету задания
+          const aTaskPriority = a.priority || 1;
+          const bTaskPriority = b.priority || 1;
+          
+          if (aTaskPriority !== bTaskPriority) {
+            return bTaskPriority - aTaskPriority; // Высокий приоритет сначала
+          }
+          
+          // 5. И наконец по порядку сортировки и дате создания
+          const aSortOrder = a.sortOrder || 0;
+          const bSortOrder = b.sortOrder || 0;
+          
+          if (aSortOrder !== bSortOrder) {
+            return aSortOrder - bSortOrder;
+          }
+          
+          // По дате создания
+          const aCreatedAt = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const bCreatedAt = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          
+          return aCreatedAt - bCreatedAt;
+        });
+
+        // Обработка случая когда нет активных заданий (WBS 2 - Adjustments Задача 4.4)
+        if (activeTasks.length === 0) {
+          // Все произведенное количество добавляется на склад без заданий
+          await tx.update(schema.stock)
+            .set({
+              currentStock: sql`${schema.stock.currentStock} + ${qualityQuantity}`,
+              updatedAt: new Date()
+            })
+            .where(eq(schema.stock.productId, product.id));
+
+          // Логируем внеплановое производство
+          if (qualityQuantity > 0) {
+            await tx.insert(schema.stockMovements).values({
+              productId: product.id,
+              movementType: 'incoming',
+              quantity: qualityQuantity,
+              referenceType: 'unplanned_production',
+              comment: `Внеплановое производство - нет активных заданий (артикул: ${article})`,
+              userId
+            });
+          }
+
+          results.push({
+            article,
+            status: 'warning',
+            message: `Произведено ${producedQuantity} шт. без заданий - добавлено на склад как внеплановое производство`,
+            tasksCompleted: 0
+          });
+          continue;
+        }
+
+        // Распределяем произведенное количество по заданиям
+        let remainingProduced = producedQuantity;
+        let remainingQuality = qualityQuantity;
+        let remainingDefect = defectQuantity;
+        const completedTasks = [];
+
+        for (const task of activeTasks) {
+          if (remainingProduced <= 0) break;
+
+          const currentProduced = task.producedQuantity || 0;
+          const taskNeeded = task.requestedQuantity - currentProduced;
+          
+          if (taskNeeded <= 0) continue; // Задание уже выполнено
+
+          const taskProduced = Math.min(remainingProduced, taskNeeded);
+          
+          // Пропорционально распределяем качественные и брак
+          const taskQuality = Math.min(remainingQuality, Math.round((taskProduced / producedQuantity) * qualityQuantity));
+          const taskDefect = taskProduced - taskQuality;
+
+          // Обновляем задание
+          const newTotalProduced = currentProduced + taskProduced;
+          const newTotalQuality = (task.qualityQuantity || 0) + taskQuality;
+          const newTotalDefect = (task.defectQuantity || 0) + taskDefect;
+          
+          // Определяем новый статус
+          const isCompleted = newTotalProduced >= task.requestedQuantity;
+          const newStatus = isCompleted ? 'completed' : (task.status === 'pending' ? 'in_progress' : task.status);
+
+          const updatedTask = await tx.update(schema.productionTasks)
+            .set({
+              status: newStatus,
+              producedQuantity: newTotalProduced,
+              qualityQuantity: newTotalQuality,
+              defectQuantity: newTotalDefect,
+              startedAt: task.startedAt || completionDate,
+              startedBy: task.startedBy || userId,
+              completedAt: isCompleted ? completionDate : task.completedAt,
+              completedBy: isCompleted ? userId : task.completedBy,
+              notes: notes ? `${task.notes || ''}\n${notes}`.trim() : task.notes,
+              updatedAt: new Date()
+            })
+            .where(eq(schema.productionTasks.id, task.id))
+            .returning();
+
+          completedTasks.push(updatedTask[0]);
+
+          // Обновляем остатки
+          remainingProduced -= taskProduced;
+          remainingQuality -= taskQuality;
+          remainingDefect -= taskDefect;
+
+          // Логируем движение товара (только годные)
+          if (taskQuality > 0) {
+            await tx.insert(schema.stockMovements).values({
+              productId: product.id,
+              movementType: 'incoming',
+              quantity: taskQuality,
+              referenceId: task.id,
+              referenceType: 'production_task',
+              comment: `Массовая регистрация производства (задание #${task.id})`,
+              userId
+            });
+          }
+        }
+
+        // Добавляем годные изделия на склад
+        if (qualityQuantity > 0) {
+          await tx.update(schema.stock)
+            .set({
+              currentStock: sql`${schema.stock.currentStock} + ${qualityQuantity}`,
+              updatedAt: new Date()
+            })
+            .where(eq(schema.stock.productId, product.id));
+        }
+
+        // Если остались произведенные товары без заданий (сверхплановое производство)
+        if (remainingProduced > 0) {
+          // Логируем сверхплановое производство
+          await tx.insert(schema.stockMovements).values({
+            productId: product.id,
+            movementType: 'incoming',
+            quantity: Math.min(remainingQuality, remainingProduced),
+            referenceType: 'overproduction',
+            comment: `Сверхплановое производство (артикул: ${article})`,
+            userId
+          });
+
+          results.push({
+            article,
+            status: 'warning',
+            message: `Произведено ${producedQuantity} шт., из них ${remainingProduced} шт. сверх плана`,
+            tasksCompleted: completedTasks.length,
+            overproduction: remainingProduced
+          });
+        } else {
+          results.push({
+            article,
+            status: 'success',
+            message: `Произведено ${producedQuantity} шт., распределено по ${completedTasks.length} заданиям`,
+            tasksCompleted: completedTasks.length
+          });
+        }
+      }
+    });
+
+    res.json({
+      success: true,
+      data: results,
+      message: `Обработано ${items.length} позиций товаров`
+    });
+
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/production/tasks/:id/partial-complete - Частичное выполнение задания (WBS 2 - Adjustments Задача 4.1)
+router.post('/tasks/:id/partial-complete', authenticateToken, authorizeRoles('production', 'director'), async (req: AuthRequest, res, next) => {
+  try {
+    const taskId = Number(req.params.id);
+    const { 
+      producedQuantity, 
+      qualityQuantity, 
+      defectQuantity, 
+      notes 
+    } = req.body;
+    const userId = req.user!.id;
+
+    const task = await db.query.productionTasks.findFirst({
+      where: eq(schema.productionTasks.id, taskId),
+      with: {
+        product: true,
+        order: true
+      }
+    });
+
+    if (!task) {
+      return next(createError('Задание не найдено', 404));
+    }
+
+    if (task.status !== 'pending' && task.status !== 'in_progress') {
+      return next(createError('Можно регистрировать выпуск только для активных заданий', 400));
+    }
+
+    // Валидация
+    if (producedQuantity <= 0 || qualityQuantity < 0 || defectQuantity < 0) {
+      return next(createError('Количество не может быть отрицательным или нулевым', 400));
+    }
+
+    if (qualityQuantity + defectQuantity !== producedQuantity) {
+      return next(createError('Сумма годных и брака должна равняться произведенному количеству', 400));
+    }
+
+    // Обработка сверхпланового производства (WBS 2 - Adjustments Задача 4.4)
+    const currentProduced = task.producedQuantity || 0;
+    const remainingNeeded = task.requestedQuantity - currentProduced;
+    
+    let taskProducedQuantity = producedQuantity;
+    let taskQualityQuantity = qualityQuantity;
+    let taskDefectQuantity = defectQuantity;
+    let overproductionQuantity = 0;
+    let overproductionQuality = 0;
+    
+    // Если производится больше чем нужно для завершения задания
+    if (producedQuantity > remainingNeeded) {
+      // Засчитываем в задание только то что нужно
+      taskProducedQuantity = remainingNeeded;
+      
+      // Пропорционально распределяем качественные и брак для задания
+      const taskRatio = taskProducedQuantity / producedQuantity;
+      taskQualityQuantity = Math.round(qualityQuantity * taskRatio);
+      taskDefectQuantity = taskProducedQuantity - taskQualityQuantity;
+      
+      // Остальное считается сверхплановым производством
+      overproductionQuantity = producedQuantity - taskProducedQuantity;
+      overproductionQuality = qualityQuantity - taskQualityQuantity;
+    }
+    
+    const newTotalProduced = currentProduced + taskProducedQuantity;
+
+    // Используем транзакцию для атомарности операций
+    const result = await db.transaction(async (tx) => {
+      // Обновляем счетчики задания
+      const newQualityQuantity = (task.qualityQuantity || 0) + taskQualityQuantity;
+      const newDefectQuantity = (task.defectQuantity || 0) + taskDefectQuantity;
+      
+      // Определяем новый статус
+      const isCompleted = newTotalProduced >= task.requestedQuantity;
+      const newStatus = isCompleted ? 'completed' : (task.status === 'pending' ? 'in_progress' : task.status);
+      
+      const updatedTask = await tx.update(schema.productionTasks)
+        .set({
+          status: newStatus,
+          producedQuantity: newTotalProduced,
+          qualityQuantity: newQualityQuantity,
+          defectQuantity: newDefectQuantity,
+          startedAt: task.startedAt || new Date(), // Автоматически запускаем если еще не запущено
+          startedBy: task.startedBy || userId,
+          completedAt: isCompleted ? new Date() : task.completedAt,
+          completedBy: isCompleted ? userId : task.completedBy,
+          notes: notes ? `${task.notes || ''}\n${notes}`.trim() : task.notes,
+          updatedAt: new Date()
+        })
+        .where(eq(schema.productionTasks.id, taskId))
+        .returning();
+
+      // Добавляем годные изделия на склад
+      if (qualityQuantity > 0) {
+        await tx.update(schema.stock)
+          .set({
+            currentStock: sql`${schema.stock.currentStock} + ${qualityQuantity}`,
+            updatedAt: new Date()
+          })
+          .where(eq(schema.stock.productId, task.productId));
+
+        // Логируем движение товара от задания
+        await tx.insert(schema.stockMovements).values({
+          productId: task.productId,
+          movementType: 'incoming',
+          quantity: taskQualityQuantity,
+          referenceId: taskId,
+          referenceType: 'production_task',
+          comment: `Частичное производство (задание #${taskId}${isCompleted ? ' - завершено' : ''})`,
+          userId
+        });
+        
+        // Логируем сверхплановое производство (если есть)
+        if (overproductionQuality > 0) {
+          await tx.insert(schema.stockMovements).values({
+            productId: task.productId,
+            movementType: 'incoming',
+            quantity: overproductionQuality,
+            referenceId: taskId,
+            referenceType: 'overproduction',
+            comment: `Сверхплановое производство при выполнении задания #${taskId}`,
+            userId
+          });
+        }
+      }
+
+      // Аудит лог
+      await tx.insert(schema.auditLog).values({
+        tableName: 'production_tasks',
+        recordId: taskId,
+        operation: 'UPDATE',
+        oldValues: task,
+        newValues: updatedTask[0],
+        userId
+      });
+
+      return { 
+        task: updatedTask[0], 
+        wasCompleted: isCompleted,
+        remainingQuantity: task.requestedQuantity - newTotalProduced,
+        overproductionQuantity: overproductionQuantity,
+        overproductionQuality: overproductionQuality
+      };
+    });
+
+    let message = '';
+    if (result.wasCompleted) {
+      if (result.overproductionQuantity > 0) {
+        message = `Задание завершено! Произведено ${newTotalProduced} из ${task.requestedQuantity} шт. + ${result.overproductionQuantity} шт. сверх плана`;
+      } else {
+        message = `Задание завершено! Произведено ${newTotalProduced} из ${task.requestedQuantity} шт.`;
+      }
+    } else {
+      message = `Зарегистрировано ${taskProducedQuantity} шт. Осталось произвести: ${result.remainingQuantity} шт.`;
+      if (result.overproductionQuantity > 0) {
+        message += ` + ${result.overproductionQuantity} шт. сверх плана`;
+      }
+    }
+
+    res.json({
+      success: true,
+      data: result.task,
+      message: message
+    });
+
   } catch (error) {
     next(error);
   }

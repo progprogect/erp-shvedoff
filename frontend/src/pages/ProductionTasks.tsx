@@ -47,6 +47,8 @@ import {
   getTasksByProduct,
   startTask,
   completeTask,
+  partialCompleteTask,
+  bulkRegisterProduction,
   completeTasksByProduct,
   updateProductionTask,
   updateTaskStatus,
@@ -103,6 +105,8 @@ const ProductionTasks: React.FC = () => {
   // Состояние для модалов
   const [approveModalVisible, setApproveModalVisible] = useState<boolean>(false);
   const [completeModalVisible, setCompleteModalVisible] = useState<boolean>(false);
+  const [partialCompleteModalVisible, setPartialCompleteModalVisible] = useState<boolean>(false);
+  const [bulkRegisterModalVisible, setBulkRegisterModalVisible] = useState<boolean>(false);
   const [createTaskModalVisible, setCreateTaskModalVisible] = useState<boolean>(false);
   const [completeByProductModalVisible, setCompleteByProductModalVisible] = useState<boolean>(false);
   const [selectedTask, setSelectedTask] = useState<ProductionTask | null>(null);
@@ -113,6 +117,8 @@ const ProductionTasks: React.FC = () => {
   
   const [approveForm] = Form.useForm();
   const [completeForm] = Form.useForm();
+  const [partialCompleteForm] = Form.useForm();
+  const [bulkRegisterForm] = Form.useForm();
   const [createTaskForm] = Form.useForm();
   const [completeByProductForm] = Form.useForm();
 
@@ -122,6 +128,23 @@ const ProductionTasks: React.FC = () => {
     qualityQuantity: number;
     defectQuantity: number;
   }>({ producedQuantity: 0, qualityQuantity: 0, defectQuantity: 0 });
+
+  // Состояние для формы частичного выполнения (WBS 2 - Adjustments Задача 4.1)
+  const [partialCompleteFormValues, setPartialCompleteFormValues] = useState<{
+    producedQuantity: number;
+    qualityQuantity: number;
+    defectQuantity: number;
+  }>({ producedQuantity: 0, qualityQuantity: 0, defectQuantity: 0 });
+
+  // Состояние для формы массовой регистрации (WBS 2 - Adjustments Задача 4.2)
+  const [bulkRegisterItems, setBulkRegisterItems] = useState<Array<{
+    id: number;
+    article: string;
+    productName?: string;
+    producedQuantity: number;
+    qualityQuantity: number;
+    defectQuantity: number;
+  }>>([{ id: 1, article: '', producedQuantity: 10, qualityQuantity: 10, defectQuantity: 0 }]);
 
   // Состояние для модального окна редактирования
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -439,6 +462,135 @@ const ProductionTasks: React.FC = () => {
     }
   };
 
+  // Частичное выполнение задания (WBS 2 - Adjustments Задача 4.1)
+  const handlePartialCompleteTask = async (values: any) => {
+    if (!selectedTask) return;
+
+    try {
+      // Автоматический пересчет качественных если не указано
+      if (!partialCompleteFormValues.qualityQuantity && !partialCompleteFormValues.defectQuantity) {
+        setPartialCompleteFormValues(prev => ({
+          ...prev,
+          qualityQuantity: partialCompleteFormValues.producedQuantity,
+          defectQuantity: 0
+        }));
+      }
+
+      const produced = partialCompleteFormValues.producedQuantity;
+      const quality = partialCompleteFormValues.qualityQuantity;
+      const defect = partialCompleteFormValues.defectQuantity;
+
+      // Валидация суммы
+      if (quality + defect !== produced) {
+        message.error('Сумма годных и брака должна равняться произведенному количеству');
+        return;
+      }
+
+      // Проверяем что не превышаем оставшееся количество
+      const currentProduced = selectedTask.producedQuantity || 0;
+      const remainingQuantity = selectedTask.requestedQuantity - currentProduced;
+      if (produced > remainingQuantity) {
+        message.error(`Нельзя произвести больше чем осталось: ${remainingQuantity} шт.`);
+        return;
+      }
+
+      // Подготовка данных для отправки
+      const result = await partialCompleteTask(selectedTask.id, {
+        producedQuantity: produced,
+        qualityQuantity: quality,
+        defectQuantity: defect,
+        notes: values.notes
+      });
+
+      message.success(result.message);
+      setPartialCompleteModalVisible(false);
+      setSelectedTask(null);
+      partialCompleteForm.resetFields();
+      setPartialCompleteFormValues({ producedQuantity: 0, qualityQuantity: 0, defectQuantity: 0 });
+      loadTasks();
+      loadTasksByProduct();
+    } catch (error) {
+      message.error(`Ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
+    }
+  };
+
+  // Массовая регистрация выпуска продукции (WBS 2 - Adjustments Задача 4.2)
+  const handleBulkRegister = async (values: any) => {
+    try {
+      // Валидация: все строки должны быть заполнены
+      const validItems = bulkRegisterItems.filter(item => 
+        item.article.trim() !== '' && item.producedQuantity > 0
+      );
+
+      if (validItems.length === 0) {
+        message.error('Добавьте хотя бы один товар для регистрации');
+        return;
+      }
+
+      // Валидация сумм для каждого товара
+      for (const item of validItems) {
+        if (item.qualityQuantity + item.defectQuantity !== item.producedQuantity) {
+          message.error(`Для артикула ${item.article}: сумма годных и брака должна равняться произведенному количеству`);
+          return;
+        }
+      }
+
+      // Подготовка данных для API
+      const requestData = {
+        items: validItems.map(item => ({
+          article: item.article.trim(),
+          producedQuantity: item.producedQuantity,
+          qualityQuantity: item.qualityQuantity,
+          defectQuantity: item.defectQuantity
+        })),
+        productionDate: values.productionDate?.format ? values.productionDate.format('YYYY-MM-DD') : undefined,
+        notes: values.notes?.trim() || undefined
+      };
+
+      const result = await bulkRegisterProduction(requestData);
+      
+      if (result.success) {
+        // Показываем детальные результаты
+        const successCount = result.data.filter(r => r.status === 'success').length;
+        const warningCount = result.data.filter(r => r.status === 'warning').length;
+        const errorCount = result.data.filter(r => r.status === 'error').length;
+
+        let modalContent = (
+          <div>
+            <p><strong>Результаты обработки:</strong></p>
+            {successCount > 0 && <p style={{ color: '#52c41a' }}>✅ Успешно: {successCount} позиций</p>}
+            {warningCount > 0 && <p style={{ color: '#faad14' }}>⚠️ С предупреждениями: {warningCount} позиций</p>}
+            {errorCount > 0 && <p style={{ color: '#ff4d4f' }}>❌ Ошибки: {errorCount} позиций</p>}
+            
+            <div style={{ marginTop: 16, maxHeight: 200, overflowY: 'auto' }}>
+              {result.data.map((item, index) => (
+                <div key={index} style={{ marginBottom: 8, padding: 8, backgroundColor: '#f5f5f5', borderRadius: 4 }}>
+                  <strong>{item.article}:</strong> {item.message}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+
+        Modal.success({
+          title: 'Массовая регистрация завершена',
+          content: modalContent,
+          width: 600
+        });
+
+        setBulkRegisterModalVisible(false);
+        bulkRegisterForm.resetFields();
+        setBulkRegisterItems([{ id: 1, article: '', producedQuantity: 10, qualityQuantity: 10, defectQuantity: 0 }]);
+        loadTasks();
+        loadTasksByProduct();
+      } else {
+        message.error(result.message || 'Ошибка массовой регистрации');
+      }
+    } catch (error) {
+      message.error(`Ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
+    }
+  };
+
   // Обработчик для массового завершения заданий по товару
   const handleCompleteByProduct = (productTasks: TasksByProduct) => {
     setSelectedProductForCompletion(productTasks);
@@ -610,14 +762,42 @@ const ProductionTasks: React.FC = () => {
     {
       title: 'Количество',
       key: 'quantity',
-      render: (record: ProductionTask) => (
-        <div>
-          <div>Запрошено: {record.requestedQuantity}</div>
-          {record.producedQuantity > 0 && (
-            <Text type="secondary">Произведено: {record.producedQuantity}</Text>
-          )}
-        </div>
-      ),
+      render: (record: ProductionTask) => {
+        const requested = record.requestedQuantity;
+        const produced = record.producedQuantity || 0;
+        const remaining = requested - produced;
+        const progressPercent = Math.round((produced / requested) * 100);
+        
+        return (
+          <div>
+            <div>
+              <strong>Запрошено:</strong> {requested} шт
+            </div>
+            {produced > 0 && (
+              <>
+                <div style={{ color: '#52c41a' }}>
+                  <strong>Произведено:</strong> {produced} шт ({progressPercent}%)
+                </div>
+                {remaining > 0 && (
+                  <div style={{ color: '#faad14' }}>
+                    <strong>Осталось:</strong> {remaining} шт
+                  </div>
+                )}
+                {remaining === 0 && (
+                  <div style={{ color: '#52c41a', fontWeight: 'bold' }}>
+                    ✅ Выполнено полностью
+                  </div>
+                )}
+              </>
+            )}
+            {produced === 0 && (
+              <Text type="secondary" style={{ fontStyle: 'italic' }}>
+                Производство не начато
+              </Text>
+            )}
+          </div>
+        );
+      },
     },
     {
       title: 'Статус',
@@ -677,6 +857,31 @@ const ProductionTasks: React.FC = () => {
               >
                 Начать
               </Button>
+              <Button
+                type="default"
+                size="small"
+                icon={<PlusOutlined />}
+                onClick={() => {
+                  setSelectedTask(record);
+                  const currentProduced = record.producedQuantity || 0;
+                  const remainingQuantity = record.requestedQuantity - currentProduced;
+                  const defaultProduced = Math.min(remainingQuantity, 10); // По умолчанию 10 или остаток
+                  setPartialCompleteFormValues({
+                    producedQuantity: defaultProduced,
+                    qualityQuantity: defaultProduced,
+                    defectQuantity: 0
+                  });
+                  partialCompleteForm.setFieldsValue({
+                    producedQuantity: defaultProduced,
+                    qualityQuantity: defaultProduced,
+                    defectQuantity: 0
+                  });
+                  setPartialCompleteModalVisible(true);
+                }}
+                style={{ marginLeft: 8 }}
+              >
+                Зарегистрировать выпуск
+              </Button>
             </>
           )}
           
@@ -689,6 +894,31 @@ const ProductionTasks: React.FC = () => {
                 onClick={() => handlePauseTask(record)}
               >
                 На паузу
+              </Button>
+              <Button
+                type="default"
+                size="small"
+                icon={<PlusOutlined />}
+                onClick={() => {
+                  setSelectedTask(record);
+                  const currentProduced = record.producedQuantity || 0;
+                  const remainingQuantity = record.requestedQuantity - currentProduced;
+                  const defaultProduced = Math.min(remainingQuantity, 10); // По умолчанию 10 или остаток
+                  setPartialCompleteFormValues({
+                    producedQuantity: defaultProduced,
+                    qualityQuantity: defaultProduced,
+                    defectQuantity: 0
+                  });
+                  partialCompleteForm.setFieldsValue({
+                    producedQuantity: defaultProduced,
+                    qualityQuantity: defaultProduced,
+                    defectQuantity: 0
+                  });
+                  setPartialCompleteModalVisible(true);
+                }}
+                style={{ marginRight: 8 }}
+              >
+                Зарегистрировать выпуск
               </Button>
               <Button
                 type="primary"
@@ -949,6 +1179,18 @@ const ProductionTasks: React.FC = () => {
             }}
           >
             Создать задание
+          </Button>
+          <Button
+            type="default"
+            icon={<CheckCircleOutlined />}
+            onClick={() => {
+              setBulkRegisterModalVisible(true);
+              bulkRegisterForm.setFieldsValue({
+                productionDate: new Date()
+              });
+            }}
+          >
+            Зарегистрировать выпуск продукции
           </Button>
         </Space>
       </Card>
@@ -1643,6 +1885,405 @@ const ProductionTasks: React.FC = () => {
             </Form.Item>
           </Form>
         )}
+      </Modal>
+
+      {/* Модальное окно для частичного выполнения задания (WBS 2 - Adjustments Задача 4.1) */}
+      {selectedTask && partialCompleteModalVisible && (
+        <Modal
+          title={
+            <div>
+              <PlusOutlined style={{ color: '#1890ff', marginRight: 8 }} />
+              Зарегистрировать выпуск продукции
+            </div>
+          }
+          open={partialCompleteModalVisible}
+          onCancel={() => {
+            setPartialCompleteModalVisible(false);
+            setSelectedTask(null);
+            partialCompleteForm.resetFields();
+            setPartialCompleteFormValues({ producedQuantity: 0, qualityQuantity: 0, defectQuantity: 0 });
+          }}
+          footer={null}
+          width={600}
+        >
+          <div style={{ marginBottom: 16 }}>
+            <Alert
+              message={
+                <div>
+                  <strong>Задание:</strong> {selectedTask.product.name}<br/>
+                  <strong>Запрошено:</strong> {selectedTask.requestedQuantity} шт.<br/>
+                  <strong>Уже произведено:</strong> {selectedTask.producedQuantity || 0} шт.<br/>
+                  <strong>Осталось произвести:</strong> {selectedTask.requestedQuantity - (selectedTask.producedQuantity || 0)} шт.
+                </div>
+              }
+              type="info"
+              showIcon
+            />
+          </div>
+          
+          <Form
+            form={partialCompleteForm}
+            layout="vertical"
+            onFinish={handlePartialCompleteTask}
+          >
+            <Row gutter={16}>
+              <Col span={8}>
+                <Form.Item
+                  name="producedQuantity"
+                  label="Произведено (шт)"
+                  rules={[
+                    { required: true, message: 'Укажите количество' },
+                    { type: 'number', min: 1, message: 'Минимум 1 шт' },
+                    { 
+                      type: 'number', 
+                      max: selectedTask.requestedQuantity - (selectedTask.producedQuantity || 0), 
+                      message: `Максимум ${selectedTask.requestedQuantity - (selectedTask.producedQuantity || 0)} шт` 
+                    }
+                  ]}
+                >
+                  <InputNumber
+                    style={{ width: '100%' }}
+                    value={partialCompleteFormValues.producedQuantity}
+                    onChange={(value) => {
+                      const produced = value || 0;
+                      setPartialCompleteFormValues(prev => ({
+                        ...prev,
+                        producedQuantity: produced,
+                        qualityQuantity: produced,
+                        defectQuantity: 0
+                      }));
+                      partialCompleteForm.setFieldsValue({
+                        qualityQuantity: produced,
+                        defectQuantity: 0
+                      });
+                    }}
+                    min={1}
+                    max={selectedTask.requestedQuantity - (selectedTask.producedQuantity || 0)}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item
+                  name="qualityQuantity"
+                  label="Годных (шт)"
+                  rules={[
+                    { required: true, message: 'Укажите количество годных' },
+                    { type: 'number', min: 0, message: 'Не может быть отрицательным' }
+                  ]}
+                >
+                  <InputNumber
+                    style={{ width: '100%' }}
+                    value={partialCompleteFormValues.qualityQuantity}
+                    onChange={(value) => {
+                      const quality = value || 0;
+                      const defect = partialCompleteFormValues.producedQuantity - quality;
+                      setPartialCompleteFormValues(prev => ({
+                        ...prev,
+                        qualityQuantity: quality,
+                        defectQuantity: Math.max(0, defect)
+                      }));
+                      partialCompleteForm.setFieldValue('defectQuantity', Math.max(0, defect));
+                    }}
+                    min={0}
+                    max={partialCompleteFormValues.producedQuantity}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item
+                  name="defectQuantity"
+                  label="Брак (шт)"
+                  rules={[
+                    { required: true, message: 'Укажите количество брака' },
+                    { type: 'number', min: 0, message: 'Не может быть отрицательным' }
+                  ]}
+                >
+                  <InputNumber
+                    style={{ width: '100%' }}
+                    value={partialCompleteFormValues.defectQuantity}
+                    onChange={(value) => {
+                      const defect = value || 0;
+                      const quality = partialCompleteFormValues.producedQuantity - defect;
+                      setPartialCompleteFormValues(prev => ({
+                        ...prev,
+                        defectQuantity: defect,
+                        qualityQuantity: Math.max(0, quality)
+                      }));
+                      partialCompleteForm.setFieldValue('qualityQuantity', Math.max(0, quality));
+                    }}
+                    min={0}
+                    max={partialCompleteFormValues.producedQuantity}
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Row>
+              <Col span={24}>
+                <div style={{ marginBottom: 8, fontSize: '14px', color: '#666' }}>
+                  Проверка: {partialCompleteFormValues.qualityQuantity + partialCompleteFormValues.defectQuantity === partialCompleteFormValues.producedQuantity ? 
+                    '✅ Сумма сходится' : 
+                    '❌ Сумма годных и брака должна равняться произведенному количеству'
+                  }
+                </div>
+              </Col>
+            </Row>
+
+            <Form.Item
+              name="notes"
+              label="Примечания"
+            >
+              <Input.TextArea
+                rows={3}
+                placeholder="Комментарий к выпуску продукции..."
+                maxLength={500}
+              />
+            </Form.Item>
+
+            <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
+              <Space>
+                <Button 
+                  onClick={() => {
+                    setPartialCompleteModalVisible(false);
+                    setSelectedTask(null);
+                    partialCompleteForm.resetFields();
+                    setPartialCompleteFormValues({ producedQuantity: 0, qualityQuantity: 0, defectQuantity: 0 });
+                  }}
+                >
+                  Отмена
+                </Button>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  icon={<PlusOutlined />}
+                  disabled={partialCompleteFormValues.qualityQuantity + partialCompleteFormValues.defectQuantity !== partialCompleteFormValues.producedQuantity}
+                >
+                  Зарегистрировать выпуск
+                </Button>
+              </Space>
+            </Form.Item>
+          </Form>
+        </Modal>
+      )}
+
+      {/* Модальное окно для массовой регистрации выпуска продукции (WBS 2 - Adjustments Задача 4.2) */}
+      <Modal
+        title={
+          <div>
+            <CheckCircleOutlined style={{ color: '#1890ff', marginRight: 8 }} />
+            Массовая регистрация выпуска продукции
+          </div>
+        }
+        open={bulkRegisterModalVisible}
+        onCancel={() => {
+          setBulkRegisterModalVisible(false);
+          bulkRegisterForm.resetFields();
+          setBulkRegisterItems([{ id: 1, article: '', producedQuantity: 10, qualityQuantity: 10, defectQuantity: 0 }]);
+        }}
+        footer={null}
+        width={1000}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Alert
+            message="Укажите артикулы и количества произведенных товаров за смену. Система автоматически распределит их по активным заданиям в порядке приоритета."
+            type="info"
+            showIcon
+          />
+        </div>
+
+        <Form
+          form={bulkRegisterForm}
+          layout="vertical"
+          onFinish={handleBulkRegister}
+        >
+          {/* Динамическая таблица товаров */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <Text strong>Произведенные товары:</Text>
+              <Button
+                type="dashed"
+                icon={<PlusOutlined />}
+                size="small"
+                onClick={() => {
+                  const newId = Math.max(...bulkRegisterItems.map(item => item.id)) + 1;
+                  setBulkRegisterItems([...bulkRegisterItems, {
+                    id: newId,
+                    article: '',
+                    producedQuantity: 10,
+                    qualityQuantity: 10,
+                    defectQuantity: 0
+                  }]);
+                }}
+              >
+                Добавить товар
+              </Button>
+            </div>
+
+            <div style={{ border: '1px solid #d9d9d9', borderRadius: 6 }}>
+              <div style={{ display: 'flex', backgroundColor: '#fafafa', padding: '8px 12px', fontWeight: 'bold', borderBottom: '1px solid #d9d9d9' }}>
+                <div style={{ flex: 3 }}>Артикул</div>
+                <div style={{ flex: 2, textAlign: 'center' }}>Произведено</div>
+                <div style={{ flex: 2, textAlign: 'center' }}>Годных</div>
+                <div style={{ flex: 2, textAlign: 'center' }}>Брак</div>
+                <div style={{ flex: 1, textAlign: 'center' }}>Действия</div>
+              </div>
+
+              {bulkRegisterItems.map((item, index) => (
+                <div key={item.id} style={{ display: 'flex', padding: '8px 12px', borderBottom: index < bulkRegisterItems.length - 1 ? '1px solid #f0f0f0' : 'none', alignItems: 'center' }}>
+                  <div style={{ flex: 3, paddingRight: 8 }}>
+                    <Input
+                      placeholder="Введите артикул товара"
+                      value={item.article}
+                      onChange={(e) => {
+                        const newItems = [...bulkRegisterItems];
+                        newItems[index] = { ...item, article: e.target.value };
+                        setBulkRegisterItems(newItems);
+                      }}
+                    />
+                  </div>
+                  <div style={{ flex: 2, paddingRight: 8 }}>
+                    <InputNumber
+                      style={{ width: '100%' }}
+                      min={1}
+                      value={item.producedQuantity}
+                      onChange={(value) => {
+                        const produced = value || 0;
+                        const newItems = [...bulkRegisterItems];
+                        newItems[index] = {
+                          ...item,
+                          producedQuantity: produced,
+                          qualityQuantity: produced,
+                          defectQuantity: 0
+                        };
+                        setBulkRegisterItems(newItems);
+                      }}
+                    />
+                  </div>
+                  <div style={{ flex: 2, paddingRight: 8 }}>
+                    <InputNumber
+                      style={{ width: '100%' }}
+                      min={0}
+                      max={item.producedQuantity}
+                      value={item.qualityQuantity}
+                      onChange={(value) => {
+                        const quality = value || 0;
+                        const defect = item.producedQuantity - quality;
+                        const newItems = [...bulkRegisterItems];
+                        newItems[index] = {
+                          ...item,
+                          qualityQuantity: quality,
+                          defectQuantity: Math.max(0, defect)
+                        };
+                        setBulkRegisterItems(newItems);
+                      }}
+                    />
+                  </div>
+                  <div style={{ flex: 2, paddingRight: 8 }}>
+                    <InputNumber
+                      style={{ width: '100%' }}
+                      min={0}
+                      max={item.producedQuantity}
+                      value={item.defectQuantity}
+                      onChange={(value) => {
+                        const defect = value || 0;
+                        const quality = item.producedQuantity - defect;
+                        const newItems = [...bulkRegisterItems];
+                        newItems[index] = {
+                          ...item,
+                          defectQuantity: defect,
+                          qualityQuantity: Math.max(0, quality)
+                        };
+                        setBulkRegisterItems(newItems);
+                      }}
+                    />
+                  </div>
+                  <div style={{ flex: 1, textAlign: 'center' }}>
+                    {bulkRegisterItems.length > 1 && (
+                      <Button
+                        type="text"
+                        danger
+                        size="small"
+                        icon={<CloseCircleOutlined />}
+                        onClick={() => {
+                          setBulkRegisterItems(bulkRegisterItems.filter(i => i.id !== item.id));
+                        }}
+                      />
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Валидация сумм */}
+            <div style={{ marginTop: 8, fontSize: '12px', color: '#666' }}>
+              {bulkRegisterItems.map((item, index) => {
+                const isValid = item.qualityQuantity + item.defectQuantity === item.producedQuantity;
+                const hasArticle = item.article.trim() !== '';
+                
+                if (!hasArticle || isValid) return null;
+                
+                return (
+                  <div key={item.id} style={{ color: '#ff4d4f' }}>
+                    Строка {index + 1}: Сумма годных и брака должна равняться произведенному количеству
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="productionDate"
+                label="Дата производства"
+              >
+                <Input 
+                  type="date" 
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Form.Item
+            name="notes"
+            label="Общие примечания"
+          >
+            <Input.TextArea
+              rows={3}
+              placeholder="Комментарий к смене..."
+              maxLength={500}
+            />
+          </Form.Item>
+
+          <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
+            <Space>
+              <Button 
+                onClick={() => {
+                  setBulkRegisterModalVisible(false);
+                  bulkRegisterForm.resetFields();
+                  setBulkRegisterItems([{ id: 1, article: '', producedQuantity: 10, qualityQuantity: 10, defectQuantity: 0 }]);
+                }}
+              >
+                Отмена
+              </Button>
+              <Button
+                type="primary"
+                htmlType="submit"
+                icon={<CheckCircleOutlined />}
+                disabled={
+                  bulkRegisterItems.filter(item => item.article.trim() !== '').length === 0 ||
+                  bulkRegisterItems.some(item => 
+                    item.article.trim() !== '' && 
+                    (item.qualityQuantity + item.defectQuantity !== item.producedQuantity)
+                  )
+                }
+              >
+                Зарегистрировать выпуск
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
       </Modal>
 
       </div>

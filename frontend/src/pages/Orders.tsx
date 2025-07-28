@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Row, Col, Card, Table, Button, Input, Select, Space, Typography, Tag, Statistic,
-  Modal, Form, Dropdown, MenuProps, App
+  Modal, Form, Dropdown, MenuProps, App, Tabs
 } from 'antd';
 import {
   PlusOutlined, SearchOutlined, FilterOutlined, EyeOutlined, EditOutlined,
-  ShoppingCartOutlined, MoreOutlined, DeleteOutlined, ExclamationCircleOutlined
+  ShoppingCartOutlined, MoreOutlined, DeleteOutlined, ExclamationCircleOutlined,
+  InboxOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
@@ -26,6 +27,9 @@ const Orders: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [managerFilter, setManagerFilter] = useState<string>('all');
+  
+  // Состояние для архива (WBS 2 - Adjustments Задача 5.1)
+  const [currentTab, setCurrentTab] = useState<string>('active');
   
   // Modal states
   const [statusModalVisible, setStatusModalVisible] = useState(false);
@@ -412,76 +416,153 @@ const Orders: React.FC = () => {
           </Row>
         </Col>
 
-        {/* Фильтры */}
+        {/* Вкладки и содержимое (WBS 2 - Adjustments Задача 5.1) */}
         <Col span={24}>
           <Card>
-            <Row gutter={16} align="middle">
-              <Col xs={24} sm={12} md={6}>
-                <Input
-                  placeholder="Поиск по номеру, клиенту, менеджеру..."
-                  prefix={<SearchOutlined />}
-                  value={searchText}
-                  onChange={(e) => setSearchText(e.target.value)}
-                  allowClear
-                />
-              </Col>
-              <Col xs={12} sm={6} md={4}>
-                <Select
-                  placeholder="Статус"
-                  style={{ width: '100%' }}
-                  value={statusFilter}
-                  onChange={setStatusFilter}
-                >
-                  <Option value="all">Все статусы</Option>
-                  <Option value="new">Новые</Option>
-                  <Option value="confirmed">Подтверждённые</Option>
-                  <Option value="in_production">В производстве</Option>
-                  <Option value="ready">Готовые</Option>
-                              <Option value="completed">Выполненные</Option>
-                  <Option value="cancelled">Отменённые</Option>
-                </Select>
-              </Col>
-              <Col xs={12} sm={6} md={4}>
-                <Select
-                  placeholder="Приоритет"
-                  style={{ width: '100%' }}
-                  value={priorityFilter}
-                  onChange={setPriorityFilter}
-                >
-                  <Option value="all">Все приоритеты</Option>
-                  <Option value="urgent">Срочные</Option>
-                  <Option value="high">Высокие</Option>
-                  <Option value="normal">Обычные</Option>
-                  <Option value="low">Низкие</Option>
-                </Select>
-              </Col>
-              <Col xs={24} sm={24} md={10}>
-                <div style={{ textAlign: 'right' }}>
-                  <Text type="secondary">
-                    Показано: {filteredOrders.length} заказов
-                  </Text>
-                </div>
-              </Col>
-            </Row>
-          </Card>
-        </Col>
+            <Tabs
+              activeKey={currentTab}
+              onChange={setCurrentTab}
+              items={[
+                {
+                  key: 'active',
+                  label: (
+                    <span>
+                      <ShoppingCartOutlined />
+                      Активные заказы
+                    </span>
+                  ),
+                  children: (
+                    <div>
+                      {/* Фильтры для активных заказов */}
+                      <Row gutter={16} align="middle" style={{ marginBottom: 16 }}>
+                        <Col xs={24} sm={12} md={6}>
+                          <Input
+                            placeholder="Поиск по номеру, клиенту, менеджеру..."
+                            prefix={<SearchOutlined />}
+                            value={searchText}
+                            onChange={(e) => setSearchText(e.target.value)}
+                            allowClear
+                          />
+                        </Col>
+                        <Col xs={12} sm={6} md={4}>
+                          <Select
+                            placeholder="Статус"
+                            style={{ width: '100%' }}
+                            value={statusFilter}
+                            onChange={setStatusFilter}
+                          >
+                            <Option value="all">Все статусы</Option>
+                            <Option value="new">Новые</Option>
+                            <Option value="confirmed">Подтверждённые</Option>
+                            <Option value="in_production">В производстве</Option>
+                            <Option value="ready">Готовые</Option>
+                            <Option value="cancelled">Отменённые</Option>
+                          </Select>
+                        </Col>
+                        <Col xs={12} sm={6} md={4}>
+                          <Select
+                            placeholder="Приоритет"
+                            style={{ width: '100%' }}
+                            value={priorityFilter}
+                            onChange={setPriorityFilter}
+                          >
+                            <Option value="all">Все приоритеты</Option>
+                            <Option value="urgent">Срочные</Option>
+                            <Option value="high">Высокие</Option>
+                            <Option value="normal">Обычные</Option>
+                            <Option value="low">Низкие</Option>
+                          </Select>
+                        </Col>
+                        <Col xs={24} sm={24} md={10}>
+                          <div style={{ textAlign: 'right' }}>
+                            <Text type="secondary">
+                              Показано: {filteredOrders.length} активных заказов
+                            </Text>
+                          </div>
+                        </Col>
+                      </Row>
 
-        {/* Таблица заказов */}
-        <Col span={24}>
-          <Card>
-            <Table
-              columns={columns}
-              dataSource={filteredOrders}
-              rowKey="id"
-              loading={loading}
-              pagination={{
-                pageSize: 20,
-                showSizeChanger: true,
-                showQuickJumper: true,
-                showTotal: (total, range) =>
-                  `${range[0]}-${range[1]} из ${total} заказов`,
-              }}
-              scroll={{ x: 1200 }}
+                      {/* Таблица активных заказов */}
+                      <Table
+                        columns={columns}
+                        dataSource={filteredOrders}
+                        rowKey="id"
+                        loading={loading}
+                        pagination={{
+                          pageSize: 20,
+                          showSizeChanger: true,
+                          showQuickJumper: true,
+                          showTotal: (total, range) =>
+                            `${range[0]}-${range[1]} из ${total} активных заказов`,
+                        }}
+                        scroll={{ x: 1200 }}
+                      />
+                    </div>
+                  )
+                },
+                {
+                  key: 'archive',
+                  label: (
+                    <span>
+                      <InboxOutlined />
+                      Архив
+                    </span>
+                  ),
+                  children: (
+                    <div>
+                      {/* Фильтры для архива */}
+                      <Row gutter={16} align="middle" style={{ marginBottom: 16 }}>
+                        <Col xs={24} sm={12} md={8}>
+                          <Input
+                            placeholder="Поиск в архиве..."
+                            prefix={<SearchOutlined />}
+                            value={searchText}
+                            onChange={(e) => setSearchText(e.target.value)}
+                            allowClear
+                          />
+                        </Col>
+                        <Col xs={12} sm={6} md={4}>
+                          <Select
+                            placeholder="Приоритет"
+                            style={{ width: '100%' }}
+                            value={priorityFilter}
+                            onChange={setPriorityFilter}
+                          >
+                            <Option value="all">Все приоритеты</Option>
+                            <Option value="urgent">Срочные</Option>
+                            <Option value="high">Высокие</Option>
+                            <Option value="normal">Обычные</Option>
+                            <Option value="low">Низкие</Option>
+                          </Select>
+                        </Col>
+                        <Col xs={24} sm={24} md={12}>
+                          <div style={{ textAlign: 'right' }}>
+                            <Text type="secondary">
+                              Показано: {filteredOrders.length} завершенных заказов
+                            </Text>
+                          </div>
+                        </Col>
+                      </Row>
+
+                      {/* Таблица архивных заказов */}
+                      <Table
+                        columns={columns.filter(col => col.key !== 'actions')} // Убираем действия для архивных заказов
+                        dataSource={filteredOrders}
+                        rowKey="id"
+                        loading={loading}
+                        pagination={{
+                          pageSize: 20,
+                          showSizeChanger: true,
+                          showQuickJumper: true,
+                          showTotal: (total, range) =>
+                            `${range[0]}-${range[1]} из ${total} архивных заказов`,
+                        }}
+                        scroll={{ x: 1200 }}
+                      />
+                    </div>
+                  )
+                }
+              ]}
             />
           </Card>
         </Col>

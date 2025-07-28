@@ -269,6 +269,55 @@ export const completeTask = async (taskId: number, data: CompleteTaskRequest): P
   return response.json();
 };
 
+// Частичное выполнение задания (WBS 2 - Adjustments Задача 4.1)
+export const partialCompleteTask = async (taskId: number, data: CompleteTaskRequest): Promise<{ success: boolean; data: ProductionTask; message: string }> => {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}/production/tasks/${taskId}/partial-complete`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify(data)
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Ошибка регистрации выпуска');
+  }
+
+  return response.json();
+};
+
+// Массовая регистрация выпуска продукции (WBS 2 - Adjustments Задача 4.2)
+export const bulkRegisterProduction = async (data: {
+  items: Array<{
+    article: string;
+    producedQuantity: number;
+    qualityQuantity?: number;
+    defectQuantity?: number;
+  }>;
+  productionDate?: string;
+  notes?: string;
+}): Promise<{ success: boolean; data: any[]; message: string }> => {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}/production/tasks/bulk-register`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify(data)
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Ошибка массовой регистрации производства');
+  }
+
+  return response.json();
+};
+
 // Массовое завершение заданий по товару
 export const completeTasksByProduct = async (data: CompleteTasksByProductRequest): Promise<{ success: boolean; data: any; message: string }> => {
   const token = localStorage.getItem('token');

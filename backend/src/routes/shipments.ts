@@ -7,6 +7,92 @@ import { performStockOperation } from '../utils/stockManager';
 
 const router = express.Router();
 
+// Функция для проверки и архивации заказа (WBS 2 - Adjustments Задача 5.1)
+async function checkAndArchiveOrder(tx: any, orderId: number, userId: number) {
+  try {
+    // Получаем заказ с его товарами
+    const order = await tx.query.orders.findFirst({
+      where: eq(schema.orders.id, orderId),
+      with: {
+        items: {
+          with: {
+            product: true
+          }
+        }
+      }
+    });
+
+    if (!order || order.status === 'completed') {
+      return; // Заказ уже завершен или не найден
+    }
+
+    // Получаем все завершенные отгрузки для этого заказа
+    const completedShipments = await tx.query.shipments.findMany({
+      where: and(
+        eq(schema.shipments.orderId, orderId),
+        eq(schema.shipments.status, 'completed')
+      ),
+      with: {
+        items: {
+          with: {
+            product: true
+          }
+        }
+      }
+    });
+
+    // Считаем отгруженные количества по каждому товару
+    const shippedQuantities: Record<number, number> = {};
+    
+    for (const shipment of completedShipments) {
+      for (const item of shipment.items || []) {
+        const productId = item.productId;
+        const shippedQty = item.actualQuantity || item.plannedQuantity || 0;
+        shippedQuantities[productId] = (shippedQuantities[productId] || 0) + shippedQty;
+      }
+    }
+
+    // Проверяем - отгружены ли все товары из заказа полностью
+    let allItemsShipped = true;
+    
+    for (const orderItem of order.items) {
+      const orderedQty = orderItem.quantity;
+      const shippedQty = shippedQuantities[orderItem.productId] || 0;
+      
+      if (shippedQty < orderedQty) {
+        allItemsShipped = false;
+        break;
+      }
+    }
+
+    // Если все товары отгружены - архивируем заказ
+    if (allItemsShipped) {
+      await tx.update(schema.orders)
+        .set({
+          status: 'completed',
+          updatedAt: new Date()
+        })
+        .where(eq(schema.orders.id, orderId));
+
+      // Логируем архивацию
+      await tx.insert(schema.auditLog).values({
+        tableName: 'orders',
+        recordId: orderId,
+        operation: 'UPDATE',
+        oldValues: { status: order.status },
+        newValues: { status: 'completed' },
+        userId,
+        comment: 'Автоматическая архивация - все товары отгружены'
+      });
+
+      console.log(`🗄️ Заказ ${order.orderNumber} автоматически архивирован - все товары отгружены`);
+    }
+  } catch (error) {
+    console.error('Ошибка при проверке архивации заказа:', error);
+    // Не прерываем основной поток при ошибке архивации
+  }
+}
+
 // GET /api/shipments - Get shipments list
 router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
   try {
@@ -516,14 +602,9 @@ router.put('/:id/status', authenticateToken, async (req: AuthRequest, res, next)
            }
          }
 
-        // Если отгрузка связана с конкретным заказом, обновляем его статус
+        // Умная логика архивации заказов (WBS 2 - Adjustments Задача 5.1)
         if (shipment.orderId) {
-          await tx.update(schema.orders)
-            .set({
-              status: 'completed',
-              updatedAt: new Date()
-            })
-            .where(eq(schema.orders.id, shipment.orderId));
+          await checkAndArchiveOrder(tx, shipment.orderId, userId);
         }
       }
 

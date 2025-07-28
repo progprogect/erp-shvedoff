@@ -38,6 +38,11 @@ const ProductDetail: React.FC = () => {
   const [productOrders, setProductOrders] = useState<any[]>([]);
   const [productionTasks, setProductionTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  
+  // WBS 2 - Adjustments Задача 3.1: Редактирование остатков в карточке товара
+  const [isEditingStock, setIsEditingStock] = useState(false);
+  const [editStockValue, setEditStockValue] = useState<number | null>(null);
+  const [stockEditLoading, setStockEditLoading] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [showAllMovements, setShowAllMovements] = useState(false);
   const [newLogoName, setNewLogoName] = useState('');
@@ -229,6 +234,8 @@ const ProductDetail: React.FC = () => {
           width: values.width || 0,
           thickness: values.thickness || 0
         },
+        weight: values.weight || null,
+        grade: values.grade || 'usual',
         price: values.price,
         normStock: values.normStock,
         notes: values.notes
@@ -236,9 +243,9 @@ const ProductDetail: React.FC = () => {
 
       const response = await catalogApi.updateProduct(product.id, updateData);
       
-      if (response.success) {
-        message.success('Товар успешно обновлен');
-        setEditModalVisible(false);
+                      if (response.success) {
+          message.success('Товар успешно обновлен');
+          setEditModalVisible(false);
         loadProductData(); // Перезагружаем данные
       } else {
         message.error('Ошибка обновления товара');
@@ -332,6 +339,86 @@ const ProductDetail: React.FC = () => {
   ];
 
   const canEdit = user?.role === 'director' || user?.role === 'manager';
+  
+  // Определяем возможность редактирования остатков (WBS 2 - Adjustments Задача 3.1)
+  const canEditStock = user?.role === 'director' || user?.role === 'manager';
+
+  // Функции для редактирования остатков (WBS 2 - Adjustments Задача 3.1)
+  const startEditingStock = () => {
+    const currentStock = product?.stock?.currentStock || product?.currentStock || 0;
+    setEditStockValue(currentStock);
+    setIsEditingStock(true);
+  };
+
+  const cancelEditingStock = () => {
+    setIsEditingStock(false);
+    setEditStockValue(null);
+  };
+
+  const saveStockEdit = async () => {
+    if (!product || editStockValue === null || editStockValue < 0) {
+      message.error('Введите корректное количество');
+      return;
+    }
+
+    setStockEditLoading(true);
+    try {
+      // Используем API корректировки остатков
+      const currentStock = product?.stock?.currentStock || product?.currentStock || 0;
+      const difference = editStockValue - currentStock;
+      
+      if (difference !== 0) {
+        // Простое обновление остатка без использования API корректировки
+        const requestData = {
+          productId: product.id,
+          newStock: editStockValue,
+          comment: 'Корректировка остатка через карточку товара'
+        };
+        
+        const response = await fetch('/api/stock/adjust', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(requestData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          message.success('Остаток успешно обновлен');
+          
+          // Обновляем данные товара
+          setProduct(prev => prev ? {
+            ...prev,
+            currentStock: editStockValue,
+            stock: prev.stock ? {
+              ...prev.stock,
+              currentStock: editStockValue
+            } : { currentStock: editStockValue, reservedStock: 0 }
+          } : null);
+          
+          setIsEditingStock(false);
+          setEditStockValue(null);
+          
+          // Перезагружаем движения склада
+          loadProductData();
+        } else {
+          message.error('Ошибка обновления остатка');
+        }
+      } else {
+        // Если значение не изменилось, просто выходим из режима редактирования
+        setIsEditingStock(false);
+        setEditStockValue(null);
+      }
+    } catch (error: any) {
+      console.error('Ошибка сохранения остатка:', error);
+      message.error(error.response?.data?.message || 'Ошибка сохранения остатка');
+    } finally {
+      setStockEditLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -475,15 +562,66 @@ const ProductDetail: React.FC = () => {
             <Col xs={24} lg={8}>
               <Space direction="vertical" style={{ width: '100%' }} size="middle">
                 {/* Текущие остатки */}
-                <Card title="📦 Остатки на складе">
+                <Card 
+                  title="📦 Остатки на складе"
+                  extra={canEditStock && !isEditingStock && (
+                    <Button 
+                      type="text" 
+                      icon={<EditOutlined />} 
+                      onClick={startEditingStock}
+                      size="small"
+                    >
+                      Редактировать
+                    </Button>
+                  )}
+                >
                   <Row gutter={16}>
                     <Col span={12}>
-                      <Statistic
-                        title="Текущий остаток"
-                        value={product.stock?.currentStock || product.currentStock || 0}
-                        suffix="шт"
-                        valueStyle={{ fontSize: 20 }}
-                      />
+                      {isEditingStock ? (
+                        <div>
+                          <Text strong style={{ display: 'block', marginBottom: 8 }}>
+                            Текущий остаток
+                          </Text>
+                          <Space>
+                            <InputNumber
+                              value={editStockValue}
+                              onChange={setEditStockValue}
+                              min={0}
+                              placeholder="Количество"
+                              style={{ width: 120 }}
+                              autoFocus
+                            />
+                            <span>шт</span>
+                          </Space>
+                          <div style={{ marginTop: 8 }}>
+                            <Space size="small">
+                              <Button 
+                                type="primary" 
+                                size="small" 
+                                icon={<SaveOutlined />}
+                                loading={stockEditLoading}
+                                onClick={saveStockEdit}
+                              >
+                                Сохранить
+                              </Button>
+                              <Button 
+                                size="small" 
+                                icon={<CloseOutlined />}
+                                onClick={cancelEditingStock}
+                              >
+                                Отмена
+                              </Button>
+                            </Space>
+                          </div>
+                        </div>
+                      ) : (
+                        <Statistic
+                          title="Текущий остаток"
+                          value={product.stock?.currentStock || product.currentStock || 0}
+                          suffix="шт"
+                          valueStyle={{ fontSize: 20 }}
+                        />
+                      )}
                     </Col>
                     <Col span={12}>
                       <Statistic
@@ -772,6 +910,34 @@ const ProductDetail: React.FC = () => {
                       📁 {category.name}
                     </Option>
                   ))}
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="weight"
+                label="Вес (кг)"
+              >
+                <InputNumber 
+                  placeholder="Например: 15.5"
+                  style={{ width: '100%' }}
+                  min={0}
+                  precision={3}
+                  step={0.1}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="grade"
+                label="Сорт товара"
+              >
+                <Select style={{ width: '100%' }}>
+                  <Option value="usual">⭐ Обычный</Option>
+                  <Option value="grade_2">⚠️ Второй сорт</Option>
                 </Select>
               </Form.Item>
             </Col>

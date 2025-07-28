@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Row, Col, Card, Tree, Input, Button, Space, Typography, Tag, Badge, Select, InputNumber, Collapse, message, Spin, Table, Modal } from 'antd';
+import { Row, Col, Card, Tree, Input, Button, Space, Typography, Tag, Badge, Select, InputNumber, Collapse, message, Spin, Table, Modal, Checkbox } from 'antd';
 import {
   SearchOutlined,
   PlusOutlined,
@@ -79,6 +79,21 @@ const Catalog: React.FC = () => {
   const [deleteCategoryModalVisible, setDeleteCategoryModalVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   
+  // Новые фильтры для WBS 2 - Adjustments Задача 2.1
+  const [selectedMaterials, setSelectedMaterials] = useState<number[]>([]);
+  const [selectedSurfaces, setSelectedSurfaces] = useState<number[]>([]);
+  const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
+  const [weightFilter, setWeightFilter] = useState({
+    min: null as number | null,
+    max: null as number | null
+  });
+  const [onlyInStock, setOnlyInStock] = useState(false);
+  
+  // Справочники для фильтров
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [surfaces, setSurfaces] = useState<any[]>([]);
+  const [loadingReferences, setLoadingReferences] = useState(false);
+  
   // Фильтры по размерам
   const [sizeFilters, setSizeFilters] = useState({
     lengthMin: null as number | null,
@@ -96,6 +111,7 @@ const Catalog: React.FC = () => {
   useEffect(() => {
     if (token) {
       loadData();
+      loadReferences();
     }
   }, [token]);
 
@@ -122,6 +138,35 @@ const Catalog: React.FC = () => {
       message.error('Ошибка загрузки данных каталога');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Загрузка справочников для фильтров
+  const loadReferences = async () => {
+    setLoadingReferences(true);
+    try {
+      const [materialsResponse, surfacesResponse] = await Promise.all([
+        fetch('/api/materials', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }),
+        fetch('/api/surfaces', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+      ]);
+
+      if (materialsResponse.ok) {
+        const materialsData = await materialsResponse.json();
+        setMaterials(materialsData.success ? materialsData.data : []);
+      }
+
+      if (surfacesResponse.ok) {
+        const surfacesData = await surfacesResponse.json();
+        setSurfaces(surfacesData.success ? surfacesData.data : []);
+      }
+    } catch (error) {
+      console.error('Error loading references:', error);
+    } finally {
+      setLoadingReferences(false);
     }
   };
 
@@ -204,7 +249,13 @@ const Catalog: React.FC = () => {
         }
       }
       
-      // Фильтр по остаткам
+      // Фильтр "Только в наличии" (WBS 2 - Adjustments Задача 2.1)
+      if (onlyInStock) {
+        const available = product.availableStock || ((product.currentStock || 0) - (product.reservedStock || 0));
+        if (available <= 0) return false;
+      }
+      
+      // Фильтр по остаткам (старый)
       if (stockFilter !== 'all') {
         const available = product.availableStock || ((product.currentStock || 0) - (product.reservedStock || 0));
         const norm = product.normStock || 0;
@@ -225,6 +276,35 @@ const Catalog: React.FC = () => {
         if (!statusMatch) return false;
       }
       
+      // Фильтр по материалам (WBS 2 - Adjustments Задача 2.1)
+      if (selectedMaterials.length > 0) {
+        if (!product.materialId || !selectedMaterials.includes(product.materialId)) {
+          return false;
+        }
+      }
+      
+      // Фильтр по поверхностям (WBS 2 - Adjustments Задача 2.1)
+      if (selectedSurfaces.length > 0) {
+        if (!product.surfaceId || !selectedSurfaces.includes(product.surfaceId)) {
+          return false;
+        }
+      }
+      
+      // Фильтр по сорту товара (WBS 2 - Adjustments Задача 2.1)
+      if (selectedGrades.length > 0) {
+        const grade = product.grade || 'usual';
+        if (!selectedGrades.includes(grade)) {
+          return false;
+        }
+      }
+      
+      // Фильтр по весу (WBS 2 - Adjustments Задача 2.1)
+      if (weightFilter.min !== null || weightFilter.max !== null) {
+        const weight = product.weight ? parseFloat(product.weight.toString()) : 0;
+        if (weightFilter.min !== null && weight < weightFilter.min) return false;
+        if (weightFilter.max !== null && weight > weightFilter.max) return false;
+      }
+      
       // Фильтры по размерам
       if (product.dimensions) {
         const { length, width, thickness } = product.dimensions;
@@ -239,7 +319,7 @@ const Catalog: React.FC = () => {
       
       return true;
     });
-  }, [products, searchText, checkedCategories, stockFilter, sizeFilters]);
+  }, [products, searchText, checkedCategories, stockFilter, sizeFilters, selectedMaterials, selectedSurfaces, selectedGrades, weightFilter, onlyInStock]);
 
   // Пагинация
   const totalPages = Math.ceil(filteredProducts.length / pageSize);
@@ -269,6 +349,27 @@ const Catalog: React.FC = () => {
     setCurrentPage(1);
   };
 
+  // Очистка всех фильтров (WBS 2 - Adjustments Задача 2.1)
+  const clearAllFilters = () => {
+    setSearchText('');
+    setCheckedCategories([]);
+    setStockFilter('all');
+    setSizeFilters({
+      lengthMin: null,
+      lengthMax: null,
+      widthMin: null,
+      widthMax: null,
+      thicknessMin: null,
+      thicknessMax: null,
+    });
+    setSelectedMaterials([]);
+    setSelectedSurfaces([]);
+    setSelectedGrades([]);
+    setWeightFilter({ min: null, max: null });
+    setOnlyInStock(false);
+    setCurrentPage(1);
+  };
+
   // Сброс фильтров размеров
   const clearSizeFilters = () => {
     setSizeFilters({
@@ -285,8 +386,17 @@ const Catalog: React.FC = () => {
   // Проверка есть ли активные фильтры размеров
   const hasSizeFilters = Object.values(sizeFilters).some(value => value !== null);
   
+  // Проверка активности расширенных фильтров (WBS 2 - Adjustments Задача 2.1)
+  const hasAdvancedFilters = 
+    onlyInStock || 
+    selectedMaterials.length > 0 || 
+    selectedSurfaces.length > 0 || 
+    selectedGrades.length > 0 || 
+    weightFilter.min !== null || 
+    weightFilter.max !== null;
+  
   // Проверка есть ли любые активные фильтры
-  const hasActiveFilters = hasSizeFilters || stockFilter !== 'all' || checkedCategories.length > 0;
+  const hasActiveFilters = hasSizeFilters || stockFilter !== 'all' || checkedCategories.length > 0 || hasAdvancedFilters;
 
   const canEdit = user?.role === 'director' || user?.role === 'manager';
 
@@ -410,7 +520,7 @@ const Catalog: React.FC = () => {
                       onClick={() => setShowSizeFilters(!showSizeFilters)}
                       size="large"
                     >
-                      Расширенный фильтр {hasSizeFilters || stockFilter !== 'all' || checkedCategories.length > 0 ? '(активен)' : ''}
+                      Расширенный фильтр {hasSizeFilters || stockFilter !== 'all' || checkedCategories.length > 0 || hasAdvancedFilters ? '(активен)' : ''}
                     </Button>
                   </div>
                 </Col>
@@ -422,7 +532,7 @@ const Catalog: React.FC = () => {
                   <Panel header="🎯 Расширенный фильтр товаров" key="1">
                     <Row gutter={16}>
                       {/* Фильтры по остаткам */}
-                      <Col span={8}>
+                      <Col span={6}>
                         <Text strong>Наличие на складе</Text>
                         <div style={{ marginTop: 8 }}>
                           <Select value={stockFilter} onChange={setStockFilter} style={{ width: '100%' }}>
@@ -431,6 +541,100 @@ const Catalog: React.FC = () => {
                             <Option value="low">⚠️ Мало</Option>
                             <Option value="critical">❌ Закончились</Option>
                           </Select>
+                          <div style={{ marginTop: 8 }}>
+                            <Checkbox 
+                              checked={onlyInStock} 
+                              onChange={(e: any) => setOnlyInStock(e.target.checked)}
+                            >
+                              🎯 Только в наличии
+                            </Checkbox>
+                          </div>
+                        </div>
+                      </Col>
+
+                      {/* Фильтр по материалам (WBS 2 - Adjustments Задача 2.1) */}
+                      <Col span={6}>
+                        <Text strong>Материал</Text>
+                        <div style={{ marginTop: 8 }}>
+                          <Select
+                            mode="multiple"
+                            value={selectedMaterials}
+                            onChange={setSelectedMaterials}
+                            placeholder="Выберите материалы"
+                            style={{ width: '100%' }}
+                            loading={loadingReferences}
+                          >
+                            {materials.map(material => (
+                              <Option key={material.id} value={material.id}>
+                                🧱 {material.name}
+                              </Option>
+                            ))}
+                          </Select>
+                        </div>
+                      </Col>
+
+                      {/* Фильтр по поверхностям (WBS 2 - Adjustments Задача 2.1) */}
+                      <Col span={6}>
+                        <Text strong>Поверхность</Text>
+                        <div style={{ marginTop: 8 }}>
+                          <Select
+                            mode="multiple"
+                            value={selectedSurfaces}
+                            onChange={setSelectedSurfaces}
+                            placeholder="Выберите поверхности"
+                            style={{ width: '100%' }}
+                            loading={loadingReferences}
+                          >
+                            {surfaces.map(surface => (
+                              <Option key={surface.id} value={surface.id}>
+                                🎨 {surface.name}
+                              </Option>
+                            ))}
+                          </Select>
+                        </div>
+                      </Col>
+
+                      {/* Фильтр по сорту (WBS 2 - Adjustments Задача 2.1) */}
+                      <Col span={6}>
+                        <Text strong>Сорт товара</Text>
+                        <div style={{ marginTop: 8 }}>
+                          <Select
+                            mode="multiple"
+                            value={selectedGrades}
+                            onChange={setSelectedGrades}
+                            placeholder="Выберите сорт"
+                            style={{ width: '100%' }}
+                          >
+                            <Option value="usual">⭐ Обычный</Option>
+                            <Option value="grade_2">⚠️ Второй сорт</Option>
+                          </Select>
+                        </div>
+                      </Col>
+                    </Row>
+
+                    {/* Вторая строка фильтров */}
+                    <Row gutter={16} style={{ marginTop: 16 }}>
+                      {/* Фильтр по весу (WBS 2 - Adjustments Задача 2.1) */}
+                      <Col span={8}>
+                        <Text strong>Вес (кг)</Text>
+                        <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <InputNumber
+                            placeholder="От"
+                            value={weightFilter.min}
+                            onChange={(value) => setWeightFilter(prev => ({ ...prev, min: value }))}
+                            min={0}
+                            step={0.1}
+                            style={{ width: '100%' }}
+                          />
+                          <span>–</span>
+                          <InputNumber
+                            placeholder="До"
+                            value={weightFilter.max}
+                            onChange={(value) => setWeightFilter(prev => ({ ...prev, max: value }))}
+                            min={0}
+                            step={0.1}
+                            style={{ width: '100%' }}
+                          />
                         </div>
                       </Col>
 
@@ -631,7 +835,12 @@ const Catalog: React.FC = () => {
                       <div>
                         <Text strong>{product.name}</Text>
                         <br />
-                        <Tag>{product.article}</Tag>
+                        <Space>
+                          <Tag>{product.article}</Tag>
+                          {product.grade === 'grade_2' && (
+                            <Tag color="orange">⚠️ Второй сорт</Tag>
+                          )}
+                        </Space>
                         <br />
                         <Text type="secondary" style={{ fontSize: '12px' }}>
                           {product.categoryName}
