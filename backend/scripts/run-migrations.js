@@ -39,7 +39,7 @@ const getDatabaseConfig = () => {
 const migrations = [
   {
     name: 'add_order_source',
-    file: 'migrations/add_order_source.sql',
+    file: '../migrations/add_order_source.sql',
     checkQuery: `
       SELECT column_name 
       FROM information_schema.columns 
@@ -49,7 +49,7 @@ const migrations = [
   },
   {
     name: 'add_border_type_field',
-    file: 'migrations/add_border_type_field.sql',
+    file: '../migrations/add_border_type_field.sql',
     checkQuery: `
       SELECT column_name 
       FROM information_schema.columns 
@@ -59,7 +59,7 @@ const migrations = [
   },
   {
     name: 'create_permissions_and_assignments',
-    file: 'migrations/create_permissions_and_assignments.sql',
+    file: '../migrations/create_permissions_and_assignments.sql',
     checkQuery: `
       SELECT table_name 
       FROM information_schema.tables 
@@ -104,10 +104,12 @@ async function runMigrations() {
         console.log(`   🔄 Выполняю миграцию...`);
         
         // Читаем файл миграции
-        const migrationPath = path.join(__dirname, '..', migration.file);
+        const migrationPath = path.join(__dirname, migration.file);
+        console.log(`   📁 Путь к файлу: ${migrationPath}`);
         
         if (!fs.existsSync(migrationPath)) {
           console.log(`   ⚠️ Файл миграции не найден: ${migration.file}`);
+          console.log(`   📂 Проверьте путь: ${migrationPath}`);
           console.log('');
           continue;
         }
