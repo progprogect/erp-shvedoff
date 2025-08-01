@@ -12,6 +12,7 @@ import {
 } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
+import usePermissions from '../hooks/usePermissions';
 import { ordersApi, Order, OrderItem, OrderMessage } from '../services/ordersApi';
 import { catalogApi, Product } from '../services/catalogApi';
 import dayjs from 'dayjs';
@@ -31,6 +32,18 @@ const OrderDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, token } = useAuthStore();
+  const { canEdit, canManage } = usePermissions();
+
+  const getRoleDisplayName = (role: string) => {
+    const roleNames: Record<string, string> = {
+      'director': 'Директор',
+      'manager': 'Менеджер', 
+      'production': 'Производство',
+      'warehouse': 'Склад'
+    };
+    return roleNames[role] || role;
+  };
+  
   const { message, modal } = App.useApp();
   
   const [order, setOrder] = useState<Order | null>(null);
@@ -103,7 +116,7 @@ const OrderDetail: React.FC = () => {
       if (response.success) {
         // Фильтруем только менеджеров и директоров для назначения заказов
         const availableUsers = response.data.filter(
-          (u: User) => u.role === 'manager' || u.role === 'director'
+          (u: User) => canManage('orders') || canEdit('orders')
         );
         setUsers(availableUsers);
       }
@@ -630,7 +643,7 @@ const OrderDetail: React.FC = () => {
                 >
                   Изменить статус
                 </Button>
-                {canEditOrder() && (user?.role === 'manager' || user?.role === 'director') && (
+                {canEditOrder() && canEdit('orders') && (
                   <Button 
                     danger
                     icon={<DeleteOutlined />}
@@ -937,7 +950,7 @@ const OrderDetail: React.FC = () => {
                 <Select placeholder="Выберите менеджера" disabled={user?.role !== 'director'}>
                   {users.map(u => (
                     <Option key={u.id} value={u.id}>
-                      {u.fullName || u.username} ({u.role === 'manager' ? 'Менеджер' : 'Директор'})
+                      {u.fullName || u.username} ({getRoleDisplayName(u.role)})
                     </Option>
                   ))}
                 </Select>

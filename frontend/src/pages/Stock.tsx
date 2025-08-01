@@ -3,6 +3,7 @@ import { Table, Card, Typography, Button, Space, Tag, Input, Select, Row, Col, S
 import { SearchOutlined, InboxOutlined, EditOutlined, HistoryOutlined, ReloadOutlined, FilterOutlined, SettingOutlined, SyncOutlined, ToolOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
+import usePermissions from '../hooks/usePermissions';
 import { stockApi, StockItem, StockFilters } from '../services/stockApi';
 import StockAdjustmentModal from '../components/StockAdjustmentModal';
 import StockHistoryModal from '../components/StockHistoryModal';
@@ -15,12 +16,16 @@ const Stock: React.FC = () => {
   const navigate = useNavigate();
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'critical' | 'low' | 'normal' | 'out_of_stock' | 'in_production' | 'negative'>('all');
+  // Сортировка (Задача 7.2)
+  const [sortBy, setSortBy] = useState<string>('name');
+  const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('ASC');
   const [loading, setLoading] = useState(false);
   const [stockData, setStockData] = useState<StockItem[]>([]);
   const [adjustmentModalVisible, setAdjustmentModalVisible] = useState(false);
   const [historyModalVisible, setHistoryModalVisible] = useState(false);
   const [selectedStockItem, setSelectedStockItem] = useState<StockItem | null>(null);
   const { user, token } = useAuthStore();
+  const { canEdit } = usePermissions();
 
   // Статистика по остаткам
   const stockStats = React.useMemo(() => {
@@ -74,7 +79,9 @@ const Stock: React.FC = () => {
     try {
       const filters: StockFilters = {
         status: statusFilter,
-        search: searchText.trim() || undefined
+        search: searchText.trim() || undefined,
+        sortBy,     // Задача 7.2
+        sortOrder   // Задача 7.2
       };
 
       const response = await stockApi.getStock(filters);
@@ -95,7 +102,7 @@ const Stock: React.FC = () => {
   // Загрузка данных при изменении фильтров
   useEffect(() => {
     loadStockData();
-  }, [statusFilter, token]);
+  }, [statusFilter, sortBy, sortOrder, token]);
 
   // Поиск с задержкой
   useEffect(() => {
@@ -379,7 +386,7 @@ const Stock: React.FC = () => {
             >
               История
             </Button>
-            {(user?.role === 'director' || user?.role === 'warehouse') && (
+                            {canEdit('stock') && (
               <Button 
                 size="small" 
                 type="primary"
@@ -609,6 +616,40 @@ const Stock: React.FC = () => {
 
       {/* Таблица остатков */}
       <Card>
+        {/* Элементы управления сортировкой (Задача 7.2) */}
+        <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
+          <Col>
+            <Space>
+              <Text strong>Сортировка:</Text>
+              <Select
+                value={sortBy}
+                onChange={setSortBy}
+                style={{ width: 180 }}
+                size="small"
+              >
+                <Option value="name">📝 По названию</Option>
+                <Option value="matArea">📏 По площади (размеру)</Option>
+                <Option value="availableStock">📦 По доступному остатку</Option>
+                <Option value="currentStock">📊 По текущему остатку</Option>
+              </Select>
+              <Select
+                value={sortOrder}
+                onChange={setSortOrder}
+                style={{ width: 120 }}
+                size="small"
+              >
+                <Option value="ASC">🔼 По возрастанию</Option>
+                <Option value="DESC">🔽 По убыванию</Option>
+              </Select>
+            </Space>
+          </Col>
+          <Col>
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              📋 Всего позиций: <Text strong>{stockData.length}</Text>
+            </Text>
+          </Col>
+        </Row>
+        
         <Spin spinning={loading}>
           <Table
             columns={columns}

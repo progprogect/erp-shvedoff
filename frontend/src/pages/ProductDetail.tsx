@@ -12,6 +12,7 @@ import {
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { catalogApi, Product, Category } from '../services/catalogApi';
+import usePermissions from '../hooks/usePermissions';
 import { surfacesApi, Surface } from '../services/surfacesApi';
 import { logosApi, Logo } from '../services/logosApi';
 import { materialsApi, Material } from '../services/materialsApi';
@@ -27,7 +28,18 @@ const ProductDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, token } = useAuthStore();
+  const { canEdit, canManage } = usePermissions();
   const { message } = App.useApp();
+
+  const getRoleDisplayName = (role: string) => {
+    const roleNames: Record<string, string> = {
+      'director': 'Директор',
+      'manager': 'Менеджер', 
+      'production': 'Производство',
+      'warehouse': 'Склад'
+    };
+    return roleNames[role] || role;
+  };
   
   const [product, setProduct] = useState<Product | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -339,10 +351,9 @@ const ProductDetail: React.FC = () => {
     }
   ];
 
-  const canEdit = user?.role === 'director' || user?.role === 'manager';
-  
-  // Определяем возможность редактирования остатков (WBS 2 - Adjustments Задача 3.1)
-  const canEditStock = user?.role === 'director' || user?.role === 'manager';
+  // Используем хук разрешений вместо жестко закодированных ролей
+  const canEditProduct = canEdit('catalog');
+  const canEditStock = canEdit('stock');
 
   // Функции для редактирования остатков (WBS 2 - Adjustments Задача 3.1)
   const startEditingStock = () => {
@@ -458,7 +469,7 @@ const ProductDetail: React.FC = () => {
               </Space>
             </Col>
             
-            {canEdit && (
+            {canEditProduct && (
               <Col>
                 <Button 
                   type="primary"
@@ -934,7 +945,7 @@ const ProductDetail: React.FC = () => {
                 <Select placeholder="Выберите ответственного пользователя" allowClear>
                   {users.map(user => (
                     <Option key={user.id} value={user.id}>
-                      {user.fullName || user.username} ({user.role === 'manager' ? 'Менеджер' : user.role === 'director' ? 'Директор' : user.role})
+                                              {user.fullName || user.username} ({getRoleDisplayName(user.role)})
                     </Option>
                   ))}
                 </Select>
@@ -980,7 +991,7 @@ const ProductDetail: React.FC = () => {
                   dropdownRender={(menu) => (
                     <>
                       {menu}
-                      {user?.role === 'director' && (
+                                              {canManage('catalog') && (
                         <div style={{ padding: '8px', borderTop: '1px solid #f0f0f0' }}>
                           <Input
                             placeholder="Название нового логотипа"

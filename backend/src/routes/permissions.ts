@@ -261,7 +261,9 @@ router.get('/user-menu', authenticateToken, async (req: AuthRequest, res, next) 
         shipments_create: await checkUserPermission(userId, 'shipments', 'create'),
         shipments_manage: await checkUserPermission(userId, 'shipments', 'manage'),
         
-        users_manage: await checkUserPermission(userId, 'users', 'manage')
+        users_manage: await checkUserPermission(userId, 'users', 'manage'),
+        
+        permissions_manage: await checkUserPermission(userId, 'permissions', 'manage')
       }
     };
 
@@ -490,6 +492,30 @@ router.get('/available-roles', authenticateToken, authorizeRoles('director'), as
     res.json({
       success: true,
       data: roles
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/permissions/export-rights - получить права экспорта текущего пользователя (Задача 1: Система прав доступа)
+router.get('/export-rights', authenticateToken, async (req: AuthRequest, res, next) => {
+  try {
+    const { checkUserPermission } = await import('../middleware/permissions');
+    const userId = req.user!.id;
+
+    // Проверяем права экспорта для каждого раздела
+    const exportRights = {
+      catalog: await checkUserPermission(userId, 'catalog', 'export'),
+      orders: await checkUserPermission(userId, 'orders', 'export'),
+      production: await checkUserPermission(userId, 'production', 'export'),
+      cutting: await checkUserPermission(userId, 'cutting', 'export'),
+      shipments: await checkUserPermission(userId, 'shipments', 'export')
+    };
+
+    res.json({
+      success: true,
+      data: exportRights
     });
   } catch (error) {
     next(error);

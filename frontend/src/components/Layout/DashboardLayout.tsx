@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Layout, Menu, Avatar, Dropdown, Space, Typography, Button, Badge } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Layout, Menu, Avatar, Dropdown, Space, Typography, Button, Badge, Spin } from 'antd';
 import {
   DashboardOutlined,
   AppstoreOutlined,
@@ -19,6 +19,8 @@ import {
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
+import { permissionsApi, MenuPermissions } from '../../services/permissionsApi';
+import usePermissions from '../../hooks/usePermissions';
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
@@ -29,7 +31,10 @@ interface DashboardLayoutProps {
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const [collapsed, setCollapsed] = useState(false);
+  const [menuPermissions, setMenuPermissions] = useState<MenuPermissions | null>(null);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
   const { user, logout } = useAuthStore();
+  const permissionsHook = usePermissions();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -38,8 +43,122 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     navigate('/login');
   };
 
-  // Меню для разных ролей
+  // Загружаем разрешения пользователя
+  useEffect(() => {
+    const loadPermissions = async () => {
+      try {
+        setPermissionsLoading(true);
+        const permissions = await permissionsApi.getMenuPermissions();
+        setMenuPermissions(permissions);
+      } catch (error) {
+        console.error('Ошибка загрузки разрешений:', error);
+        // В случае ошибки используем fallback на основе ролей
+        setMenuPermissions(null);
+      } finally {
+        setPermissionsLoading(false);
+      }
+    };
+
+    if (user) {
+      loadPermissions();
+    }
+  }, [user]);
+
+  // Меню на основе динамических разрешений
   const getMenuItems = () => {
+    // Если разрешения еще загружаются или ошибка - используем fallback на основе ролей
+    if (!menuPermissions) {
+      return getLegacyMenuItems();
+    }
+
+    const menuItems = [];
+
+    // Каталог товаров
+    if (menuPermissions.catalog) {
+      menuItems.push({
+        key: '/catalog',
+        icon: <AppstoreOutlined />,
+        label: 'Каталог товаров',
+      });
+    }
+
+    // Остатки на складе
+    if (menuPermissions.stock) {
+      menuItems.push({
+        key: '/stock',
+        icon: <InboxOutlined />,
+        label: 'Остатки на складе',
+      });
+    }
+
+    // Заказы
+    if (menuPermissions.orders) {
+      menuItems.push({
+        key: '/orders',
+        icon: <ShoppingCartOutlined />,
+        label: 'Заказы',
+      });
+    }
+
+    // Производство
+    if (menuPermissions.production) {
+      menuItems.push({
+        key: '/production',
+        icon: <ToolOutlined />,
+        label: 'Производство',
+      });
+    }
+
+    // Операции резки
+    if (menuPermissions.cutting) {
+      menuItems.push({
+        key: '/cutting',
+        icon: <ScissorOutlined />,
+        label: 'Операции резки',
+      });
+    }
+
+    // Отгрузки
+    if (menuPermissions.shipments) {
+      menuItems.push({
+        key: '/shipments',
+        icon: <TruckOutlined />,
+        label: 'Отгрузки',
+      });
+    }
+
+    // Управление пользователями
+    if (menuPermissions.users) {
+      menuItems.push({
+        key: '/users',
+        icon: <UsergroupAddOutlined />,
+        label: 'Управление пользователями',
+      });
+    }
+
+    // Разрешения
+    if (menuPermissions.permissions) {
+      menuItems.push({
+        key: '/permissions',
+        icon: <SafetyOutlined />,
+        label: 'Разрешения',
+      });
+    }
+
+    // Аудит
+    if (menuPermissions.audit) {
+      menuItems.push({
+        key: '/audit',
+        icon: <HistoryOutlined />,
+        label: 'История изменений',
+      });
+    }
+
+    return menuItems;
+  };
+
+  // Fallback меню на основе ролей (для совместимости при ошибке API)
+  const getLegacyMenuItems = () => {
     const baseItems = [
       {
         key: '/catalog',
@@ -52,8 +171,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         label: 'Остатки на складе',
       }
     ];
-
-
 
     const managerDirectorItems = [
       {
@@ -163,13 +280,22 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         <div className="logo">
           {collapsed ? '🏭' : 'ERP Shvedoff'}
         </div>
-        <Menu
-          mode="inline"
-          selectedKeys={[location.pathname]}
-          items={getMenuItems()}
-          onClick={({ key }) => navigate(key)}
-          style={{ borderRight: 0 }}
-        />
+        {permissionsLoading ? (
+          <div style={{ textAlign: 'center', padding: '20px' }}>
+            <Spin size="small" />
+            <div style={{ marginTop: '8px', fontSize: '12px', color: '#999' }}>
+              Загрузка меню...
+            </div>
+          </div>
+        ) : (
+          <Menu
+            mode="inline"
+            selectedKeys={[location.pathname]}
+            items={getMenuItems()}
+            onClick={({ key }) => navigate(key)}
+            style={{ borderRight: 0 }}
+          />
+        )}
       </Sider>
 
       <Layout>

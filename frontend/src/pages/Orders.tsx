@@ -10,7 +10,8 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import { ordersApi, Order, OrderFilters } from '../services/ordersApi';
+import usePermissions from '../hooks/usePermissions';
+import { ordersApi, Order, OrderFilters, exportOrders } from '../services/ordersApi';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -19,6 +20,7 @@ const { TextArea } = Input;
 const Orders: React.FC = () => {
   const navigate = useNavigate();
   const { user, token } = useAuthStore();
+  const { canCreate, canEdit } = usePermissions();
   const { message, modal } = App.useApp();
   
   const [orders, setOrders] = useState<Order[]>([]);
@@ -30,6 +32,9 @@ const Orders: React.FC = () => {
   
   // Состояние для архива (WBS 2 - Adjustments Задача 5.1)
   const [currentTab, setCurrentTab] = useState<string>('active');
+  
+  // Состояние для экспорта (Задача 9.2)
+  const [exportingOrders, setExportingOrders] = useState(false);
   
   // Modal states
   const [statusModalVisible, setStatusModalVisible] = useState(false);
@@ -134,6 +139,30 @@ const Orders: React.FC = () => {
     } catch (error) {
       console.error('Ошибка изменения статуса:', error);
       message.error('Ошибка связи с сервером');
+    }
+  };
+
+  // Функция экспорта заказов (Задача 9.2)
+  const handleExportOrders = async () => {
+    setExportingOrders(true);
+    try {
+      // Формируем фильтры на основе текущих настроек
+      const currentFilters: any = {
+        search: searchText || undefined,
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        priority: priorityFilter !== 'all' ? priorityFilter : undefined,
+        managerId: managerFilter !== 'all' ? managerFilter : undefined
+      };
+
+      await exportOrders(currentFilters);
+      
+      message.success('Экспорт заказов завершен');
+      
+    } catch (error: any) {
+      console.error('Error exporting orders:', error);
+      message.error('Ошибка при экспорте заказов');
+    } finally {
+      setExportingOrders(false);
     }
   };
 
@@ -361,7 +390,7 @@ const Orders: React.FC = () => {
               </Text>
             </div>
             
-            {(user?.role === 'manager' || user?.role === 'director') && (
+                            {canCreate('orders') && (
               <Button 
                 type="primary" 
                 icon={<PlusOutlined />}
@@ -474,7 +503,16 @@ const Orders: React.FC = () => {
                           </Select>
                         </Col>
                         <Col xs={24} sm={24} md={10}>
-                          <div style={{ textAlign: 'right' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
+                            {/* Кнопка экспорта заказов (Задача 9.2) */}
+                            <Button
+                              icon={<InboxOutlined />}
+                              onClick={handleExportOrders}
+                              loading={exportingOrders}
+                              title="Экспорт текущего списка заказов с примененными фильтрами"
+                            >
+                              📊 Экспорт заказов
+                            </Button>
                             <Text type="secondary">
                               Показано: {filteredOrders.length} активных заказов
                             </Text>

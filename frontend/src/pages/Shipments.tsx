@@ -77,6 +77,9 @@ export const Shipments: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchText, setSearchText] = useState<string>('');
   
+  // Состояние для экспорта (Задача 9.2)
+  const [exportingShipments, setExportingShipments] = useState(false);
+  
   // Статистика
   const [statistics, setStatistics] = useState({
     total: 0,
@@ -288,6 +291,27 @@ export const Shipments: React.FC = () => {
       documentsPhotos: shipment.documentsPhotos
     });
     setEditModalVisible(true);
+  };
+
+  // Функция экспорта отгрузок (Задача 9.2)
+  const handleExportShipments = async () => {
+    setExportingShipments(true);
+    try {
+      // Формируем фильтры на основе текущих настроек
+      const currentFilters: any = {
+        status: statusFilter !== 'all' ? statusFilter : undefined
+      };
+
+      await shipmentsApi.exportShipments(currentFilters);
+      
+      message.success('Экспорт отгрузок завершен');
+      
+    } catch (error: any) {
+      console.error('Error exporting shipments:', error);
+      message.error('Ошибка при экспорте отгрузок');
+    } finally {
+      setExportingShipments(false);
+    }
   };
 
   // Колонки таблицы
@@ -576,6 +600,19 @@ export const Shipments: React.FC = () => {
             onChange={(e) => setSearchText(e.target.value)}
             allowClear
           />
+          
+          {/* Кнопка экспорта отгрузок (Задача 9.2) */}
+          <Button
+            onClick={handleExportShipments}
+            loading={exportingShipments}
+            style={{
+              borderColor: '#722ed1',
+              color: '#722ed1'
+            }}
+            title="Экспорт текущего списка отгрузок с примененными фильтрами"
+          >
+            📊 Экспорт отгрузок
+          </Button>
         </Space>
         
         {shipmentsApi.canCreate(user?.role || '') && (

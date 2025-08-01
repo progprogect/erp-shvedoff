@@ -44,10 +44,42 @@ export interface ProductionTask {
   product: {
     id: number;
     name: string;
-    code: string;
+    code?: string;
+    article?: string;
     category: {
       id: number;
       name: string;
+    };
+    surface?: {
+      id: number;
+      name: string;
+    };
+    logo?: {
+      id: number;
+      name: string;
+    };
+    material?: {
+      id: number;
+      name: string;
+    };
+    dimensions?: {
+      length?: number;
+      width?: number;
+      height?: number;
+    };
+    weight?: number;
+    grade?: 'usual' | 'premium';
+    borderType?: 'with_border' | 'without_border';
+    matArea?: number;
+    puzzleOptions?: {
+      sides?: '1_side' | '2_sides';
+      type?: 'old' | 'new';
+      enabled?: boolean;
+    };
+    manager?: {
+      id: number;
+      username: string;
+      fullName: string;
     };
   };
   createdByUser?: {
@@ -817,4 +849,52 @@ export const searchProducts = async (query: string): Promise<{ success: boolean;
     }
   });
   return response.data;
+};
+
+// Экспорт производственных заданий в Excel (Задача 9.2)
+export const exportProductionTasks = async (filters?: any): Promise<void> => {
+  const token = getToken();
+  
+  try {
+    const response = await axios.post(
+      `${API_BASE_URL}/production/tasks/export`,
+      { filters },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        responseType: 'blob' // Важно для получения файла
+      }
+    );
+
+    // Создаем ссылку для скачивания файла
+    const blob = new Blob([response.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    });
+    
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    
+    // Извлекаем имя файла из заголовков ответа
+    const contentDisposition = response.headers['content-disposition'];
+    let filename = 'production-tasks-export.xlsx';
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+      if (filenameMatch) {
+        filename = filenameMatch[1];
+      }
+    }
+    
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    
+  } catch (error) {
+    console.error('Error exporting production tasks:', error);
+    throw new Error('Ошибка при экспорте производственных заданий');
+  }
 }; 

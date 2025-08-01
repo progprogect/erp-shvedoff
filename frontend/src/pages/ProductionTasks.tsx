@@ -35,7 +35,8 @@ import {
   CalendarOutlined,
   ClockCircleOutlined,
   ExclamationCircleOutlined,
-  QuestionCircleOutlined
+  QuestionCircleOutlined,
+  InboxOutlined
 } from '@ant-design/icons';
 
 import {
@@ -65,12 +66,14 @@ import {
   UpdateProductionTaskRequest,
   searchProducts,
   ProductSearchResult,
-  PartialCompleteTaskResponse
+  PartialCompleteTaskResponse,
+  exportProductionTasks
 } from '../services/productionApi';
 import ProductionCalendar from '../components/ProductionCalendar';
 import ProductionStatistics from '../components/ProductionStatistics';
 import { catalogApi } from '../services/catalogApi';
 import { useAuthStore } from '../stores/authStore';
+import usePermissions from '../hooks/usePermissions';
 import dayjs, { Dayjs } from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -92,6 +95,7 @@ interface TasksByProduct {
 
 const ProductionTasks: React.FC = () => {
   const { user, token } = useAuthStore();
+  const { canManage } = usePermissions();
   const { message } = App.useApp();
   const [activeTab, setActiveTab] = useState<string>('list');
   
@@ -102,6 +106,9 @@ const ProductionTasks: React.FC = () => {
   
   // Фильтры
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'in_progress' | 'paused' | 'completed' | 'cancelled'>('all');
+  
+  // Состояние для экспорта (Задача 9.2)
+  const [exportingTasks, setExportingTasks] = useState(false);
   
   // Состояние для статистики
   const [stats, setStats] = useState({
@@ -189,6 +196,10 @@ const ProductionTasks: React.FC = () => {
 
   // Состояние для модального окна редактирования
   const [editModalVisible, setEditModalVisible] = useState(false);
+  
+  // Состояние для модального окна просмотра деталей
+  const [viewModalVisible, setViewModalVisible] = useState(false);
+  const [viewingTask, setViewingTask] = useState<ProductionTask | null>(null);
 
   // Фильтрация заданий по статусу
   const filteredTasks = useMemo(() => {
@@ -331,10 +342,17 @@ const ProductionTasks: React.FC = () => {
       today: [] as ProductionTask[],
       tomorrow: [] as ProductionTask[],
       later: [] as ProductionTask[],
-      overdue: [] as ProductionTask[]
+      overdue: [] as ProductionTask[],
+      completed: [] as ProductionTask[]
     };
 
     tasksList.forEach(task => {
+      // Завершенные задания всегда идут в отдельную группу
+      if (task.status === 'completed') {
+        groups.completed.push(task);
+        return;
+      }
+
       if (!task.plannedDate) {
         groups.unplanned.push(task);
         return;
@@ -486,9 +504,16 @@ const ProductionTasks: React.FC = () => {
       requestedQuantity: task.requestedQuantity,
       priority: task.priority,
       notes: task.notes,
-      assignedTo: task.assignedTo
+      assignedTo: task.assignedTo,
+      plannedDate: task.plannedDate ? dayjs(task.plannedDate) : null
     });
     setEditModalVisible(true);
+  };
+
+  // Просмотр деталей задания
+  const handleViewTask = (task: ProductionTask) => {
+    setViewingTask(task);
+    setViewModalVisible(true);
   };
 
   // Удаление задания
@@ -833,7 +858,26 @@ const ProductionTasks: React.FC = () => {
     }
   };
 
+  // Функция экспорта производственных заданий (Задача 9.2)
+  const handleExportTasks = async () => {
+    setExportingTasks(true);
+    try {
+      // Формируем фильтры на основе текущих настроек
+      const currentFilters: any = {
+        status: statusFilter !== 'all' ? statusFilter : undefined
+      };
 
+      await exportProductionTasks(currentFilters);
+      
+      message.success('Экспорт производственных заданий завершен');
+      
+    } catch (error: any) {
+      console.error('Error exporting production tasks:', error);
+      message.error('Ошибка при экспорте производственных заданий');
+    } finally {
+      setExportingTasks(false);
+    }
+  };
 
   // Получение цвета статуса
   const getStatusColor = (status: string) => {
@@ -979,12 +1023,60 @@ const ProductionTasks: React.FC = () => {
       ),
     },
     {
+      title: 'Планируемая дата',
+      dataIndex: 'plannedDate',
+      key: 'plannedDate',
+      width: 120,
+      render: (plannedDate: string) => {
+        if (!plannedDate) {
+          return <Text type="secondary" style={{ fontStyle: 'italic' }}>Не запланировано</Text>;
+        }
+        const date = dayjs(plannedDate);
+        const today = dayjs().startOf('day');
+        const taskDate = date.startOf('day');
+        
+        let color = '';
+        let icon = null;
+        
+        if (taskDate.isBefore(today)) {
+          color = '#ff4d4f'; // красный для просроченных
+          icon = <ClockCircleOutlined style={{ color: '#ff4d4f', marginRight: 4 }} />;
+        } else if (taskDate.isSame(today)) {
+          color = '#1890ff'; // синий для сегодняшних
+          icon = <CalendarOutlined style={{ color: '#1890ff', marginRight: 4 }} />;
+        } else if (taskDate.isSame(today.add(1, 'day'))) {
+          color = '#faad14'; // оранжевый для завтрашних
+          icon = <CalendarOutlined style={{ color: '#faad14', marginRight: 4 }} />;
+        } else {
+          color = '#52c41a'; // зеленый для будущих
+          icon = <CalendarOutlined style={{ color: '#52c41a', marginRight: 4 }} />;
+        }
+        
+        return (
+          <div style={{ color }}>
+            {icon}
+            <span style={{ fontSize: '12px' }}>
+              {date.format('DD.MM.YYYY')}
+            </span>
+          </div>
+        );
+      },
+    },
+    {
       title: 'Действия',
       key: 'actions',
       render: (record: ProductionTask) => (
         <Space size="small">
           {record.status === 'pending' && (
             <>
+              <Tooltip title="Просмотр деталей">
+                <Button
+                  type="default"
+                  size="small"
+                  icon={<EyeOutlined />}
+                  onClick={() => handleViewTask(record)}
+                />
+              </Tooltip>
               <Tooltip title="Редактировать задание">
                 <Button
                   type="default"
@@ -1040,6 +1132,22 @@ const ProductionTasks: React.FC = () => {
           
           {record.status === 'in_progress' && (
             <>
+              <Tooltip title="Просмотр деталей">
+                <Button
+                  type="default"
+                  size="small"
+                  icon={<EyeOutlined />}
+                  onClick={() => handleViewTask(record)}
+                />
+              </Tooltip>
+              <Tooltip title="Редактировать задание">
+                <Button
+                  type="default"
+                  size="small"
+                  icon={<EditOutlined />}
+                  onClick={() => handleEditTask(record)}
+                />
+              </Tooltip>
               <Button
                 type="primary"
                 size="small"
@@ -1096,28 +1204,45 @@ const ProductionTasks: React.FC = () => {
           )}
           
           {record.status === 'paused' && (
-            <Button
-              type="primary"
-              size="small"
-              icon={<PlayCircleOutlined />}
-              onClick={() => handleResumeTask(record)}
-            >
-              Возобновить
-            </Button>
+            <>
+              <Tooltip title="Просмотр деталей">
+                <Button
+                  type="default"
+                  size="small"
+                  icon={<EyeOutlined />}
+                  onClick={() => handleViewTask(record)}
+                />
+              </Tooltip>
+              <Tooltip title="Редактировать задание">
+                <Button
+                  type="default"
+                  size="small"
+                  icon={<EditOutlined />}
+                  onClick={() => handleEditTask(record)}
+                />
+              </Tooltip>
+              <Button
+                type="primary"
+                size="small"
+                icon={<PlayCircleOutlined />}
+                onClick={() => handleResumeTask(record)}
+              >
+                Возобновить
+              </Button>
+            </>
           )}
 
           {record.status === 'completed' && (
-            <Button
-              type="default"
-              size="small"
-              icon={<EyeOutlined />}
-              onClick={() => {
-                setSelectedTask(record);
-                // setViewModalVisible(true); // This state was not defined in the original file
-              }}
-            >
-              Просмотр
-            </Button>
+            <Tooltip title="Просмотр деталей">
+              <Button
+                type="default"
+                size="small"
+                icon={<EyeOutlined />}
+                onClick={() => handleViewTask(record)}
+              >
+                Просмотр
+              </Button>
+            </Tooltip>
           )}
         </Space>
       ),
@@ -1181,7 +1306,7 @@ const ProductionTasks: React.FC = () => {
         
         return (
           <Space>
-            {hasActiveTasks && (user?.role === 'production' || user?.role === 'director') && (
+            {hasActiveTasks && canManage('production') && (
               <Button
                 type="primary"
                 size="small"
@@ -1316,6 +1441,20 @@ const ProductionTasks: React.FC = () => {
           >
             Отменено ({stats.cancelled})
           </Button>
+          
+          {/* Кнопка экспорта производственных заданий (Задача 9.2) */}
+          <Button
+            onClick={handleExportTasks}
+            loading={exportingTasks}
+            style={{
+              marginLeft: '16px',
+              borderColor: '#722ed1',
+              color: '#722ed1'
+            }}
+            title="Экспорт текущего списка производственных заданий с примененными фильтрами"
+          >
+            📊 Экспорт заданий
+          </Button>
         </Space>
       </Card>
 
@@ -1404,6 +1543,15 @@ const ProductionTasks: React.FC = () => {
                       "#8c8c8c",
                       <QuestionCircleOutlined />,
                       "Требуют планирования"
+                    )}
+
+                    {/* Завершенные задания */}
+                    {renderTaskGroup(
+                      "Готовые",
+                      groupedTasks.completed,
+                      "#52c41a",
+                      <CheckCircleOutlined />,
+                      "Выполненные задания"
                     )}
 
                     {/* Если нет заданий вообще */}
@@ -2080,6 +2228,18 @@ const ProductionTasks: React.FC = () => {
             </Form.Item>
 
             <Form.Item
+              name="plannedDate"
+              label="Планируемая дата выполнения"
+              help="Дата планирования задания"
+            >
+              <DatePicker 
+                style={{ width: '100%' }}
+                placeholder="Выберите дату"
+                format="DD.MM.YYYY"
+              />
+            </Form.Item>
+
+            <Form.Item
               name="notes"
               label="Примечания"
             >
@@ -2520,6 +2680,370 @@ const ProductionTasks: React.FC = () => {
             </Space>
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* Модальное окно просмотра деталей задания */}
+      <Modal
+        title="Детали производственного задания"
+        open={viewModalVisible}
+        onCancel={() => {
+          setViewModalVisible(false);
+          setViewingTask(null);
+        }}
+        footer={[
+          <Button 
+            key="close" 
+            onClick={() => {
+              setViewModalVisible(false);
+              setViewingTask(null);
+            }}
+          >
+            Закрыть
+          </Button>
+        ]}
+        width={800}
+      >
+        {viewingTask && (
+          <div style={{ padding: '16px 0' }}>
+            <Row gutter={[16, 16]}>
+              <Col span={24}>
+                <Card title="📦 Информация о товаре" size="small">
+                  <Row gutter={[16, 8]}>
+                    <Col span={12}>
+                      <strong>Название товара:</strong>
+                      <div style={{ marginTop: 4, fontSize: '16px', fontWeight: 500 }}>
+                        {viewingTask.product?.name || 'Не указано'}
+                      </div>
+                    </Col>
+                    <Col span={12}>
+                      <strong>Артикул товара:</strong>
+                      <div style={{ marginTop: 4, fontSize: '16px', fontWeight: 500, color: '#1890ff' }}>
+                        {viewingTask.product?.article || viewingTask.product?.code || 'Не указан'}
+                      </div>
+                    </Col>
+                    <Col span={12}>
+                      <strong>Категория:</strong>
+                      <div style={{ marginTop: 4 }}>
+                        {viewingTask.product?.category?.name || 'Не указана'}
+                      </div>
+                    </Col>
+                    <Col span={12}>
+                      <strong>ID товара:</strong>
+                      <div style={{ marginTop: 4, color: '#666' }}>
+                        #{viewingTask.productId}
+                      </div>
+                    </Col>
+                  </Row>
+                </Card>
+              </Col>
+
+              <Col span={24}>
+                <Card title="🔧 Характеристики товара" size="small">
+                  <Row gutter={[16, 8]}>
+                    {viewingTask.product?.surface && (
+                      <Col span={8}>
+                        <strong>Поверхность:</strong>
+                        <div style={{ marginTop: 4 }}>
+                          {viewingTask.product.surface.name}
+                        </div>
+                      </Col>
+                    )}
+                    {viewingTask.product?.logo && (
+                      <Col span={8}>
+                        <strong>Логотип:</strong>
+                        <div style={{ marginTop: 4 }}>
+                          {viewingTask.product.logo.name}
+                        </div>
+                      </Col>
+                    )}
+                    {viewingTask.product?.material && (
+                      <Col span={8}>
+                        <strong>Материал:</strong>
+                        <div style={{ marginTop: 4 }}>
+                          {viewingTask.product.material.name}
+                        </div>
+                      </Col>
+                    )}
+                    {viewingTask.product?.dimensions && (
+                      <Col span={8}>
+                        <strong>Размеры:</strong>
+                        <div style={{ marginTop: 4 }}>
+                          {(() => {
+                            const dims = viewingTask.product.dimensions;
+                            if (typeof dims === 'object' && dims !== null) {
+                              const { length, width, height } = dims as any;
+                              return `${length || '?'} × ${width || '?'} × ${height || '?'} мм`;
+                            }
+                            return 'Не указаны';
+                          })()}
+                        </div>
+                      </Col>
+                    )}
+                    {viewingTask.product?.weight && (
+                      <Col span={8}>
+                        <strong>Вес:</strong>
+                        <div style={{ marginTop: 4 }}>
+                          {viewingTask.product.weight} кг
+                        </div>
+                      </Col>
+                    )}
+                    {viewingTask.product?.grade && (
+                      <Col span={8}>
+                        <strong>Сорт:</strong>
+                        <div style={{ marginTop: 4 }}>
+                          <Tag color={viewingTask.product.grade === 'premium' ? 'gold' : 'blue'}>
+                            {viewingTask.product.grade === 'premium' ? 'Премиум' : 'Обычный'}
+                          </Tag>
+                        </div>
+                      </Col>
+                    )}
+                    {viewingTask.product?.borderType && (
+                      <Col span={8}>
+                        <strong>Борт:</strong>
+                        <div style={{ marginTop: 4 }}>
+                          <Tag color={viewingTask.product.borderType === 'with_border' ? 'green' : 'default'}>
+                            {viewingTask.product.borderType === 'with_border' ? 'С бортом' : 'Без борта'}
+                          </Tag>
+                        </div>
+                      </Col>
+                    )}
+                    {viewingTask.product?.matArea && (
+                      <Col span={8}>
+                        <strong>Площадь мата:</strong>
+                        <div style={{ marginTop: 4 }}>
+                          {viewingTask.product.matArea} м²
+                        </div>
+                      </Col>
+                    )}
+                    {viewingTask.product?.puzzleOptions && (
+                      <Col span={12}>
+                        <strong>Опции паззла:</strong>
+                        <div style={{ marginTop: 4 }}>
+                          {(() => {
+                            const puzzle = viewingTask.product.puzzleOptions;
+                            if (typeof puzzle === 'object' && puzzle !== null) {
+                              const { sides, type, enabled } = puzzle as any;
+                              if (!enabled) return 'Паззл отключен';
+                              const sidesText = sides === '1_side' ? '1 сторона' : sides === '2_sides' ? '2 стороны' : sides;
+                              const typeText = type === 'old' ? 'Старый' : type === 'new' ? 'Новый' : type;
+                              return `${sidesText}, ${typeText}`;
+                            }
+                            return 'Не настроено';
+                          })()}
+                        </div>
+                      </Col>
+                    )}
+                  </Row>
+                  {(!viewingTask.product?.surface && !viewingTask.product?.logo && !viewingTask.product?.material && 
+                    !viewingTask.product?.dimensions && !viewingTask.product?.weight) && (
+                    <div style={{ textAlign: 'center', color: '#999', padding: '20px 0' }}>
+                      <i>Характеристики товара не заполнены</i>
+                    </div>
+                  )}
+                </Card>
+              </Col>
+
+              <Col span={24}>
+                <Card title="📋 Детали задания" size="small">
+                  <Row gutter={[16, 8]}>
+                    <Col span={8}>
+                      <strong>ID задания:</strong>
+                      <div style={{ marginTop: 4, fontSize: '16px', fontWeight: 500 }}>
+                        #{viewingTask.id}
+                      </div>
+                    </Col>
+                    <Col span={8}>
+                      <strong>Статус:</strong>
+                      <div style={{ marginTop: 4 }}>
+                        <Tag color={
+                          viewingTask.status === 'pending' ? 'blue' :
+                          viewingTask.status === 'in_progress' ? 'processing' :
+                          viewingTask.status === 'completed' ? 'success' :
+                          viewingTask.status === 'cancelled' ? 'error' :
+                          viewingTask.status === 'paused' ? 'orange' : 'default'
+                        }>
+                          {viewingTask.status === 'pending' ? 'Ожидает' :
+                           viewingTask.status === 'in_progress' ? 'В работе' :
+                           viewingTask.status === 'completed' ? 'Завершено' :
+                           viewingTask.status === 'cancelled' ? 'Отменено' :
+                           viewingTask.status === 'paused' ? 'На паузе' : viewingTask.status}
+                        </Tag>
+                      </div>
+                    </Col>
+                    <Col span={8}>
+                      <strong>Приоритет:</strong>
+                      <div style={{ marginTop: 4 }}>
+                        <Tag color={viewingTask.priority <= 2 ? 'red' : viewingTask.priority <= 4 ? 'orange' : 'green'}>
+                          {viewingTask.priority}
+                        </Tag>
+                      </div>
+                    </Col>
+                  </Row>
+                </Card>
+              </Col>
+
+              <Col span={24}>
+                <Card title="📊 Количество и прогресс" size="small">
+                  <Row gutter={[16, 8]}>
+                    <Col span={6}>
+                      <Statistic
+                        title="Запрошено"
+                        value={viewingTask.requestedQuantity}
+                        suffix="шт"
+                        valueStyle={{ color: '#1890ff' }}
+                      />
+                    </Col>
+                    <Col span={6}>
+                      <Statistic
+                        title="Произведено"
+                        value={viewingTask.producedQuantity || 0}
+                        suffix="шт"
+                        valueStyle={{ color: '#52c41a' }}
+                      />
+                    </Col>
+                    <Col span={6}>
+                      <Statistic
+                        title="Качественное"
+                        value={viewingTask.qualityQuantity || 0}
+                        suffix="шт"
+                        valueStyle={{ color: '#52c41a' }}
+                      />
+                    </Col>
+                    <Col span={6}>
+                      <Statistic
+                        title="Брак"
+                        value={viewingTask.defectQuantity || 0}
+                        suffix="шт"
+                        valueStyle={{ color: '#ff4d4f' }}
+                      />
+                    </Col>
+                  </Row>
+                  <Divider />
+                  <Row>
+                    <Col span={24}>
+                      <strong>Прогресс выполнения:</strong>
+                      <div style={{ marginTop: 8 }}>
+                        {(() => {
+                          const requested = viewingTask.requestedQuantity;
+                          const produced = viewingTask.producedQuantity || 0;
+                          const remaining = requested - produced;
+                          const progressPercent = Math.round((produced / requested) * 100);
+                          
+                          if (remaining === 0) {
+                            return <Tag color="success" style={{ fontSize: '14px', padding: '4px 8px' }}>✅ Выполнено полностью</Tag>;
+                          } else if (produced > 0) {
+                            return (
+                              <div>
+                                <Tag color="processing" style={{ fontSize: '14px', padding: '4px 8px' }}>
+                                  🔄 {progressPercent}% выполнено
+                                </Tag>
+                                <span style={{ marginLeft: 8, color: '#faad14' }}>
+                                  Осталось: <strong>{remaining} шт</strong>
+                                </span>
+                              </div>
+                            );
+                          } else {
+                            return <Tag color="default" style={{ fontSize: '14px', padding: '4px 8px' }}>⏳ Не начато</Tag>;
+                          }
+                        })()}
+                      </div>
+                    </Col>
+                  </Row>
+                </Card>
+              </Col>
+
+              {viewingTask.order && (
+                <Col span={24}>
+                  <Card title="🛒 Связанный заказ" size="small">
+                    <Row gutter={[16, 8]}>
+                      <Col span={8}>
+                        <strong>Номер заказа:</strong>
+                        <div style={{ marginTop: 4, fontSize: '16px', fontWeight: 500 }}>
+                          {viewingTask.order.orderNumber}
+                        </div>
+                      </Col>
+                      <Col span={8}>
+                        <strong>Клиент:</strong>
+                        <div style={{ marginTop: 4 }}>
+                          {viewingTask.order.customerName}
+                        </div>
+                      </Col>
+                      <Col span={8}>
+                        <strong>Приоритет заказа:</strong>
+                        <div style={{ marginTop: 4 }}>
+                          <Tag color="blue">{viewingTask.order.priority}</Tag>
+                        </div>
+                      </Col>
+                    </Row>
+                    {viewingTask.order.deliveryDate && (
+                      <Row style={{ marginTop: 8 }}>
+                        <Col span={12}>
+                          <strong>Дата доставки:</strong>
+                          <div style={{ marginTop: 4 }}>
+                            📅 {dayjs(viewingTask.order.deliveryDate).format('DD.MM.YYYY')}
+                          </div>
+                        </Col>
+                      </Row>
+                    )}
+                  </Card>
+                </Col>
+              )}
+
+              <Col span={24}>
+                <Card title="📅 Временные метки" size="small">
+                  <Row gutter={[16, 8]}>
+                    <Col span={12}>
+                      <strong>Создано:</strong>
+                      <div style={{ marginTop: 4 }}>
+                        📅 {dayjs(viewingTask.createdAt).format('DD.MM.YYYY HH:mm')}
+                      </div>
+                    </Col>
+                    <Col span={12}>
+                      <strong>Обновлено:</strong>
+                      <div style={{ marginTop: 4 }}>
+                        🔄 {dayjs(viewingTask.updatedAt).format('DD.MM.YYYY HH:mm')}
+                      </div>
+                    </Col>
+                    {viewingTask.plannedDate && (
+                      <Col span={12}>
+                        <strong>Планируемая дата:</strong>
+                        <div style={{ marginTop: 4, color: '#1890ff' }}>
+                          🎯 {dayjs(viewingTask.plannedDate).format('DD.MM.YYYY')}
+                        </div>
+                      </Col>
+                    )}
+                    {viewingTask.startedAt && (
+                      <Col span={12}>
+                        <strong>Начато:</strong>
+                        <div style={{ marginTop: 4, color: '#52c41a' }}>
+                          ▶️ {dayjs(viewingTask.startedAt).format('DD.MM.YYYY HH:mm')}
+                        </div>
+                      </Col>
+                    )}
+                    {viewingTask.completedAt && (
+                      <Col span={12}>
+                        <strong>Завершено:</strong>
+                        <div style={{ marginTop: 4, color: '#52c41a' }}>
+                          ✅ {dayjs(viewingTask.completedAt).format('DD.MM.YYYY HH:mm')}
+                        </div>
+                      </Col>
+                    )}
+                  </Row>
+                </Card>
+              </Col>
+
+              {viewingTask.notes && (
+                <Col span={24}>
+                  <Card title="📝 Примечания" size="small">
+                    <div style={{ whiteSpace: 'pre-wrap', padding: '8px 0' }}>
+                      {viewingTask.notes}
+                    </div>
+                  </Card>
+                </Col>
+              )}
+            </Row>
+          </div>
+        )}
       </Modal>
 
       </div>

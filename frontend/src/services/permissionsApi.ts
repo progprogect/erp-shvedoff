@@ -56,22 +56,39 @@ export interface MenuPermissions {
 class PermissionsApi {
   private async fetch(url: string, options: RequestInit = {}) {
     const token = localStorage.getItem('token');
+    const fullUrl = `${API_BASE}${url}`;
     
-    const response = await fetch(`${API_BASE}${url}`, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-        ...options.headers,
-      },
+    console.log('🌐 PermissionsApi.fetch:', {
+      url: fullUrl,
+      token: token ? `${token.substring(0, 20)}...` : 'НЕТ ТОКЕНА',
+      API_BASE
     });
+    
+    try {
+      const response = await fetch(fullUrl, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          ...options.headers,
+        },
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Ошибка сети');
+      console.log('📡 Response status:', response.status, response.statusText);
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: 'Network error' }));
+        console.error('❌ API Error:', { status: response.status, error });
+        throw new Error(error.message || 'Ошибка сети');
+      }
+
+      const data = await response.json();
+      console.log('✅ API Success:', { url, data });
+      return data;
+    } catch (error) {
+      console.error('❌ Fetch Error:', { url: fullUrl, error });
+      throw error;
     }
-
-    return response.json();
   }
 
   // Получить все разрешения в системе
@@ -136,6 +153,18 @@ class PermissionsApi {
   // Получить разрешения для формирования меню
   async getMenuPermissions(): Promise<MenuPermissions> {
     const response = await this.fetch('/user-menu');
+    return response.data;
+  }
+
+  // Получить права экспорта текущего пользователя (Задача 1: Система прав доступа)
+  async getExportRights(): Promise<{
+    catalog: boolean;
+    orders: boolean;
+    production: boolean;
+    cutting: boolean;
+    shipments: boolean;
+  }> {
+    const response = await this.fetch('/export-rights');
     return response.data;
   }
 }

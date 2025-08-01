@@ -333,6 +333,52 @@ class ShipmentsApiService {
       return groups;
     }, {} as Record<string, Shipment[]>);
   }
+
+  // Экспорт отгрузок в Excel (Задача 9.2)
+  async exportShipments(filters?: any): Promise<void> {
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/shipments/export`,
+        { filters },
+        {
+          headers: {
+            ...this.getAuthHeaders(),
+            'Content-Type': 'application/json',
+          },
+          responseType: 'blob' // Важно для получения файла
+        }
+      );
+
+      // Создаем ссылку для скачивания файла
+      const blob = new Blob([response.data], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      });
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Извлекаем имя файла из заголовков ответа
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = 'shipments-export.xlsx';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+      
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+    } catch (error) {
+      console.error('Error exporting shipments:', error);
+      throw new Error('Ошибка при экспорте отгрузок');
+    }
+  }
 }
 
 export const shipmentsApi = new ShipmentsApiService();

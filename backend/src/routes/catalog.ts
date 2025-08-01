@@ -2,7 +2,9 @@ import express from 'express';
 import { db, schema } from '../db';
 import { eq, like, isNull, and, sql, inArray } from 'drizzle-orm';
 import { authenticateToken, authorizeRoles, AuthRequest } from '../middleware/auth';
+import { requireExportPermission } from '../middleware/permissions';
 import { createError } from '../middleware/errorHandler';
+import { ExcelExporter } from '../utils/excelExporter';
 
 const router = express.Router();
 
@@ -114,7 +116,20 @@ router.get('/products', authenticateToken, async (req, res, next) => {
       categoryId, 
       limit = 50, 
       offset = 0,
-      stockStatus // 'in_stock', 'low_stock', 'out_of_stock'
+      stockStatus, // 'in_stock', 'low_stock', 'out_of_stock'
+      // Новые фильтры для полноценной фильтрации
+      materialIds,    // материалы (массив ID)
+      surfaceIds,     // поверхности (массив ID) 
+      logoIds,        // логотипы (массив ID)
+      grades,         // сорта товаров (массив)
+      weightMin,      // минимальный вес
+      weightMax,      // максимальный вес
+      matAreaMin,     // минимальная площадь
+      matAreaMax,     // максимальная площадь
+      onlyInStock,    // только товары в наличии
+      borderTypes,    // типы бортов (массив)
+      sortBy,         // поле сортировки
+      sortOrder       // направление сортировки (ASC/DESC)
     } = req.query;
 
     let whereConditions = [];
@@ -131,17 +146,104 @@ router.get('/products', authenticateToken, async (req, res, next) => {
       );
     }
 
+    // Фильтр по материалам
+    if (materialIds) {
+      const ids = Array.isArray(materialIds) ? materialIds : [materialIds];
+      const numericIds = ids.map(id => Number(id)).filter(id => !isNaN(id));
+      if (numericIds.length > 0) {
+        whereConditions.push(inArray(schema.products.materialId, numericIds));
+      }
+    }
+
+    // Фильтр по поверхностям
+    if (surfaceIds) {
+      const ids = Array.isArray(surfaceIds) ? surfaceIds : [surfaceIds];
+      const numericIds = ids.map(id => Number(id)).filter(id => !isNaN(id));
+      if (numericIds.length > 0) {
+        whereConditions.push(inArray(schema.products.surfaceId, numericIds));
+      }
+    }
+
+    // Фильтр по логотипам
+    if (logoIds) {
+      const ids = Array.isArray(logoIds) ? logoIds : [logoIds];
+      const numericIds = ids.map(id => Number(id)).filter(id => !isNaN(id));
+      if (numericIds.length > 0) {
+        whereConditions.push(inArray(schema.products.logoId, numericIds));
+      }
+    }
+
+    // Фильтр по сортам
+    if (grades) {
+      const gradesList = Array.isArray(grades) ? grades : [grades];
+      const validGrades = gradesList
+        .filter(grade => typeof grade === 'string' && ['usual', 'grade_2'].includes(grade))
+        .map(grade => grade as 'usual' | 'grade_2');
+      if (validGrades.length > 0) {
+        whereConditions.push(inArray(schema.products.grade, validGrades));
+      }
+    }
+
+    // Фильтр по весу
+    if (weightMin || weightMax) {
+      if (weightMin) {
+        whereConditions.push(sql`${schema.products.weight} >= ${Number(weightMin)}`);
+      }
+      if (weightMax) {
+        whereConditions.push(sql`${schema.products.weight} <= ${Number(weightMax)}`);
+      }
+    }
+
+    // Фильтр по площади мата
+    if (matAreaMin || matAreaMax) {
+      if (matAreaMin) {
+        whereConditions.push(sql`${schema.products.matArea} >= ${Number(matAreaMin)}`);
+      }
+      if (matAreaMax) {
+        whereConditions.push(sql`${schema.products.matArea} <= ${Number(matAreaMax)}`);
+      }
+    }
+
+    // Фильтр по типу борта (Задача 7.1)
+    if (borderTypes) {
+      const typesList = Array.isArray(borderTypes) ? borderTypes : [borderTypes];
+      const validTypes = typesList
+        .filter(type => typeof type === 'string' && ['with_border', 'without_border'].includes(type))
+        .map(type => type as 'with_border' | 'without_border');
+      if (validTypes.length > 0) {
+        whereConditions.push(inArray(schema.products.borderType, validTypes));
+      }
+    }
+
     whereConditions.push(eq(schema.products.isActive, true));
+
+    // Определяем сортировку
+    let orderBy;
+    if (sortBy) {
+      const sortColumn = sortBy === 'matArea' ? schema.products.matArea :
+                        sortBy === 'weight' ? schema.products.weight :
+                        sortBy === 'name' ? schema.products.name :
+                        sortBy === 'price' ? schema.products.price :
+                        schema.products.name;
+      
+      const direction = sortOrder === 'DESC' ? sql`${sortColumn} DESC` : sql`${sortColumn} ASC`;
+      orderBy = direction;
+    } else {
+      orderBy = schema.products.name;
+    }
 
     const products = await db.query.products.findMany({
       where: whereConditions.length > 0 ? and(...whereConditions) : undefined,
       with: {
         category: true,
+        surface: true,     // Добавляем поверхность
+        logo: true,        // Добавляем логотип
+        material: true,    // Добавляем материал
         stock: true
       },
       limit: Number(limit),
       offset: Number(offset),
-      orderBy: schema.products.name
+      orderBy
     });
 
     // Получаем ID всех продуктов для расчета резервов и производства
@@ -166,6 +268,12 @@ router.get('/products', authenticateToken, async (req, res, next) => {
         reservedStock,
         availableStock,
         inProductionQuantity,
+        // Добавляем названия связанных сущностей для совместимости с frontend
+        categoryName: product.category?.name,
+        categoryPath: product.category?.path,
+        surfaceName: product.surface?.name,
+        logoName: product.logo?.name,
+        materialName: product.material?.name,
         // Обновляем объект stock для консистентности
         stock: {
           ...product.stock,
@@ -176,6 +284,11 @@ router.get('/products', authenticateToken, async (req, res, next) => {
         }
       };
     });
+
+    // Фильтр "только в наличии"
+    if (onlyInStock === 'true') {
+      filteredProducts = filteredProducts.filter(product => product.availableStock > 0);
+    }
     
     if (stockStatus) {
       filteredProducts = filteredProducts.filter(product => {
@@ -449,6 +562,171 @@ router.delete('/products/:id', authenticateToken, authorizeRoles('director'), as
       success: true,
       message: 'Товар деактивирован'
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/catalog/products/move - Move products between categories (Задача 7.3)
+router.post('/products/move', authenticateToken, authorizeRoles('director', 'manager'), async (req: AuthRequest, res, next) => {
+  try {
+    const { productIds, targetCategoryId } = req.body;
+    const userId = req.user!.id;
+
+    // Валидация входных данных
+    if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
+      return next(createError('Необходимо указать ID товаров для перемещения', 400));
+    }
+
+    if (!targetCategoryId || typeof targetCategoryId !== 'number') {
+      return next(createError('Необходимо указать ID целевой категории', 400));
+    }
+
+    // Проверяем существование целевой категории
+    const targetCategory = await db.query.categories.findFirst({
+      where: eq(schema.categories.id, targetCategoryId)
+    });
+
+    if (!targetCategory) {
+      return next(createError('Целевая категория не найдена', 404));
+    }
+
+    // Получаем товары для перемещения
+    const products = await db.query.products.findMany({
+      where: inArray(schema.products.id, productIds)
+    });
+
+    if (products.length !== productIds.length) {
+      return next(createError('Некоторые товары не найдены', 404));
+    }
+
+    // Выполняем перемещение товаров
+    const movedProducts = await db.update(schema.products)
+      .set({
+        categoryId: targetCategoryId,
+        updatedAt: new Date()
+      })
+      .where(inArray(schema.products.id, productIds))
+      .returning();
+
+    // Логируем перемещение для каждого товара
+    for (let i = 0; i < products.length; i++) {
+      const oldProduct = products[i];
+      const newProduct = movedProducts[i];
+      
+      await db.insert(schema.auditLog).values({
+        tableName: 'products',
+        recordId: oldProduct.id,
+        operation: 'UPDATE',
+        oldValues: oldProduct,
+        newValues: newProduct,
+        userId,
+        createdAt: new Date()
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Успешно перемещено ${movedProducts.length} товаров в категорию "${targetCategory.name}"`,
+      data: {
+        movedProductIds: productIds,
+        targetCategoryId,
+        targetCategoryName: targetCategory.name
+      }
+    });
+
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/catalog/export - Export catalog products to Excel (Задача 9.2)
+router.post('/export', authenticateToken, requireExportPermission('catalog'), async (req: AuthRequest, res, next) => {
+  try {
+    const { productIds, filters, format = 'xlsx' } = req.body; // добавляем параметр format
+
+    let whereConditions: any[] = [eq(schema.products.isActive, true)];
+
+    // Если указаны конкретные товары
+    if (productIds && Array.isArray(productIds) && productIds.length > 0) {
+      whereConditions.push(inArray(schema.products.id, productIds));
+    }
+
+    // Применяем фильтры если они переданы
+    if (filters) {
+      if (filters.search) {
+        whereConditions.push(
+          sql`(${schema.products.name} ILIKE ${`%${filters.search}%`} OR ${schema.products.article} ILIKE ${`%${filters.search}%`})`
+        );
+      }
+
+      if (filters.categoryId) {
+        whereConditions.push(eq(schema.products.categoryId, filters.categoryId));
+      }
+
+      if (filters.materialIds && filters.materialIds.length > 0) {
+        whereConditions.push(inArray(schema.products.materialId, filters.materialIds));
+      }
+
+      if (filters.surfaceIds && filters.surfaceIds.length > 0) {
+        whereConditions.push(inArray(schema.products.surfaceId, filters.surfaceIds));
+      }
+
+      if (filters.logoIds && filters.logoIds.length > 0) {
+        whereConditions.push(inArray(schema.products.logoId, filters.logoIds));
+      }
+
+      if (filters.borderTypes && filters.borderTypes.length > 0) {
+        const validBorderTypes = filters.borderTypes.filter((type: string) => 
+          typeof type === 'string' && ['with_border', 'without_border'].includes(type)
+        );
+        if (validBorderTypes.length > 0) {
+          whereConditions.push(inArray(schema.products.borderType, validBorderTypes));
+        }
+      }
+    }
+
+    // Получаем товары с полной информацией
+    const products = await db.query.products.findMany({
+      where: and(...whereConditions),
+      with: {
+        category: true,
+        surface: true,
+        logo: true,
+        material: true,
+        stock: true
+      }
+    });
+
+    // Подготавливаем данные для экспорта
+    const exportData = products.map(product => ({
+      ...product,
+      categoryName: product.category?.name,
+      surfaceName: product.surface?.name,
+      logoName: product.logo?.name,
+      materialName: product.material?.name,
+      currentStock: product.stock?.currentStock || 0,
+      reservedStock: product.stock?.reservedStock || 0
+    }));
+
+    // Форматируем данные для Excel
+    const formattedData = ExcelExporter.formatCatalogData(exportData);
+
+    // Генерируем имя файла
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+    const fileExtension = format === 'csv' ? 'csv' : 'xlsx';
+    const filename = `catalog-export-${timestamp}.${fileExtension}`;
+
+    // Экспортируем в указанном формате (Задача 3: Дополнительные форматы)
+    await ExcelExporter.exportData(res, {
+      filename,
+      sheetName: 'Каталог товаров',
+      title: `Экспорт каталога товаров - ${new Date().toLocaleDateString('ru-RU')}`,
+      columns: ExcelExporter.getCatalogColumns(),
+      data: formattedData,
+      format
+    });
+
   } catch (error) {
     next(error);
   }

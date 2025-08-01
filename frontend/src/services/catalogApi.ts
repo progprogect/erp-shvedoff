@@ -38,6 +38,7 @@ export interface Product {
   matArea?: number; // Площадь мата в м² (автоматический расчет + коррекция)
   weight?: number; // Вес товара в кг (опционально)
   grade: 'usual' | 'grade_2'; // Сорт товара: обычный по умолчанию
+  borderType?: 'with_border' | 'without_border'; // Наличие борта (Задача 7.1)
   tags?: string[];
   price?: number;
   normStock: number;
@@ -82,6 +83,19 @@ export interface ProductFilters {
   widthMax?: number;
   thicknessMin?: number;
   thicknessMax?: number;
+  // Новые фильтры для полноценной фильтрации
+  materialIds?: number[];    // материалы
+  surfaceIds?: number[];     // поверхности
+  logoIds?: number[];        // логотипы
+  grades?: string[];         // сорта товаров
+  weightMin?: number;        // минимальный вес
+  weightMax?: number;        // максимальный вес
+  matAreaMin?: number;       // минимальная площадь
+  matAreaMax?: number;       // максимальная площадь
+  onlyInStock?: boolean;     // только товары в наличии
+  borderTypes?: string[];    // типы бортов (Задача 7.1)
+  sortBy?: string;           // поле сортировки
+  sortOrder?: 'ASC' | 'DESC'; // направление сортировки
 }
 
 export interface ApiResponse<T> {
@@ -143,6 +157,44 @@ class CatalogApi {
     }
     if (filters.stockStatus) {
       params.append('stockStatus', filters.stockStatus);
+    }
+
+    // Новые фильтры
+    if (filters.materialIds && filters.materialIds.length > 0) {
+      filters.materialIds.forEach(id => params.append('materialIds', id.toString()));
+    }
+    if (filters.surfaceIds && filters.surfaceIds.length > 0) {
+      filters.surfaceIds.forEach(id => params.append('surfaceIds', id.toString()));
+    }
+    if (filters.logoIds && filters.logoIds.length > 0) {
+      filters.logoIds.forEach(id => params.append('logoIds', id.toString()));
+    }
+    if (filters.grades && filters.grades.length > 0) {
+      filters.grades.forEach(grade => params.append('grades', grade));
+    }
+    if (filters.weightMin !== undefined) {
+      params.append('weightMin', filters.weightMin.toString());
+    }
+    if (filters.weightMax !== undefined) {
+      params.append('weightMax', filters.weightMax.toString());
+    }
+    if (filters.matAreaMin !== undefined) {
+      params.append('matAreaMin', filters.matAreaMin.toString());
+    }
+    if (filters.matAreaMax !== undefined) {
+      params.append('matAreaMax', filters.matAreaMax.toString());
+    }
+    if (filters.onlyInStock) {
+      params.append('onlyInStock', 'true');
+    }
+    if (filters.borderTypes && filters.borderTypes.length > 0) {
+      filters.borderTypes.forEach(type => params.append('borderTypes', type));
+    }
+    if (filters.sortBy) {
+      params.append('sortBy', filters.sortBy);
+    }
+    if (filters.sortOrder) {
+      params.append('sortOrder', filters.sortOrder);
     }
     
     // Рассчитываем offset из page
@@ -233,6 +285,66 @@ class CatalogApi {
       this.getAuthHeaders()
     );
     return response.data;
+  }
+
+  // Перенос товаров между категориями (Задача 7.3)
+  async moveProducts(productIds: number[], targetCategoryId: number): Promise<ApiResponse<{
+    movedProductIds: number[];
+    targetCategoryId: number;
+    targetCategoryName: string;
+  }>> {
+    const response = await axios.post(
+      `${API_BASE_URL}/catalog/products/move`,
+      {
+        productIds,
+        targetCategoryId
+      },
+      this.getAuthHeaders()
+    );
+    return response.data;
+  }
+
+  // Экспорт каталога в Excel (Задача 9.2)
+  async exportCatalog(options: {
+    productIds?: number[];
+    filters?: ProductFilters;
+  }): Promise<void> {
+    const response = await axios.post(
+      `${API_BASE_URL}/catalog/export`,
+      {
+        productIds: options.productIds,
+        filters: options.filters
+      },
+      {
+        ...this.getAuthHeaders(),
+        responseType: 'blob' // Важно для получения файла
+      }
+    );
+
+    // Создаем ссылку для скачивания файла
+    const blob = new Blob([response.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    });
+    
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    
+    // Извлекаем имя файла из заголовков ответа
+    const contentDisposition = response.headers['content-disposition'];
+    let filename = 'catalog-export.xlsx';
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+      if (filenameMatch) {
+        filename = filenameMatch[1];
+      }
+    }
+    
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
   }
 }
 

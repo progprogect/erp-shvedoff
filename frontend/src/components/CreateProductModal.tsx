@@ -169,6 +169,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
         matArea: values.matArea ? parseFloat(values.matArea) : undefined,
         weight: values.weight ? parseFloat(values.weight) : undefined,
         grade: values.grade || 'usual',
+        borderType: values.borderType || null, // Задача 7.1
         price: values.price ? parseFloat(values.price) : undefined,
         normStock: values.normStock || 0,
         initialStock: values.initialStock || 0,
@@ -210,45 +211,215 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
     }
   };
 
-  // Генерация артикула на основе названия и расчет площади мата
+  // Генерация артикула на основе названия и расчет площади мата (ВСЕ параметры включены)
   const generateArticle = () => {
     const name = form.getFieldValue('name');
     const length = form.getFieldValue('length');
     const width = form.getFieldValue('width');
     const thickness = form.getFieldValue('thickness');
     const surfaceId = form.getFieldValue('surfaceId');
+    const materialId = form.getFieldValue('materialId');
+    const logoId = form.getFieldValue('logoId');
+    const borderType = form.getFieldValue('borderType');
+    const grade = form.getFieldValue('grade');
     
-            // Генерация артикула
-        if (name) {
-          // Краткий символ из названия
-          let article = name
-            .replace(/[^а-яё\s]/gi, '')
-            .split(' ')
-            .map((word: string) => word.slice(0, 3).toUpperCase())
-            .join('-');
+    // Генерация артикула согласно Задаче 7.4 (ПОЛНАЯ версия со ВСЕМИ параметрами)
+    if (name) {
+      let article = '';
+      
+      // 1. Краткое название - ВКЛЮЧАЕМ ВСЕ значимые слова
+      const nameWords = name
+        .toLowerCase()
+        .replace(/[^а-яёa-z\s]/gi, '')
+        .split(' ')
+        .filter((word: string) => word.length > 1) // Берем все слова длиннее 1 символа
+      
+      // Создаем понятные сокращения (можно чуть длиннее для ясности)
+      const nameCode = nameWords.map((word: string) => {
+        // Расширенные предопределенные сокращения для основных слов
+        const predefinedCodes: { [key: string]: string } = {
+          'лежак': 'ЛЕЖАК',
+          'лежачий': 'ЛЕЖАЧ',
+          'резиновый': 'РЕЗИН',
+          'резина': 'РЕЗИН',
+          'коврик': 'КОВР',
+          'ковер': 'КОВР', 
+          'покрытие': 'ПОКР',
+          'мат': 'МАТ',
+          'мата': 'МАТ',
+          'матовый': 'МАТОВ',
+          'чешский': 'ЧЕШСК',
+          'чешуйчатый': 'ЧЕШУЙ',
+          'гладкий': 'ГЛАДК',
+          'стандартный': 'СТАНД',
+          'обычный': 'ОБЫЧН',
+          'специальный': 'СПЕЦ',
+          'большой': 'БОЛЬШ',
+          'малый': 'МАЛЫЙ',
+          'средний': 'СРЕДН',
+          'паззл': 'ПАЗЛ',
+          'пазл': 'ПАЗЛ',
+          'элементов': 'ЭЛЕМ',
+          'деталей': 'ДЕТ',
+          'частей': 'ЧАСТ',
+          'штук': 'ШТ',
+          'сторона': 'СТ',
+          'сторонний': 'СТОР',
+          'двухсторонний': '2СТ',
+          'односторонний': '1СТ',
+          'многосторонний': 'МСТОР'
+        };
+        
+        if (predefinedCodes[word]) {
+          return predefinedCodes[word];
+        }
+        
+        // Если нет предопределенного кода, берем первые 3-4 буквы для ясности
+        if (word.length <= 4) {
+          return word.toUpperCase();
+        }
+        return word.slice(0, 4).toUpperCase();
+      }).join('-');
+      
+      if (nameCode) {
+        article = nameCode;
+      }
+      
+      // 2. Размеры в формате Длина×Ширина×Толщина (ВСЕ размеры включены)
+      if (length && width && thickness) {
+        article += `-${length}x${width}x${thickness}`;
+      } else if (length && width) {
+        article += `-${length}x${width}`;
+      }
+      
+      // 3. Материал (понятный код чуть длиннее)
+      if (materialId) {
+        const material = materials.find(m => m.id === materialId);
+        if (material) {
+          const materialCodes: { [key: string]: string } = {
+            'протектор': 'ПРОТ',
+            'дробленка': 'ДРОБ',
+            'резина': 'РЕЗИН',
+            'пластик': 'ПЛАСТ',
+            'каучук': 'КАУЧ'
+          };
           
-          // Размер через x
-          if (length && width && thickness) {
-            article += `-${length}x${width}x${thickness}`;
-          }
+          const materialName = material.name.toLowerCase();
+          let materialCode = '';
           
-          // Краткое обозначение поверхности
-          if (surfaceId) {
-            const surface = surfaces.find(s => s.id === surfaceId);
-            if (surface) {
-              const surfaceCode = surface.name
-                .replace(/[^а-яё\s]/gi, '')
-                .split(' ')
-                .map((word: string) => word.slice(0, 2).toUpperCase())
-                .join('');
-              if (surfaceCode) {
-                article += `-${surfaceCode}`;
-              }
+          // Ищем предопределенный код
+          for (const [key, code] of Object.entries(materialCodes)) {
+            if (materialName.includes(key)) {
+              materialCode = code;
+              break;
             }
           }
           
-          form.setFieldsValue({ article });
+          // Если нет предопределенного, берем первые 3-4 буквы для понятности
+          if (!materialCode) {
+            const firstWord = material.name
+              .replace(/[^а-яёa-z\s]/gi, '')
+              .split(' ')[0];
+            materialCode = firstWord.length <= 4 ? firstWord.toUpperCase() : firstWord.slice(0, 4).toUpperCase();
+          }
+          
+          if (materialCode) {
+            article += `-${materialCode}`;
+          }
         }
+      }
+      
+      // 4. Поверхность (понятный код чуть длиннее)
+      if (surfaceId) {
+        const surface = surfaces.find(s => s.id === surfaceId);
+        if (surface) {
+          const surfaceCodes: { [key: string]: string } = {
+            'чешуйки': 'ЧЕШУЙ',
+            'чешуйка': 'ЧЕШУЙ', 
+            'черточки': 'ЧЕРТ',
+            'гладкая': 'ГЛАДК',
+            'коровка': 'КОРОВ',
+            '1 коровка': '1КОР',
+            '3 коровки': '3КОР'
+          };
+          
+          const surfaceName = surface.name.toLowerCase();
+          let surfaceCode = '';
+          
+          // Ищем предопределенный код
+          for (const [key, code] of Object.entries(surfaceCodes)) {
+            if (surfaceName.includes(key)) {
+              surfaceCode = code;
+              break;
+            }
+          }
+          
+          // Если нет предопределенного, берем первые 3-4 буквы для понятности
+          if (!surfaceCode) {
+            const firstWord = surface.name
+              .replace(/[^а-яёa-z\s]/gi, '')
+              .split(' ')[0];
+            surfaceCode = firstWord.length <= 4 ? firstWord.toUpperCase() : firstWord.slice(0, 4).toUpperCase();
+          }
+          
+          if (surfaceCode) {
+            article += `-${surfaceCode}`;
+          }
+        }
+      }
+      
+      // 5. Наличие борта (всегда указываем для полноты)
+      if (borderType) {
+        const borderCode = borderType === 'with_border' ? 'СБОРТ' : 'БЕЗБОРТ';
+        article += `-${borderCode}`;
+      }
+      
+      // 6. Логотип (понятный код чуть длиннее)
+      if (logoId) {
+        const logo = logos.find(l => l.id === logoId);
+        if (logo) {
+          const logoCodes: { [key: string]: string } = {
+            'gea': 'GEA',
+            'maximilk': 'MAXIM',
+            'veles': 'VELES',
+            'агротек': 'АГРОТ',
+            'арнтьен': 'АРНТ'
+          };
+          
+          const logoName = logo.name.toLowerCase();
+          let logoCode = '';
+          
+          // Ищем предопределенный код
+          for (const [key, code] of Object.entries(logoCodes)) {
+            if (logoName.includes(key)) {
+              logoCode = code;
+              break;
+            }
+          }
+          
+          // Если нет предопределенного, берем первые 3-4 буквы для понятности
+          if (!logoCode) {
+            const firstWord = logo.name
+              .replace(/[^а-яёa-z\s]/gi, '')
+              .split(' ')[0];
+            logoCode = firstWord.length <= 4 ? firstWord.toUpperCase() : firstWord.slice(0, 4).toUpperCase();
+          }
+          
+          if (logoCode) {
+            article += `-${logoCode}`;
+          }
+        }
+      }
+      
+      // 7. Сорт (всегда указываем для полноты)
+      if (grade && grade !== 'usual') {
+        article += `-2СОРТ`;
+      } else if (grade === 'usual') {
+        article += `-1СОРТ`;
+      }
+      
+      form.setFieldsValue({ article });
+    }
 
     // Расчет площади мата (длина × ширина в м²)
     if (length && width) {
@@ -424,6 +595,8 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                   } else {
                     setPuzzleOptions({ sides: '1_side', type: 'old', enabled: false });
                   }
+                  // Генерируем артикул при изменении поверхности (Задача 7.4)
+                  setTimeout(generateArticle, 100);
                 }}
               >
                 {surfaces.map(surface => (
@@ -445,6 +618,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                 showSearch
                 optionFilterProp="children"
                 allowClear
+                onChange={() => setTimeout(generateArticle, 100)}
                 dropdownRender={(menu) => (
                   <>
                     {menu}
@@ -490,6 +664,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                 showSearch
                 optionFilterProp="children"
                 allowClear
+                onChange={() => setTimeout(generateArticle, 100)}
               >
                 {materials.map(material => (
                   <Option key={material.id} value={material.id}>
@@ -523,14 +698,29 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
               label="Сорт товара"
               initialValue="usual"
             >
-              <Select style={{ width: '100%' }}>
+              <Select 
+                style={{ width: '100%' }}
+                onChange={() => setTimeout(generateArticle, 100)}
+              >
                 <Option value="usual">Обычный</Option>
                 <Option value="grade_2">2 сорт</Option>
               </Select>
             </Form.Item>
           </Col>
           <Col span={8}>
-            {/* Пустая колонка для симметрии */}
+            <Form.Item
+              name="borderType"
+              label="Наличие борта"
+            >
+              <Select 
+                style={{ width: '100%' }} 
+                placeholder="Выберите тип борта"
+                onChange={() => setTimeout(generateArticle, 100)}
+              >
+                <Option value="with_border">С бортом</Option>
+                <Option value="without_border">Без борта</Option>
+              </Select>
+            </Form.Item>
           </Col>
         </Row>
 

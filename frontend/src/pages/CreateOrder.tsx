@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
+import usePermissions from '../hooks/usePermissions';
 import { ordersApi, CreateOrderRequest } from '../services/ordersApi';
 import { catalogApi, Product } from '../services/catalogApi';
 import { usersApi } from '../services/usersApi';
@@ -40,6 +41,17 @@ interface User {
 const CreateOrder: React.FC = () => {
   const navigate = useNavigate();
   const { user, token } = useAuthStore();
+  const { canManage, canEdit } = usePermissions();
+
+  const getRoleDisplayName = (role: string) => {
+    const roleNames: Record<string, string> = {
+      'director': 'Директор',
+      'manager': 'Менеджер', 
+      'production': 'Производство',
+      'warehouse': 'Склад'
+    };
+    return roleNames[role] || role;
+  };
   
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
@@ -83,7 +95,7 @@ const CreateOrder: React.FC = () => {
       if (response.success) {
         // Фильтруем только менеджеров и директоров для назначения заказов
         const availableUsers = response.data.filter(
-          (u: User) => u.role === 'manager' || u.role === 'director'
+          (u: User) => canManage('orders') || canEdit('orders')
         );
         setUsers(availableUsers);
       }
@@ -515,7 +527,7 @@ const CreateOrder: React.FC = () => {
                     <Select placeholder="Выберите менеджера">
                       {users.map(u => (
                         <Option key={u.id} value={u.id}>
-                          {u.fullName || u.username} ({u.role === 'manager' ? 'Менеджер' : 'Директор'})
+                          {u.fullName || u.username} ({getRoleDisplayName(u.role)})
                         </Option>
                       ))}
                     </Select>

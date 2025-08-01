@@ -31,6 +31,7 @@ import {
   WarningOutlined
 } from '@ant-design/icons';
 import { useAuthStore } from '../stores/authStore';
+import usePermissions from '../hooks/usePermissions';
 import cuttingApi, { 
   CuttingOperation, 
   CreateCuttingOperationRequest, 
@@ -56,6 +57,7 @@ interface Product {
 
 export const CuttingOperations: React.FC = () => {
   const { user } = useAuthStore();
+  const { canCreate } = usePermissions();
   const [operations, setOperations] = useState<CuttingOperation[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,6 +78,9 @@ export const CuttingOperations: React.FC = () => {
   
   // Фильтры
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  
+  // Состояние для экспорта (Задача 9.2)
+  const [exportingOperations, setExportingOperations] = useState(false);
   
   // Статистика
   const [statistics, setStatistics] = useState({
@@ -316,6 +321,27 @@ export const CuttingOperations: React.FC = () => {
     return Promise.resolve();
   };
 
+  // Функция экспорта операций резки (Задача 9.2)
+  const handleExportOperations = async () => {
+    setExportingOperations(true);
+    try {
+      // Формируем фильтры на основе текущих настроек
+      const currentFilters: any = {
+        status: statusFilter !== 'all' ? statusFilter : undefined
+      };
+
+      await cuttingApi.exportCuttingOperations(currentFilters);
+      
+      message.success('Экспорт операций резки завершен');
+      
+    } catch (error: any) {
+      console.error('Error exporting cutting operations:', error);
+      message.error('Ошибка при экспорте операций резки');
+    } finally {
+      setExportingOperations(false);
+    }
+  };
+
   // Колонки таблицы
   const columns = [
     {
@@ -492,9 +518,21 @@ export const CuttingOperations: React.FC = () => {
             <Option value="completed">Завершенные</Option>
             <Option value="cancelled">Отмененные</Option>
           </Select>
+          {/* Кнопка экспорта операций резки (Задача 9.2) */}
+          <Button
+            onClick={handleExportOperations}
+            loading={exportingOperations}
+            style={{
+              borderColor: '#722ed1',
+              color: '#722ed1'
+            }}
+            title="Экспорт текущего списка операций резки с примененными фильтрами"
+          >
+            📊 Экспорт операций
+          </Button>
         </Space>
         
-        {['manager', 'director'].includes(user?.role || '') && (
+                        {canCreate('cutting') && (
           <Button 
             type="primary" 
             icon={<PlusOutlined />}

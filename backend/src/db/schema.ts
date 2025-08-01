@@ -106,6 +106,9 @@ export const puzzleTypes = pgTable('puzzle_types', {
 // Enum для сортов товаров
 export const productGradeEnum = pgEnum('product_grade', ['usual', 'grade_2']);
 
+// Enum для наличия борта (Задача 7.1)
+export const borderTypeEnum = pgEnum('border_type', ['with_border', 'without_border']);
+
 // Products table - FR-002
 export const products = pgTable('products', {
   id: serial('id').primaryKey(),
@@ -122,6 +125,7 @@ export const products = pgTable('products', {
   matArea: decimal('mat_area', { precision: 10, scale: 4 }), // Площадь мата в м² (автоматический расчет + коррекция)
   weight: decimal('weight', { precision: 8, scale: 3 }), // Вес товара в кг (опционально)
   grade: productGradeEnum('grade').default('usual'), // Сорт товара: обычный по умолчанию
+  borderType: borderTypeEnum('border_type'), // Наличие борта: с бортом / без борта (Задача 7.1)
   tags: text('tags').array(),
   price: decimal('price', { precision: 10, scale: 2 }),
   costPrice: decimal('cost_price', { precision: 10, scale: 2 }),

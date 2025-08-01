@@ -34,6 +34,8 @@ export interface StockFilters {
   status?: 'all' | 'critical' | 'low' | 'normal' | 'out_of_stock' | 'in_production' | 'negative';
   search?: string;
   categoryId?: number;
+  sortBy?: string;           // Поле сортировки (Задача 7.2)
+  sortOrder?: 'ASC' | 'DESC'; // Направление сортировки
 }
 
 export interface StockAdjustment {
@@ -69,6 +71,12 @@ class StockApi {
     }
     if (filters.search) {
       params.append('search', filters.search);
+    }
+    if (filters.sortBy) {
+      params.append('sortBy', filters.sortBy);
+    }
+    if (filters.sortOrder) {
+      params.append('sortOrder', filters.sortOrder);
     }
 
     const response = await axios.get(

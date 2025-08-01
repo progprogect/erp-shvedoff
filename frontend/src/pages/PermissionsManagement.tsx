@@ -36,6 +36,7 @@ import {
   UserPermission 
 } from '../services/permissionsApi';
 import { usersApi, User } from '../services/usersApi';
+import { usePermissionsContext } from '../contexts/PermissionsContext';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -70,6 +71,7 @@ const actionLabels: Record<string, string> = {
 };
 
 export const PermissionsManagement: React.FC = () => {
+  const { invalidateAllPermissions } = usePermissionsContext();
   const [loading, setLoading] = useState(false);
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [groupedPermissions, setGroupedPermissions] = useState<Record<string, Permission[]>>({});
@@ -126,6 +128,9 @@ export const PermissionsManagement: React.FC = () => {
       }));
 
       message.success('Разрешения роли обновлены');
+      
+      // Принудительно обновляем разрешения во всех компонентах
+      invalidateAllPermissions();
     } catch (error: any) {
       message.error(error.message || 'Ошибка обновления разрешений');
     }
@@ -174,6 +179,9 @@ export const PermissionsManagement: React.FC = () => {
       await permissionsApi.setUserPermissions(user.id, userPermissionChanges);
       setUserPermissionsModal({ visible: false });
       message.success('Разрешения пользователя обновлены');
+      
+      // Принудительно обновляем разрешения во всех компонентах
+      invalidateAllPermissions();
     } catch (error: any) {
       message.error(error.message || 'Ошибка сохранения разрешений');
     }
