@@ -138,7 +138,12 @@ export const products = pgTable('products', {
   // Новые поля для края ковра
   carpetEdgeType: varchar('carpet_edge_type', { length: 50 }).default('straight_cut'),
   carpetEdgeSides: integer('carpet_edge_sides').default(1),
-  carpetEdgeStrength: varchar('carpet_edge_strength', { length: 50 }).default('normal')
+  carpetEdgeStrength: varchar('carpet_edge_strength', { length: 50 }).default('normal'),
+  // Поле для низа ковра
+  bottomTypeId: integer('bottom_type_id').references(() => bottomTypes.id),
+  // Поля паззла (для обратной совместимости)
+  puzzleTypeId: integer('puzzle_type_id').references(() => puzzleTypes.id),
+  puzzleSides: integer('puzzle_sides').default(1)
 });
 
 // Product relations - FR-002
@@ -373,6 +378,15 @@ export const carpetEdgeTypes = pgTable('carpet_edge_types', {
   createdAt: timestamp('created_at').defaultNow()
 });
 
+export const bottomTypes = pgTable('bottom_types', {
+  id: serial('id').primaryKey(),
+  code: varchar('code', { length: 50 }).notNull().unique(),
+  name: varchar('name', { length: 100 }).notNull(),
+  description: text('description'),
+  isSystem: boolean('is_system').default(false).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull()
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   orders: many(orders),
@@ -418,12 +432,17 @@ export const carpetEdgeTypesRelations = relations(carpetEdgeTypes, ({ many }) =>
   products: many(products)
 }));
 
+export const bottomTypesRelations = relations(bottomTypes, ({ many }) => ({
+  products: many(products)
+}));
+
 export const productsRelations = relations(products, ({ one, many }) => ({
   category: one(categories, { fields: [products.categoryId], references: [categories.id] }),
   manager: one(users, { fields: [products.managerId], references: [users.id] }),
   surface: one(productSurfaces, { fields: [products.surfaceId], references: [productSurfaces.id] }),
   logo: one(productLogos, { fields: [products.logoId], references: [productLogos.id] }),
   material: one(productMaterials, { fields: [products.materialId], references: [productMaterials.id] }),
+  bottomType: one(bottomTypes, { fields: [products.bottomTypeId], references: [bottomTypes.id] }),
   stock: one(stock, { fields: [products.id], references: [stock.productId] }),
   orderItems: many(orderItems),
   stockMovements: many(stockMovements),

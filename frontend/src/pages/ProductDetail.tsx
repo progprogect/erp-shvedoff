@@ -566,6 +566,10 @@ const ProductDetail: React.FC = () => {
                     {product.logo?.name || 'Не указан'}
                   </Descriptions.Item>
                   
+                  <Descriptions.Item label="Низ ковра">
+                    {product.bottomType?.name || 'Не указан'}
+                  </Descriptions.Item>
+                  
                   <Descriptions.Item label="Норма остатка">
                     {product.normStock} шт
                   </Descriptions.Item>

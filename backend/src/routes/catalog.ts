@@ -132,6 +132,8 @@ router.get('/products', authenticateToken, async (req, res, next) => {
       carpetEdgeTypes,    // типы края ковра (массив)
       carpetEdgeSides,    // количество сторон паззла (массив)
       carpetEdgeStrength, // усиление края (массив)
+      // Фильтр по низу ковра
+      bottomTypeIds,      // типы низа ковра (массив ID)
       sortBy,         // поле сортировки
       sortOrder       // направление сортировки (ASC/DESC)
     } = req.query;
@@ -248,6 +250,15 @@ router.get('/products', authenticateToken, async (req, res, next) => {
       }
     }
 
+    // Фильтр по низу ковра
+    if (bottomTypeIds) {
+      const ids = Array.isArray(bottomTypeIds) ? bottomTypeIds : [bottomTypeIds];
+      const numericIds = ids.map(id => Number(id)).filter(id => !isNaN(id));
+      if (numericIds.length > 0) {
+        whereConditions.push(inArray(schema.products.bottomTypeId, numericIds));
+      }
+    }
+
     whereConditions.push(eq(schema.products.isActive, true));
 
     // Определяем сортировку
@@ -272,6 +283,7 @@ router.get('/products', authenticateToken, async (req, res, next) => {
         surface: true,     // Добавляем поверхность
         logo: true,        // Добавляем логотип
         material: true,    // Добавляем материал
+        bottomType: true,  // Добавляем тип низа ковра
         stock: true
       },
       limit: Number(limit),
@@ -453,11 +465,18 @@ router.post('/products', authenticateToken, authorizeRoles('director', 'manager'
       // Новые поля для края ковра
       carpetEdgeType,
       carpetEdgeSides,
-      carpetEdgeStrength
+      carpetEdgeStrength,
+      // Поле для низа ковра
+      bottomTypeId
     } = req.body;
 
     if (!name || !categoryId) {
       return next(createError('Product name and category are required', 400));
+    }
+
+    // Проверяем обязательность bottomTypeId
+    if (!bottomTypeId) {
+      return next(createError('Выберите низ ковра', 400));
     }
 
     // Проверяем уникальность артикула (если указан) - проверка без учета регистра
@@ -503,7 +522,9 @@ router.post('/products', authenticateToken, authorizeRoles('director', 'manager'
       // Новые поля для края ковра
       carpetEdgeType: carpetEdgeType || 'straight_cut',
       carpetEdgeSides: carpetEdgeSides || 1,
-      carpetEdgeStrength: carpetEdgeStrength || 'normal'
+      carpetEdgeStrength: carpetEdgeStrength || 'normal',
+      // Поле для низа ковра
+      bottomTypeId: bottomTypeId || null
     }).returning();
 
     // Create initial stock record with initial quantity

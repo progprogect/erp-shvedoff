@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../config/api';
 import { PuzzleType } from './puzzleTypesApi';
+import { BottomType } from './bottomTypesApi';
 
 export interface Product {
   id: number;
@@ -15,6 +16,8 @@ export interface Product {
   logo?: Logo;
   materialId?: number;
   material?: Material;
+  bottomTypeId?: number;
+  bottomType?: BottomType;
   dimensions?: {
     length: number;
     width: number;
@@ -102,6 +105,7 @@ export interface ProductFilters {
   materialIds?: number[];    // материалы
   surfaceIds?: number[];     // поверхности
   logoIds?: number[];        // логотипы
+  bottomTypeIds?: number[]; // типы нижней части
   grades?: string[];         // сорта товаров
   weightMin?: number;        // минимальный вес
   weightMax?: number;        // максимальный вес
@@ -187,6 +191,9 @@ class CatalogApi {
     }
     if (filters.logoIds && filters.logoIds.length > 0) {
       filters.logoIds.forEach(id => params.append('logoIds', id.toString()));
+    }
+    if (filters.bottomTypeIds && filters.bottomTypeIds.length > 0) {
+      filters.bottomTypeIds.forEach(id => params.append('bottomTypeIds', id.toString()));
     }
     if (filters.grades && filters.grades.length > 0) {
       filters.grades.forEach(grade => params.append('grades', grade));

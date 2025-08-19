@@ -18,6 +18,7 @@ import usePermissions from '../hooks/usePermissions';
 import { logosApi } from '../services/logosApi';
 import { materialsApi } from '../services/materialsApi';
 import carpetEdgeTypesApi from '../services/carpetEdgeTypesApi';
+import bottomTypesApi from '../services/bottomTypesApi';
 import { surfacesApi } from '../services/surfacesApi';
 import CreateProductModal from '../components/CreateProductModal';
 import CreateCategoryModal from '../components/CreateCategoryModal';
@@ -112,11 +113,15 @@ const Catalog: React.FC = () => {
   const [selectedCarpetEdgeSides, setSelectedCarpetEdgeSides] = useState<number[]>([]);
   const [selectedCarpetEdgeStrength, setSelectedCarpetEdgeStrength] = useState<string[]>([]);
   
+  // Фильтр по низу ковра
+  const [selectedBottomTypeIds, setSelectedBottomTypeIds] = useState<number[]>([]);
+  
   // Справочники для фильтров
   const [materials, setMaterials] = useState<any[]>([]);
   const [surfaces, setSurfaces] = useState<any[]>([]);
   const [logos, setLogos] = useState<any[]>([]);
   const [carpetEdgeTypes, setCarpetEdgeTypes] = useState<any[]>([]);
+  const [bottomTypes, setBottomTypes] = useState<any[]>([]);
   const [loadingReferences, setLoadingReferences] = useState(false);
   
   // Фильтры по размерам
@@ -240,11 +245,12 @@ const Catalog: React.FC = () => {
     
     setLoadingReferences(true);
     try {
-      const [materialsResponse, surfacesResponse, logosResponse, carpetEdgeTypesResponse] = await Promise.all([
+      const [materialsResponse, surfacesResponse, logosResponse, carpetEdgeTypesResponse, bottomTypesResponse] = await Promise.all([
         materialsApi.getMaterials(token),
         surfacesApi.getSurfaces(token),
         logosApi.getLogos(token),
-        carpetEdgeTypesApi.getCarpetEdgeTypes(token)
+        carpetEdgeTypesApi.getCarpetEdgeTypes(token),
+        bottomTypesApi.getBottomTypes(token)
       ]);
 
       if (materialsResponse.success) {
@@ -273,6 +279,13 @@ const Catalog: React.FC = () => {
         console.log('✂️ Типы края ковра загружены:', carpetEdgeTypesResponse.data.length);
       } else {
         console.error('❌ Ошибка загрузки типов края ковра:', carpetEdgeTypesResponse);
+      }
+
+      if (bottomTypesResponse.success) {
+        setBottomTypes(bottomTypesResponse.data);
+        console.log('👇 Типы низов ковра загружены:', bottomTypesResponse.data.length);
+      } else {
+        console.error('❌ Ошибка загрузки типов низов ковра:', bottomTypesResponse);
       }
     } catch (error) {
       console.error('❌ Критическая ошибка загрузки справочников:', error);
@@ -395,6 +408,9 @@ const Catalog: React.FC = () => {
     setSelectedCarpetEdgeSides([]);
     setSelectedCarpetEdgeStrength([]);
     
+    // Фильтр по низу ковра
+    setSelectedBottomTypeIds([]);
+
     setCurrentPage(1);
   };
 
@@ -453,7 +469,9 @@ const Catalog: React.FC = () => {
     // Новые фильтры края ковра
     selectedCarpetEdgeTypes.length > 0 ||
     selectedCarpetEdgeSides.length > 0 ||
-    selectedCarpetEdgeStrength.length > 0;
+    selectedCarpetEdgeStrength.length > 0 ||
+    // Фильтр по низу ковра
+    selectedBottomTypeIds.length > 0;
   
   // Подсчет активных фильтров
   const getActiveFiltersCount = () => {
@@ -472,7 +490,9 @@ const Catalog: React.FC = () => {
       // Новые фильтры для края ковра
       (selectedCarpetEdgeTypes.length > 0 ? 1 : 0) +
       (selectedCarpetEdgeSides.length > 0 ? 1 : 0) +
-      (selectedCarpetEdgeStrength.length > 0 ? 1 : 0)
+      (selectedCarpetEdgeStrength.length > 0 ? 1 : 0) +
+      // Фильтр по низу ковра
+      (selectedBottomTypeIds.length > 0 ? 1 : 0)
     );
   };
 
@@ -575,6 +595,8 @@ const Catalog: React.FC = () => {
         carpetEdgeTypes: selectedCarpetEdgeTypes.length > 0 ? selectedCarpetEdgeTypes : undefined,
         carpetEdgeSides: selectedCarpetEdgeSides.length > 0 ? selectedCarpetEdgeSides : undefined,
         carpetEdgeStrength: selectedCarpetEdgeStrength.length > 0 ? selectedCarpetEdgeStrength : undefined,
+        // Фильтр по низу ковра
+        bottomTypeIds: selectedBottomTypeIds.length > 0 ? selectedBottomTypeIds : undefined,
         sortBy,
         sortOrder
       };
@@ -921,6 +943,26 @@ const Catalog: React.FC = () => {
                           >
                             <Option value="normal">⚪ Обычный</Option>
                             <Option value="reinforced">🔒 Усиленный</Option>
+                          </Select>
+                        </div>
+                      </Col>
+                      
+                      {/* Фильтр по низу ковра */}
+                      <Col span={6}>
+                        <Text strong>Низ ковра</Text>
+                        <div style={{ marginTop: 8 }}>
+                          <Select
+                            mode="multiple"
+                            value={selectedBottomTypeIds}
+                            onChange={setSelectedBottomTypeIds}
+                            placeholder="Выберите низ ковра"
+                            style={{ width: '100%' }}
+                          >
+                            {bottomTypes.map(type => (
+                              <Option key={type.id} value={type.id}>
+                                🔽 {type.name}
+                              </Option>
+                            ))}
                           </Select>
                         </div>
                       </Col>
