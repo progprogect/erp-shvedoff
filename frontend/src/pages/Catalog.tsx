@@ -301,7 +301,7 @@ const Catalog: React.FC = () => {
       }
 
       if (puzzleTypesResponse.success) {
-        setSelectedPuzzleTypeIds(puzzleTypesResponse.data.map((puzzle: any) => puzzle.id));
+        setPuzzleTypes(puzzleTypesResponse.data);
         console.log('🧩 Типы паззла загружены:', puzzleTypesResponse.data.length);
       } else {
         console.error('❌ Ошибка загрузки типов паззла:', puzzleTypesResponse);
