@@ -436,7 +436,7 @@ const ProductDetail: React.FC = () => {
 
   const dimensions = product.dimensions || { length: 0, width: 0, thickness: 0 };
   const available = (product.currentStock || 0) - (product.reservedStock || 0);
-  const stockStatus = getStockStatus(available, product.normStock);
+  const stockStatus = getStockStatus(available, product.normStock || 0);
 
   return (
     <div>
@@ -510,8 +510,28 @@ const ProductDetail: React.FC = () => {
                     {dimensions.width} мм
                   </Descriptions.Item>
                   
-                  <Descriptions.Item label="Толщина">
+                  <Descriptions.Item label="Высота">
                     {dimensions.thickness} мм
+                  </Descriptions.Item>
+                  
+                  <Descriptions.Item label="Край ковра">
+                    {product.carpetEdgeType === 'puzzle' ? 'Паззл' : 'Прямой рез'}
+                  </Descriptions.Item>
+                  
+                  {product.carpetEdgeType === 'puzzle' && (
+                    <>
+                      <Descriptions.Item label="Количество сторон">
+                        {product.carpetEdgeSides || product.puzzleSides || 1} сторона
+                      </Descriptions.Item>
+                      
+                      <Descriptions.Item label="Тип паззла">
+                        {product.puzzleType?.name || 'Не указан'}
+                      </Descriptions.Item>
+                    </>
+                  )}
+                  
+                  <Descriptions.Item label="Усиленный край">
+                    {product.carpetEdgeStrength === 'reinforced' ? 'Усиленный' : 'Обычный'}
                   </Descriptions.Item>
                   
                   <Descriptions.Item label="Норма остатка">
@@ -965,7 +985,7 @@ const ProductDetail: React.FC = () => {
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="thickness" label="Толщина (мм)">
+              <Form.Item name="thickness" label="Высота (мм)">
                 <InputNumber style={{ width: '100%' }} min={1} />
               </Form.Item>
             </Col>
@@ -988,7 +1008,7 @@ const ProductDetail: React.FC = () => {
                 <Select 
                   placeholder="Выберите логотип или создайте новый"
                   allowClear
-                  dropdownRender={(menu) => (
+                  popupRender={(menu) => (
                     <>
                       {menu}
                                               {canManage('catalog') && (

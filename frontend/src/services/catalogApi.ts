@@ -1,76 +1,91 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../config/api';
-
-export interface Category {
-  id: number;
-  name: string;
-  parentId?: number;
-  description?: string;
-  path?: string;
-  sortOrder: number;
-  children?: Category[];
-  products?: Product[];
-}
+import { PuzzleType } from './puzzleTypesApi';
 
 export interface Product {
   id: number;
   name: string;
   article?: string;
-  categoryId: number;
+  categoryId?: number;
+  category?: Category;
   managerId?: number;
   surfaceId?: number;
+  surface?: Surface;
   logoId?: number;
+  logo?: Logo;
   materialId?: number;
+  material?: Material;
   dimensions?: {
     length: number;
     width: number;
     thickness: number;
   };
-  characteristics?: {
-    surface?: string;
-    material?: string;
-  };
-  puzzleOptions?: {
-    sides?: '1_side' | '2_sides' | '3_sides' | '4_sides';
-    type?: string;
-    enabled?: boolean;
-  };
-  matArea?: number; // Площадь мата в м² (автоматический расчет + коррекция)
-  weight?: number; // Вес товара в кг (опционально)
-  grade: 'usual' | 'grade_2'; // Сорт товара: обычный по умолчанию
-  borderType?: 'with_border' | 'without_border'; // Наличие борта (Задача 7.1)
+  characteristics?: any;
+  puzzleOptions?: any;
+  matArea?: number;
+  weight?: number;
+  grade?: string;
+  borderType?: string;
   tags?: string[];
   price?: number;
-  normStock: number;
+  costPrice?: number;
+  normStock?: number;
   notes?: string;
   photos?: string[];
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
-  categoryName?: string;
-  categoryPath?: string;
-  manager?: {
-    id: number;
-    fullName?: string;
-    username: string;
-    role: string;
-  };
-  surfaceName?: string;
-  logoName?: string;
-  materialName?: string;
-  // Поля для обратной совместимости
+  // Новые поля для края ковра
+  carpetEdgeType?: string;
+  carpetEdgeSides?: number;
+  carpetEdgeStrength?: string;
+  // Поля паззла (для обратной совместимости)
+  puzzleTypeId?: number;
+  puzzleType?: PuzzleType;
+  puzzleSides?: number;
+  // Поля для остатков
   currentStock?: number;
   reservedStock?: number;
   availableStock?: number;
   inProductionQuantity?: number;
-  stockStatus?: 'critical' | 'low' | 'normal';
-  // Новая структура stock
+  // Поля для отображения
+  categoryName?: string;
+  categoryPath?: string;
+  // Структура stock
   stock?: {
     currentStock: number;
     reservedStock: number;
     availableStock?: number;
     inProductionQuantity?: number;
   };
+}
+
+// Базовые типы для связанных сущностей
+export interface Category {
+  id: number;
+  name: string;
+  parentId?: number;
+  description?: string;
+  children?: Category[];
+  path?: string;
+}
+
+interface Surface {
+  id: number;
+  name: string;
+  description?: string;
+}
+
+interface Logo {
+  id: number;
+  name: string;
+  description?: string;
+}
+
+interface Material {
+  id: number;
+  name: string;
+  description?: string;
 }
 
 export interface ProductFilters {
@@ -94,6 +109,10 @@ export interface ProductFilters {
   matAreaMax?: number;       // максимальная площадь
   onlyInStock?: boolean;     // только товары в наличии
   borderTypes?: string[];    // типы бортов (Задача 7.1)
+  // Новые фильтры для края ковра
+  carpetEdgeTypes?: string[];    // типы края ковра
+  carpetEdgeSides?: number[];   // количество сторон паззла
+  carpetEdgeStrength?: string[]; // усиление края
   sortBy?: string;           // поле сортировки
   sortOrder?: 'ASC' | 'DESC'; // направление сортировки
 }
@@ -190,6 +209,18 @@ class CatalogApi {
     if (filters.borderTypes && filters.borderTypes.length > 0) {
       filters.borderTypes.forEach(type => params.append('borderTypes', type));
     }
+    
+    // Новые фильтры для края ковра
+    if (filters.carpetEdgeTypes && filters.carpetEdgeTypes.length > 0) {
+      filters.carpetEdgeTypes.forEach(type => params.append('carpetEdgeTypes', type));
+    }
+    if (filters.carpetEdgeSides && filters.carpetEdgeSides.length > 0) {
+      filters.carpetEdgeSides.forEach(side => params.append('carpetEdgeSides', side.toString()));
+    }
+    if (filters.carpetEdgeStrength && filters.carpetEdgeStrength.length > 0) {
+      filters.carpetEdgeStrength.forEach(strength => params.append('carpetEdgeStrength', strength));
+    }
+    
     if (filters.sortBy) {
       params.append('sortBy', filters.sortBy);
     }

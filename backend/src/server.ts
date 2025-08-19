@@ -21,6 +21,7 @@ import surfacesRoutes from './routes/surfaces';
 import logosRoutes from './routes/logos';
 import materialsRoutes from './routes/materials';
 import puzzleTypesRoutes from './routes/puzzle-types';
+import carpetEdgeTypesRouter from './routes/carpet-edge-types';
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/logger';
 
@@ -82,6 +83,7 @@ app.use('/api/surfaces', surfacesRoutes);
 app.use('/api/logos', logosRoutes);
 app.use('/api/materials', materialsRoutes);
 app.use('/api/puzzle-types', puzzleTypesRoutes);
+app.use('/api/carpet-edge-types', carpetEdgeTypesRouter);
 
 // API Info endpoint
 app.get('/api', (req, res) => {

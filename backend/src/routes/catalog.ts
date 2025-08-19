@@ -128,6 +128,10 @@ router.get('/products', authenticateToken, async (req, res, next) => {
       matAreaMax,     // максимальная площадь
       onlyInStock,    // только товары в наличии
       borderTypes,    // типы бортов (массив)
+      // Новые фильтры для края ковра
+      carpetEdgeTypes,    // типы края ковра (массив)
+      carpetEdgeSides,    // количество сторон паззла (массив)
+      carpetEdgeStrength, // усиление края (массив)
       sortBy,         // поле сортировки
       sortOrder       // направление сортировки (ASC/DESC)
     } = req.query;
@@ -212,6 +216,35 @@ router.get('/products', authenticateToken, async (req, res, next) => {
         .map(type => type as 'with_border' | 'without_border');
       if (validTypes.length > 0) {
         whereConditions.push(inArray(schema.products.borderType, validTypes));
+      }
+    }
+
+    // Новые фильтры для края ковра
+    if (carpetEdgeTypes) {
+      const typesList = Array.isArray(carpetEdgeTypes) ? carpetEdgeTypes : [carpetEdgeTypes];
+      const validTypes = typesList
+        .filter(type => typeof type === 'string' && ['straight_cut', 'puzzle'].includes(type))
+        .map(type => type as 'straight_cut' | 'puzzle');
+      if (validTypes.length > 0) {
+        whereConditions.push(inArray(schema.products.carpetEdgeType, validTypes));
+      }
+    }
+
+    if (carpetEdgeSides) {
+      const sidesList = Array.isArray(carpetEdgeSides) ? carpetEdgeSides : [carpetEdgeSides];
+      const numericSides = sidesList.map(side => Number(side)).filter(side => !isNaN(side) && [1, 2, 3, 4].includes(side));
+      if (numericSides.length > 0) {
+        whereConditions.push(inArray(schema.products.carpetEdgeSides, numericSides));
+      }
+    }
+
+    if (carpetEdgeStrength) {
+      const strengthList = Array.isArray(carpetEdgeStrength) ? carpetEdgeStrength : [carpetEdgeStrength];
+      const validStrengths = strengthList
+        .filter(strength => typeof strength === 'string' && ['normal', 'reinforced'].includes(strength))
+        .map(strength => strength as 'normal' | 'reinforced');
+      if (validStrengths.length > 0) {
+        whereConditions.push(inArray(schema.products.carpetEdgeStrength, validStrengths));
       }
     }
 
@@ -416,7 +449,11 @@ router.post('/products', authenticateToken, authorizeRoles('director', 'manager'
       costPrice, 
       normStock,
       initialStock,
-      notes 
+      notes,
+      // Новые поля для края ковра
+      carpetEdgeType,
+      carpetEdgeSides,
+      carpetEdgeStrength
     } = req.body;
 
     if (!name || !categoryId) {
@@ -462,7 +499,11 @@ router.post('/products', authenticateToken, authorizeRoles('director', 'manager'
       price,
       costPrice,
       normStock: normStock || 0,
-      notes
+      notes,
+      // Новые поля для края ковра
+      carpetEdgeType: carpetEdgeType || 'straight_cut',
+      carpetEdgeSides: carpetEdgeSides || 1,
+      carpetEdgeStrength: carpetEdgeStrength || 'normal'
     }).returning();
 
     // Create initial stock record with initial quantity

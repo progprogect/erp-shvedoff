@@ -18,6 +18,7 @@ import usePermissions from '../hooks/usePermissions';
 import { logosApi } from '../services/logosApi';
 import { puzzleTypesApi } from '../services/puzzleTypesApi';
 import { materialsApi } from '../services/materialsApi';
+import carpetEdgeTypesApi from '../services/carpetEdgeTypesApi';
 import { surfacesApi } from '../services/surfacesApi';
 import CreateProductModal from '../components/CreateProductModal';
 import CreateCategoryModal from '../components/CreateCategoryModal';
@@ -109,11 +110,17 @@ const Catalog: React.FC = () => {
     max: null as number | null
   });
   
+  // Новые фильтры для края ковра
+  const [selectedCarpetEdgeTypes, setSelectedCarpetEdgeTypes] = useState<string[]>([]);
+  const [selectedCarpetEdgeSides, setSelectedCarpetEdgeSides] = useState<number[]>([]);
+  const [selectedCarpetEdgeStrength, setSelectedCarpetEdgeStrength] = useState<string[]>([]);
+  
   // Справочники для фильтров
   const [materials, setMaterials] = useState<any[]>([]);
   const [surfaces, setSurfaces] = useState<any[]>([]);
   const [logos, setLogos] = useState<any[]>([]);
   const [puzzleTypes, setPuzzleTypes] = useState<any[]>([]);
+  const [carpetEdgeTypes, setCarpetEdgeTypes] = useState<any[]>([]);
   const [loadingReferences, setLoadingReferences] = useState(false);
   
   // Фильтры по размерам
@@ -198,6 +205,10 @@ const Catalog: React.FC = () => {
         weightMax: weightFilter.max || undefined,
         onlyInStock: onlyInStock || undefined,
         borderTypes: selectedBorderTypes.length > 0 ? selectedBorderTypes : undefined, // Задача 7.1
+        // Новые фильтры для края ковра
+        carpetEdgeTypes: selectedCarpetEdgeTypes.length > 0 ? selectedCarpetEdgeTypes : undefined,
+        carpetEdgeSides: selectedCarpetEdgeSides.length > 0 ? selectedCarpetEdgeSides : undefined,
+        carpetEdgeStrength: selectedCarpetEdgeStrength.length > 0 ? selectedCarpetEdgeStrength : undefined,
         // Сортировка (Задача 7.2)
         sortBy,
         sortOrder
@@ -225,11 +236,12 @@ const Catalog: React.FC = () => {
     
     setLoadingReferences(true);
     try {
-      const [materialsResponse, surfacesResponse, logosResponse, puzzleTypesResponse] = await Promise.all([
+      const [materialsResponse, surfacesResponse, logosResponse, puzzleTypesResponse, carpetEdgeTypesResponse] = await Promise.all([
         materialsApi.getMaterials(token),
         surfacesApi.getSurfaces(token),
         logosApi.getLogos(token),
-        puzzleTypesApi.getPuzzleTypes(token)
+        puzzleTypesApi.getPuzzleTypes(token),
+        carpetEdgeTypesApi.getCarpetEdgeTypes(token)
       ]);
 
       if (materialsResponse.success) {
@@ -258,6 +270,13 @@ const Catalog: React.FC = () => {
         console.log('🧩 Типы паззлов загружены:', puzzleTypesResponse.data.length);
       } else {
         console.error('❌ Ошибка загрузки типов паззлов:', puzzleTypesResponse);
+      }
+
+      if (carpetEdgeTypesResponse.success) {
+        setCarpetEdgeTypes(carpetEdgeTypesResponse.data);
+        console.log('✂️ Типы края ковра загружены:', carpetEdgeTypesResponse.data.length);
+      } else {
+        console.error('❌ Ошибка загрузки типов края ковра:', carpetEdgeTypesResponse);
       }
     } catch (error) {
       console.error('❌ Критическая ошибка загрузки справочников:', error);
@@ -377,6 +396,11 @@ const Catalog: React.FC = () => {
     setSelectedPuzzleSides([]);
     setStockRangeFilter({ min: null, max: null });
     
+    // Фильтры края ковра
+    setSelectedCarpetEdgeTypes([]);
+    setSelectedCarpetEdgeSides([]);
+    setSelectedCarpetEdgeStrength([]);
+    
     setCurrentPage(1);
   };
 
@@ -435,7 +459,11 @@ const Catalog: React.FC = () => {
     selectedPuzzleTypes.length > 0 ||
     selectedPuzzleSides.length > 0 ||
     stockRangeFilter.min !== null ||
-    stockRangeFilter.max !== null;
+    stockRangeFilter.max !== null ||
+    // Новые фильтры края ковра
+    selectedCarpetEdgeTypes.length > 0 ||
+    selectedCarpetEdgeSides.length > 0 ||
+    selectedCarpetEdgeStrength.length > 0;
   
   // Подсчет активных фильтров
   const getActiveFiltersCount = () => {
@@ -452,7 +480,11 @@ const Catalog: React.FC = () => {
       (selectedGrades.length > 0 ? 1 : 0) +
       (weightFilter.min !== null || weightFilter.max !== null ? 1 : 0) +
       (stockRangeFilter.min !== null || stockRangeFilter.max !== null ? 1 : 0) +
-      (onlyInStock ? 1 : 0)
+      (onlyInStock ? 1 : 0) +
+      // Новые фильтры для края ковра
+      (selectedCarpetEdgeTypes.length > 0 ? 1 : 0) +
+      (selectedCarpetEdgeSides.length > 0 ? 1 : 0) +
+      (selectedCarpetEdgeStrength.length > 0 ? 1 : 0)
     );
   };
 
@@ -551,6 +583,10 @@ const Catalog: React.FC = () => {
         weightMax: weightFilter.max || undefined,
         onlyInStock: onlyInStock || undefined,
         borderTypes: selectedBorderTypes.length > 0 ? selectedBorderTypes : undefined,
+        // Новые фильтры для края ковра
+        carpetEdgeTypes: selectedCarpetEdgeTypes.length > 0 ? selectedCarpetEdgeTypes : undefined,
+        carpetEdgeSides: selectedCarpetEdgeSides.length > 0 ? selectedCarpetEdgeSides : undefined,
+        carpetEdgeStrength: selectedCarpetEdgeStrength.length > 0 ? selectedCarpetEdgeStrength : undefined,
         sortBy,
         sortOrder
       };
@@ -813,6 +849,27 @@ const Catalog: React.FC = () => {
                         </div>
                       </Col>
                       
+                      {/* Фильтр по краю ковра */}
+                      <Col span={6}>
+                        <Text strong>Край ковра</Text>
+                        <div style={{ marginTop: 8 }}>
+                          <Select
+                            mode="multiple"
+                            value={selectedCarpetEdgeTypes}
+                            onChange={setSelectedCarpetEdgeTypes}
+                            placeholder="Выберите тип края"
+                            style={{ width: '100%' }}
+                            loading={loadingReferences}
+                          >
+                            {carpetEdgeTypes.map(type => (
+                              <Option key={type.code} value={type.code}>
+                                ✂️ {type.name}
+                              </Option>
+                            ))}
+                          </Select>
+                        </div>
+                      </Col>
+                      
                       {/* Фильтр по диапазону остатков (системный архитектор) */}
                       <Col span={6}>
                         <Text strong>Остатки на складе (шт)</Text>
@@ -883,6 +940,40 @@ const Catalog: React.FC = () => {
                             <Option value="2_sides">🧩 2 стороны</Option>
                             <Option value="3_sides">🧩 3 стороны</Option>
                             <Option value="4_sides">🧩 4 стороны</Option>
+                          </Select>
+                        </div>
+                      </Col>
+                      
+                      {/* Условные фильтры для паззлового края ковра */}
+                      <Col span={6}>
+                        <Text strong>Количество сторон паззла</Text>
+                        <div style={{ marginTop: 8 }}>
+                          <Select
+                            mode="multiple"
+                            value={selectedCarpetEdgeSides}
+                            onChange={setSelectedCarpetEdgeSides}
+                            placeholder="Количество сторон"
+                            style={{ width: '100%' }}
+                            disabled={!selectedCarpetEdgeTypes.includes('puzzle')}
+                          >
+                            <Option value={1}>🧩 1 сторона</Option>
+                            <Option value={2}>🧩 2 стороны</Option>
+                            <Option value={3}>🧩 3 стороны</Option>
+                            <Option value={4}>🧩 4 стороны</Option>
+                          </Select>
+                        </div>
+                        
+                        <div style={{ marginTop: 8 }}>
+                          <Text strong>Усиление края</Text>
+                          <Select
+                            mode="multiple"
+                            value={selectedCarpetEdgeStrength}
+                            onChange={setSelectedCarpetEdgeStrength}
+                            placeholder="Тип усиления"
+                            style={{ width: '100%' }}
+                          >
+                            <Option value="normal">⚪ Обычный</Option>
+                            <Option value="reinforced">🛡️ Усиленный</Option>
                           </Select>
                         </div>
                       </Col>
@@ -971,7 +1062,7 @@ const Catalog: React.FC = () => {
                           </div>
                         </Col>
                         <Col span={8}>
-                          <Text>Толщина</Text>
+                          <Text>Высота</Text>
                           <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                             <InputNumber
                               placeholder="от"
@@ -1288,10 +1379,9 @@ const Catalog: React.FC = () => {
                     width: 140,
                     render: (_: any, product: Product) => {
                       const dimensions = product.dimensions || { length: 0, width: 0, thickness: 0 };
-                      const { length, width, thickness } = dimensions;
                       return (
                         <Tag color="blue">
-                          {length}×{width}×{thickness}
+                          {dimensions.length}×{dimensions.width}×{dimensions.thickness}
                         </Tag>
                       );
                     },
@@ -1304,8 +1394,8 @@ const Catalog: React.FC = () => {
                     render: (_: any, product: Product) => {
                       const currentStock = product.stock?.currentStock || product.currentStock || 0;
                       const reservedStock = product.stock?.reservedStock || product.reservedStock || 0;
-                      const stockStatus = getStockStatus(currentStock, reservedStock);
-                      const available = currentStock - reservedStock;
+                      const available = (product.currentStock || 0) - (product.reservedStock || 0);
+                      const stockStatus = getStockStatus(available, product.normStock || 0);
                       return (
                         <div>
                           <Badge color={stockStatus.color} />
