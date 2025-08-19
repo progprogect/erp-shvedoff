@@ -443,6 +443,7 @@ export const productsRelations = relations(products, ({ one, many }) => ({
   logo: one(productLogos, { fields: [products.logoId], references: [productLogos.id] }),
   material: one(productMaterials, { fields: [products.materialId], references: [productMaterials.id] }),
   bottomType: one(bottomTypes, { fields: [products.bottomTypeId], references: [bottomTypes.id] }),
+  puzzleType: one(puzzleTypes, { fields: [products.puzzleTypeId], references: [puzzleTypes.id] }),
   stock: one(stock, { fields: [products.id], references: [stock.productId] }),
   orderItems: many(orderItems),
   stockMovements: many(stockMovements),

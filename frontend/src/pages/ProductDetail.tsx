@@ -434,7 +434,8 @@ const ProductDetail: React.FC = () => {
     );
   }
 
-  const dimensions = product.dimensions || { length: 0, width: 0, thickness: 0 };
+  // Получаем размеры из product.dimensions или из characteristics
+  const dimensions = product?.dimensions || product?.characteristics?.dimensions || {};
   const available = (product.currentStock || 0) - (product.reservedStock || 0);
   const stockStatus = getStockStatus(available, product.normStock || 0);
 
@@ -489,94 +490,107 @@ const ProductDetail: React.FC = () => {
             {/* Информация о товаре */}
             <Col xs={24} lg={16}>
               <Card title="📋 Информация о товаре">
-                <Descriptions column={2} bordered>
+                <Descriptions 
+                  column={2} 
+                  bordered 
+                  size="small" 
+                  labelStyle={{ 
+                    width: '120px', 
+                    fontWeight: 'bold',
+                    textAlign: 'right',
+                    paddingRight: '16px'
+                  }}
+                  contentStyle={{
+                    minWidth: '200px'
+                  }}
+                >
                   <Descriptions.Item label="Название" span={2}>
-                    <Text strong>{product.name}</Text>
+                    <Text strong>{product?.name || 'Не указано'}</Text>
                   </Descriptions.Item>
                   
                   <Descriptions.Item label="Артикул">
-                    {product.article || 'Не указан'}
+                    {product?.article || 'Не указан'}
                   </Descriptions.Item>
                   
                   <Descriptions.Item label="Категория">
-                    {product.categoryName}
+                    {product?.categoryName || product?.category?.name || 'Не указана'}
                   </Descriptions.Item>
                   
                   <Descriptions.Item label="Длина">
-                    {dimensions.length} мм
+                    {dimensions?.length || 0} мм
                   </Descriptions.Item>
                   
                   <Descriptions.Item label="Ширина">
-                    {dimensions.width} мм
+                    {dimensions?.width || 0} мм
                   </Descriptions.Item>
                   
                   <Descriptions.Item label="Высота">
-                    {dimensions.thickness} мм
+                    {dimensions?.thickness || 0} мм
                   </Descriptions.Item>
                   
                   <Descriptions.Item label="Площадь">
-                    {product.matArea ? `${product.matArea} м²` : 'Не указана'}
+                    {product?.matArea ? `${product.matArea} м²` : 'Не указана'}
                   </Descriptions.Item>
                   
                   <Descriptions.Item label="Вес">
-                    {product.weight ? `${product.weight} кг` : 'Не указан'}
+                    {product?.weight ? `${product.weight} кг` : 'Не указан'}
                   </Descriptions.Item>
                   
                   <Descriptions.Item label="Сорт">
-                    {product.grade === 'usual' ? 'Обычный' : 
-                     product.grade === 'grade_2' ? 'Второй сорт' : 
-                     product.grade || 'Не указан'}
+                    {product?.grade === 'usual' ? 'Обычный' : 
+                     product?.grade === 'grade_2' ? 'Второй сорт' : 
+                     'Не указан'}
                   </Descriptions.Item>
                   
                   <Descriptions.Item label="Тип борта">
-                    {product.borderType === 'with_border' ? 'С бортом' : 
-                     product.borderType === 'without_border' ? 'Без борта' : 
-                     product.borderType || 'Не указан'}
+                    {product?.borderType === 'with_border' ? 'С бортом' : 
+                     product?.borderType === 'without_border' ? 'Без борта' : 
+                     'Не указан'}
                   </Descriptions.Item>
                   
                   <Descriptions.Item label="Край ковра">
-                    {product.carpetEdgeType === 'puzzle' ? 'Паззл' : 'Прямой рез'}
+                    {product?.carpetEdgeType === 'puzzle' ? 'Паззл' : 'Прямой рез'}
                   </Descriptions.Item>
                   
-                  {product.carpetEdgeType === 'puzzle' && (
+                  <Descriptions.Item label="Усиленный край">
+                    {product?.carpetEdgeStrength === 'reinforced' ? 'Усиленный' : 'Обычный'}
+                  </Descriptions.Item>
+                  
+                  {product?.carpetEdgeType === 'puzzle' && (
                     <>
                       <Descriptions.Item label="Количество сторон">
-                        {product.carpetEdgeSides || product.puzzleSides || 1} сторона
+                        {product?.carpetEdgeSides || product?.puzzleSides || 1} сторона
                       </Descriptions.Item>
                       
                       <Descriptions.Item label="Тип паззла">
-                        {product.puzzleType?.name || 'Не указан'}
+                        {product?.puzzleType?.name || 'Не указан'}
                       </Descriptions.Item>
                     </>
                   )}
                   
-                  <Descriptions.Item label="Усиленный край">
-                    {product.carpetEdgeStrength === 'reinforced' ? 'Усиленный' : 'Обычный'}
-                  </Descriptions.Item>
-                  
                   <Descriptions.Item label="Поверхность">
-                    {product.surface?.name || product.characteristics?.surface || 'Не указана'}
+                    {product?.surface?.name || product?.characteristics?.surface || 'Не указана'}
                   </Descriptions.Item>
                   
                   <Descriptions.Item label="Материал">
-                    {product.material?.name || product.characteristics?.material || 'Не указан'}
+                    {product?.material?.name || product?.characteristics?.material || 'Не указан'}
                   </Descriptions.Item>
                   
                   <Descriptions.Item label="Логотип">
-                    {product.logo?.name || 'Не указан'}
+                    {product?.logo?.name || 'Не указан'}
                   </Descriptions.Item>
                   
                   <Descriptions.Item label="Низ ковра">
-                    {product.bottomType?.name || 'Не указан'}
+                    {product?.bottomType?.name || 'Не указан'}
                   </Descriptions.Item>
                   
                   <Descriptions.Item label="Норма остатка">
-                    {product.normStock} шт
+                    {product?.normStock || 0} шт
                   </Descriptions.Item>
                   
                   <Descriptions.Item label="Цена" span={2}>
                     <Text strong style={{ fontSize: 16, color: '#1890ff' }}>
-                      {product.price ? `${product.price.toLocaleString()}₽` : 'Не указана'}
+                      {product?.price ? `${product.price.toLocaleString()}₽` : 'Не указана'}
                     </Text>
                   </Descriptions.Item>
                 </Descriptions>

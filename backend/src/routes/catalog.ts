@@ -376,6 +376,11 @@ router.get('/products/:id', authenticateToken, async (req, res, next) => {
       where: eq(schema.products.id, productId),
       with: {
         category: true,
+        surface: true,
+        logo: true,
+        material: true,
+        bottomType: true,
+        puzzleType: true,
         manager: {
           columns: {
             id: true,
@@ -409,7 +414,7 @@ router.get('/products/:id', authenticateToken, async (req, res, next) => {
       getProductionQuantities([productId])
     ]);
 
-    const currentStock = product.stock?.currentStock || 0;
+    const currentStock = product?.stock?.currentStock || 0;
     const reservedStock = reservedQuantities.get(productId) || 0;
     const inProductionQuantity = productionQuantities.get(productId) || 0;
     const availableStock = currentStock - reservedStock;
@@ -423,7 +428,7 @@ router.get('/products/:id', authenticateToken, async (req, res, next) => {
       inProductionQuantity,
       // Обновляем объект stock для консистентности
       stock: {
-        ...product.stock,
+        ...product?.stock,
         currentStock,
         reservedStock,
         availableStock,
@@ -456,6 +461,7 @@ router.post('/products', authenticateToken, authorizeRoles('director', 'manager'
       matArea,
       weight,
       grade,
+      borderType,
       tags, 
       price, 
       costPrice, 
@@ -467,7 +473,10 @@ router.post('/products', authenticateToken, authorizeRoles('director', 'manager'
       carpetEdgeSides,
       carpetEdgeStrength,
       // Поле для низа ковра
-      bottomTypeId
+      bottomTypeId,
+      // Поля паззла
+      puzzleTypeId,
+      puzzleSides
     } = req.body;
 
     if (!name || !categoryId) {
@@ -514,6 +523,7 @@ router.post('/products', authenticateToken, authorizeRoles('director', 'manager'
       matArea: matArea ? parseFloat(matArea).toString() : null,
       weight: weight ? parseFloat(weight).toString() : null,
       grade: grade || 'usual',
+      borderType: borderType || null,
       tags,
       price,
       costPrice,
@@ -524,7 +534,10 @@ router.post('/products', authenticateToken, authorizeRoles('director', 'manager'
       carpetEdgeSides: carpetEdgeSides || 1,
       carpetEdgeStrength: carpetEdgeStrength || 'normal',
       // Поле для низа ковра
-      bottomTypeId: bottomTypeId || null
+      bottomTypeId: bottomTypeId || null,
+      // Поля паззла
+      puzzleTypeId: puzzleTypeId || null,
+      puzzleSides: puzzleSides || null
     }).returning();
 
     // Create initial stock record with initial quantity
