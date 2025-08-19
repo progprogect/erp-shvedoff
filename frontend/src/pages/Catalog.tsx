@@ -16,7 +16,6 @@ import { useAuthStore } from '../stores/authStore';
 import { catalogApi, Category, Product, ProductFilters } from '../services/catalogApi';
 import usePermissions from '../hooks/usePermissions';
 import { logosApi } from '../services/logosApi';
-import { puzzleTypesApi } from '../services/puzzleTypesApi';
 import { materialsApi } from '../services/materialsApi';
 import carpetEdgeTypesApi from '../services/carpetEdgeTypesApi';
 import { surfacesApi } from '../services/surfacesApi';
@@ -103,8 +102,6 @@ const Catalog: React.FC = () => {
   
   // Расширенные фильтры для системного архитектора
   const [selectedLogos, setSelectedLogos] = useState<number[]>([]);
-  const [selectedPuzzleTypes, setSelectedPuzzleTypes] = useState<number[]>([]);
-  const [selectedPuzzleSides, setSelectedPuzzleSides] = useState<string[]>([]);
   const [stockRangeFilter, setStockRangeFilter] = useState({
     min: null as number | null,
     max: null as number | null
@@ -119,7 +116,6 @@ const Catalog: React.FC = () => {
   const [materials, setMaterials] = useState<any[]>([]);
   const [surfaces, setSurfaces] = useState<any[]>([]);
   const [logos, setLogos] = useState<any[]>([]);
-  const [puzzleTypes, setPuzzleTypes] = useState<any[]>([]);
   const [carpetEdgeTypes, setCarpetEdgeTypes] = useState<any[]>([]);
   const [loadingReferences, setLoadingReferences] = useState(false);
   
@@ -161,7 +157,8 @@ const Catalog: React.FC = () => {
     }
   }, [searchText, checkedCategories, stockFilter, selectedMaterials, selectedSurfaces, 
       selectedLogos, selectedGrades, weightFilter, onlyInStock, selectedBorderTypes, 
-      sortBy, sortOrder, currentPage]);
+      selectedCarpetEdgeTypes, selectedCarpetEdgeSides, selectedCarpetEdgeStrength,
+      sizeFilters, sortBy, sortOrder, currentPage]);
 
   const loadData = async () => {
     if (!token) return;
@@ -209,6 +206,13 @@ const Catalog: React.FC = () => {
         carpetEdgeTypes: selectedCarpetEdgeTypes.length > 0 ? selectedCarpetEdgeTypes : undefined,
         carpetEdgeSides: selectedCarpetEdgeSides.length > 0 ? selectedCarpetEdgeSides : undefined,
         carpetEdgeStrength: selectedCarpetEdgeStrength.length > 0 ? selectedCarpetEdgeStrength : undefined,
+        // Фильтры по размерам
+        lengthMin: sizeFilters.lengthMin || undefined,
+        lengthMax: sizeFilters.lengthMax || undefined,
+        widthMin: sizeFilters.widthMin || undefined,
+        widthMax: sizeFilters.widthMax || undefined,
+        thicknessMin: sizeFilters.thicknessMin || undefined,
+        thicknessMax: sizeFilters.thicknessMax || undefined,
         // Сортировка (Задача 7.2)
         sortBy,
         sortOrder
@@ -236,11 +240,10 @@ const Catalog: React.FC = () => {
     
     setLoadingReferences(true);
     try {
-      const [materialsResponse, surfacesResponse, logosResponse, puzzleTypesResponse, carpetEdgeTypesResponse] = await Promise.all([
+      const [materialsResponse, surfacesResponse, logosResponse, carpetEdgeTypesResponse] = await Promise.all([
         materialsApi.getMaterials(token),
         surfacesApi.getSurfaces(token),
         logosApi.getLogos(token),
-        puzzleTypesApi.getPuzzleTypes(token),
         carpetEdgeTypesApi.getCarpetEdgeTypes(token)
       ]);
 
@@ -263,13 +266,6 @@ const Catalog: React.FC = () => {
         console.log('🏷️ Логотипы загружены:', logosResponse.data.length);
       } else {
         console.error('❌ Ошибка загрузки логотипов:', logosResponse);
-      }
-
-      if (puzzleTypesResponse.success) {
-        setPuzzleTypes(puzzleTypesResponse.data);
-        console.log('🧩 Типы паззлов загружены:', puzzleTypesResponse.data.length);
-      } else {
-        console.error('❌ Ошибка загрузки типов паззлов:', puzzleTypesResponse);
       }
 
       if (carpetEdgeTypesResponse.success) {
@@ -392,8 +388,6 @@ const Catalog: React.FC = () => {
     
     // Новые фильтры
     setSelectedLogos([]);
-    setSelectedPuzzleTypes([]);
-    setSelectedPuzzleSides([]);
     setStockRangeFilter({ min: null, max: null });
     
     // Фильтры края ковра
@@ -430,8 +424,6 @@ const Catalog: React.FC = () => {
   const clearProductFilters = () => {
     setSelectedGrades([]);
     setWeightFilter({ min: null, max: null });
-    setSelectedPuzzleTypes([]);
-    setSelectedPuzzleSides([]);
     setCurrentPage(1);
   };
 
@@ -456,8 +448,6 @@ const Catalog: React.FC = () => {
     weightFilter.min !== null || 
     weightFilter.max !== null ||
     selectedLogos.length > 0 ||
-    selectedPuzzleTypes.length > 0 ||
-    selectedPuzzleSides.length > 0 ||
     stockRangeFilter.min !== null ||
     stockRangeFilter.max !== null ||
     // Новые фильтры края ковра
@@ -475,8 +465,6 @@ const Catalog: React.FC = () => {
       (selectedMaterials.length > 0 ? 1 : 0) +
       (selectedSurfaces.length > 0 ? 1 : 0) +
       (selectedLogos.length > 0 ? 1 : 0) +
-      (selectedPuzzleTypes.length > 0 ? 1 : 0) +
-      (selectedPuzzleSides.length > 0 ? 1 : 0) +
       (selectedGrades.length > 0 ? 1 : 0) +
       (weightFilter.min !== null || weightFilter.max !== null ? 1 : 0) +
       (stockRangeFilter.min !== null || stockRangeFilter.max !== null ? 1 : 0) +
@@ -900,51 +888,7 @@ const Catalog: React.FC = () => {
                         </div>
                       </Col>
 
-                                              {/* Условные фильтры для паззлов (системный архитектор) */}
-                      <Col span={6}>
-                        <Text strong>Тип паззла</Text>
-                        <div style={{ marginTop: 8 }}>
-                          <Select
-                            mode="multiple"
-                            value={selectedPuzzleTypes}
-                            onChange={setSelectedPuzzleTypes}
-                            placeholder="Выберите типы паззлов"
-                            style={{ width: '100%' }}
-                            loading={loadingReferences}
-                            disabled={!selectedSurfaces.some(surfaceId => {
-                              const surface = surfaces.find(s => s.id === surfaceId);
-                              return surface?.name === 'Паззл';
-                            })}
-                          >
-                            {puzzleTypes.map(type => (
-                              <Option key={type.id} value={type.id}>
-                                🧩 {type.name}
-                              </Option>
-                            ))}
-                          </Select>
-                        </div>
-                        <div style={{ marginTop: 8 }}>
-                          <Text strong>Стороны паззла</Text>
-                          <Select
-                            mode="multiple"
-                            value={selectedPuzzleSides}
-                            onChange={setSelectedPuzzleSides}
-                            placeholder="Количество сторон"
-                            style={{ width: '100%', marginTop: 4 }}
-                            disabled={!selectedSurfaces.some(surfaceId => {
-                              const surface = surfaces.find(s => s.id === surfaceId);
-                              return surface?.name === 'Паззл';
-                            })}
-                          >
-                            <Option value="1_side">🧩 1 сторона</Option>
-                            <Option value="2_sides">🧩 2 стороны</Option>
-                            <Option value="3_sides">🧩 3 стороны</Option>
-                            <Option value="4_sides">🧩 4 стороны</Option>
-                          </Select>
-                        </div>
-                      </Col>
-                      
-                      {/* Условные фильтры для паззлового края ковра */}
+                                              {/* Условные фильтры для паззлового края ковра */}
                       <Col span={6}>
                         <Text strong>Количество сторон паззла</Text>
                         <div style={{ marginTop: 8 }}>
@@ -962,223 +906,92 @@ const Catalog: React.FC = () => {
                             <Option value={4}>🧩 4 стороны</Option>
                           </Select>
                         </div>
-                        
+                      </Col>
+                      
+                      {/* Фильтр по усилению края */}
+                      <Col span={6}>
+                        <Text strong>Усиление края</Text>
                         <div style={{ marginTop: 8 }}>
-                          <Text strong>Усиление края</Text>
                           <Select
                             mode="multiple"
                             value={selectedCarpetEdgeStrength}
                             onChange={setSelectedCarpetEdgeStrength}
-                            placeholder="Тип усиления"
+                            placeholder="Выберите усиление"
                             style={{ width: '100%' }}
                           >
                             <Option value="normal">⚪ Обычный</Option>
-                            <Option value="reinforced">🛡️ Усиленный</Option>
+                            <Option value="reinforced">🔒 Усиленный</Option>
                           </Select>
-                        </div>
-                      </Col>
-
-                      {/* Быстрые размеры */}
-                      <Col span={6}>
-                        <Text strong>Быстрые размеры</Text>
-                        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {popularSizes.map(size => (
-                            <Button
-                              key={size}
-                              size="small"
-                              type={searchText === size ? 'primary' : 'default'}
-                              onClick={() => setSearchText(searchText === size ? '' : size)}
-                              style={{ textAlign: 'left' }}
-                            >
-                              📏 {size}
-                            </Button>
-                          ))}
-                        </div>
-                      </Col>
-
-                      {/* Диапазоны размеров */}
-                      <Col span={6}>
-                        <Text strong>По категории размера</Text>
-                        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {quickSizeRanges.map((range, index) => (
-                            <Button
-                              key={index}
-                              size="small"
-                              onClick={() => applyQuickSizeRange(range)}
-                              style={{ textAlign: 'left' }}
-                            >
-                              📐 {range.label}
-                            </Button>
-                          ))}
-                          {hasSizeFilters && (
-                            <Button size="small" icon={<ClearOutlined />} onClick={clearSizeFilters} danger>
-                              Сбросить размеры
-                            </Button>
-                          )}
                         </div>
                       </Col>
                     </Row>
 
-                    {/* Точные диапазоны размеров */}
-                    <div style={{ marginTop: 16 }}>
-                      <Text strong>Точные диапазоны размеров (мм)</Text>
-                      <Row gutter={16} style={{ marginTop: 8 }}>
-                        <Col span={8}>
-                          <Text>Длина</Text>
-                          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                            <InputNumber
-                              placeholder="от"
-                              value={sizeFilters.lengthMin}
-                              onChange={(value) => setSizeFilters({...sizeFilters, lengthMin: value})}
-                              style={{ width: '50%' }}
-                              min={0}
-                            />
-                            <InputNumber
-                              placeholder="до"
-                              value={sizeFilters.lengthMax}
-                              onChange={(value) => setSizeFilters({...sizeFilters, lengthMax: value})}
-                              style={{ width: '50%' }}
-                              min={0}
-                            />
-                          </div>
-                        </Col>
-                        <Col span={8}>
-                          <Text>Ширина</Text>
-                          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                            <InputNumber
-                              placeholder="от"
-                              value={sizeFilters.widthMin}
-                              onChange={(value) => setSizeFilters({...sizeFilters, widthMin: value})}
-                              style={{ width: '50%' }}
-                              min={0}
-                            />
-                            <InputNumber
-                              placeholder="до"
-                              value={sizeFilters.widthMax}
-                              onChange={(value) => setSizeFilters({...sizeFilters, widthMax: value})}
-                              style={{ width: '50%' }}
-                              min={0}
-                            />
-                          </div>
-                        </Col>
-                        <Col span={8}>
-                          <Text>Высота</Text>
-                          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                            <InputNumber
-                              placeholder="от"
-                              value={sizeFilters.thicknessMin}
-                              onChange={(value) => setSizeFilters({...sizeFilters, thicknessMin: value})}
-                              style={{ width: '50%' }}
-                              min={0}
-                            />
-                            <InputNumber
-                              placeholder="до"
-                              value={sizeFilters.thicknessMax}
-                              onChange={(value) => setSizeFilters({...sizeFilters, thicknessMax: value})}
-                              style={{ width: '50%' }}
-                              min={0}
-                            />
-                          </div>
-                        </Col>
-                      </Row>
-                    </div>
-
-                    {/* Кнопки управления фильтрами */}
-                    {hasActiveFilters && (
-                      <div style={{ 
-                        marginTop: 20, 
-                        padding: '12px 16px', 
-                        backgroundColor: '#f8f9fa', 
-                        borderRadius: '8px',
-                        border: '1px solid #e9ecef'
-                      }}>
-                        <div style={{ 
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          marginBottom: '12px'
-                        }}>
-                          <div>
-                            <Text type="secondary" style={{ fontSize: '14px' }}>
-                              🎯 Активных фильтров: <Text strong>{getActiveFiltersCount()}</Text>
-                            </Text>
-                          </div>
-                          <Button 
-                            type="primary"
-                            danger
-                            icon={<ClearOutlined />} 
-                            onClick={clearAllFilters}
-                            size="middle"
-                          >
-                            Сбросить все
-                          </Button>
+                    {/* Третья строка фильтров */}
+                    <Row gutter={16} style={{ marginTop: 16 }}>
+                      {/* Фильтры по размерам */}
+                      <Col span={8}>
+                        <Text strong>Длина (мм)</Text>
+                        <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <InputNumber
+                            placeholder="От"
+                            value={sizeFilters.lengthMin}
+                            onChange={(value) => setSizeFilters(prev => ({ ...prev, lengthMin: value }))}
+                            min={0}
+                            style={{ width: '100%' }}
+                          />
+                          <span>–</span>
+                          <InputNumber
+                            placeholder="До"
+                            value={sizeFilters.lengthMax}
+                            onChange={(value) => setSizeFilters(prev => ({ ...prev, lengthMax: value }))}
+                            min={0}
+                            style={{ width: '100%' }}
+                          />
                         </div>
-                        
-                        {/* Быстрый сброс групп фильтров */}
-                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                          {(stockFilter !== 'all' || onlyInStock || stockRangeFilter.min !== null || stockRangeFilter.max !== null) && (
-                            <Button 
-                              size="small" 
-                              onClick={clearStockFilters}
-                              icon={<ClearOutlined />}
-                            >
-                              📦 Остатки
-                            </Button>
-                          )}
-                          {(selectedMaterials.length > 0 || selectedSurfaces.length > 0 || selectedLogos.length > 0 || selectedBorderTypes.length > 0) && (
-                            <Button 
-                              size="small" 
-                              onClick={clearMaterialFilters}
-                              icon={<ClearOutlined />}
-                            >
-                              🧱 Материалы
-                            </Button>
-                          )}
-                          {(selectedGrades.length > 0 || weightFilter.min !== null || weightFilter.max !== null || selectedPuzzleTypes.length > 0 || selectedPuzzleSides.length > 0) && (
-                            <Button 
-                              size="small" 
-                              onClick={clearProductFilters}
-                              icon={<ClearOutlined />}
-                            >
-                              🏷️ Характеристики
-                            </Button>
-                          )}
-                          {hasSizeFilters && (
-                            <Button 
-                              size="small" 
-                              onClick={clearSizeFilters}
-                              icon={<ClearOutlined />}
-                            >
-                              📏 Размеры
-                            </Button>
-                          )}
-                          {checkedCategories.length > 0 && (
-                            <Button 
-                              size="small" 
-                              onClick={() => {
-                                setCheckedCategories([]);
-                                setCurrentPage(1);
-                              }}
-                              icon={<ClearOutlined />}
-                            >
-                              📂 Категории
-                            </Button>
-                          )}
-                          {searchText && (
-                            <Button 
-                              size="small" 
-                              onClick={() => {
-                                setSearchText('');
-                                setCurrentPage(1);
-                              }}
-                              icon={<ClearOutlined />}
-                            >
-                              🔍 Поиск
-                            </Button>
-                          )}
+                      </Col>
+                      
+                      <Col span={8}>
+                        <Text strong>Ширина (мм)</Text>
+                        <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <InputNumber
+                            placeholder="От"
+                            value={sizeFilters.widthMin}
+                            onChange={(value) => setSizeFilters(prev => ({ ...prev, widthMin: value }))}
+                            min={0}
+                            style={{ width: '100%' }}
+                          />
+                          <span>–</span>
+                          <InputNumber
+                            placeholder="До"
+                            value={sizeFilters.widthMax}
+                            onChange={(value) => setSizeFilters(prev => ({ ...prev, widthMax: value }))}
+                            min={0}
+                            style={{ width: '100%' }}
+                          />
                         </div>
-                      </div>
-                    )}
+                      </Col>
+                      
+                      <Col span={8}>
+                        <Text strong>Высота (мм)</Text>
+                        <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <InputNumber
+                            placeholder="От"
+                            value={sizeFilters.thicknessMin}
+                            onChange={(value) => setSizeFilters(prev => ({ ...prev, thicknessMin: value }))}
+                            min={0}
+                            style={{ width: '100%' }}
+                          />
+                          <span>–</span>
+                          <InputNumber
+                            placeholder="До"
+                            value={sizeFilters.thicknessMax}
+                            onChange={(value) => setSizeFilters(prev => ({ ...prev, thicknessMax: value }))}
+                            min={0}
+                            style={{ width: '100%' }}
+                          />
+                        </div>
+                      </Col>
+                    </Row>
                   </Panel>
                 </Collapse>
               )}

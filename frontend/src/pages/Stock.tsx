@@ -516,22 +516,6 @@ const Stock: React.FC = () => {
         
         <Divider />
         
-        {/* Поиск */}
-        <div style={{ marginBottom: '16px' }}>
-          <Row gutter={16} align="middle">
-            <Col xs={24} md={12} lg={8}>
-              <Search
-                placeholder="Поиск по названию или артикулу..."
-                allowClear
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                size="large"
-                style={{ width: '100%' }}
-              />
-            </Col>
-          </Row>
-        </div>
-        
         {/* Быстрые фильтры */}
         <div style={{ marginBottom: '8px' }}>
           <Text strong style={{ fontSize: '14px', marginRight: '16px' }}>

@@ -514,6 +514,26 @@ const ProductDetail: React.FC = () => {
                     {dimensions.thickness} мм
                   </Descriptions.Item>
                   
+                  <Descriptions.Item label="Площадь">
+                    {product.matArea ? `${product.matArea} м²` : 'Не указана'}
+                  </Descriptions.Item>
+                  
+                  <Descriptions.Item label="Вес">
+                    {product.weight ? `${product.weight} кг` : 'Не указан'}
+                  </Descriptions.Item>
+                  
+                  <Descriptions.Item label="Сорт">
+                    {product.grade === 'usual' ? 'Обычный' : 
+                     product.grade === 'grade_2' ? 'Второй сорт' : 
+                     product.grade || 'Не указан'}
+                  </Descriptions.Item>
+                  
+                  <Descriptions.Item label="Тип борта">
+                    {product.borderType === 'with_border' ? 'С бортом' : 
+                     product.borderType === 'without_border' ? 'Без борта' : 
+                     product.borderType || 'Не указан'}
+                  </Descriptions.Item>
+                  
                   <Descriptions.Item label="Край ковра">
                     {product.carpetEdgeType === 'puzzle' ? 'Паззл' : 'Прямой рез'}
                   </Descriptions.Item>
@@ -534,21 +554,21 @@ const ProductDetail: React.FC = () => {
                     {product.carpetEdgeStrength === 'reinforced' ? 'Усиленный' : 'Обычный'}
                   </Descriptions.Item>
                   
+                  <Descriptions.Item label="Поверхность">
+                    {product.surface?.name || product.characteristics?.surface || 'Не указана'}
+                  </Descriptions.Item>
+                  
+                  <Descriptions.Item label="Материал">
+                    {product.material?.name || product.characteristics?.material || 'Не указан'}
+                  </Descriptions.Item>
+                  
+                  <Descriptions.Item label="Логотип">
+                    {product.logo?.name || 'Не указан'}
+                  </Descriptions.Item>
+                  
                   <Descriptions.Item label="Норма остатка">
                     {product.normStock} шт
                   </Descriptions.Item>
-                  
-                  {product.characteristics?.surface && (
-                    <Descriptions.Item label="Поверхность">
-                      {product.characteristics.surface}
-                    </Descriptions.Item>
-                  )}
-                  
-                  {product.characteristics?.material && (
-                    <Descriptions.Item label="Материал">
-                      {product.characteristics.material}
-                    </Descriptions.Item>
-                  )}
                   
                   <Descriptions.Item label="Цена" span={2}>
                     <Text strong style={{ fontSize: 16, color: '#1890ff' }}>
@@ -568,6 +588,32 @@ const ProductDetail: React.FC = () => {
                     </div>
                   </>
                 )}
+                
+                {product.tags && product.tags.length > 0 && (
+                  <>
+                    <Divider />
+                    <div>
+                      <Text strong>Теги:</Text>
+                      <div style={{ marginTop: 8 }}>
+                        {product.tags.map((tag, index) => (
+                          <Tag key={index} color="blue" style={{ marginBottom: 4 }}>
+                            {tag}
+                          </Tag>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+                
+                <Divider />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#666' }}>
+                  <Text type="secondary">
+                    Создан: {product.createdAt ? new Date(product.createdAt).toLocaleDateString('ru-RU') : 'Не указано'}
+                  </Text>
+                  <Text type="secondary">
+                    Обновлен: {product.updatedAt ? new Date(product.updatedAt).toLocaleDateString('ru-RU') : 'Не указано'}
+                  </Text>
+                </div>
               </Card>
             </Col>
 
