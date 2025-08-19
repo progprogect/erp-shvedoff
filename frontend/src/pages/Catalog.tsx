@@ -14,15 +14,16 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { catalogApi, Category, Product, ProductFilters } from '../services/catalogApi';
-import usePermissions from '../hooks/usePermissions';
-import { logosApi } from '../services/logosApi';
 import { materialsApi } from '../services/materialsApi';
+import { surfacesApi } from '../services/surfacesApi';
+import { logosApi } from '../services/logosApi';
 import carpetEdgeTypesApi from '../services/carpetEdgeTypesApi';
 import bottomTypesApi from '../services/bottomTypesApi';
-import { surfacesApi } from '../services/surfacesApi';
+import { puzzleTypesApi } from '../services/puzzleTypesApi';
 import CreateProductModal from '../components/CreateProductModal';
 import CreateCategoryModal from '../components/CreateCategoryModal';
 import DeleteCategoryModal from '../components/DeleteCategoryModal';
+import usePermissions from '../hooks/usePermissions';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -115,6 +116,7 @@ const Catalog: React.FC = () => {
   
   // Фильтр по низу ковра
   const [selectedBottomTypeIds, setSelectedBottomTypeIds] = useState<number[]>([]);
+  const [selectedPuzzleTypeIds, setSelectedPuzzleTypeIds] = useState<number[]>([]);
   
   // Справочники для фильтров
   const [materials, setMaterials] = useState<any[]>([]);
@@ -122,6 +124,7 @@ const Catalog: React.FC = () => {
   const [logos, setLogos] = useState<any[]>([]);
   const [carpetEdgeTypes, setCarpetEdgeTypes] = useState<any[]>([]);
   const [bottomTypes, setBottomTypes] = useState<any[]>([]);
+  const [puzzleTypes, setPuzzleTypes] = useState<any[]>([]);
   const [loadingReferences, setLoadingReferences] = useState(false);
   
   // Фильтры по размерам
@@ -160,10 +163,10 @@ const Catalog: React.FC = () => {
     if (token) {
       loadProducts();
     }
-  }, [searchText, checkedCategories, stockFilter, selectedMaterials, selectedSurfaces, 
-      selectedLogos, selectedGrades, weightFilter, onlyInStock, selectedBorderTypes, 
+  }, [searchText, checkedCategories, stockFilter, selectedMaterials, selectedSurfaces,
+      selectedLogos, selectedGrades, weightFilter, onlyInStock, selectedBorderTypes,
       selectedCarpetEdgeTypes, selectedCarpetEdgeSides, selectedCarpetEdgeStrength,
-      selectedBottomTypeIds, sizeFilters, sortBy, sortOrder, currentPage]);
+      selectedBottomTypeIds, selectedPuzzleTypeIds, sizeFilters, sortBy, sortOrder, currentPage]);
 
   const loadData = async () => {
     if (!token) return;
@@ -193,32 +196,31 @@ const Catalog: React.FC = () => {
     
     try {
       const filters: ProductFilters = {
-        search: searchText || undefined,
+        search: searchText,
         categoryId: checkedCategories.length === 1 ? checkedCategories[0] : undefined,
-        stockStatus: stockFilter !== 'all' ? 
-          (stockFilter === 'critical' ? 'out_of_stock' : 
-           stockFilter === 'low' ? 'low_stock' : 
-           stockFilter === 'normal' ? 'in_stock' : undefined) : undefined,
+        stockStatus: stockFilter === 'all' ? undefined : 
+          stockFilter === 'critical' ? 'out_of_stock' : 
+          stockFilter === 'low' ? 'low_stock' : 
+          stockFilter === 'normal' ? 'in_stock' : undefined,
         materialIds: selectedMaterials.length > 0 ? selectedMaterials : undefined,
         surfaceIds: selectedSurfaces.length > 0 ? selectedSurfaces : undefined,
         logoIds: selectedLogos.length > 0 ? selectedLogos : undefined,
         grades: selectedGrades.length > 0 ? selectedGrades : undefined,
         weightMin: weightFilter.min || undefined,
         weightMax: weightFilter.max || undefined,
-        onlyInStock: onlyInStock || undefined,
-        borderTypes: selectedBorderTypes.length > 0 ? selectedBorderTypes : undefined, // Задача 7.1
-        // Новые фильтры для края ковра
+        onlyInStock,
+        borderTypes: selectedBorderTypes.length > 0 ? selectedBorderTypes : undefined,
         carpetEdgeTypes: selectedCarpetEdgeTypes.length > 0 ? selectedCarpetEdgeTypes : undefined,
         carpetEdgeSides: selectedCarpetEdgeSides.length > 0 ? selectedCarpetEdgeSides : undefined,
         carpetEdgeStrength: selectedCarpetEdgeStrength.length > 0 ? selectedCarpetEdgeStrength : undefined,
-        // Фильтры по размерам
+        bottomTypeIds: selectedBottomTypeIds.length > 0 ? selectedBottomTypeIds : undefined,
+        puzzleTypeIds: selectedPuzzleTypeIds.length > 0 ? selectedPuzzleTypeIds : undefined,
         lengthMin: sizeFilters.lengthMin || undefined,
         lengthMax: sizeFilters.lengthMax || undefined,
         widthMin: sizeFilters.widthMin || undefined,
         widthMax: sizeFilters.widthMax || undefined,
         thicknessMin: sizeFilters.thicknessMin || undefined,
         thicknessMax: sizeFilters.thicknessMax || undefined,
-        // Сортировка (Задача 7.2)
         sortBy,
         sortOrder
       };
@@ -254,12 +256,13 @@ const Catalog: React.FC = () => {
     
     setLoadingReferences(true);
     try {
-      const [materialsResponse, surfacesResponse, logosResponse, carpetEdgeTypesResponse, bottomTypesResponse] = await Promise.all([
+      const [materialsResponse, surfacesResponse, logosResponse, carpetEdgeTypesResponse, bottomTypesResponse, puzzleTypesResponse] = await Promise.all([
         materialsApi.getMaterials(token),
         surfacesApi.getSurfaces(token),
         logosApi.getLogos(token),
         carpetEdgeTypesApi.getCarpetEdgeTypes(token),
-        bottomTypesApi.getBottomTypes(token)
+        bottomTypesApi.getBottomTypes(token),
+        puzzleTypesApi.getPuzzleTypes(token)
       ]);
 
       if (materialsResponse.success) {
@@ -295,6 +298,13 @@ const Catalog: React.FC = () => {
         console.log('👇 Типы низов ковра загружены:', bottomTypesResponse.data.length);
       } else {
         console.error('❌ Ошибка загрузки типов низов ковра:', bottomTypesResponse);
+      }
+
+      if (puzzleTypesResponse.success) {
+        setSelectedPuzzleTypeIds(puzzleTypesResponse.data.map((puzzle: any) => puzzle.id));
+        console.log('🧩 Типы паззла загружены:', puzzleTypesResponse.data.length);
+      } else {
+        console.error('❌ Ошибка загрузки типов паззла:', puzzleTypesResponse);
       }
     } catch (error) {
       console.error('❌ Критическая ошибка загрузки справочников:', error);
@@ -447,9 +457,29 @@ const Catalog: React.FC = () => {
 
   // Сброс фильтров товарных характеристик
   const clearProductFilters = () => {
+    setSearchText('');
+    setCheckedCategories([]);
+    setStockFilter('all');
+    setSelectedMaterials([]);
+    setSelectedSurfaces([]);
+    setSelectedLogos([]);
     setSelectedGrades([]);
     setWeightFilter({ min: null, max: null });
-    setCurrentPage(1);
+    setOnlyInStock(false);
+    setSelectedBorderTypes([]);
+    setSelectedCarpetEdgeTypes([]);
+    setSelectedCarpetEdgeSides([]);
+    setSelectedCarpetEdgeStrength([]);
+    setSelectedBottomTypeIds([]);
+    setSelectedPuzzleTypeIds([]);
+    setSizeFilters({
+      lengthMin: null,
+      lengthMax: null,
+      widthMin: null,
+      widthMax: null,
+      thicknessMin: null,
+      thicknessMax: null,
+    });
   };
 
   // Сброс фильтров остатков
@@ -480,7 +510,9 @@ const Catalog: React.FC = () => {
     selectedCarpetEdgeSides.length > 0 ||
     selectedCarpetEdgeStrength.length > 0 ||
     // Фильтр по низу ковра
-    selectedBottomTypeIds.length > 0;
+    selectedBottomTypeIds.length > 0 ||
+    // Новые фильтры для паззла
+    selectedPuzzleTypeIds.length > 0;
   
   // Подсчет активных фильтров
   const getActiveFiltersCount = () => {
@@ -501,7 +533,9 @@ const Catalog: React.FC = () => {
       (selectedCarpetEdgeSides.length > 0 ? 1 : 0) +
       (selectedCarpetEdgeStrength.length > 0 ? 1 : 0) +
       // Фильтр по низу ковра
-      (selectedBottomTypeIds.length > 0 ? 1 : 0)
+      (selectedBottomTypeIds.length > 0 ? 1 : 0) +
+      // Новые фильтры для паззла
+      (selectedPuzzleTypeIds.length > 0 ? 1 : 0)
     );
   };
 
@@ -970,6 +1004,26 @@ const Catalog: React.FC = () => {
                             {bottomTypes.map(type => (
                               <Option key={type.id} value={type.id}>
                                 🔽 {type.name}
+                              </Option>
+                            ))}
+                          </Select>
+                        </div>
+                      </Col>
+
+                      {/* Фильтр по типам паззла */}
+                      <Col span={6}>
+                        <Text strong>Тип паззла</Text>
+                        <div style={{ marginTop: 8 }}>
+                          <Select
+                            mode="multiple"
+                            value={selectedPuzzleTypeIds}
+                            onChange={setSelectedPuzzleTypeIds}
+                            placeholder="Выберите тип паззла"
+                            style={{ width: '100%' }}
+                          >
+                            {puzzleTypes.map(type => (
+                              <Option key={type.id} value={type.id}>
+                                🧩 {type.name}
                               </Option>
                             ))}
                           </Select>

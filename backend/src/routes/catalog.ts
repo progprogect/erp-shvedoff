@@ -134,6 +134,15 @@ router.get('/products', authenticateToken, async (req, res, next) => {
       carpetEdgeStrength, // усиление края (массив)
       // Фильтр по низу ковра
       bottomTypeIds,      // типы низа ковра (массив ID)
+      // Фильтр по типам паззла
+      puzzleTypeIds,      // типы паззла (массив ID)
+      // Фильтры по габаритам
+      lengthMin,      // минимальная длина
+      lengthMax,      // максимальная длина
+      widthMin,       // минимальная ширина
+      widthMax,       // максимальная ширина
+      thicknessMin,   // минимальная высота
+      thicknessMax,   // максимальная высота
       sortBy,         // поле сортировки
       sortOrder       // направление сортировки (ASC/DESC)
     } = req.query;
@@ -256,6 +265,43 @@ router.get('/products', authenticateToken, async (req, res, next) => {
       const numericIds = ids.map(id => Number(id)).filter(id => !isNaN(id));
       if (numericIds.length > 0) {
         whereConditions.push(inArray(schema.products.bottomTypeId, numericIds));
+      }
+    }
+
+    // Фильтр по типам паззла
+    if (puzzleTypeIds) {
+      const ids = Array.isArray(puzzleTypeIds) ? puzzleTypeIds : [puzzleTypeIds];
+      const numericIds = ids.map(id => Number(id)).filter(id => !isNaN(id));
+      if (numericIds.length > 0) {
+        whereConditions.push(inArray(schema.products.puzzleTypeId, numericIds));
+      }
+    }
+
+    // Фильтры по габаритам
+    if (lengthMin || lengthMax) {
+      if (lengthMin) {
+        whereConditions.push(sql`(${schema.products.dimensions}->>'length')::numeric >= ${Number(lengthMin)}`);
+      }
+      if (lengthMax) {
+        whereConditions.push(sql`(${schema.products.dimensions}->>'length')::numeric <= ${Number(lengthMax)}`);
+      }
+    }
+
+    if (widthMin || widthMax) {
+      if (widthMin) {
+        whereConditions.push(sql`(${schema.products.dimensions}->>'width')::numeric >= ${Number(widthMin)}`);
+      }
+      if (widthMax) {
+        whereConditions.push(sql`(${schema.products.dimensions}->>'width')::numeric <= ${Number(widthMax)}`);
+      }
+    }
+
+    if (thicknessMin || thicknessMax) {
+      if (thicknessMin) {
+        whereConditions.push(sql`(${schema.products.dimensions}->>'thickness')::numeric >= ${Number(thicknessMin)}`);
+      }
+      if (thicknessMax) {
+        whereConditions.push(sql`(${schema.products.dimensions}->>'thickness')::numeric <= ${Number(thicknessMax)}`);
       }
     }
 

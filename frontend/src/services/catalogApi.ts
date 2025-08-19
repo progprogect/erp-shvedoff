@@ -95,6 +95,15 @@ export interface ProductFilters {
   search?: string;
   categoryId?: number;
   stockStatus?: 'in_stock' | 'low_stock' | 'out_of_stock';
+  // Фильтры по краю ковра
+  carpetEdgeTypes?: string[];
+  carpetEdgeSides?: number[];
+  carpetEdgeStrength?: string[];
+  // Фильтр по низу ковра
+  bottomTypeIds?: number[];
+  // Фильтр по типам паззла
+  puzzleTypeIds?: number[];
+  // Фильтры по габаритам
   lengthMin?: number;
   lengthMax?: number;
   widthMin?: number;
@@ -105,7 +114,6 @@ export interface ProductFilters {
   materialIds?: number[];    // материалы
   surfaceIds?: number[];     // поверхности
   logoIds?: number[];        // логотипы
-  bottomTypeIds?: number[]; // типы нижней части
   grades?: string[];         // сорта товаров
   weightMin?: number;        // минимальный вес
   weightMax?: number;        // максимальный вес
@@ -113,10 +121,6 @@ export interface ProductFilters {
   matAreaMax?: number;       // максимальная площадь
   onlyInStock?: boolean;     // только товары в наличии
   borderTypes?: string[];    // типы бортов (Задача 7.1)
-  // Новые фильтры для края ковра
-  carpetEdgeTypes?: string[];    // типы края ковра
-  carpetEdgeSides?: number[];   // количество сторон паззла
-  carpetEdgeStrength?: string[]; // усиление края
   sortBy?: string;           // поле сортировки
   sortOrder?: 'ASC' | 'DESC'; // направление сортировки
 }
@@ -193,7 +197,36 @@ class CatalogApi {
       filters.logoIds.forEach(id => params.append('logoIds', id.toString()));
     }
     if (filters.bottomTypeIds && filters.bottomTypeIds.length > 0) {
-      filters.bottomTypeIds.forEach(id => params.append('bottomTypeIds', id.toString()));
+      filters.bottomTypeIds.forEach(id => {
+        params.append('bottomTypeIds', id.toString());
+      });
+    }
+
+    // Фильтр по типам паззла
+    if (filters.puzzleTypeIds && filters.puzzleTypeIds.length > 0) {
+      filters.puzzleTypeIds.forEach(id => {
+        params.append('puzzleTypeIds', id.toString());
+      });
+    }
+
+    // Фильтры по габаритам
+    if (filters.lengthMin !== undefined) {
+      params.append('lengthMin', filters.lengthMin.toString());
+    }
+    if (filters.lengthMax !== undefined) {
+      params.append('lengthMax', filters.lengthMax.toString());
+    }
+    if (filters.widthMin !== undefined) {
+      params.append('widthMin', filters.widthMin.toString());
+    }
+    if (filters.widthMax !== undefined) {
+      params.append('widthMax', filters.widthMax.toString());
+    }
+    if (filters.thicknessMin !== undefined) {
+      params.append('thicknessMin', filters.thicknessMin.toString());
+    }
+    if (filters.thicknessMax !== undefined) {
+      params.append('thicknessMax', filters.thicknessMax.toString());
     }
     if (filters.grades && filters.grades.length > 0) {
       filters.grades.forEach(grade => params.append('grades', grade));
