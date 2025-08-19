@@ -243,6 +243,10 @@ class CatalogApi {
     }
     params.append('limit', limit.toString());
 
+    // Добавляем логирование для отладки
+    console.log('🌐 API запрос:', `${API_BASE_URL}/catalog/products?${params.toString()}`);
+    console.log('🔍 Параметры фильтрации:', Object.fromEntries(params.entries()));
+
     const response = await axios.get(
       `${API_BASE_URL}/catalog/products?${params.toString()}`,
       this.getAuthHeaders()

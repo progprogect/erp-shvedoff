@@ -163,7 +163,7 @@ const Catalog: React.FC = () => {
   }, [searchText, checkedCategories, stockFilter, selectedMaterials, selectedSurfaces, 
       selectedLogos, selectedGrades, weightFilter, onlyInStock, selectedBorderTypes, 
       selectedCarpetEdgeTypes, selectedCarpetEdgeSides, selectedCarpetEdgeStrength,
-      sizeFilters, sortBy, sortOrder, currentPage]);
+      selectedBottomTypeIds, sizeFilters, sortBy, sortOrder, currentPage]);
 
   const loadData = async () => {
     if (!token) return;
@@ -223,6 +223,13 @@ const Catalog: React.FC = () => {
         sortOrder
       };
 
+      // Добавляем логирование для отладки
+      console.log('🔍 Применяемые фильтры:', filters);
+      console.log('📊 Выбранные материалы:', selectedMaterials);
+      console.log('🎨 Выбранные поверхности:', selectedSurfaces);
+      console.log('🔽 Выбранные низы ковра:', selectedBottomTypeIds);
+      console.log('✂️ Выбранные края ковра:', selectedCarpetEdgeTypes);
+
       const productsResponse = await catalogApi.getProducts({ 
         ...filters, 
         page: currentPage, 
@@ -230,6 +237,8 @@ const Catalog: React.FC = () => {
       });
 
       if (productsResponse.success) {
+        console.log('✅ Товары загружены:', productsResponse.data.length);
+        console.log('📊 Всего товаров:', productsResponse.pagination?.total);
         setProducts(productsResponse.data);
         setTotalProducts(productsResponse.pagination?.total || 0);
       }
