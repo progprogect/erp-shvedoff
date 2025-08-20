@@ -53,3 +53,4 @@ class CarpetEdgeTypesApi {
 }
 
 export default new CarpetEdgeTypesApi();
+

@@ -26,3 +26,4 @@ COMMIT;
 SELECT 'Миграция add_edge_strength_field выполнена успешно' as status;
 
 
+

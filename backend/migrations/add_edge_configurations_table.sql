@@ -49,3 +49,4 @@ COMMIT;
 SELECT 'Миграция add_edge_configurations_table выполнена успешно' as status;
 
 
+

@@ -2,7 +2,7 @@ import express from 'express';
 import { db, schema } from '../db';
 import { eq, like, isNull, and, sql, inArray } from 'drizzle-orm';
 import { authenticateToken, authorizeRoles, AuthRequest } from '../middleware/auth';
-import { requireExportPermission } from '../middleware/permissions';
+import { requireExportPermission, requirePermission } from '../middleware/permissions';
 import { createError } from '../middleware/errorHandler';
 import { ExcelExporter } from '../utils/excelExporter';
 
@@ -492,7 +492,7 @@ router.get('/products/:id', authenticateToken, async (req, res, next) => {
 });
 
 // POST /api/catalog/products - Create product
-router.post('/products', authenticateToken, authorizeRoles('director', 'manager'), async (req: AuthRequest, res, next) => {
+router.post('/products', authenticateToken, requirePermission('catalog', 'create'), async (req: AuthRequest, res, next) => {
   try {
     const { 
       name, 
@@ -618,7 +618,7 @@ router.post('/products', authenticateToken, authorizeRoles('director', 'manager'
 });
 
 // PUT /api/catalog/products/:id - Update product
-router.put('/products/:id', authenticateToken, authorizeRoles('director', 'manager'), async (req: AuthRequest, res, next) => {
+router.put('/products/:id', authenticateToken, requirePermission('catalog', 'edit'), async (req: AuthRequest, res, next) => {
   try {
     const productId = Number(req.params.id);
     const updateData = req.body;
@@ -645,7 +645,7 @@ router.put('/products/:id', authenticateToken, authorizeRoles('director', 'manag
 });
 
 // DELETE /api/catalog/products/:id - Delete product (деактивация)
-router.delete('/products/:id', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.delete('/products/:id', authenticateToken, requirePermission('catalog', 'delete'), async (req: AuthRequest, res, next) => {
   try {
     const productId = Number(req.params.id);
     const userId = req.user!.id;
@@ -689,7 +689,7 @@ router.delete('/products/:id', authenticateToken, authorizeRoles('director'), as
 });
 
 // POST /api/catalog/products/move - Move products between categories (Задача 7.3)
-router.post('/products/move', authenticateToken, authorizeRoles('director', 'manager'), async (req: AuthRequest, res, next) => {
+router.post('/products/move', authenticateToken, requirePermission('catalog', 'edit'), async (req: AuthRequest, res, next) => {
   try {
     const { productIds, targetCategoryId } = req.body;
     const userId = req.user!.id;

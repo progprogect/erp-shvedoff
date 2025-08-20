@@ -15,3 +15,4 @@ COMMIT;
 SELECT 'Миграция add_shvedoff_logo выполнена успешно' as status;
 
 
+

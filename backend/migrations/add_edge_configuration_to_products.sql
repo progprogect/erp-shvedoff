@@ -27,3 +27,4 @@ COMMIT;
 SELECT 'Миграция add_edge_configuration_to_products выполнена успешно' as status;
 
 
+

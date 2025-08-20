@@ -18,3 +18,4 @@ COMMIT;
 SELECT 'Миграция fix_puzzle_types_constraints выполнена успешно' as status;
 
 
+

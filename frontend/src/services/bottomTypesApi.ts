@@ -109,3 +109,4 @@ class BottomTypesApi {
 }
 
 export default new BottomTypesApi();
+
