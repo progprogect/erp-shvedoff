@@ -39,7 +39,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
       search, 
       categoryId, 
       page = 1, 
-      limit = 20,
+      limit = 1000, // Увеличен лимит для отображения всех товаров
       sortBy = 'name',
       sortOrder = 'asc'
     } = req.query;

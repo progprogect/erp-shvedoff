@@ -114,7 +114,7 @@ router.get('/products', authenticateToken, async (req, res, next) => {
     const { 
       search, 
       categoryId, 
-      limit = 50, 
+      limit = 1000, // Увеличен лимит для отображения всех товаров
       offset = 0,
       stockStatus, // 'in_stock', 'low_stock', 'out_of_stock'
       // Новые фильтры для полноценной фильтрации

@@ -269,7 +269,7 @@ class CatalogApi {
     }
     
     // Рассчитываем offset из page
-    const limit = filters.limit || 50;
+    const limit = filters.limit || 1000; // Увеличен лимит для отображения всех товаров
     if (filters.page) {
       const offset = (filters.page - 1) * limit;
       params.append('offset', offset.toString());
