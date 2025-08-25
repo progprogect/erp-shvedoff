@@ -1,6 +1,6 @@
 import express from 'express';
 import { db, schema } from '../db';
-import { eq, like, and, desc, sql, ilike, inArray } from 'drizzle-orm';
+import { eq, like, and, desc, sql, ilike, inArray, or } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 
@@ -41,7 +41,14 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
       page = 1, 
       limit = 20,
       sortBy = 'name',
-      sortOrder = 'asc'
+      sortOrder = 'asc',
+      // Фильтры по размерам
+      lengthMin,
+      lengthMax,
+      widthMin,
+      widthMax,
+      heightMin,
+      heightMax
     } = req.query;
 
     const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
@@ -51,7 +58,10 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
     
     if (search && (search as string).length >= 3) {
       conditions.push(
-        ilike(schema.products.name, `%${search}%`)
+        or(
+          ilike(schema.products.name, `%${search}%`),
+          ilike(schema.products.article, `%${search}%`)
+        )
       );
     }
 
@@ -59,6 +69,46 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
       conditions.push(
         eq(schema.products.categoryId, parseInt(categoryId as string))
       );
+    }
+
+    // Фильтры по размерам (через JSONB dimensions)
+    if (lengthMin || lengthMax) {
+      if (lengthMin) {
+        conditions.push(
+          sql`(${schema.products.dimensions}->>'length')::numeric >= ${Number(lengthMin)}`
+        );
+      }
+      if (lengthMax) {
+        conditions.push(
+          sql`(${schema.products.dimensions}->>'length')::numeric <= ${Number(lengthMax)}`
+        );
+      }
+    }
+
+    if (widthMin || widthMax) {
+      if (widthMin) {
+        conditions.push(
+          sql`(${schema.products.dimensions}->>'width')::numeric >= ${Number(widthMin)}`
+        );
+      }
+      if (widthMax) {
+        conditions.push(
+          sql`(${schema.products.dimensions}->>'width')::numeric <= ${Number(widthMax)}`
+        );
+      }
+    }
+
+    if (heightMin || heightMax) {
+      if (heightMin) {
+        conditions.push(
+          sql`(${schema.products.dimensions}->>'thickness')::numeric >= ${Number(heightMin)}`
+        );
+      }
+      if (heightMax) {
+        conditions.push(
+          sql`(${schema.products.dimensions}->>'thickness')::numeric <= ${Number(heightMax)}`
+        );
+      }
     }
 
     // Активные товары по умолчанию

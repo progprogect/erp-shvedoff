@@ -1,6 +1,6 @@
 import express from 'express';
 import { db, schema } from '../db';
-import { eq, like, isNull, and, sql, inArray } from 'drizzle-orm';
+import { eq, like, isNull, and, sql, inArray, or } from 'drizzle-orm';
 import { authenticateToken, authorizeRoles, AuthRequest } from '../middleware/auth';
 import { createError } from '../middleware/errorHandler';
 
@@ -121,7 +121,10 @@ router.get('/products', authenticateToken, async (req, res, next) => {
 
     if (search) {
       whereConditions.push(
-        like(schema.products.name, `%${search}%`)
+        or(
+          like(schema.products.name, `%${search}%`),
+          like(schema.products.article, `%${search}%`)
+        )
       );
     }
 

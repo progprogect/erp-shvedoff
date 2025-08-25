@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Row, Col, Card, Form, Input, DatePicker, Select, Button, Table, Space, Typography,
-  message, InputNumber, Modal, Tag, Divider, Statistic, Steps
+  message, InputNumber, Modal, Tag, Divider, Statistic, Steps, Collapse
 } from 'antd';
 import {
   ShoppingCartOutlined, PlusOutlined, DeleteOutlined, CheckOutlined,
@@ -50,6 +50,17 @@ const CreateOrder: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedSource, setSelectedSource] = useState('database');
   
+  // Size filters states
+  const [showFilters, setShowFilters] = useState(false);
+  const [sizeFilters, setSizeFilters] = useState({
+    lengthMin: undefined as number | undefined,
+    lengthMax: undefined as number | undefined,
+    widthMin: undefined as number | undefined,
+    widthMax: undefined as number | undefined,
+    heightMin: undefined as number | undefined,
+    heightMax: undefined as number | undefined,
+  });
+  
   // Modal states
   const [productModalVisible, setProductModalVisible] = useState(false);
   const [confirmModalVisible, setConfirmModalVisible] = useState(false);
@@ -60,11 +71,39 @@ const CreateOrder: React.FC = () => {
     loadUsers();
   }, []);
 
+  // Auto-reload products when search or filters change
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      loadProducts();
+    }, 300);
+
+    return () => clearTimeout(debounceTimer);
+  }, [searchText, sizeFilters]);
+
   const loadProducts = async () => {
     if (!token) return;
     
     try {
-      const response = await catalogApi.getProducts({ page: 1, limit: 100 });
+      const filters = {
+        page: 1,
+        limit: 1000,
+        search: searchText || undefined,
+        lengthMin: sizeFilters.lengthMin,
+        lengthMax: sizeFilters.lengthMax,
+        widthMin: sizeFilters.widthMin,
+        widthMax: sizeFilters.widthMax,
+        thicknessMin: sizeFilters.heightMin,
+        thicknessMax: sizeFilters.heightMax,
+      };
+
+      // Удаляем undefined значения
+      Object.keys(filters).forEach(key => {
+        if (filters[key as keyof typeof filters] === undefined) {
+          delete filters[key as keyof typeof filters];
+        }
+      });
+
+      const response = await catalogApi.getProducts(filters);
       
       if (response.success) {
         setProducts(response.data);
@@ -92,12 +131,8 @@ const CreateOrder: React.FC = () => {
     }
   };
 
-  // Filter products for modal
-  const filteredProducts = products.filter(product =>
-    !searchText || 
-    product.name.toLowerCase().includes(searchText.toLowerCase()) ||
-    product.article?.toLowerCase().includes(searchText.toLowerCase())
-  );
+  // Products are already filtered on the server side
+  const filteredProducts = products;
 
   // Add product to order
   const addProduct = (product: Product) => {
@@ -638,11 +673,99 @@ const CreateOrder: React.FC = () => {
       >
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
           <Input
-            placeholder="Поиск товаров..."
+            placeholder="Поиск товаров по названию или артикулу..."
             prefix={<SearchOutlined />}
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
             allowClear
+          />
+          
+          <Collapse 
+            size="small"
+            ghost
+            items={[{
+              key: 'filters',
+              label: 'Дополнительные фильтры',
+              children: (
+                <Row gutter={[16, 16]}>
+                  <Col span={8}>
+                    <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                      <Text strong>Длина (мм)</Text>
+                      <Row gutter={8}>
+                        <Col span={12}>
+                          <InputNumber
+                            placeholder="От"
+                            min={0}
+                            style={{ width: '100%' }}
+                            value={sizeFilters.lengthMin}
+                            onChange={(value) => setSizeFilters(prev => ({ ...prev, lengthMin: value || undefined }))}
+                          />
+                        </Col>
+                        <Col span={12}>
+                          <InputNumber
+                            placeholder="До"
+                            min={0}
+                            style={{ width: '100%' }}
+                            value={sizeFilters.lengthMax}
+                            onChange={(value) => setSizeFilters(prev => ({ ...prev, lengthMax: value || undefined }))}
+                          />
+                        </Col>
+                      </Row>
+                    </Space>
+                  </Col>
+                  <Col span={8}>
+                    <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                      <Text strong>Ширина (мм)</Text>
+                      <Row gutter={8}>
+                        <Col span={12}>
+                          <InputNumber
+                            placeholder="От"
+                            min={0}
+                            style={{ width: '100%' }}
+                            value={sizeFilters.widthMin}
+                            onChange={(value) => setSizeFilters(prev => ({ ...prev, widthMin: value || undefined }))}
+                          />
+                        </Col>
+                        <Col span={12}>
+                          <InputNumber
+                            placeholder="До"
+                            min={0}
+                            style={{ width: '100%' }}
+                            value={sizeFilters.widthMax}
+                            onChange={(value) => setSizeFilters(prev => ({ ...prev, widthMax: value || undefined }))}
+                          />
+                        </Col>
+                      </Row>
+                    </Space>
+                  </Col>
+                  <Col span={8}>
+                    <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                      <Text strong>Высота (мм)</Text>
+                      <Row gutter={8}>
+                        <Col span={12}>
+                          <InputNumber
+                            placeholder="От"
+                            min={0}
+                            style={{ width: '100%' }}
+                            value={sizeFilters.heightMin}
+                            onChange={(value) => setSizeFilters(prev => ({ ...prev, heightMin: value || undefined }))}
+                          />
+                        </Col>
+                        <Col span={12}>
+                          <InputNumber
+                            placeholder="До"
+                            min={0}
+                            style={{ width: '100%' }}
+                            value={sizeFilters.heightMax}
+                            onChange={(value) => setSizeFilters(prev => ({ ...prev, heightMax: value || undefined }))}
+                          />
+                        </Col>
+                      </Row>
+                    </Space>
+                  </Col>
+                </Row>
+              )
+            }]}
           />
           
           <Table
