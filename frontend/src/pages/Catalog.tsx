@@ -13,15 +13,17 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import RussianInputNumber from '../components/RussianInputNumber';
 import { catalogApi, Category, Product, ProductFilters } from '../services/catalogApi';
-import { logosApi } from '../services/logosApi';
-import { puzzleTypesApi } from '../services/puzzleTypesApi';
 import { materialsApi } from '../services/materialsApi';
 import { surfacesApi } from '../services/surfacesApi';
+import { logosApi } from '../services/logosApi';
+import carpetEdgeTypesApi from '../services/carpetEdgeTypesApi';
+import bottomTypesApi from '../services/bottomTypesApi';
+import { puzzleTypesApi } from '../services/puzzleTypesApi';
 import CreateProductModal from '../components/CreateProductModal';
 import CreateCategoryModal from '../components/CreateCategoryModal';
 import DeleteCategoryModal from '../components/DeleteCategoryModal';
+import usePermissions from '../hooks/usePermissions';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -74,11 +76,12 @@ const Catalog: React.FC = () => {
   const [checkedCategories, setCheckedCategories] = useState<number[]>([]);
   const [stockFilter, setStockFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(4); // 4 товара на страницу
+  const [pageSize] = useState(1000); // Увеличено для отображения всех товаров
   const [showSizeFilters, setShowSizeFilters] = useState(false);
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [totalProducts, setTotalProducts] = useState(0);  // Общее количество товаров
   const [createProductModalVisible, setCreateProductModalVisible] = useState(false);
   const [createCategoryModalVisible, setCreateCategoryModalVisible] = useState(false);
   const [deleteCategoryModalVisible, setDeleteCategoryModalVisible] = useState(false);
@@ -88,25 +91,39 @@ const Catalog: React.FC = () => {
   const [selectedMaterials, setSelectedMaterials] = useState<number[]>([]);
   const [selectedSurfaces, setSelectedSurfaces] = useState<number[]>([]);
   const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
+  const [selectedBorderTypes, setSelectedBorderTypes] = useState<string[]>([]); // Задача 7.1
   const [weightFilter, setWeightFilter] = useState({
     min: null as number | null,
     max: null as number | null
   });
   const [onlyInStock, setOnlyInStock] = useState(false);
   
+  // Сортировка (Задача 7.2)
+  const [sortBy, setSortBy] = useState<string>('name');
+  const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('ASC');
+  
   // Расширенные фильтры для системного архитектора
   const [selectedLogos, setSelectedLogos] = useState<number[]>([]);
-  const [selectedPuzzleTypes, setSelectedPuzzleTypes] = useState<number[]>([]);
-  const [selectedPuzzleSides, setSelectedPuzzleSides] = useState<string[]>([]);
   const [stockRangeFilter, setStockRangeFilter] = useState({
     min: null as number | null,
     max: null as number | null
   });
   
+  // Новые фильтры для края ковра
+  const [selectedCarpetEdgeTypes, setSelectedCarpetEdgeTypes] = useState<string[]>([]);
+  const [selectedCarpetEdgeSides, setSelectedCarpetEdgeSides] = useState<number[]>([]);
+  const [selectedCarpetEdgeStrength, setSelectedCarpetEdgeStrength] = useState<string[]>([]);
+  
+  // Фильтр по низу ковра
+  const [selectedBottomTypeIds, setSelectedBottomTypeIds] = useState<number[]>([]);
+  const [selectedPuzzleTypeIds, setSelectedPuzzleTypeIds] = useState<number[]>([]);
+  
   // Справочники для фильтров
   const [materials, setMaterials] = useState<any[]>([]);
   const [surfaces, setSurfaces] = useState<any[]>([]);
   const [logos, setLogos] = useState<any[]>([]);
+  const [carpetEdgeTypes, setCarpetEdgeTypes] = useState<any[]>([]);
+  const [bottomTypes, setBottomTypes] = useState<any[]>([]);
   const [puzzleTypes, setPuzzleTypes] = useState<any[]>([]);
   const [loadingReferences, setLoadingReferences] = useState(false);
   
@@ -120,7 +137,16 @@ const Catalog: React.FC = () => {
     thicknessMax: null as number | null,
   });
 
+  // Состояния для переноса товаров между категориями (Задача 7.3)
+  const [selectedProducts, setSelectedProducts] = useState<number[]>([]);
+  const [moveModalVisible, setMoveModalVisible] = useState(false);
+  const [movingProducts, setMovingProducts] = useState(false);
+
+  // Состояния для экспорта каталога (Задача 9.2)
+  const [exportingCatalog, setExportingCatalog] = useState(false);
+
   const { user, token } = useAuthStore();
+  const { canCreate, canEdit, canDelete, canManage } = usePermissions();
   const navigate = useNavigate();
   const { message } = App.useApp();
 
@@ -132,29 +158,95 @@ const Catalog: React.FC = () => {
     }
   }, [token]);
 
+  // Перезагрузка товаров при изменении фильтров
+  useEffect(() => {
+    if (token) {
+      loadProducts();
+    }
+  }, [searchText, checkedCategories, stockFilter, selectedMaterials, selectedSurfaces,
+      selectedLogos, selectedGrades, weightFilter, onlyInStock, selectedBorderTypes,
+      selectedCarpetEdgeTypes, selectedCarpetEdgeSides, selectedCarpetEdgeStrength,
+      selectedBottomTypeIds, selectedPuzzleTypeIds, sizeFilters, sortBy, sortOrder, currentPage]);
+
   const loadData = async () => {
     if (!token) return;
     
     setLoading(true);
     try {
-      // Загружаем категории и товары параллельно
-      const [categoriesResponse, productsResponse] = await Promise.all([
-        catalogApi.getCategories(),
-        catalogApi.getProducts({ page: 1, limit: 100 })
-      ]);
+      // Загружаем только категории в начале
+      const categoriesResponse = await catalogApi.getCategories();
 
       if (categoriesResponse.success) {
         setCategories(categoriesResponse.data);
       }
-
-      if (productsResponse.success) {
-        setProducts(productsResponse.data);
-      }
+      
+      // Товары загружаем через loadProducts с фильтрами
+      await loadProducts();
     } catch (error) {
       console.error('Ошибка загрузки данных каталога:', error);
       message.error('Ошибка загрузки данных каталога');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Новая функция для загрузки товаров с фильтрами
+  const loadProducts = async () => {
+    if (!token) return;
+    
+    try {
+      const filters: ProductFilters = {
+        search: searchText,
+        categoryId: checkedCategories.length === 1 ? checkedCategories[0] : undefined,
+        stockStatus: stockFilter === 'all' ? undefined : 
+          stockFilter === 'critical' ? 'out_of_stock' : 
+          stockFilter === 'low' ? 'low_stock' : 
+          stockFilter === 'normal' ? 'in_stock' : undefined,
+        materialIds: selectedMaterials.length > 0 ? selectedMaterials : undefined,
+        surfaceIds: selectedSurfaces.length > 0 ? selectedSurfaces : undefined,
+        logoIds: selectedLogos.length > 0 ? selectedLogos : undefined,
+        grades: selectedGrades.length > 0 ? selectedGrades : undefined,
+        weightMin: weightFilter.min || undefined,
+        weightMax: weightFilter.max || undefined,
+        onlyInStock,
+        borderTypes: selectedBorderTypes.length > 0 ? selectedBorderTypes : undefined,
+        carpetEdgeTypes: selectedCarpetEdgeTypes.length > 0 ? selectedCarpetEdgeTypes : undefined,
+        carpetEdgeSides: selectedCarpetEdgeSides.length > 0 ? selectedCarpetEdgeSides : undefined,
+        carpetEdgeStrength: selectedCarpetEdgeStrength.length > 0 ? selectedCarpetEdgeStrength : undefined,
+        bottomTypeIds: selectedBottomTypeIds.length > 0 ? selectedBottomTypeIds : undefined,
+        puzzleTypeIds: selectedPuzzleTypeIds.length > 0 ? selectedPuzzleTypeIds : undefined,
+        lengthMin: sizeFilters.lengthMin || undefined,
+        lengthMax: sizeFilters.lengthMax || undefined,
+        widthMin: sizeFilters.widthMin || undefined,
+        widthMax: sizeFilters.widthMax || undefined,
+        thicknessMin: sizeFilters.thicknessMin || undefined,
+        thicknessMax: sizeFilters.thicknessMax || undefined,
+        sortBy,
+        sortOrder
+      };
+
+      // Добавляем логирование для отладки
+      console.log('🔍 Применяемые фильтры:', filters);
+      console.log('📊 Выбранные материалы:', selectedMaterials);
+      console.log('🎨 Выбранные поверхности:', selectedSurfaces);
+      console.log('🔽 Выбранные низы ковра:', selectedBottomTypeIds);
+      console.log('✂️ Выбранные края ковра:', selectedCarpetEdgeTypes);
+
+      const productsResponse = await catalogApi.getProducts({ 
+        ...filters, 
+        page: currentPage, 
+        limit: pageSize
+      });
+
+      if (productsResponse.success) {
+        console.log('✅ Товары загружены:', productsResponse.data.length);
+        console.log('📊 Всего товаров:', productsResponse.pagination?.total);
+        setProducts(productsResponse.data);
+        setTotalProducts(productsResponse.pagination?.total || 0);
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки товаров:', error);
+      message.error('Ошибка загрузки товаров');
     }
   };
 
@@ -164,10 +256,12 @@ const Catalog: React.FC = () => {
     
     setLoadingReferences(true);
     try {
-      const [materialsResponse, surfacesResponse, logosResponse, puzzleTypesResponse] = await Promise.all([
+      const [materialsResponse, surfacesResponse, logosResponse, carpetEdgeTypesResponse, bottomTypesResponse, puzzleTypesResponse] = await Promise.all([
         materialsApi.getMaterials(token),
         surfacesApi.getSurfaces(token),
         logosApi.getLogos(token),
+        carpetEdgeTypesApi.getCarpetEdgeTypes(token),
+        bottomTypesApi.getBottomTypes(token),
         puzzleTypesApi.getPuzzleTypes(token)
       ]);
 
@@ -192,11 +286,25 @@ const Catalog: React.FC = () => {
         console.error('❌ Ошибка загрузки логотипов:', logosResponse);
       }
 
+      if (carpetEdgeTypesResponse.success) {
+        setCarpetEdgeTypes(carpetEdgeTypesResponse.data);
+        console.log('✂️ Типы края ковра загружены:', carpetEdgeTypesResponse.data.length);
+      } else {
+        console.error('❌ Ошибка загрузки типов края ковра:', carpetEdgeTypesResponse);
+      }
+
+      if (bottomTypesResponse.success) {
+        setBottomTypes(bottomTypesResponse.data);
+        console.log('👇 Типы низов ковра загружены:', bottomTypesResponse.data.length);
+      } else {
+        console.error('❌ Ошибка загрузки типов низов ковра:', bottomTypesResponse);
+      }
+
       if (puzzleTypesResponse.success) {
         setPuzzleTypes(puzzleTypesResponse.data);
-        console.log('🧩 Типы паззлов загружены:', puzzleTypesResponse.data.length);
+        console.log('🧩 Типы паззла загружены:', puzzleTypesResponse.data.length);
       } else {
-        console.error('❌ Ошибка загрузки типов паззлов:', puzzleTypesResponse);
+        console.error('❌ Ошибка загрузки типов паззла:', puzzleTypesResponse);
       }
     } catch (error) {
       console.error('❌ Критическая ошибка загрузки справочников:', error);
@@ -260,143 +368,12 @@ const Catalog: React.FC = () => {
     }
   };
 
-  // Фильтрация товаров
-  const filteredProducts = useMemo(() => {
-    return products.filter((product: Product) => {
-      // Поиск по названию, артикулу и размерам
-      if (searchText) {
-        const searchLower = searchText.toLowerCase();
-        const dimensionsString = product.dimensions 
-          ? `${product.dimensions.length}×${product.dimensions.width}×${product.dimensions.thickness}` 
-          : '';
-        const searchMatch = 
-          product.name.toLowerCase().includes(searchLower) ||
-          (product.article && product.article.toLowerCase().includes(searchLower)) ||
-          dimensionsString.includes(searchText) ||
-          (product.categoryName && product.categoryName.toLowerCase().includes(searchLower));
-        
-        if (!searchMatch) return false;
-      }
-      
-      // Фильтр по категории
-      if (checkedCategories.length > 0) {
-        if (!checkedCategories.includes(product.categoryId)) {
-          return false;
-        }
-      }
-      
-      // Фильтр "Только в наличии" (WBS 2 - Adjustments Задача 2.1)
-      if (onlyInStock) {
-        const available = product.availableStock || ((product.currentStock || 0) - (product.reservedStock || 0));
-        if (available <= 0) return false;
-      }
-      
-      // Фильтр по остаткам (старый)
-      if (stockFilter !== 'all') {
-        const available = product.availableStock || ((product.currentStock || 0) - (product.reservedStock || 0));
-        const norm = product.normStock || 0;
-        
-        let statusMatch = false;
-        switch (stockFilter) {
-          case 'critical':
-            statusMatch = available <= 0;
-            break;
-          case 'low':
-            statusMatch = available > 0 && available < norm * 0.5;
-            break;
-          case 'normal':
-            statusMatch = available > 0; // ИСПРАВЛЕНО: только товары которые есть в наличии
-            break;
-        }
-        
-        if (!statusMatch) return false;
-      }
-      
-      // Фильтр по материалам (WBS 2 - Adjustments Задача 2.1)
-      if (selectedMaterials.length > 0) {
-        if (!product.materialId || !selectedMaterials.includes(product.materialId)) {
-          return false;
-        }
-      }
-      
-      // Фильтр по поверхностям (WBS 2 - Adjustments Задача 2.1)
-      if (selectedSurfaces.length > 0) {
-        if (!product.surfaceId || !selectedSurfaces.includes(product.surfaceId)) {
-          return false;
-        }
-      }
-      
-      // Фильтр по сорту товара (WBS 2 - Adjustments Задача 2.1)
-      if (selectedGrades.length > 0) {
-        const grade = product.grade || 'usual';
-        if (!selectedGrades.includes(grade)) {
-          return false;
-        }
-      }
-      
-      // Фильтр по весу (WBS 2 - Adjustments Задача 2.1)
-      if (weightFilter.min !== null || weightFilter.max !== null) {
-        const weight = product.weight ? parseFloat(product.weight.toString()) : 0;
-        if (weightFilter.min !== null && weight < weightFilter.min) return false;
-        if (weightFilter.max !== null && weight > weightFilter.max) return false;
-      }
-      
-      // Фильтр по логотипам (расширение для системного архитектора)
-      if (selectedLogos.length > 0) {
-        if (!product.logoId || !selectedLogos.includes(product.logoId)) {
-          return false;
-        }
-      }
-      
-      // Фильтр по типам паззлов (условный, только для поверхности "Паззл")
-      if (selectedPuzzleTypes.length > 0 || selectedPuzzleSides.length > 0) {
-        if (!product.puzzleOptions || !product.puzzleOptions.enabled) {
-          return false;
-        }
-        
-        // Фильтр по типу паззла
-        if (selectedPuzzleTypes.length > 0) {
-          const puzzleType = puzzleTypes.find(pt => pt.code === product.puzzleOptions?.type);
-          if (!puzzleType || !selectedPuzzleTypes.includes(puzzleType.id)) {
-            return false;
-          }
-        }
-        
-        // Фильтр по количеству сторон паззла
-        if (selectedPuzzleSides.length > 0) {
-          if (!product.puzzleOptions.sides || !selectedPuzzleSides.includes(product.puzzleOptions.sides)) {
-            return false;
-          }
-        }
-      }
-      
-      // Фильтр по диапазону остатков (замена onlyInStock)
-      if (stockRangeFilter.min !== null || stockRangeFilter.max !== null) {
-        const available = product.availableStock || ((product.currentStock || 0) - (product.reservedStock || 0));
-        if (stockRangeFilter.min !== null && available < stockRangeFilter.min) return false;
-        if (stockRangeFilter.max !== null && available > stockRangeFilter.max) return false;
-      }
-      
-      // Фильтры по размерам
-      if (product.dimensions) {
-        const { length, width, thickness } = product.dimensions;
-        
-        if (sizeFilters.lengthMin && length < sizeFilters.lengthMin) return false;
-        if (sizeFilters.lengthMax && length > sizeFilters.lengthMax) return false;
-        if (sizeFilters.widthMin && width < sizeFilters.widthMin) return false;
-        if (sizeFilters.widthMax && width > sizeFilters.widthMax) return false;
-        if (sizeFilters.thicknessMin && thickness < sizeFilters.thicknessMin) return false;
-        if (sizeFilters.thicknessMax && thickness > sizeFilters.thicknessMax) return false;
-      }
-      
-      return true;
-    });
-  }, [products, searchText, checkedCategories, stockFilter, sizeFilters, selectedMaterials, selectedSurfaces, selectedGrades, weightFilter, onlyInStock, selectedLogos, selectedPuzzleTypes, selectedPuzzleSides, stockRangeFilter, puzzleTypes]);
+  // Товары уже отфильтрованы на backend, используем как есть
+  const filteredProducts = products;
 
-  // Пагинация
-  const totalPages = Math.ceil(filteredProducts.length / pageSize);
-  const startIndex = (currentPage - 1) * pageSize;
-  const paginatedProducts = filteredProducts.slice(startIndex, startIndex + pageSize);
+  // Пагинация теперь происходит на backend
+  const paginatedProducts = filteredProducts;
+  const totalPages = Math.ceil(totalProducts / pageSize);
 
   // Популярные размеры для быстрого поиска
   const popularSizes = ['1800×1200', '1600×1000', '1000×1000'];
@@ -437,15 +414,22 @@ const Catalog: React.FC = () => {
     setSelectedMaterials([]);
     setSelectedSurfaces([]);
     setSelectedGrades([]);
+    setSelectedBorderTypes([]); // Задача 7.1
     setWeightFilter({ min: null, max: null });
     setOnlyInStock(false);
     
     // Новые фильтры
     setSelectedLogos([]);
-    setSelectedPuzzleTypes([]);
-    setSelectedPuzzleSides([]);
     setStockRangeFilter({ min: null, max: null });
     
+    // Фильтры края ковра
+    setSelectedCarpetEdgeTypes([]);
+    setSelectedCarpetEdgeSides([]);
+    setSelectedCarpetEdgeStrength([]);
+    
+    // Фильтр по низу ковра
+    setSelectedBottomTypeIds([]);
+
     setCurrentPage(1);
   };
 
@@ -467,16 +451,35 @@ const Catalog: React.FC = () => {
     setSelectedMaterials([]);
     setSelectedSurfaces([]);
     setSelectedLogos([]);
+    setSelectedBorderTypes([]); // Задача 7.1
     setCurrentPage(1);
   };
 
   // Сброс фильтров товарных характеристик
   const clearProductFilters = () => {
+    setSearchText('');
+    setCheckedCategories([]);
+    setStockFilter('all');
+    setSelectedMaterials([]);
+    setSelectedSurfaces([]);
+    setSelectedLogos([]);
     setSelectedGrades([]);
     setWeightFilter({ min: null, max: null });
-    setSelectedPuzzleTypes([]);
-    setSelectedPuzzleSides([]);
-    setCurrentPage(1);
+    setOnlyInStock(false);
+    setSelectedBorderTypes([]);
+    setSelectedCarpetEdgeTypes([]);
+    setSelectedCarpetEdgeSides([]);
+    setSelectedCarpetEdgeStrength([]);
+    setSelectedBottomTypeIds([]);
+    setSelectedPuzzleTypeIds([]);
+    setSizeFilters({
+      lengthMin: null,
+      lengthMax: null,
+      widthMin: null,
+      widthMax: null,
+      thicknessMin: null,
+      thicknessMax: null,
+    });
   };
 
   // Сброс фильтров остатков
@@ -496,13 +499,20 @@ const Catalog: React.FC = () => {
     selectedMaterials.length > 0 || 
     selectedSurfaces.length > 0 || 
     selectedGrades.length > 0 || 
+    selectedBorderTypes.length > 0 || // Задача 7.1
     weightFilter.min !== null || 
     weightFilter.max !== null ||
     selectedLogos.length > 0 ||
-    selectedPuzzleTypes.length > 0 ||
-    selectedPuzzleSides.length > 0 ||
     stockRangeFilter.min !== null ||
-    stockRangeFilter.max !== null;
+    stockRangeFilter.max !== null ||
+    // Новые фильтры края ковра
+    selectedCarpetEdgeTypes.length > 0 ||
+    selectedCarpetEdgeSides.length > 0 ||
+    selectedCarpetEdgeStrength.length > 0 ||
+    // Фильтр по низу ковра
+    selectedBottomTypeIds.length > 0 ||
+    // Новые фильтры для паззла
+    selectedPuzzleTypeIds.length > 0;
   
   // Подсчет активных фильтров
   const getActiveFiltersCount = () => {
@@ -514,19 +524,26 @@ const Catalog: React.FC = () => {
       (selectedMaterials.length > 0 ? 1 : 0) +
       (selectedSurfaces.length > 0 ? 1 : 0) +
       (selectedLogos.length > 0 ? 1 : 0) +
-      (selectedPuzzleTypes.length > 0 ? 1 : 0) +
-      (selectedPuzzleSides.length > 0 ? 1 : 0) +
       (selectedGrades.length > 0 ? 1 : 0) +
       (weightFilter.min !== null || weightFilter.max !== null ? 1 : 0) +
       (stockRangeFilter.min !== null || stockRangeFilter.max !== null ? 1 : 0) +
-      (onlyInStock ? 1 : 0)
+      (onlyInStock ? 1 : 0) +
+      // Новые фильтры для края ковра
+      (selectedCarpetEdgeTypes.length > 0 ? 1 : 0) +
+      (selectedCarpetEdgeSides.length > 0 ? 1 : 0) +
+      (selectedCarpetEdgeStrength.length > 0 ? 1 : 0) +
+      // Фильтр по низу ковра
+      (selectedBottomTypeIds.length > 0 ? 1 : 0) +
+      // Новые фильтры для паззла
+      (selectedPuzzleTypeIds.length > 0 ? 1 : 0)
     );
   };
 
   // Проверка есть ли любые активные фильтры
   const hasActiveFilters = getActiveFiltersCount() > 0;
 
-  const canEdit = user?.role === 'director' || user?.role === 'manager';
+  // Используем хук разрешений вместо жестко закодированных ролей
+  const canEditCatalog = canEdit('catalog');
 
   // Функция удаления товара
   const handleDeleteProduct = (product: Product) => {
@@ -570,6 +587,87 @@ const Catalog: React.FC = () => {
     });
   };
 
+  // Функция переноса товаров между категориями (Задача 7.3)
+  const handleMoveProducts = async (targetCategoryId: number) => {
+    if (selectedProducts.length === 0) {
+      message.warning('Не выбраны товары для перемещения');
+      return;
+    }
+
+    setMovingProducts(true);
+    try {
+      const response = await catalogApi.moveProducts(selectedProducts, targetCategoryId);
+      
+      if (response.success) {
+        message.success(response.message || `Успешно перемещено ${selectedProducts.length} товаров`);
+        setSelectedProducts([]); // Очищаем выбор
+        setMoveModalVisible(false); // Закрываем модальное окно
+        loadProducts(); // Перезагружаем товары
+      } else {
+        message.error(response.message || 'Ошибка при перемещении товаров');
+      }
+    } catch (error: any) {
+      console.error('Error moving products:', error);
+      message.error('Ошибка при перемещении товаров');
+    } finally {
+      setMovingProducts(false);
+    }
+  };
+
+  // Функция экспорта каталога в Excel (Задача 9.2)
+  const handleExportCatalog = async (selectedOnly: boolean = false) => {
+    setExportingCatalog(true);
+    try {
+      // Формируем фильтры на основе текущих настроек
+      const currentFilters: any = {
+        search: searchText || undefined,
+        categoryId: checkedCategories.length === 1 ? checkedCategories[0] : undefined,
+        stockStatus: stockFilter !== 'all' ? 
+          (stockFilter === 'critical' ? 'out_of_stock' as const: 
+           stockFilter === 'low' ? 'low_stock' as const: 
+           stockFilter === 'normal' ? 'in_stock' as const: undefined) : undefined,
+        materialIds: selectedMaterials.length > 0 ? selectedMaterials : undefined,
+        surfaceIds: selectedSurfaces.length > 0 ? selectedSurfaces : undefined,
+        logoIds: selectedLogos.length > 0 ? selectedLogos : undefined,
+        grades: selectedGrades.length > 0 ? selectedGrades : undefined,
+        weightMin: weightFilter.min || undefined,
+        weightMax: weightFilter.max || undefined,
+        onlyInStock: onlyInStock || undefined,
+        borderTypes: selectedBorderTypes.length > 0 ? selectedBorderTypes : undefined,
+        // Новые фильтры для края ковра
+        carpetEdgeTypes: selectedCarpetEdgeTypes.length > 0 ? selectedCarpetEdgeTypes : undefined,
+        carpetEdgeSides: selectedCarpetEdgeSides.length > 0 ? selectedCarpetEdgeSides : undefined,
+        carpetEdgeStrength: selectedCarpetEdgeStrength.length > 0 ? selectedCarpetEdgeStrength : undefined,
+        // Фильтр по низу ковра
+        bottomTypeIds: selectedBottomTypeIds.length > 0 ? selectedBottomTypeIds : undefined,
+        sortBy,
+        sortOrder
+      };
+
+      await catalogApi.exportCatalog({
+        productIds: selectedOnly ? selectedProducts : undefined,
+        filters: selectedOnly ? undefined : currentFilters
+      });
+      
+      message.success(
+        selectedOnly 
+          ? `Экспорт ${selectedProducts.length} выбранных товаров завершен`
+          : 'Экспорт каталога завершен'
+      );
+      
+      // Очищаем выбор после экспорта выбранных товаров
+      if (selectedOnly) {
+        setSelectedProducts([]);
+      }
+      
+    } catch (error: any) {
+      console.error('Error exporting catalog:', error);
+      message.error('Ошибка при экспорте каталога');
+    } finally {
+      setExportingCatalog(false);
+    }
+  };
+
   // Функция открытия модального окна удаления категории
   const handleDeleteCategory = (category: Category) => {
     setSelectedCategory(category);
@@ -604,7 +702,7 @@ const Catalog: React.FC = () => {
               </Text>
             </div>
             
-            {canEdit && (
+            {canEditCatalog && (
               <Space>
                 <Button 
                   icon={<PlusOutlined />}
@@ -767,27 +865,61 @@ const Catalog: React.FC = () => {
                       <Col span={6}>
                         <Text strong>Вес (кг)</Text>
                         <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
-                          <RussianInputNumber
+                          <InputNumber
                             placeholder="От"
                             value={weightFilter.min}
-                            onChange={(value: number | null) => setWeightFilter(prev => ({ ...prev, min: value }))}
+                            onChange={(value) => setWeightFilter(prev => ({ ...prev, min: value }))}
                             min={0}
                             step={0.1}
-                            precision={1}
-                            customSuffix="кг"
                             style={{ width: '100%' }}
                           />
                           <span>–</span>
-                          <RussianInputNumber
+                          <InputNumber
                             placeholder="До"
                             value={weightFilter.max}
-                            onChange={(value: number | null) => setWeightFilter(prev => ({ ...prev, max: value }))}
+                            onChange={(value) => setWeightFilter(prev => ({ ...prev, max: value }))}
                             min={0}
                             step={0.1}
-                            precision={1}
-                            customSuffix="кг"
                             style={{ width: '100%' }}
                           />
+                        </div>
+                      </Col>
+                      
+                      {/* Фильтр по наличию борта (Задача 7.1) */}
+                      <Col span={6}>
+                        <Text strong>Наличие борта</Text>
+                        <div style={{ marginTop: 8 }}>
+                          <Select
+                            mode="multiple"
+                            value={selectedBorderTypes}
+                            onChange={setSelectedBorderTypes}
+                            placeholder="Выберите тип борта"
+                            style={{ width: '100%' }}
+                          >
+                            <Option value="with_border">🔲 С бортом</Option>
+                            <Option value="without_border">⚪ Без борта</Option>
+                          </Select>
+                        </div>
+                      </Col>
+                      
+                      {/* Фильтр по краю ковра */}
+                      <Col span={6}>
+                        <Text strong>Край ковра</Text>
+                        <div style={{ marginTop: 8 }}>
+                          <Select
+                            mode="multiple"
+                            value={selectedCarpetEdgeTypes}
+                            onChange={setSelectedCarpetEdgeTypes}
+                            placeholder="Выберите тип края"
+                            style={{ width: '100%' }}
+                            loading={loadingReferences}
+                          >
+                            {carpetEdgeTypes.map(type => (
+                              <Option key={type.code} value={type.code}>
+                                ✂️ {type.name}
+                              </Option>
+                            ))}
+                          </Select>
                         </div>
                       </Col>
                       
@@ -821,21 +953,73 @@ const Catalog: React.FC = () => {
                         </div>
                       </Col>
 
-                                              {/* Условные фильтры для паззлов (системный архитектор) */}
+                                              {/* Условные фильтры для паззлового края ковра */}
+                      <Col span={6}>
+                        <Text strong>Количество сторон паззла</Text>
+                        <div style={{ marginTop: 8 }}>
+                          <Select
+                            mode="multiple"
+                            value={selectedCarpetEdgeSides}
+                            onChange={setSelectedCarpetEdgeSides}
+                            placeholder="Количество сторон"
+                            style={{ width: '100%' }}
+                            disabled={!selectedCarpetEdgeTypes.includes('puzzle')}
+                          >
+                            <Option value={1}>🧩 1 сторона</Option>
+                            <Option value={2}>🧩 2 стороны</Option>
+                            <Option value={3}>🧩 3 стороны</Option>
+                            <Option value={4}>🧩 4 стороны</Option>
+                          </Select>
+                        </div>
+                      </Col>
+                      
+                      {/* Фильтр по усилению края */}
+                      <Col span={6}>
+                        <Text strong>Усиление края</Text>
+                        <div style={{ marginTop: 8 }}>
+                          <Select
+                            mode="multiple"
+                            value={selectedCarpetEdgeStrength}
+                            onChange={setSelectedCarpetEdgeStrength}
+                            placeholder="Выберите усиление"
+                            style={{ width: '100%' }}
+                          >
+                            <Option value="normal">⚪ Обычный</Option>
+                            <Option value="reinforced">🔒 Усиленный</Option>
+                          </Select>
+                        </div>
+                      </Col>
+                      
+                      {/* Фильтр по низу ковра */}
+                      <Col span={6}>
+                        <Text strong>Низ ковра</Text>
+                        <div style={{ marginTop: 8 }}>
+                          <Select
+                            mode="multiple"
+                            value={selectedBottomTypeIds}
+                            onChange={setSelectedBottomTypeIds}
+                            placeholder="Выберите низ ковра"
+                            style={{ width: '100%' }}
+                          >
+                            {bottomTypes.map(type => (
+                              <Option key={type.id} value={type.id}>
+                                🔽 {type.name}
+                              </Option>
+                            ))}
+                          </Select>
+                        </div>
+                      </Col>
+
+                      {/* Фильтр по типам паззла */}
                       <Col span={6}>
                         <Text strong>Тип паззла</Text>
                         <div style={{ marginTop: 8 }}>
                           <Select
                             mode="multiple"
-                            value={selectedPuzzleTypes}
-                            onChange={setSelectedPuzzleTypes}
-                            placeholder="Выберите типы паззлов"
+                            value={selectedPuzzleTypeIds}
+                            onChange={setSelectedPuzzleTypeIds}
+                            placeholder="Выберите тип паззла"
                             style={{ width: '100%' }}
-                            loading={loadingReferences}
-                            disabled={!selectedSurfaces.some(surfaceId => {
-                              const surface = surfaces.find(s => s.id === surfaceId);
-                              return surface?.name === 'Паззл';
-                            })}
                           >
                             {puzzleTypes.map(type => (
                               <Option key={type.id} value={type.id}>
@@ -844,234 +1028,75 @@ const Catalog: React.FC = () => {
                             ))}
                           </Select>
                         </div>
-                        <div style={{ marginTop: 8 }}>
-                          <Text strong>Стороны паззла</Text>
-                          <Select
-                            mode="multiple"
-                            value={selectedPuzzleSides}
-                            onChange={setSelectedPuzzleSides}
-                            placeholder="Количество сторон"
-                            style={{ width: '100%', marginTop: 4 }}
-                            disabled={!selectedSurfaces.some(surfaceId => {
-                              const surface = surfaces.find(s => s.id === surfaceId);
-                              return surface?.name === 'Паззл';
-                            })}
-                          >
-                            <Option value="1_side">🧩 1 сторона</Option>
-                            <Option value="2_sides">🧩 2 стороны</Option>
-                            <Option value="3_sides">🧩 3 стороны</Option>
-                            <Option value="4_sides">🧩 4 стороны</Option>
-                          </Select>
-                        </div>
-                      </Col>
-
-                      {/* Быстрые размеры */}
-                      <Col span={6}>
-                        <Text strong>Быстрые размеры</Text>
-                        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {popularSizes.map(size => (
-                            <Button
-                              key={size}
-                              size="small"
-                              type={searchText === size ? 'primary' : 'default'}
-                              onClick={() => setSearchText(searchText === size ? '' : size)}
-                              style={{ textAlign: 'left' }}
-                            >
-                              📏 {size}
-                            </Button>
-                          ))}
-                        </div>
-                      </Col>
-
-                      {/* Диапазоны размеров */}
-                      <Col span={6}>
-                        <Text strong>По категории размера</Text>
-                        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {quickSizeRanges.map((range, index) => (
-                            <Button
-                              key={index}
-                              size="small"
-                              onClick={() => applyQuickSizeRange(range)}
-                              style={{ textAlign: 'left' }}
-                            >
-                              📐 {range.label}
-                            </Button>
-                          ))}
-                          {hasSizeFilters && (
-                            <Button size="small" icon={<ClearOutlined />} onClick={clearSizeFilters} danger>
-                              Сбросить размеры
-                            </Button>
-                          )}
-                        </div>
                       </Col>
                     </Row>
 
-                    {/* Точные диапазоны размеров */}
-                    <div style={{ marginTop: 16 }}>
-                      <Text strong>Точные диапазоны размеров (мм)</Text>
-                      <Row gutter={16} style={{ marginTop: 8 }}>
-                        <Col span={8}>
-                          <Text>Длина</Text>
-                          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                            <RussianInputNumber
-                              placeholder="от"
-                              value={sizeFilters.lengthMin}
-                              onChange={(value: number | null) => setSizeFilters({...sizeFilters, lengthMin: value})}
-                              style={{ width: '50%' }}
-                              min={0}
-                              precision={0}
-                            />
-                            <RussianInputNumber
-                              placeholder="до"
-                              value={sizeFilters.lengthMax}
-                              onChange={(value: number | null) => setSizeFilters({...sizeFilters, lengthMax: value})}
-                              style={{ width: '50%' }}
-                              min={0}
-                              precision={0}
-                            />
-                          </div>
-                        </Col>
-                        <Col span={8}>
-                          <Text>Ширина</Text>
-                          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                            <RussianInputNumber
-                              placeholder="от"
-                              value={sizeFilters.widthMin}
-                              onChange={(value: number | null) => setSizeFilters({...sizeFilters, widthMin: value})}
-                              style={{ width: '50%' }}
-                              min={0}
-                              precision={0}
-                            />
-                            <RussianInputNumber
-                              placeholder="до"
-                              value={sizeFilters.widthMax}
-                              onChange={(value: number | null) => setSizeFilters({...sizeFilters, widthMax: value})}
-                              style={{ width: '50%' }}
-                              min={0}
-                              precision={0}
-                            />
-                          </div>
-                        </Col>
-                        <Col span={8}>
-                          <Text>Толщина</Text>
-                          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                            <RussianInputNumber
-                              placeholder="от"
-                              value={sizeFilters.thicknessMin}
-                              onChange={(value: number | null) => setSizeFilters({...sizeFilters, thicknessMin: value})}
-                              style={{ width: '50%' }}
-                              min={0}
-                              precision={0}
-                            />
-                            <RussianInputNumber
-                              placeholder="до"
-                              value={sizeFilters.thicknessMax}
-                              onChange={(value: number | null) => setSizeFilters({...sizeFilters, thicknessMax: value})}
-                              style={{ width: '50%' }}
-                              min={0}
-                              precision={0}
-                            />
-                          </div>
-                        </Col>
-                      </Row>
-                    </div>
-
-                    {/* Кнопки управления фильтрами */}
-                    {hasActiveFilters && (
-                      <div style={{ 
-                        marginTop: 20, 
-                        padding: '12px 16px', 
-                        backgroundColor: '#f8f9fa', 
-                        borderRadius: '8px',
-                        border: '1px solid #e9ecef'
-                      }}>
-                        <div style={{ 
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          marginBottom: '12px'
-                        }}>
-                          <div>
-                            <Text type="secondary" style={{ fontSize: '14px' }}>
-                              🎯 Активных фильтров: <Text strong>{getActiveFiltersCount()}</Text>
-                            </Text>
-                          </div>
-                          <Button 
-                            type="primary"
-                            danger
-                            icon={<ClearOutlined />} 
-                            onClick={clearAllFilters}
-                            size="middle"
-                          >
-                            Сбросить все
-                          </Button>
+                    {/* Третья строка фильтров */}
+                    <Row gutter={16} style={{ marginTop: 16 }}>
+                      {/* Фильтры по размерам */}
+                      <Col span={8}>
+                        <Text strong>Длина (мм)</Text>
+                        <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <InputNumber
+                            placeholder="От"
+                            value={sizeFilters.lengthMin}
+                            onChange={(value) => setSizeFilters(prev => ({ ...prev, lengthMin: value }))}
+                            min={0}
+                            style={{ width: '100%' }}
+                          />
+                          <span>–</span>
+                          <InputNumber
+                            placeholder="До"
+                            value={sizeFilters.lengthMax}
+                            onChange={(value) => setSizeFilters(prev => ({ ...prev, lengthMax: value }))}
+                            min={0}
+                            style={{ width: '100%' }}
+                          />
                         </div>
-                        
-                        {/* Быстрый сброс групп фильтров */}
-                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                          {(stockFilter !== 'all' || onlyInStock || stockRangeFilter.min !== null || stockRangeFilter.max !== null) && (
-                            <Button 
-                              size="small" 
-                              onClick={clearStockFilters}
-                              icon={<ClearOutlined />}
-                            >
-                              📦 Остатки
-                            </Button>
-                          )}
-                          {(selectedMaterials.length > 0 || selectedSurfaces.length > 0 || selectedLogos.length > 0) && (
-                            <Button 
-                              size="small" 
-                              onClick={clearMaterialFilters}
-                              icon={<ClearOutlined />}
-                            >
-                              🧱 Материалы
-                            </Button>
-                          )}
-                          {(selectedGrades.length > 0 || weightFilter.min !== null || weightFilter.max !== null || selectedPuzzleTypes.length > 0 || selectedPuzzleSides.length > 0) && (
-                            <Button 
-                              size="small" 
-                              onClick={clearProductFilters}
-                              icon={<ClearOutlined />}
-                            >
-                              🏷️ Характеристики
-                            </Button>
-                          )}
-                          {hasSizeFilters && (
-                            <Button 
-                              size="small" 
-                              onClick={clearSizeFilters}
-                              icon={<ClearOutlined />}
-                            >
-                              📏 Размеры
-                            </Button>
-                          )}
-                          {checkedCategories.length > 0 && (
-                            <Button 
-                              size="small" 
-                              onClick={() => {
-                                setCheckedCategories([]);
-                                setCurrentPage(1);
-                              }}
-                              icon={<ClearOutlined />}
-                            >
-                              📂 Категории
-                            </Button>
-                          )}
-                          {searchText && (
-                            <Button 
-                              size="small" 
-                              onClick={() => {
-                                setSearchText('');
-                                setCurrentPage(1);
-                              }}
-                              icon={<ClearOutlined />}
-                            >
-                              🔍 Поиск
-                            </Button>
-                          )}
+                      </Col>
+                      
+                      <Col span={8}>
+                        <Text strong>Ширина (мм)</Text>
+                        <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <InputNumber
+                            placeholder="От"
+                            value={sizeFilters.widthMin}
+                            onChange={(value) => setSizeFilters(prev => ({ ...prev, widthMin: value }))}
+                            min={0}
+                            style={{ width: '100%' }}
+                          />
+                          <span>–</span>
+                          <InputNumber
+                            placeholder="До"
+                            value={sizeFilters.widthMax}
+                            onChange={(value) => setSizeFilters(prev => ({ ...prev, widthMax: value }))}
+                            min={0}
+                            style={{ width: '100%' }}
+                          />
                         </div>
-                      </div>
-                    )}
+                      </Col>
+                      
+                      <Col span={8}>
+                        <Text strong>Высота (мм)</Text>
+                        <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <InputNumber
+                            placeholder="От"
+                            value={sizeFilters.thicknessMin}
+                            onChange={(value) => setSizeFilters(prev => ({ ...prev, thicknessMin: value }))}
+                            min={0}
+                            style={{ width: '100%' }}
+                          />
+                          <span>–</span>
+                          <InputNumber
+                            placeholder="До"
+                            value={sizeFilters.thicknessMax}
+                            onChange={(value) => setSizeFilters(prev => ({ ...prev, thicknessMax: value }))}
+                            min={0}
+                            style={{ width: '100%' }}
+                          />
+                        </div>
+                      </Col>
+                    </Row>
                   </Panel>
                 </Collapse>
               )}
@@ -1124,7 +1149,7 @@ const Catalog: React.FC = () => {
                       >
                         Сбросить выбор
                       </Button>
-                      {user?.role === 'director' && checkedCategories.length === 1 && (
+                                              {canDelete('catalog') && checkedCategories.length === 1 && (
                         <Button
                           size="small"
                           danger
@@ -1150,12 +1175,100 @@ const Catalog: React.FC = () => {
 
             {/* Список товаров */}
             <Col xs={24} lg={18}>
+              {/* Элементы управления сортировкой (Задача 7.2) */}
+              <Card size="small" style={{ marginBottom: 16 }}>
+                <Row justify="space-between" align="middle">
+                  <Col>
+                    <Space>
+                      <Text strong>Сортировка:</Text>
+                      <Select
+                        value={sortBy}
+                        onChange={setSortBy}
+                        style={{ width: 180 }}
+                        size="small"
+                      >
+                        <Option value="name">📝 По названию</Option>
+                        <Option value="matArea">📏 По площади (размеру)</Option>
+                        <Option value="price">💰 По цене</Option>
+                        <Option value="weight">⚖️ По весу</Option>
+                      </Select>
+                      <Select
+                        value={sortOrder}
+                        onChange={setSortOrder}
+                        style={{ width: 120 }}
+                        size="small"
+                      >
+                        <Option value="ASC">🔼 По возрастанию</Option>
+                        <Option value="DESC">🔽 По убыванию</Option>
+                      </Select>
+                    </Space>
+                  </Col>
+                  <Col>
+                    <Space>
+                      {selectedProducts.length > 0 && (
+                        <>
+                          <Button
+                            type="primary"
+                            size="small"
+                            icon={<AppstoreOutlined />}
+                            onClick={() => setMoveModalVisible(true)}
+                            disabled={selectedProducts.length === 0}
+                            loading={movingProducts}
+                          >
+                            Переместить в категорию ({selectedProducts.length})
+                          </Button>
+                          <Button
+                            size="small"
+                            icon={<InboxOutlined />}
+                            onClick={() => handleExportCatalog(true)}
+                            loading={exportingCatalog}
+                            disabled={selectedProducts.length === 0}
+                          >
+                            Экспорт выбранных ({selectedProducts.length})
+                          </Button>
+                        </>
+                      )}
+                      
+                      {/* Кнопка экспорта всего каталога с фильтрами (Задача 9.2) */}
+                      <Button
+                        size="small"
+                        icon={<InboxOutlined />}
+                        onClick={() => handleExportCatalog(false)}
+                        loading={exportingCatalog}
+                        title="Экспорт текущего списка товаров с примененными фильтрами"
+                      >
+                        📊 Экспорт каталога
+                      </Button>
+                      
+                      <Text type="secondary" style={{ fontSize: '12px' }}>
+                        📊 Найдено: <Text strong>{totalProducts}</Text> товаров
+                      </Text>
+                    </Space>
+                  </Col>
+                </Row>
+              </Card>
+              
               <Table
                 dataSource={paginatedProducts}
                 pagination={false}
                 size="small"
                 rowKey="id"
                 scroll={{ x: 800 }}
+                rowSelection={{
+                  type: 'checkbox',
+                  selectedRowKeys: selectedProducts,
+                  onChange: (selectedRowKeys: React.Key[]) => {
+                    setSelectedProducts(selectedRowKeys as number[]);
+                  },
+                  onSelectAll: (selected: boolean, selectedRows: Product[], changeRows: Product[]) => {
+                    if (selected) {
+                      const allProductIds = paginatedProducts.map(p => p.id);
+                      setSelectedProducts(allProductIds);
+                    } else {
+                      setSelectedProducts([]);
+                    }
+                  },
+                }}
                 columns={[
                   {
                     title: 'Товар',
@@ -1184,10 +1297,9 @@ const Catalog: React.FC = () => {
                     width: 140,
                     render: (_: any, product: Product) => {
                       const dimensions = product.dimensions || { length: 0, width: 0, thickness: 0 };
-                      const { length, width, thickness } = dimensions;
                       return (
                         <Tag color="blue">
-                          {length}×{width}×{thickness}
+                          {dimensions.length}×{dimensions.width}×{dimensions.thickness}
                         </Tag>
                       );
                     },
@@ -1200,8 +1312,8 @@ const Catalog: React.FC = () => {
                     render: (_: any, product: Product) => {
                       const currentStock = product.stock?.currentStock || product.currentStock || 0;
                       const reservedStock = product.stock?.reservedStock || product.reservedStock || 0;
-                      const stockStatus = getStockStatus(currentStock, reservedStock);
-                      const available = currentStock - reservedStock;
+                      const available = (product.currentStock || 0) - (product.reservedStock || 0);
+                      const stockStatus = getStockStatus(available, product.normStock || 0);
                       return (
                         <div>
                           <Badge color={stockStatus.color} />
@@ -1256,7 +1368,7 @@ const Catalog: React.FC = () => {
                           Детали
                         </Button>
 
-                        {canEdit && (
+                        {canEditCatalog && (
                           <Button 
                             size="small" 
                             danger
@@ -1396,6 +1508,71 @@ const Catalog: React.FC = () => {
           loadData(); // Перезагружаем данные после удаления категории
         }}
       />
+
+      {/* Модальное окно переноса товаров между категориями (Задача 7.3) */}
+      <Modal
+        title="Переместить товары в категорию"
+        open={moveModalVisible}
+        onCancel={() => !movingProducts && setMoveModalVisible(false)}
+        footer={null}
+        width={600}
+        closable={!movingProducts}
+        maskClosable={!movingProducts}
+      >
+        {movingProducts ? (
+          <div style={{ textAlign: 'center', padding: '40px 0' }}>
+            <Spin size="large" />
+            <Text style={{ display: 'block', marginTop: 16 }}>
+              Перемещение товаров...
+            </Text>
+          </div>
+        ) : (
+          <>
+            <div style={{ marginBottom: 16 }}>
+              <Text>
+                Выбрано товаров: <Text strong>{selectedProducts.length}</Text>
+              </Text>
+            </div>
+            
+            <Text strong style={{ display: 'block', marginBottom: 8 }}>
+              Выберите категорию назначения:
+            </Text>
+            
+            <div style={{ 
+              border: '1px solid #d9d9d9', 
+              borderRadius: '6px', 
+              padding: '12px',
+              maxHeight: '300px',
+              overflowY: 'auto'
+            }}>
+              <Tree
+                showLine
+                defaultExpandedKeys={categories.map(c => c.id.toString())}
+                onSelect={(selectedKeys) => {
+                  if (selectedKeys.length > 0) {
+                    const categoryId = parseInt(selectedKeys[0] as string);
+                    handleMoveProducts(categoryId);
+                  }
+                }}
+                treeData={categories.map(category => ({
+                  title: `📁 ${category.name}`,
+                  key: category.id.toString(),
+                  children: category.children?.map(child => ({
+                    title: `📁 ${child.name}`,
+                    key: child.id.toString()
+                  }))
+                }))}
+              />
+            </div>
+            
+            <div style={{ marginTop: 16, textAlign: 'center' }}>
+              <Button onClick={() => setMoveModalVisible(false)}>
+                Отмена
+              </Button>
+            </div>
+          </>
+        )}
+      </Modal>
     </div>
   );
 };

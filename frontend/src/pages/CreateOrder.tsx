@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Row, Col, Card, Form, Input, DatePicker, Select, Button, Table, Space, Typography,
-  message, InputNumber, Modal, Tag, Divider, Statistic, Steps, Collapse
+  message, InputNumber, Modal, Tag, Divider, Statistic, Steps
 } from 'antd';
 import {
   ShoppingCartOutlined, PlusOutlined, DeleteOutlined, CheckOutlined,
@@ -9,12 +9,11 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
+import usePermissions from '../hooks/usePermissions';
 import { ordersApi, CreateOrderRequest } from '../services/ordersApi';
 import { catalogApi, Product } from '../services/catalogApi';
 import { usersApi } from '../services/usersApi';
 import dayjs from 'dayjs';
-import RussianInputNumber from '../components/RussianInputNumber';
-import { multiplyMoney, addMoney, formatMoney } from '../utils/moneyCalculations';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -42,6 +41,17 @@ interface User {
 const CreateOrder: React.FC = () => {
   const navigate = useNavigate();
   const { user, token } = useAuthStore();
+  const { canManage, canEdit } = usePermissions();
+
+  const getRoleDisplayName = (role: string) => {
+    const roleNames: Record<string, string> = {
+      'director': 'Директор',
+      'manager': 'Менеджер', 
+      'production': 'Производство',
+      'warehouse': 'Склад'
+    };
+    return roleNames[role] || role;
+  };
   
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
@@ -51,17 +61,6 @@ const CreateOrder: React.FC = () => {
   const [orderItems, setOrderItems] = useState<OrderItemForm[]>([]);
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedSource, setSelectedSource] = useState('database');
-  
-  // Size filters states
-  const [showFilters, setShowFilters] = useState(false);
-  const [sizeFilters, setSizeFilters] = useState({
-    lengthMin: undefined as number | undefined,
-    lengthMax: undefined as number | undefined,
-    widthMin: undefined as number | undefined,
-    widthMax: undefined as number | undefined,
-    heightMin: undefined as number | undefined,
-    heightMax: undefined as number | undefined,
-  });
   
   // Modal states
   const [productModalVisible, setProductModalVisible] = useState(false);
@@ -73,39 +72,11 @@ const CreateOrder: React.FC = () => {
     loadUsers();
   }, []);
 
-  // Auto-reload products when search or filters change
-  useEffect(() => {
-    const debounceTimer = setTimeout(() => {
-      loadProducts();
-    }, 300);
-
-    return () => clearTimeout(debounceTimer);
-  }, [searchText, sizeFilters]);
-
   const loadProducts = async () => {
     if (!token) return;
     
     try {
-      const filters = {
-        page: 1,
-        limit: 1000,
-        search: searchText || undefined,
-        lengthMin: sizeFilters.lengthMin,
-        lengthMax: sizeFilters.lengthMax,
-        widthMin: sizeFilters.widthMin,
-        widthMax: sizeFilters.widthMax,
-        thicknessMin: sizeFilters.heightMin,
-        thicknessMax: sizeFilters.heightMax,
-      };
-
-      // Удаляем undefined значения
-      Object.keys(filters).forEach(key => {
-        if (filters[key as keyof typeof filters] === undefined) {
-          delete filters[key as keyof typeof filters];
-        }
-      });
-
-      const response = await catalogApi.getProducts(filters);
+      const response = await catalogApi.getProducts({ page: 1, limit: 100 });
       
       if (response.success) {
         setProducts(response.data);
@@ -124,7 +95,7 @@ const CreateOrder: React.FC = () => {
       if (response.success) {
         // Фильтруем только менеджеров и директоров для назначения заказов
         const availableUsers = response.data.filter(
-          (u: User) => u.role === 'manager' || u.role === 'director'
+          (u: User) => canManage('orders') || canEdit('orders')
         );
         setUsers(availableUsers);
       }
@@ -133,8 +104,12 @@ const CreateOrder: React.FC = () => {
     }
   };
 
-  // Products are already filtered on the server side
-  const filteredProducts = products;
+  // Filter products for modal
+  const filteredProducts = products.filter(product =>
+    !searchText || 
+    product.name.toLowerCase().includes(searchText.toLowerCase()) ||
+    product.article?.toLowerCase().includes(searchText.toLowerCase())
+  );
 
   // Add product to order
   const addProduct = (product: Product) => {
@@ -150,7 +125,7 @@ const CreateOrder: React.FC = () => {
       product,
       quantity: 1,
       price: Number(product.price) || 0,
-      total: multiplyMoney(Number(product.price) || 0, 1),
+      total: Number(product.price) || 0,
       availableStock: product.availableStock || 0,
       canReserve: Math.min(1, product.availableStock || 0)
     };
@@ -168,7 +143,7 @@ const CreateOrder: React.FC = () => {
           const updated = { ...item, [field]: value };
           
           if (field === 'quantity' || field === 'price') {
-            updated.total = multiplyMoney(updated.price, updated.quantity);
+            updated.total = updated.quantity * updated.price;
             updated.canReserve = Math.min(updated.quantity, item.availableStock);
           }
           
@@ -186,7 +161,7 @@ const CreateOrder: React.FC = () => {
 
   // Calculate totals
   const calculateTotals = () => {
-    const totalAmount = addMoney(...orderItems.map(item => item.total));
+    const totalAmount = orderItems.reduce((sum, item) => sum + item.total, 0);
     const totalQuantity = orderItems.reduce((sum, item) => sum + item.quantity, 0);
     const totalCanReserve = orderItems.reduce((sum, item) => sum + item.canReserve, 0);
     const totalNeedProduction = orderItems.reduce((sum, item) => 
@@ -282,7 +257,7 @@ const CreateOrder: React.FC = () => {
         <InputNumber
           min={1}
           value={quantity}
-          onChange={(value: number | null) => updateOrderItem(record.id, 'quantity', value || 1)}
+          onChange={(value) => updateOrderItem(record.id, 'quantity', value || 1)}
           style={{ width: 80 }}
         />
       ),
@@ -293,13 +268,13 @@ const CreateOrder: React.FC = () => {
       key: 'price',
       align: 'center' as const,
       render: (price: number, record: OrderItemForm) => (
-        <RussianInputNumber
+        <InputNumber
           min={0}
           precision={2}
           value={price}
-          onChange={(value: number | null) => updateOrderItem(record.id, 'price', value || 0)}
-          style={{ width: 120 }}
-          showCurrency={true}
+          onChange={(value) => updateOrderItem(record.id, 'price', value || 0)}
+          style={{ width: 100 }}
+          addonAfter="₽"
         />
       ),
     },
@@ -329,7 +304,7 @@ const CreateOrder: React.FC = () => {
       key: 'total',
       align: 'right' as const,
       render: (total: number) => (
-        <Text strong>{formatMoney(total)}</Text>
+        <Text strong>{total.toLocaleString()} ₽</Text>
       ),
     },
     {
@@ -476,7 +451,7 @@ const CreateOrder: React.FC = () => {
                   >
                     <Select 
                       placeholder="Выберите источник заказа"
-                      onChange={(value: string) => {
+                      onChange={(value) => {
                         setSelectedSource(value);
                         if (value !== 'other') {
                           form.setFieldValue('customSource', '');
@@ -499,7 +474,7 @@ const CreateOrder: React.FC = () => {
                     rules={[
                       {
                         required: false,
-                        validator: (_: any, value: string) => {
+                        validator: (_, value) => {
                           if (selectedSource === 'other' && (!value || value.trim() === '')) {
                             return Promise.reject(new Error('Укажите описание источника'));
                           }
@@ -526,7 +501,7 @@ const CreateOrder: React.FC = () => {
                     <DatePicker 
                       style={{ width: '100%' }}
                       placeholder="Выберите дату"
-                      disabledDate={(current: any) => current && current < dayjs().startOf('day')}
+                      disabledDate={(current) => current && current < dayjs().startOf('day')}
                     />
                   </Form.Item>
                 </Col>
@@ -552,7 +527,7 @@ const CreateOrder: React.FC = () => {
                     <Select placeholder="Выберите менеджера">
                       {users.map(u => (
                         <Option key={u.id} value={u.id}>
-                          {u.fullName || u.username} ({u.role === 'manager' ? 'Менеджер' : 'Директор'})
+                          {u.fullName || u.username} ({getRoleDisplayName(u.role)})
                         </Option>
                       ))}
                     </Select>
@@ -675,105 +650,11 @@ const CreateOrder: React.FC = () => {
       >
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
           <Input
-            placeholder="Поиск товаров по названию или артикулу..."
+            placeholder="Поиск товаров..."
             prefix={<SearchOutlined />}
             value={searchText}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchText(e.target.value)}
+            onChange={(e) => setSearchText(e.target.value)}
             allowClear
-          />
-          
-          <Collapse 
-            size="small"
-            ghost
-            items={[{
-              key: 'filters',
-              label: 'Дополнительные фильтры',
-              children: (
-                <Row gutter={[16, 16]}>
-                  <Col span={8}>
-                    <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                      <Text strong>Длина (мм)</Text>
-                      <Row gutter={8}>
-                        <Col span={12}>
-                          <RussianInputNumber
-                            placeholder="От"
-                            min={0}
-                            precision={0}
-                            style={{ width: '100%' }}
-                            value={sizeFilters.lengthMin}
-                            onChange={(value: number | null) => setSizeFilters(prev => ({ ...prev, lengthMin: value || undefined }))}
-                          />
-                        </Col>
-                        <Col span={12}>
-                          <RussianInputNumber
-                            placeholder="До"
-                            min={0}
-                            precision={0}
-                            style={{ width: '100%' }}
-                            value={sizeFilters.lengthMax}
-                            onChange={(value: number | null) => setSizeFilters(prev => ({ ...prev, lengthMax: value || undefined }))}
-                          />
-                        </Col>
-                      </Row>
-                    </Space>
-                  </Col>
-                  <Col span={8}>
-                    <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                      <Text strong>Ширина (мм)</Text>
-                      <Row gutter={8}>
-                        <Col span={12}>
-                          <RussianInputNumber
-                            placeholder="От"
-                            min={0}
-                            precision={0}
-                            style={{ width: '100%' }}
-                            value={sizeFilters.widthMin}
-                            onChange={(value: number | null) => setSizeFilters(prev => ({ ...prev, widthMin: value || undefined }))}
-                          />
-                        </Col>
-                        <Col span={12}>
-                          <RussianInputNumber
-                            placeholder="До"
-                            min={0}
-                            precision={0}
-                            style={{ width: '100%' }}
-                            value={sizeFilters.widthMax}
-                            onChange={(value: number | null) => setSizeFilters(prev => ({ ...prev, widthMax: value || undefined }))}
-                          />
-                        </Col>
-                      </Row>
-                    </Space>
-                  </Col>
-                  <Col span={8}>
-                    <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                      <Text strong>Высота (мм)</Text>
-                      <Row gutter={8}>
-                        <Col span={12}>
-                          <RussianInputNumber
-                            placeholder="От"
-                            min={0}
-                            precision={0}
-                            style={{ width: '100%' }}
-                            value={sizeFilters.heightMin}
-                            onChange={(value: number | null) => setSizeFilters(prev => ({ ...prev, heightMin: value || undefined }))}
-                          />
-                        </Col>
-                        <Col span={12}>
-                          <RussianInputNumber
-                            placeholder="До"
-                            min={0}
-                            precision={0}
-                            style={{ width: '100%' }}
-                            value={sizeFilters.heightMax}
-                            onChange={(value: number | null) => setSizeFilters(prev => ({ ...prev, heightMax: value || undefined }))}
-                          />
-                        </Col>
-                      </Row>
-                    </Space>
-                  </Col>
-                </Row>
-              )
-            }]}
           />
           
           <Table

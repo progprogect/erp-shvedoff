@@ -12,13 +12,13 @@ import {
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { catalogApi, Product, Category } from '../services/catalogApi';
+import usePermissions from '../hooks/usePermissions';
 import { surfacesApi, Surface } from '../services/surfacesApi';
 import { logosApi, Logo } from '../services/logosApi';
 import { materialsApi, Material } from '../services/materialsApi';
 import { stockApi, StockMovement } from '../services/stockApi';
 import { getOrdersByProduct } from '../services/ordersApi';
 import { getProductionTasksByProduct } from '../services/productionApi';
-import RussianInputNumber from '../components/RussianInputNumber';
 
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -28,7 +28,18 @@ const ProductDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, token } = useAuthStore();
+  const { canEdit, canManage } = usePermissions();
   const { message } = App.useApp();
+
+  const getRoleDisplayName = (role: string) => {
+    const roleNames: Record<string, string> = {
+      'director': 'Директор',
+      'manager': 'Менеджер', 
+      'production': 'Производство',
+      'warehouse': 'Склад'
+    };
+    return roleNames[role] || role;
+  };
   
   const [product, setProduct] = useState<Product | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -340,10 +351,9 @@ const ProductDetail: React.FC = () => {
     }
   ];
 
-  const canEdit = user?.role === 'director' || user?.role === 'manager';
-  
-  // Определяем возможность редактирования остатков (WBS 2 - Adjustments Задача 3.1)
-  const canEditStock = user?.role === 'director' || user?.role === 'manager';
+  // Используем хук разрешений вместо жестко закодированных ролей
+  const canEditProduct = canEdit('catalog');
+  const canEditStock = canEdit('stock');
 
   // Функции для редактирования остатков (WBS 2 - Adjustments Задача 3.1)
   const startEditingStock = () => {
@@ -424,9 +434,10 @@ const ProductDetail: React.FC = () => {
     );
   }
 
-  const dimensions = product.dimensions || { length: 0, width: 0, thickness: 0 };
+  // Получаем размеры из product.dimensions или из characteristics
+  const dimensions = product?.dimensions || product?.characteristics?.dimensions || {};
   const available = (product.currentStock || 0) - (product.reservedStock || 0);
-  const stockStatus = getStockStatus(available, product.normStock);
+  const stockStatus = getStockStatus(available, product.normStock || 0);
 
   return (
     <div>
@@ -459,7 +470,7 @@ const ProductDetail: React.FC = () => {
               </Space>
             </Col>
             
-            {canEdit && (
+            {canEditProduct && (
               <Col>
                 <Button 
                   type="primary"
@@ -479,50 +490,107 @@ const ProductDetail: React.FC = () => {
             {/* Информация о товаре */}
             <Col xs={24} lg={16}>
               <Card title="📋 Информация о товаре">
-                <Descriptions column={2} bordered>
+                <Descriptions 
+                  column={2} 
+                  bordered 
+                  size="small" 
+                  labelStyle={{ 
+                    width: '120px', 
+                    fontWeight: 'bold',
+                    textAlign: 'right',
+                    paddingRight: '16px'
+                  }}
+                  contentStyle={{
+                    minWidth: '200px'
+                  }}
+                >
                   <Descriptions.Item label="Название" span={2}>
-                    <Text strong>{product.name}</Text>
+                    <Text strong>{product?.name || 'Не указано'}</Text>
                   </Descriptions.Item>
                   
                   <Descriptions.Item label="Артикул">
-                    {product.article || 'Не указан'}
+                    {product?.article || 'Не указан'}
                   </Descriptions.Item>
                   
                   <Descriptions.Item label="Категория">
-                    {product.categoryName}
+                    {product?.categoryName || product?.category?.name || 'Не указана'}
                   </Descriptions.Item>
                   
                   <Descriptions.Item label="Длина">
-                    {dimensions.length} мм
+                    {dimensions?.length || 0} мм
                   </Descriptions.Item>
                   
                   <Descriptions.Item label="Ширина">
-                    {dimensions.width} мм
+                    {dimensions?.width || 0} мм
                   </Descriptions.Item>
                   
-                  <Descriptions.Item label="Толщина">
-                    {dimensions.thickness} мм
+                  <Descriptions.Item label="Высота">
+                    {dimensions?.thickness || 0} мм
+                  </Descriptions.Item>
+                  
+                  <Descriptions.Item label="Площадь">
+                    {product?.matArea ? `${product.matArea} м²` : 'Не указана'}
+                  </Descriptions.Item>
+                  
+                  <Descriptions.Item label="Вес">
+                    {product?.weight ? `${product.weight} кг` : 'Не указан'}
+                  </Descriptions.Item>
+                  
+                  <Descriptions.Item label="Сорт">
+                    {product?.grade === 'usual' ? 'Обычный' : 
+                     product?.grade === 'grade_2' ? 'Второй сорт' : 
+                     'Не указан'}
+                  </Descriptions.Item>
+                  
+                  <Descriptions.Item label="Тип борта">
+                    {product?.borderType === 'with_border' ? 'С бортом' : 
+                     product?.borderType === 'without_border' ? 'Без борта' : 
+                     'Не указан'}
+                  </Descriptions.Item>
+                  
+                  <Descriptions.Item label="Край ковра">
+                    {product?.carpetEdgeType === 'puzzle' ? 'Паззл' : 'Прямой рез'}
+                  </Descriptions.Item>
+                  
+                  <Descriptions.Item label="Усиленный край">
+                    {product?.carpetEdgeStrength === 'reinforced' ? 'Усиленный' : 'Обычный'}
+                  </Descriptions.Item>
+                  
+                  {product?.carpetEdgeType === 'puzzle' && (
+                    <>
+                      <Descriptions.Item label="Количество сторон">
+                        {product?.carpetEdgeSides || product?.puzzleSides || 1} сторона
+                      </Descriptions.Item>
+                      
+                      <Descriptions.Item label="Тип паззла">
+                        {product?.puzzleType?.name || 'Не указан'}
+                      </Descriptions.Item>
+                    </>
+                  )}
+                  
+                  <Descriptions.Item label="Поверхность">
+                    {product?.surface?.name || product?.characteristics?.surface || 'Не указана'}
+                  </Descriptions.Item>
+                  
+                  <Descriptions.Item label="Материал">
+                    {product?.material?.name || product?.characteristics?.material || 'Не указан'}
+                  </Descriptions.Item>
+                  
+                  <Descriptions.Item label="Логотип">
+                    {product?.logo?.name || 'Не указан'}
+                  </Descriptions.Item>
+                  
+                  <Descriptions.Item label="Низ ковра">
+                    {product?.bottomType?.name || 'Не указан'}
                   </Descriptions.Item>
                   
                   <Descriptions.Item label="Норма остатка">
-                    {product.normStock} шт
+                    {product?.normStock || 0} шт
                   </Descriptions.Item>
-                  
-                  {product.characteristics?.surface && (
-                    <Descriptions.Item label="Поверхность">
-                      {product.characteristics.surface}
-                    </Descriptions.Item>
-                  )}
-                  
-                  {product.characteristics?.material && (
-                    <Descriptions.Item label="Материал">
-                      {product.characteristics.material}
-                    </Descriptions.Item>
-                  )}
                   
                   <Descriptions.Item label="Цена" span={2}>
                     <Text strong style={{ fontSize: 16, color: '#1890ff' }}>
-                      {product.price ? `${product.price.toLocaleString()}₽` : 'Не указана'}
+                      {product?.price ? `${product.price.toLocaleString()}₽` : 'Не указана'}
                     </Text>
                   </Descriptions.Item>
                 </Descriptions>
@@ -538,6 +606,32 @@ const ProductDetail: React.FC = () => {
                     </div>
                   </>
                 )}
+                
+                {product.tags && product.tags.length > 0 && (
+                  <>
+                    <Divider />
+                    <div>
+                      <Text strong>Теги:</Text>
+                      <div style={{ marginTop: 8 }}>
+                        {product.tags.map((tag, index) => (
+                          <Tag key={index} color="blue" style={{ marginBottom: 4 }}>
+                            {tag}
+                          </Tag>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+                
+                <Divider />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#666' }}>
+                  <Text type="secondary">
+                    Создан: {product.createdAt ? new Date(product.createdAt).toLocaleDateString('ru-RU') : 'Не указано'}
+                  </Text>
+                  <Text type="secondary">
+                    Обновлен: {product.updatedAt ? new Date(product.updatedAt).toLocaleDateString('ru-RU') : 'Не указано'}
+                  </Text>
+                </div>
               </Card>
             </Col>
 
@@ -935,7 +1029,7 @@ const ProductDetail: React.FC = () => {
                 <Select placeholder="Выберите ответственного пользователя" allowClear>
                   {users.map(user => (
                     <Option key={user.id} value={user.id}>
-                      {user.fullName || user.username} ({user.role === 'manager' ? 'Менеджер' : user.role === 'director' ? 'Директор' : user.role})
+                                              {user.fullName || user.username} ({getRoleDisplayName(user.role)})
                     </Option>
                   ))}
                 </Select>
@@ -946,17 +1040,17 @@ const ProductDetail: React.FC = () => {
           <Row gutter={16}>
             <Col span={8}>
               <Form.Item name="length" label="Длина (мм)">
-                <RussianInputNumber style={{ width: '100%' }} min={1} precision={0} />
+                <InputNumber style={{ width: '100%' }} min={1} />
               </Form.Item>
             </Col>
             <Col span={8}>
               <Form.Item name="width" label="Ширина (мм)">
-                <RussianInputNumber style={{ width: '100%' }} min={1} precision={0} />
+                <InputNumber style={{ width: '100%' }} min={1} />
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="thickness" label="Толщина (мм)">
-                <RussianInputNumber style={{ width: '100%' }} min={1} precision={0} />
+              <Form.Item name="thickness" label="Высота (мм)">
+                <InputNumber style={{ width: '100%' }} min={1} />
               </Form.Item>
             </Col>
           </Row>
@@ -978,10 +1072,10 @@ const ProductDetail: React.FC = () => {
                 <Select 
                   placeholder="Выберите логотип или создайте новый"
                   allowClear
-                  dropdownRender={(menu) => (
+                  popupRender={(menu) => (
                     <>
                       {menu}
-                      {user?.role === 'director' && (
+                                              {canManage('catalog') && (
                         <div style={{ padding: '8px', borderTop: '1px solid #f0f0f0' }}>
                           <Input
                             placeholder="Название нового логотипа"
@@ -1029,12 +1123,11 @@ const ProductDetail: React.FC = () => {
 
           <Row gutter={16}>
             <Col span={8}>
-              <Form.Item name="price" label="Цена продажи">
-                <RussianInputNumber 
+              <Form.Item name="price" label="Цена продажи (₽)">
+                <InputNumber 
                   style={{ width: '100%' }} 
                   min={0}
-                  precision={2}
-                  showCurrency={true}
+                  formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                 />
               </Form.Item>
             </Col>

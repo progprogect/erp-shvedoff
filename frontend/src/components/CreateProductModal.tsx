@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Form, Input, Select, InputNumber, Row, Col, Button, Space, message, Typography } from 'antd';
+import { Modal, Form, Input, Select, InputNumber, Row, Col, Button, Space, Typography, App } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { catalogApi, Category } from '../services/catalogApi';
 import { surfacesApi, Surface } from '../services/surfacesApi';
@@ -7,7 +7,8 @@ import { logosApi, Logo } from '../services/logosApi';
 import { materialsApi, Material } from '../services/materialsApi';
 import { puzzleTypesApi, PuzzleType } from '../services/puzzleTypesApi';
 import { useAuthStore } from '../stores/authStore';
-import RussianInputNumber from './RussianInputNumber';
+import carpetEdgeTypesApi, { CarpetEdgeType } from '../services/carpetEdgeTypesApi';
+import bottomTypesApi, { BottomType } from '../services/bottomTypesApi';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -26,6 +27,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
   onClose,
   onSuccess
 }) => {
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [surfaces, setSurfaces] = useState<Surface[]>([]);
@@ -38,11 +40,17 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
   const [newPuzzleTypeName, setNewPuzzleTypeName] = useState('');
   const [creatingPuzzleType, setCreatingPuzzleType] = useState(false);
   const [selectedSurfaceId, setSelectedSurfaceId] = useState<number | null>(null);
-  const [puzzleOptions, setPuzzleOptions] = useState({
-    sides: '1_side' as '1_side' | '2_sides' | '3_sides' | '4_sides',
-    type: 'old' as string,
-    enabled: false
-  });
+  // Состояние для новых полей края ковра
+  const [carpetEdgeTypes, setCarpetEdgeTypes] = useState<CarpetEdgeType[]>([]);
+  const [selectedCarpetEdgeType, setSelectedCarpetEdgeType] = useState<string>('straight_cut');
+  const [carpetEdgeSides, setCarpetEdgeSides] = useState<number>(1);
+  const [carpetEdgeStrength, setCarpetEdgeStrength] = useState<string>('normal');
+  
+  // Состояние для низа ковра
+  const [bottomTypes, setBottomTypes] = useState<BottomType[]>([]);
+  const [selectedBottomTypeId, setSelectedBottomTypeId] = useState<number | null>(null);
+  
+  // Состояние для площади мата
   const [calculatedMatArea, setCalculatedMatArea] = useState<number | null>(null);
   const [matAreaOverride, setMatAreaOverride] = useState<string>('');
   const { token } = useAuthStore();
@@ -54,6 +62,25 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
     }
   }, [visible, token]);
 
+  // В useEffect загружаем типы края ковра
+  useEffect(() => {
+    const loadCarpetEdgeTypes = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (token) {
+          const response = await carpetEdgeTypesApi.getCarpetEdgeTypes(token);
+          if (response.success) {
+            setCarpetEdgeTypes(response.data);
+          }
+        }
+      } catch (error) {
+        console.error('Ошибка загрузки типов края ковра:', error);
+      }
+    };
+
+    loadCarpetEdgeTypes();
+  }, []);
+
   const loadReferences = async () => {
     if (!token) return;
     
@@ -63,7 +90,8 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
         surfacesApi.getSurfaces(token),
         logosApi.getLogos(token),
         materialsApi.getMaterials(token),
-        puzzleTypesApi.getPuzzleTypes(token)
+        puzzleTypesApi.getPuzzleTypes(token),
+        bottomTypesApi.getBottomTypes(token)
       ]);
 
       if (surfacesResponse.success) {
@@ -77,6 +105,16 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
       }
       if (puzzleTypesResponse.success) {
         setPuzzleTypes(puzzleTypesResponse.data);
+      }
+      
+      const bottomTypesResponse = await bottomTypesApi.getBottomTypes(token);
+      if (bottomTypesResponse.success) {
+        setBottomTypes(bottomTypesResponse.data);
+        // Устанавливаем значение по умолчанию (шип-0)
+        const defaultBottomType = bottomTypesResponse.data.find(bt => bt.code === 'spike_0');
+        if (defaultBottomType) {
+          setSelectedBottomTypeId(defaultBottomType.id);
+        }
       }
     } catch (error) {
       console.error('Ошибка загрузки справочников:', error);
@@ -134,7 +172,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
         // Добавляем новый тип в список
         setPuzzleTypes(prev => [...prev, response.data]);
         // Устанавливаем его в состоянии паззла
-        setPuzzleOptions(prev => ({ ...prev, type: response.data.code as string }));
+        // setPuzzleOptions(prev => ({ ...prev, type: response.data.code as string })); // Удалено
         setNewPuzzleTypeName('');
         message.success('Тип паззла успешно создан');
       }
@@ -151,9 +189,6 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
 
     setLoading(true);
     try {
-      // Проверяем выбрана ли поверхность "Паззл"
-      const isPuzzleSurface = surfaces.find(s => s.id === values.surfaceId)?.name === 'Паззл';
-
       const productData = {
         name: values.name,
         article: values.article || null,
@@ -166,10 +201,19 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
           width: Number(values.width),
           thickness: Number(values.thickness)
         } : undefined,
-        puzzleOptions: isPuzzleSurface && puzzleOptions.enabled ? puzzleOptions : undefined,
+        // Новые поля для края ковра
+        carpetEdgeType: values.carpetEdgeType || 'straight_cut',
+        carpetEdgeSides: values.carpetEdgeSides || 1,
+        carpetEdgeStrength: values.carpetEdgeStrength || 'normal',
+        // Поле для низа ковра
+        bottomTypeId: values.bottomTypeId,
+        // Поля паззла (если выбран паззловый край)
+        puzzleTypeId: values.carpetEdgeType === 'puzzle' ? values.puzzleTypeId : null,
+        puzzleSides: values.carpetEdgeType === 'puzzle' ? values.carpetEdgeSides : 1,
         matArea: values.matArea ? parseFloat(values.matArea) : undefined,
         weight: values.weight ? parseFloat(values.weight) : undefined,
         grade: values.grade || 'usual',
+        borderType: values.borderType || null,
         price: values.price ? parseFloat(values.price) : undefined,
         normStock: values.normStock || 0,
         initialStock: values.initialStock || 0,
@@ -182,11 +226,18 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
         message.success('Товар успешно создан');
         form.resetFields();
         setSelectedSurfaceId(null);
-        setPuzzleOptions({ sides: '1_side', type: (puzzleTypes[0]?.code || 'old') as string, enabled: false });
+        setSelectedCarpetEdgeType('straight_cut');
+        setCarpetEdgeSides(1);
+        setCarpetEdgeStrength('normal');
+        setSelectedBottomTypeId(null);
         setCalculatedMatArea(null);
         setMatAreaOverride('');
         // Устанавливаем значения по умолчанию
-        form.setFieldsValue({ grade: 'usual' });
+        form.setFieldsValue({ 
+          grade: 'usual',
+          carpetEdgeType: 'straight_cut',
+          carpetEdgeStrength: 'normal'
+        });
         onSuccess();
         onClose();
       } else {
@@ -211,45 +262,251 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
     }
   };
 
-  // Генерация артикула на основе названия и расчет площади мата
+  // Генерация артикула на основе названия и расчет площади мата (ВСЕ параметры включены)
   const generateArticle = () => {
     const name = form.getFieldValue('name');
     const length = form.getFieldValue('length');
     const width = form.getFieldValue('width');
     const thickness = form.getFieldValue('thickness');
     const surfaceId = form.getFieldValue('surfaceId');
+    const materialId = form.getFieldValue('materialId');
+    const logoId = form.getFieldValue('logoId');
+    const borderType = form.getFieldValue('borderType');
+    const grade = form.getFieldValue('grade');
+    const bottomTypeId = form.getFieldValue('bottomTypeId');
     
-            // Генерация артикула
-        if (name) {
-          // Краткий символ из названия
-          let article = name
-            .replace(/[^а-яё\s]/gi, '')
-            .split(' ')
-            .map((word: string) => word.slice(0, 3).toUpperCase())
-            .join('-');
+    // Генерация артикула согласно Задаче 7.4 (ПОЛНАЯ версия со ВСЕМИ параметрами)
+    if (name) {
+      let article = '';
+      
+      // 1. Краткое название - ВКЛЮЧАЕМ ВСЕ значимые слова
+      const nameWords = name
+        .toLowerCase()
+        .replace(/[^а-яёa-z\s]/gi, '')
+        .split(' ')
+        .filter((word: string) => word.length > 1) // Берем все слова длиннее 1 символа
+      
+      // Создаем понятные сокращения (можно чуть длиннее для ясности)
+      const nameCode = nameWords.map((word: string) => {
+        // Расширенные предопределенные сокращения для основных слов
+        const predefinedCodes: { [key: string]: string } = {
+          'лежак': 'ЛЕЖАК',
+          'лежачий': 'ЛЕЖАЧ',
+          'резиновый': 'РЕЗИН',
+          'резина': 'РЕЗИН',
+          'коврик': 'КОВР',
+          'ковер': 'КОВР', 
+          'покрытие': 'ПОКР',
+          'мат': 'МАТ',
+          'мата': 'МАТ',
+          'матовый': 'МАТОВ',
+          'чешский': 'ЧЕШСК',
+          'чешуйчатый': 'ЧЕШУЙ',
+          'гладкий': 'ГЛАДК',
+          'стандартный': 'СТАНД',
+          'обычный': 'ОБЫЧН',
+          'специальный': 'СПЕЦ',
+          'большой': 'БОЛЬШ',
+          'малый': 'МАЛЫЙ',
+          'средний': 'СРЕДН',
+          'паззл': 'ПАЗЛ',
+          'пазл': 'ПАЗЛ',
+          'элементов': 'ЭЛЕМ',
+          'деталей': 'ДЕТ',
+          'частей': 'ЧАСТ',
+          'штук': 'ШТ',
+          'сторона': 'СТ',
+          'сторонний': 'СТОР',
+          'двухсторонний': '2СТ',
+          'односторонний': '1СТ',
+          'многосторонний': 'МСТОР'
+        };
+        
+        if (predefinedCodes[word]) {
+          return predefinedCodes[word];
+        }
+        
+        // Если нет предопределенного кода, берем первые 3-4 буквы для ясности
+        if (word.length <= 4) {
+          return word.toUpperCase();
+        }
+        return word.slice(0, 4).toUpperCase();
+      }).join('-');
+      
+      if (nameCode) {
+        article = nameCode;
+      }
+      
+      // 2. Размеры в формате Длина×Ширина×Толщина (ВСЕ размеры включены)
+      if (length && width && thickness) {
+        article += `-${length}x${width}x${thickness}`;
+      } else if (length && width) {
+        article += `-${length}x${width}`;
+      }
+      
+      // 3. Материал (понятный код чуть длиннее)
+      if (materialId) {
+        const material = materials.find(m => m.id === materialId);
+        if (material) {
+          const materialCodes: { [key: string]: string } = {
+            'протектор': 'ПРОТ',
+            'дробленка': 'ДРОБ',
+            'резина': 'РЕЗИН',
+            'пластик': 'ПЛАСТ',
+            'каучук': 'КАУЧ'
+          };
           
-          // Размер через x
-          if (length && width && thickness) {
-            article += `-${length}x${width}x${thickness}`;
-          }
+          const materialName = material.name.toLowerCase();
+          let materialCode = '';
           
-          // Краткое обозначение поверхности
-          if (surfaceId) {
-            const surface = surfaces.find(s => s.id === surfaceId);
-            if (surface) {
-              const surfaceCode = surface.name
-                .replace(/[^а-яё\s]/gi, '')
-                .split(' ')
-                .map((word: string) => word.slice(0, 2).toUpperCase())
-                .join('');
-              if (surfaceCode) {
-                article += `-${surfaceCode}`;
-              }
+          // Ищем предопределенный код
+          for (const [key, code] of Object.entries(materialCodes)) {
+            if (materialName.includes(key)) {
+              materialCode = code;
+              break;
             }
           }
           
-          form.setFieldsValue({ article });
+          // Если нет предопределенного, берем первые 3-4 буквы для понятности
+          if (!materialCode) {
+            const firstWord = material.name
+              .replace(/[^а-яёa-z\s]/gi, '')
+              .split(' ')[0];
+            materialCode = firstWord.length <= 4 ? firstWord.toUpperCase() : firstWord.slice(0, 4).toUpperCase();
+          }
+          
+          if (materialCode) {
+            article += `-${materialCode}`;
+          }
         }
+      }
+      
+      // 4. Поверхность (понятный код чуть длиннее)
+      if (surfaceId) {
+        const surface = surfaces.find(s => s.id === surfaceId);
+        if (surface) {
+          const surfaceCodes: { [key: string]: string } = {
+            'чешуйки': 'ЧЕШУЙ',
+            'чешуйка': 'ЧЕШУЙ', 
+            'черточки': 'ЧЕРТ',
+            'гладкая': 'ГЛАДК',
+            'коровка': 'КОРОВ',
+            '1 коровка': '1КОР',
+            '3 коровки': '3КОР'
+          };
+          
+          const surfaceName = surface.name.toLowerCase();
+          let surfaceCode = '';
+          
+          // Ищем предопределенный код
+          for (const [key, code] of Object.entries(surfaceCodes)) {
+            if (surfaceName.includes(key)) {
+              surfaceCode = code;
+              break;
+            }
+          }
+          
+          // Если нет предопределенного, берем первые 3-4 буквы для понятности
+          if (!surfaceCode) {
+            const firstWord = surface.name
+              .replace(/[^а-яёa-z\s]/gi, '')
+              .split(' ')[0];
+            surfaceCode = firstWord.length <= 4 ? firstWord.toUpperCase() : firstWord.slice(0, 4).toUpperCase();
+          }
+          
+          if (surfaceCode) {
+            article += `-${surfaceCode}`;
+          }
+        }
+      }
+      
+      // 5. Наличие борта (всегда указываем для полноты)
+      if (borderType) {
+        const borderCode = borderType === 'with_border' ? 'СБОРТ' : 'БЕЗБОРТ';
+        article += `-${borderCode}`;
+      }
+      
+      // 6. Логотип (понятный код чуть длиннее)
+      if (logoId) {
+        const logo = logos.find(l => l.id === logoId);
+        if (logo) {
+          const logoCodes: { [key: string]: string } = {
+            'gea': 'GEA',
+            'maximilk': 'MAXIM',
+            'veles': 'VELES',
+            'агротек': 'АГРОТ',
+            'арнтьен': 'АРНТ'
+          };
+          
+          const logoName = logo.name.toLowerCase();
+          let logoCode = '';
+          
+          // Ищем предопределенный код
+          for (const [key, code] of Object.entries(logoCodes)) {
+            if (logoName.includes(key)) {
+              logoCode = code;
+              break;
+            }
+          }
+          
+          // Если нет предопределенного, берем первые 3-4 буквы для понятности
+          if (!logoCode) {
+            const firstWord = logo.name
+              .replace(/[^а-яёa-z\s]/gi, '')
+              .split(' ')[0];
+            logoCode = firstWord.length <= 4 ? firstWord.toUpperCase() : firstWord.slice(0, 4).toUpperCase();
+          }
+          
+          if (logoCode) {
+            article += `-${logoCode}`;
+          }
+        }
+      }
+      
+      // 7. Низ ковра (понятный код чуть длиннее)
+      if (bottomTypeId) {
+        const bottomType = bottomTypes.find(bt => bt.id === bottomTypeId);
+        if (bottomType) {
+          const bottomTypeCodes: { [key: string]: string } = {
+            'шип-0': 'ШИП0',
+            'шип-2': 'ШИП2',
+            'шип-5': 'ШИП5',
+            'шип-7': 'ШИП7',
+            'шип-11': 'ШИП11',
+          };
+          
+          const bottomTypeName = bottomType.name.toLowerCase();
+          let bottomTypeCode = '';
+          
+          for (const [key, code] of Object.entries(bottomTypeCodes)) {
+            if (bottomTypeName.includes(key)) {
+              bottomTypeCode = code;
+              break;
+            }
+          }
+          
+          if (!bottomTypeCode) {
+            const firstWord = bottomType.name
+              .replace(/[^а-яёa-z\s]/gi, '')
+              .split(' ')[0];
+            bottomTypeCode = firstWord.length <= 4 ? firstWord.toUpperCase() : firstWord.slice(0, 4).toUpperCase();
+          }
+          
+          if (bottomTypeCode) {
+            article += `-${bottomTypeCode}`;
+          }
+        }
+      }
+      
+      // 8. Сорт (всегда указываем для полноты)
+      if (grade && grade !== 'usual') {
+        article += `-2СОРТ`;
+      } else if (grade === 'usual') {
+        article += `-1СОРТ`;
+      }
+      
+      form.setFieldsValue({ article });
+    }
 
     // Расчет площади мата (длина × ширина в м²)
     if (length && width) {
@@ -391,9 +648,13 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
           <Col span={8}>
             <Form.Item
               name="thickness"
-              label="Толщина (мм)"
+              label="Высота (мм)"
+              rules={[
+                { required: false, message: 'Введите высоту' },
+                { type: 'number', min: 1, message: 'Высота должна быть больше 0' }
+              ]}
             >
-              <InputNumber 
+              <InputNumber
                 placeholder="30"
                 style={{ width: '100%' }}
                 min={1}
@@ -416,15 +677,17 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                 showSearch
                 optionFilterProp="children"
                 allowClear
-                onChange={(value: number | null) => {
+                onChange={(value) => {
                   setSelectedSurfaceId(value);
                   const isPuzzle = surfaces.find(s => s.id === value)?.name === 'Паззл';
-                  if (isPuzzle) {
-                    // Автоматически включаем опции паззла при выборе поверхности "Паззл"
-                    setPuzzleOptions({ sides: '1_side', type: 'old', enabled: true });
-                  } else {
-                    setPuzzleOptions({ sides: '1_side', type: 'old', enabled: false });
-                  }
+                  // if (isPuzzle) { // Удалено
+                  //   // Автоматически включаем опции паззла при выборе поверхности "Паззл" // Удалено
+                  //   setPuzzleOptions({ sides: '1_side', type: 'old', enabled: true }); // Удалено
+                  // } else { // Удалено
+                  //   setPuzzleOptions({ sides: '1_side', type: 'old', enabled: false }); // Удалено
+                  // }
+                  // Генерируем артикул при изменении поверхности (Задача 7.4)
+                  setTimeout(generateArticle, 100);
                 }}
               >
                 {surfaces.map(surface => (
@@ -446,14 +709,15 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                 showSearch
                 optionFilterProp="children"
                 allowClear
-                dropdownRender={(menu: React.ReactNode) => (
+                onChange={() => setTimeout(generateArticle, 100)}
+                popupRender={(menu) => (
                   <>
                     {menu}
                     <div style={{ padding: '8px', borderTop: '1px solid #f0f0f0' }}>
                       <Input
                         placeholder="Название нового логотипа"
                         value={newLogoName}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewLogoName(e.target.value)}
+                        onChange={(e) => setNewLogoName(e.target.value)}
                         onPressEnter={createNewLogo}
                         style={{ marginBottom: 8 }}
                       />
@@ -491,6 +755,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                 showSearch
                 optionFilterProp="children"
                 allowClear
+                onChange={() => setTimeout(generateArticle, 100)}
               >
                 {materials.map(material => (
                   <Option key={material.id} value={material.id}>
@@ -524,101 +789,146 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
               label="Сорт товара"
               initialValue="usual"
             >
-              <Select style={{ width: '100%' }}>
+              <Select 
+                style={{ width: '100%' }}
+                onChange={() => setTimeout(generateArticle, 100)}
+              >
                 <Option value="usual">Обычный</Option>
                 <Option value="grade_2">2 сорт</Option>
               </Select>
             </Form.Item>
           </Col>
           <Col span={8}>
-            {/* Пустая колонка для симметрии */}
+            <Form.Item
+              name="borderType"
+              label="Наличие борта"
+            >
+              <Select 
+                style={{ width: '100%' }} 
+                placeholder="Выберите тип борта"
+                onChange={() => setTimeout(generateArticle, 100)}
+              >
+                <Option value="with_border">С бортом</Option>
+                <Option value="without_border">Без борта</Option>
+              </Select>
+            </Form.Item>
           </Col>
         </Row>
 
-        {/* Опции паззла - показываются только при выборе поверхности "Паззл" */}
-        {surfaces.find(s => s.id === selectedSurfaceId)?.name === 'Паззл' && (
-          <Row gutter={16} style={{ backgroundColor: '#f0f8ff', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
-            <Col span={24}>
-              <div style={{ marginBottom: '12px' }}>
-                                 <span style={{ fontWeight: 'bold', color: '#1890ff' }}>🧩 Настройки паззловой поверхности</span>
-              </div>
-            </Col>
-            <Col span={6}>
-              <div style={{ marginBottom: '8px' }}>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={puzzleOptions.enabled}
-                    onChange={(e) => setPuzzleOptions({...puzzleOptions, enabled: e.target.checked})}
-                    style={{ marginRight: '8px' }}
-                  />
-                                     <span>Включить опции паззла</span>
-                </label>
-              </div>
-            </Col>
-            {puzzleOptions.enabled && (
-              <>
-                <Col span={9}>
-                  <div style={{ marginBottom: '8px' }}>
-                                         <span>Количество сторон:</span>
-                  </div>
-                  <Select
-                    value={puzzleOptions.sides}
-                    onChange={(value: '1_side' | '2_sides' | '3_sides' | '4_sides') => setPuzzleOptions({...puzzleOptions, sides: value})}
-                    style={{ width: '100%' }}
-                  >
-                    <Option value="1_side">1 сторона</Option>
-                    <Option value="2_sides">2 стороны</Option>
-                    <Option value="3_sides">3 стороны</Option>
-                    <Option value="4_sides">4 стороны</Option>
+        {/* Край ковра - новые поля */}
+        <Row gutter={16} style={{ backgroundColor: '#f0f8ff', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
+          <Col span={24}>
+            <div style={{ marginBottom: '12px' }}>
+              <span style={{ fontWeight: 'bold', color: '#1890ff' }}>✂️ Настройки края ковра</span>
+            </div>
+          </Col>
+          
+          <Col span={8}>
+            <Form.Item
+              name="carpetEdgeType"
+              label="Край ковра"
+              rules={[{ required: true, message: 'Выберите тип края' }]}
+              initialValue="straight_cut"
+            >
+              <Select
+                placeholder="Выберите тип края"
+                onChange={(value) => {
+                  setSelectedCarpetEdgeType(value);
+                  // Очищаем поля паззла при смене на прямой рез
+                  if (value === 'straight_cut') {
+                    form.setFieldsValue({
+                      carpetEdgeSides: 1,
+                      puzzleTypeId: undefined
+                    });
+                  }
+                }}
+              >
+                {carpetEdgeTypes.map(type => (
+                  <Option key={type.code} value={type.code}>
+                    {type.name}
+                  </Option>
+                ))}
+              </Select>
+            </Form.Item>
+          </Col>
+          
+          {selectedCarpetEdgeType === 'puzzle' && (
+            <>
+              <Col span={8}>
+                <Form.Item
+                  name="carpetEdgeSides"
+                  label="Количество сторон"
+                  rules={[{ required: true, message: 'Выберите количество сторон' }]}
+                  initialValue={1}
+                >
+                  <Select placeholder="Выберите количество сторон">
+                    <Option value={1}>1 сторона</Option>
+                    <Option value={2}>2 стороны</Option>
+                    <Option value={3}>3 стороны</Option>
+                    <Option value={4}>4 стороны</Option>
                   </Select>
-                </Col>
-                <Col span={9}>
-                  <div style={{ marginBottom: '8px' }}>
-                                         <span>Тип паззла:</span>
-                  </div>
-                  <Select
-                    value={puzzleOptions.type}
-                    onChange={(value: string) => setPuzzleOptions({...puzzleOptions, type: value})}
-                    style={{ width: '100%' }}
-                    loading={loadingReferences}
-                    dropdownRender={(menu: React.ReactNode) => (
-                      <>
-                        {menu}
-                        <div style={{ padding: '8px', borderTop: '1px solid #f0f0f0' }}>
-                          <Input
-                            placeholder="Название нового типа паззла"
-                            value={newPuzzleTypeName}
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPuzzleTypeName(e.target.value)}
-                            onPressEnter={createNewPuzzleType}
-                            style={{ marginBottom: 8 }}
-                          />
-                          <Button
-                            type="primary"
-                            size="small"
-                            icon={<PlusOutlined />}
-                            onClick={createNewPuzzleType}
-                            loading={creatingPuzzleType}
-                            disabled={!newPuzzleTypeName.trim()}
-                            style={{ width: '100%' }}
-                          >
-                            Создать новый тип
-                          </Button>
-                        </div>
-                      </>
-                    )}
-                  >
+                </Form.Item>
+              </Col>
+              
+              <Col span={8}>
+                <Form.Item
+                  name="puzzleTypeId"
+                  label="Тип паззла"
+                  rules={[{ required: true, message: 'Выберите тип паззла' }]}
+                >
+                  <Select placeholder="Выберите тип паззла">
                     {puzzleTypes.map(type => (
-                      <Option key={type.id} value={type.code}>
-                        🧩 {type.name}
+                      <Option key={type.id} value={type.id}>
+                        {type.name}
                       </Option>
                     ))}
                   </Select>
-                </Col>
-              </>
-            )}
-          </Row>
-        )}
+                </Form.Item>
+              </Col>
+            </>
+          )}
+        </Row>
+
+        {/* Усиленный край */}
+        <Row gutter={16}>
+          <Col span={8}>
+            <Form.Item
+              name="carpetEdgeStrength"
+              label="Усиленный край"
+              rules={[{ required: true, message: 'Выберите тип усиления' }]}
+              initialValue="normal"
+            >
+              <Select placeholder="Выберите тип усиления">
+                <Option value="normal">Обычный</Option>
+                <Option value="reinforced">Усиленный</Option>
+              </Select>
+            </Form.Item>
+          </Col>
+          
+          <Col span={8}>
+            <Form.Item
+              name="bottomTypeId"
+              label="Низ ковра"
+              rules={[{ required: true, message: 'Выберите низ ковра' }]}
+              initialValue={selectedBottomTypeId}
+            >
+              <Select 
+                placeholder="Выберите низ ковра"
+                loading={loadingReferences}
+                onChange={(value) => {
+                  setSelectedBottomTypeId(value);
+                  setTimeout(generateArticle, 100);
+                }}
+              >
+                {bottomTypes.map(type => (
+                  <Option key={type.id} value={type.id}>
+                    🔽 {type.name}
+                  </Option>
+                ))}
+              </Select>
+            </Form.Item>
+          </Col>
+        </Row>
 
         {/* Площадь мата */}
         <Row gutter={16} style={{ backgroundColor: '#f9f9f9', padding: '12px', borderRadius: '6px', marginBottom: '16px' }}>
@@ -641,13 +951,12 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                 </span>
               }
             >
-              <RussianInputNumber 
+              <InputNumber 
                 placeholder="Рассчитается автоматически"
                 style={{ width: '100%' }}
                 min={0}
                 precision={4}
                 step={0.0001}
-                customSuffix="м²"
                 onChange={(value: number | null) => {
                   setMatAreaOverride(value ? value.toString() : '');
                 }}
@@ -673,14 +982,13 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
           <Col span={8}>
             <Form.Item
               name="price"
-              label="Цена продажи"
+              label="Цена продажи (₽)"
             >
-              <RussianInputNumber 
-                placeholder="15 000,00"
+              <InputNumber 
+                placeholder="15000"
                 style={{ width: '100%' }}
                 min={0}
                 precision={2}
-                showCurrency={true}
               />
             </Form.Item>
           </Col>
