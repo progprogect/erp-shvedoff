@@ -74,7 +74,7 @@ const Catalog: React.FC = () => {
   const [checkedCategories, setCheckedCategories] = useState<number[]>([]);
   const [stockFilter, setStockFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(4); // 4 товара на страницу
+  const [pageSize] = useState(1000); // Увеличено для отображения всех товаров
   const [showSizeFilters, setShowSizeFilters] = useState(false);
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
