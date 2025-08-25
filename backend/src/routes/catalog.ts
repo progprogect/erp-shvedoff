@@ -1,8 +1,10 @@
 import express from 'express';
 import { db, schema } from '../db';
-import { eq, like, isNull, and, sql, inArray, or } from 'drizzle-orm';
+import { eq, like, isNull, and, sql, inArray } from 'drizzle-orm';
 import { authenticateToken, authorizeRoles, AuthRequest } from '../middleware/auth';
+import { requireExportPermission, requirePermission } from '../middleware/permissions';
 import { createError } from '../middleware/errorHandler';
+import { ExcelExporter } from '../utils/excelExporter';
 
 const router = express.Router();
 
@@ -112,19 +114,44 @@ router.get('/products', authenticateToken, async (req, res, next) => {
     const { 
       search, 
       categoryId, 
-      limit = 1000, // Увеличен лимит для отображения всех товаров 
+      limit = 50, 
       offset = 0,
-      stockStatus // 'in_stock', 'low_stock', 'out_of_stock'
+      stockStatus, // 'in_stock', 'low_stock', 'out_of_stock'
+      // Новые фильтры для полноценной фильтрации
+      materialIds,    // материалы (массив ID)
+      surfaceIds,     // поверхности (массив ID) 
+      logoIds,        // логотипы (массив ID)
+      grades,         // сорта товаров (массив)
+      weightMin,      // минимальный вес
+      weightMax,      // максимальный вес
+      matAreaMin,     // минимальная площадь
+      matAreaMax,     // максимальная площадь
+      onlyInStock,    // только товары в наличии
+      borderTypes,    // типы бортов (массив)
+      // Новые фильтры для края ковра
+      carpetEdgeTypes,    // типы края ковра (массив)
+      carpetEdgeSides,    // количество сторон паззла (массив)
+      carpetEdgeStrength, // усиление края (массив)
+      // Фильтр по низу ковра
+      bottomTypeIds,      // типы низа ковра (массив ID)
+      // Фильтр по типам паззла
+      puzzleTypeIds,      // типы паззла (массив ID)
+      // Фильтры по габаритам
+      lengthMin,      // минимальная длина
+      lengthMax,      // максимальная длина
+      widthMin,       // минимальная ширина
+      widthMax,       // максимальная ширина
+      thicknessMin,   // минимальная высота
+      thicknessMax,   // максимальная высота
+      sortBy,         // поле сортировки
+      sortOrder       // направление сортировки (ASC/DESC)
     } = req.query;
 
     let whereConditions = [];
 
     if (search) {
       whereConditions.push(
-        or(
-          like(schema.products.name, `%${search}%`),
-          like(schema.products.article, `%${search}%`)
-        )
+        like(schema.products.name, `%${search}%`)
       );
     }
 
@@ -134,17 +161,180 @@ router.get('/products', authenticateToken, async (req, res, next) => {
       );
     }
 
+    // Фильтр по материалам
+    if (materialIds) {
+      const ids = Array.isArray(materialIds) ? materialIds : [materialIds];
+      const numericIds = ids.map(id => Number(id)).filter(id => !isNaN(id));
+      if (numericIds.length > 0) {
+        whereConditions.push(inArray(schema.products.materialId, numericIds));
+      }
+    }
+
+    // Фильтр по поверхностям
+    if (surfaceIds) {
+      const ids = Array.isArray(surfaceIds) ? surfaceIds : [surfaceIds];
+      const numericIds = ids.map(id => Number(id)).filter(id => !isNaN(id));
+      if (numericIds.length > 0) {
+        whereConditions.push(inArray(schema.products.surfaceId, numericIds));
+      }
+    }
+
+    // Фильтр по логотипам
+    if (logoIds) {
+      const ids = Array.isArray(logoIds) ? logoIds : [logoIds];
+      const numericIds = ids.map(id => Number(id)).filter(id => !isNaN(id));
+      if (numericIds.length > 0) {
+        whereConditions.push(inArray(schema.products.logoId, numericIds));
+      }
+    }
+
+    // Фильтр по сортам
+    if (grades) {
+      const gradesList = Array.isArray(grades) ? grades : [grades];
+      const validGrades = gradesList
+        .filter(grade => typeof grade === 'string' && ['usual', 'grade_2'].includes(grade))
+        .map(grade => grade as 'usual' | 'grade_2');
+      if (validGrades.length > 0) {
+        whereConditions.push(inArray(schema.products.grade, validGrades));
+      }
+    }
+
+    // Фильтр по весу
+    if (weightMin || weightMax) {
+      if (weightMin) {
+        whereConditions.push(sql`${schema.products.weight} >= ${Number(weightMin)}`);
+      }
+      if (weightMax) {
+        whereConditions.push(sql`${schema.products.weight} <= ${Number(weightMax)}`);
+      }
+    }
+
+    // Фильтр по площади мата
+    if (matAreaMin || matAreaMax) {
+      if (matAreaMin) {
+        whereConditions.push(sql`${schema.products.matArea} >= ${Number(matAreaMin)}`);
+      }
+      if (matAreaMax) {
+        whereConditions.push(sql`${schema.products.matArea} <= ${Number(matAreaMax)}`);
+      }
+    }
+
+    // Фильтр по типу борта (Задача 7.1)
+    if (borderTypes) {
+      const typesList = Array.isArray(borderTypes) ? borderTypes : [borderTypes];
+      const validTypes = typesList
+        .filter(type => typeof type === 'string' && ['with_border', 'without_border'].includes(type))
+        .map(type => type as 'with_border' | 'without_border');
+      if (validTypes.length > 0) {
+        whereConditions.push(inArray(schema.products.borderType, validTypes));
+      }
+    }
+
+    // Новые фильтры для края ковра
+    if (carpetEdgeTypes) {
+      const typesList = Array.isArray(carpetEdgeTypes) ? carpetEdgeTypes : [carpetEdgeTypes];
+      const validTypes = typesList
+        .filter(type => typeof type === 'string' && ['straight_cut', 'puzzle'].includes(type))
+        .map(type => type as 'straight_cut' | 'puzzle');
+      if (validTypes.length > 0) {
+        whereConditions.push(inArray(schema.products.carpetEdgeType, validTypes));
+      }
+    }
+
+    if (carpetEdgeSides) {
+      const sidesList = Array.isArray(carpetEdgeSides) ? carpetEdgeSides : [carpetEdgeSides];
+      const numericSides = sidesList.map(side => Number(side)).filter(side => !isNaN(side) && [1, 2, 3, 4].includes(side));
+      if (numericSides.length > 0) {
+        whereConditions.push(inArray(schema.products.carpetEdgeSides, numericSides));
+      }
+    }
+
+    if (carpetEdgeStrength) {
+      const strengthList = Array.isArray(carpetEdgeStrength) ? carpetEdgeStrength : [carpetEdgeStrength];
+      const validStrengths = strengthList
+        .filter(strength => typeof strength === 'string' && ['normal', 'reinforced'].includes(strength))
+        .map(strength => strength as 'normal' | 'reinforced');
+      if (validStrengths.length > 0) {
+        whereConditions.push(inArray(schema.products.carpetEdgeStrength, validStrengths));
+      }
+    }
+
+    // Фильтр по низу ковра
+    if (bottomTypeIds) {
+      const ids = Array.isArray(bottomTypeIds) ? bottomTypeIds : [bottomTypeIds];
+      const numericIds = ids.map(id => Number(id)).filter(id => !isNaN(id));
+      if (numericIds.length > 0) {
+        whereConditions.push(inArray(schema.products.bottomTypeId, numericIds));
+      }
+    }
+
+    // Фильтр по типам паззла
+    if (puzzleTypeIds) {
+      const ids = Array.isArray(puzzleTypeIds) ? puzzleTypeIds : [puzzleTypeIds];
+      const numericIds = ids.map(id => Number(id)).filter(id => !isNaN(id));
+      if (numericIds.length > 0) {
+        whereConditions.push(inArray(schema.products.puzzleTypeId, numericIds));
+      }
+    }
+
+    // Фильтры по габаритам
+    if (lengthMin || lengthMax) {
+      if (lengthMin) {
+        whereConditions.push(sql`(${schema.products.dimensions}->>'length')::numeric >= ${Number(lengthMin)}`);
+      }
+      if (lengthMax) {
+        whereConditions.push(sql`(${schema.products.dimensions}->>'length')::numeric <= ${Number(lengthMax)}`);
+      }
+    }
+
+    if (widthMin || widthMax) {
+      if (widthMin) {
+        whereConditions.push(sql`(${schema.products.dimensions}->>'width')::numeric >= ${Number(widthMin)}`);
+      }
+      if (widthMax) {
+        whereConditions.push(sql`(${schema.products.dimensions}->>'width')::numeric <= ${Number(widthMax)}`);
+      }
+    }
+
+    if (thicknessMin || thicknessMax) {
+      if (thicknessMin) {
+        whereConditions.push(sql`(${schema.products.dimensions}->>'thickness')::numeric >= ${Number(thicknessMin)}`);
+      }
+      if (thicknessMax) {
+        whereConditions.push(sql`(${schema.products.dimensions}->>'thickness')::numeric <= ${Number(thicknessMax)}`);
+      }
+    }
+
     whereConditions.push(eq(schema.products.isActive, true));
+
+    // Определяем сортировку
+    let orderBy;
+    if (sortBy) {
+      const sortColumn = sortBy === 'matArea' ? schema.products.matArea :
+                        sortBy === 'weight' ? schema.products.weight :
+                        sortBy === 'name' ? schema.products.name :
+                        sortBy === 'price' ? schema.products.price :
+                        schema.products.name;
+      
+      const direction = sortOrder === 'DESC' ? sql`${sortColumn} DESC` : sql`${sortColumn} ASC`;
+      orderBy = direction;
+    } else {
+      orderBy = schema.products.name;
+    }
 
     const products = await db.query.products.findMany({
       where: whereConditions.length > 0 ? and(...whereConditions) : undefined,
       with: {
         category: true,
+        surface: true,     // Добавляем поверхность
+        logo: true,        // Добавляем логотип
+        material: true,    // Добавляем материал
+        bottomType: true,  // Добавляем тип низа ковра
         stock: true
       },
       limit: Number(limit),
       offset: Number(offset),
-      orderBy: schema.products.name
+      orderBy
     });
 
     // Получаем ID всех продуктов для расчета резервов и производства
@@ -169,6 +359,12 @@ router.get('/products', authenticateToken, async (req, res, next) => {
         reservedStock,
         availableStock,
         inProductionQuantity,
+        // Добавляем названия связанных сущностей для совместимости с frontend
+        categoryName: product.category?.name,
+        categoryPath: product.category?.path,
+        surfaceName: product.surface?.name,
+        logoName: product.logo?.name,
+        materialName: product.material?.name,
         // Обновляем объект stock для консистентности
         stock: {
           ...product.stock,
@@ -179,6 +375,11 @@ router.get('/products', authenticateToken, async (req, res, next) => {
         }
       };
     });
+
+    // Фильтр "только в наличии"
+    if (onlyInStock === 'true') {
+      filteredProducts = filteredProducts.filter(product => product.availableStock > 0);
+    }
     
     if (stockStatus) {
       filteredProducts = filteredProducts.filter(product => {
@@ -221,6 +422,11 @@ router.get('/products/:id', authenticateToken, async (req, res, next) => {
       where: eq(schema.products.id, productId),
       with: {
         category: true,
+        surface: true,
+        logo: true,
+        material: true,
+        bottomType: true,
+        puzzleType: true,
         manager: {
           columns: {
             id: true,
@@ -254,7 +460,7 @@ router.get('/products/:id', authenticateToken, async (req, res, next) => {
       getProductionQuantities([productId])
     ]);
 
-    const currentStock = product.stock?.currentStock || 0;
+    const currentStock = product?.stock?.currentStock || 0;
     const reservedStock = reservedQuantities.get(productId) || 0;
     const inProductionQuantity = productionQuantities.get(productId) || 0;
     const availableStock = currentStock - reservedStock;
@@ -268,7 +474,7 @@ router.get('/products/:id', authenticateToken, async (req, res, next) => {
       inProductionQuantity,
       // Обновляем объект stock для консистентности
       stock: {
-        ...product.stock,
+        ...product?.stock,
         currentStock,
         reservedStock,
         availableStock,
@@ -286,7 +492,7 @@ router.get('/products/:id', authenticateToken, async (req, res, next) => {
 });
 
 // POST /api/catalog/products - Create product
-router.post('/products', authenticateToken, authorizeRoles('director', 'manager'), async (req: AuthRequest, res, next) => {
+router.post('/products', authenticateToken, requirePermission('catalog', 'create'), async (req: AuthRequest, res, next) => {
   try {
     const { 
       name, 
@@ -301,16 +507,31 @@ router.post('/products', authenticateToken, authorizeRoles('director', 'manager'
       matArea,
       weight,
       grade,
+      borderType,
       tags, 
       price, 
       costPrice, 
       normStock,
       initialStock,
-      notes 
+      notes,
+      // Новые поля для края ковра
+      carpetEdgeType,
+      carpetEdgeSides,
+      carpetEdgeStrength,
+      // Поле для низа ковра
+      bottomTypeId,
+      // Поля паззла
+      puzzleTypeId,
+      puzzleSides
     } = req.body;
 
     if (!name || !categoryId) {
       return next(createError('Product name and category are required', 400));
+    }
+
+    // Проверяем обязательность bottomTypeId
+    if (!bottomTypeId) {
+      return next(createError('Выберите низ ковра', 400));
     }
 
     // Проверяем уникальность артикула (если указан) - проверка без учета регистра
@@ -348,11 +569,21 @@ router.post('/products', authenticateToken, authorizeRoles('director', 'manager'
       matArea: matArea ? parseFloat(matArea).toString() : null,
       weight: weight ? parseFloat(weight).toString() : null,
       grade: grade || 'usual',
+      borderType: borderType || null,
       tags,
       price,
       costPrice,
       normStock: normStock || 0,
-      notes
+      notes,
+      // Новые поля для края ковра
+      carpetEdgeType: carpetEdgeType || 'straight_cut',
+      carpetEdgeSides: carpetEdgeSides || 1,
+      carpetEdgeStrength: carpetEdgeStrength || 'normal',
+      // Поле для низа ковра
+      bottomTypeId: bottomTypeId || null,
+      // Поля паззла
+      puzzleTypeId: puzzleTypeId || null,
+      puzzleSides: puzzleSides || null
     }).returning();
 
     // Create initial stock record with initial quantity
@@ -387,7 +618,7 @@ router.post('/products', authenticateToken, authorizeRoles('director', 'manager'
 });
 
 // PUT /api/catalog/products/:id - Update product
-router.put('/products/:id', authenticateToken, authorizeRoles('director', 'manager'), async (req: AuthRequest, res, next) => {
+router.put('/products/:id', authenticateToken, requirePermission('catalog', 'edit'), async (req: AuthRequest, res, next) => {
   try {
     const productId = Number(req.params.id);
     const updateData = req.body;
@@ -414,7 +645,7 @@ router.put('/products/:id', authenticateToken, authorizeRoles('director', 'manag
 });
 
 // DELETE /api/catalog/products/:id - Delete product (деактивация)
-router.delete('/products/:id', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.delete('/products/:id', authenticateToken, requirePermission('catalog', 'delete'), async (req: AuthRequest, res, next) => {
   try {
     const productId = Number(req.params.id);
     const userId = req.user!.id;
@@ -452,6 +683,171 @@ router.delete('/products/:id', authenticateToken, authorizeRoles('director'), as
       success: true,
       message: 'Товар деактивирован'
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/catalog/products/move - Move products between categories (Задача 7.3)
+router.post('/products/move', authenticateToken, requirePermission('catalog', 'edit'), async (req: AuthRequest, res, next) => {
+  try {
+    const { productIds, targetCategoryId } = req.body;
+    const userId = req.user!.id;
+
+    // Валидация входных данных
+    if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
+      return next(createError('Необходимо указать ID товаров для перемещения', 400));
+    }
+
+    if (!targetCategoryId || typeof targetCategoryId !== 'number') {
+      return next(createError('Необходимо указать ID целевой категории', 400));
+    }
+
+    // Проверяем существование целевой категории
+    const targetCategory = await db.query.categories.findFirst({
+      where: eq(schema.categories.id, targetCategoryId)
+    });
+
+    if (!targetCategory) {
+      return next(createError('Целевая категория не найдена', 404));
+    }
+
+    // Получаем товары для перемещения
+    const products = await db.query.products.findMany({
+      where: inArray(schema.products.id, productIds)
+    });
+
+    if (products.length !== productIds.length) {
+      return next(createError('Некоторые товары не найдены', 404));
+    }
+
+    // Выполняем перемещение товаров
+    const movedProducts = await db.update(schema.products)
+      .set({
+        categoryId: targetCategoryId,
+        updatedAt: new Date()
+      })
+      .where(inArray(schema.products.id, productIds))
+      .returning();
+
+    // Логируем перемещение для каждого товара
+    for (let i = 0; i < products.length; i++) {
+      const oldProduct = products[i];
+      const newProduct = movedProducts[i];
+      
+      await db.insert(schema.auditLog).values({
+        tableName: 'products',
+        recordId: oldProduct.id,
+        operation: 'UPDATE',
+        oldValues: oldProduct,
+        newValues: newProduct,
+        userId,
+        createdAt: new Date()
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Успешно перемещено ${movedProducts.length} товаров в категорию "${targetCategory.name}"`,
+      data: {
+        movedProductIds: productIds,
+        targetCategoryId,
+        targetCategoryName: targetCategory.name
+      }
+    });
+
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/catalog/export - Export catalog products to Excel (Задача 9.2)
+router.post('/export', authenticateToken, requireExportPermission('catalog'), async (req: AuthRequest, res, next) => {
+  try {
+    const { productIds, filters, format = 'xlsx' } = req.body; // добавляем параметр format
+
+    let whereConditions: any[] = [eq(schema.products.isActive, true)];
+
+    // Если указаны конкретные товары
+    if (productIds && Array.isArray(productIds) && productIds.length > 0) {
+      whereConditions.push(inArray(schema.products.id, productIds));
+    }
+
+    // Применяем фильтры если они переданы
+    if (filters) {
+      if (filters.search) {
+        whereConditions.push(
+          sql`(${schema.products.name} ILIKE ${`%${filters.search}%`} OR ${schema.products.article} ILIKE ${`%${filters.search}%`})`
+        );
+      }
+
+      if (filters.categoryId) {
+        whereConditions.push(eq(schema.products.categoryId, filters.categoryId));
+      }
+
+      if (filters.materialIds && filters.materialIds.length > 0) {
+        whereConditions.push(inArray(schema.products.materialId, filters.materialIds));
+      }
+
+      if (filters.surfaceIds && filters.surfaceIds.length > 0) {
+        whereConditions.push(inArray(schema.products.surfaceId, filters.surfaceIds));
+      }
+
+      if (filters.logoIds && filters.logoIds.length > 0) {
+        whereConditions.push(inArray(schema.products.logoId, filters.logoIds));
+      }
+
+      if (filters.borderTypes && filters.borderTypes.length > 0) {
+        const validBorderTypes = filters.borderTypes.filter((type: string) => 
+          typeof type === 'string' && ['with_border', 'without_border'].includes(type)
+        );
+        if (validBorderTypes.length > 0) {
+          whereConditions.push(inArray(schema.products.borderType, validBorderTypes));
+        }
+      }
+    }
+
+    // Получаем товары с полной информацией
+    const products = await db.query.products.findMany({
+      where: and(...whereConditions),
+      with: {
+        category: true,
+        surface: true,
+        logo: true,
+        material: true,
+        stock: true
+      }
+    });
+
+    // Подготавливаем данные для экспорта
+    const exportData = products.map(product => ({
+      ...product,
+      categoryName: product.category?.name,
+      surfaceName: product.surface?.name,
+      logoName: product.logo?.name,
+      materialName: product.material?.name,
+      currentStock: product.stock?.currentStock || 0,
+      reservedStock: product.stock?.reservedStock || 0
+    }));
+
+    // Форматируем данные для Excel
+    const formattedData = ExcelExporter.formatCatalogData(exportData);
+
+    // Генерируем имя файла
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+    const fileExtension = format === 'csv' ? 'csv' : 'xlsx';
+    const filename = `catalog-export-${timestamp}.${fileExtension}`;
+
+    // Экспортируем в указанном формате (Задача 3: Дополнительные форматы)
+    await ExcelExporter.exportData(res, {
+      filename,
+      sheetName: 'Каталог товаров',
+      title: `Экспорт каталога товаров - ${new Date().toLocaleDateString('ru-RU')}`,
+      columns: ExcelExporter.getCatalogColumns(),
+      data: formattedData,
+      format
+    });
+
   } catch (error) {
     next(error);
   }

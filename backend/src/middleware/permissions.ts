@@ -320,7 +320,14 @@ export async function initializeDefaultPermissions() {
       { name: 'Управление разрешениями', resource: 'permissions', action: 'manage', description: 'Управление системой разрешений' },
       
       // Аудит
-      { name: 'Просмотр аудита', resource: 'audit', action: 'view', description: 'Просмотр истории изменений' }
+      { name: 'Просмотр аудита', resource: 'audit', action: 'view', description: 'Просмотр истории изменений' },
+      
+      // Экспорт данных (Задача 1: Система прав доступа)
+      { name: 'Экспорт каталога', resource: 'catalog', action: 'export', description: 'Экспорт товаров и остатков в Excel/CSV/PDF' },
+      { name: 'Экспорт заказов', resource: 'orders', action: 'export', description: 'Экспорт заказов в Excel/CSV/PDF' },
+      { name: 'Экспорт производства', resource: 'production', action: 'export', description: 'Экспорт производственных заданий в Excel/CSV/PDF' },
+      { name: 'Экспорт операций резки', resource: 'cutting', action: 'export', description: 'Экспорт операций резки в Excel/CSV/PDF' },
+      { name: 'Экспорт отгрузок', resource: 'shipments', action: 'export', description: 'Экспорт отгрузок в Excel/CSV/PDF' }
     ];
 
     // Создаем разрешения если их нет
@@ -359,17 +366,20 @@ async function setDefaultRolePermissions() {
         permissionMap['catalog:view'],
         permissionMap['catalog:create'],
         permissionMap['catalog:edit'],
+        permissionMap['catalog:export'], // добавляем экспорт каталога
         permissionMap['stock:view'],
         permissionMap['orders:view'],
         permissionMap['orders:create'],
         permissionMap['orders:edit'],
         permissionMap['orders:delete'],
+        permissionMap['orders:export'], // добавляем экспорт заказов
         permissionMap['production:view'],
         permissionMap['cutting:view'],
         permissionMap['cutting:create'],
         permissionMap['shipments:view'],
         permissionMap['shipments:create'],
-        permissionMap['shipments:manage']
+        permissionMap['shipments:manage'],
+        permissionMap['shipments:export'] // добавляем экспорт отгрузок
       ].filter(Boolean),
       production: [
         permissionMap['catalog:view'],
@@ -378,17 +388,21 @@ async function setDefaultRolePermissions() {
         permissionMap['production:view'],
         permissionMap['production:create'],
         permissionMap['production:manage'],
+        permissionMap['production:export'], // добавляем экспорт производства
         permissionMap['cutting:view'],
         permissionMap['cutting:execute'],
+        permissionMap['cutting:export'], // добавляем экспорт операций резки
         permissionMap['shipments:view']
       ].filter(Boolean),
       warehouse: [
         permissionMap['catalog:view'],
+        permissionMap['catalog:export'], // добавляем экспорт каталога для склада
         permissionMap['stock:view'],
         permissionMap['stock:edit'],
         permissionMap['orders:view'],
         permissionMap['shipments:view'],
-        permissionMap['shipments:manage']
+        permissionMap['shipments:manage'],
+        permissionMap['shipments:export'] // добавляем экспорт отгрузок для склада
       ].filter(Boolean)
     };
 
@@ -408,4 +422,11 @@ async function setDefaultRolePermissions() {
   } catch (error) {
     console.error('Error setting default role permissions:', error);
   }
+}
+
+/**
+ * Middleware для проверки права экспорта конкретного ресурса
+ */
+export function requireExportPermission(resource: string) {
+  return requirePermission(resource, 'export');
 } 

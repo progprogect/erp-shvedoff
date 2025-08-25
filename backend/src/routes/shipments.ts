@@ -2,8 +2,10 @@ import express from 'express';
 import { db, schema } from '../db';
 import { eq, and, sql, desc, asc, inArray } from 'drizzle-orm';
 import { authenticateToken, authorizeRoles, AuthRequest } from '../middleware/auth';
+import { requireExportPermission } from '../middleware/permissions';
 import { createError } from '../middleware/errorHandler';
 import { performStockOperation } from '../utils/stockManager';
+import { ExcelExporter } from '../utils/excelExporter';
 
 const router = express.Router();
 
@@ -757,6 +759,75 @@ router.delete('/:id', authenticateToken, authorizeRoles('manager', 'director', '
       data: result,
       message: 'Отгрузка отменена'
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/shipments/export - Export shipments to Excel (Задача 9.2)
+router.post('/export', authenticateToken, requireExportPermission('shipments'), async (req: AuthRequest, res, next) => {
+  try {
+    const { filters, format = 'xlsx' } = req.body; // добавляем параметр format
+
+    let whereConditions: any[] = [];
+
+    // Применяем фильтры если они переданы
+    if (filters) {
+      if (filters.status && filters.status !== 'all') {
+        const statusArray = filters.status.split(',').map((s: string) => s.trim());
+        if (statusArray.length === 1) {
+          whereConditions.push(eq(schema.shipments.status, statusArray[0] as any));
+        } else {
+          whereConditions.push(inArray(schema.shipments.status, statusArray as any[]));
+        }
+      }
+
+      if (filters.createdBy && filters.createdBy !== 'all') {
+        whereConditions.push(eq(schema.shipments.createdBy, parseInt(filters.createdBy)));
+      }
+
+      if (filters.dateFrom) {
+        whereConditions.push(sql`${schema.shipments.createdAt} >= ${filters.dateFrom}`);
+      }
+
+      if (filters.dateTo) {
+        whereConditions.push(sql`${schema.shipments.createdAt} <= ${filters.dateTo}`);
+      }
+    }
+
+    // Получаем отгрузки с полной информацией
+    const shipments = await db.query.shipments.findMany({
+      where: whereConditions.length > 0 ? and(...whereConditions) : undefined,
+      with: {
+        order: true,
+        createdByUser: true,
+        items: {
+          with: {
+            product: true
+          }
+        }
+      },
+      orderBy: [desc(schema.shipments.createdAt)]
+    });
+
+    // Форматируем данные для Excel
+    const formattedData = ExcelExporter.formatShipmentsData(shipments);
+
+    // Генерируем имя файла
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+    const fileExtension = format === 'csv' ? 'csv' : 'xlsx';
+    const filename = `shipments-export-${timestamp}.${fileExtension}`;
+
+    // Экспортируем в указанном формате (Задача 3: Дополнительные форматы)
+    await ExcelExporter.exportData(res, {
+      filename,
+      sheetName: 'Отгрузки',
+      title: `Экспорт отгрузок - ${new Date().toLocaleDateString('ru-RU')}`,
+      columns: ExcelExporter.getShipmentsColumns(),
+      data: formattedData,
+      format
+    });
+
   } catch (error) {
     next(error);
   }

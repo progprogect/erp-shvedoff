@@ -2,6 +2,7 @@ import express from 'express';
 import { db, schema } from '../db';
 import { eq, and, sql, desc, asc, inArray } from 'drizzle-orm';
 import { authenticateToken, authorizeRoles, AuthRequest } from '../middleware/auth';
+import { requireExportPermission } from '../middleware/permissions';
 import { createError } from '../middleware/errorHandler';
 import { 
   fullProductionSync, 
@@ -9,6 +10,7 @@ import {
   createTasksForPendingOrders, 
   getSyncStatistics 
 } from '../utils/productionSynchronizer';
+import { ExcelExporter } from '../utils/excelExporter';
 
 const router = express.Router();
 
@@ -460,7 +462,17 @@ router.get('/tasks', authenticateToken, authorizeRoles('manager', 'production', 
         product: {
           with: {
             category: true,
-            stock: true
+            stock: true,
+            surface: true,
+            logo: true,
+            material: true,
+            manager: {
+              columns: {
+                id: true,
+                username: true,
+                fullName: true
+              }
+            }
           }
         },
         createdByUser: {
@@ -1200,7 +1212,7 @@ router.put('/tasks/:id/status', authenticateToken, authorizeRoles('production', 
 router.put('/tasks/:id', authenticateToken, authorizeRoles('manager', 'production', 'director'), async (req: AuthRequest, res, next) => {
   try {
     const taskId = Number(req.params.id);
-    const { requestedQuantity, priority, notes, assignedTo } = req.body;
+    const { requestedQuantity, priority, notes, assignedTo, plannedDate, plannedStartTime } = req.body;
     const userId = req.user!.id;
 
     const task = await db.query.productionTasks.findFirst({
@@ -1211,9 +1223,10 @@ router.put('/tasks/:id', authenticateToken, authorizeRoles('manager', 'productio
       return next(createError('Задание не найдено', 404));
     }
 
-    // Можно редактировать только задания в статусе pending
-    if (task.status !== 'pending') {
-      return next(createError('Можно редактировать только ожидающие задания', 400));
+    // Можно редактировать задания в статусах pending, in_progress, paused
+    const editableStatuses = ['pending', 'in_progress', 'paused'];
+    if (!task.status || !editableStatuses.includes(task.status)) {
+      return next(createError('Можно редактировать только ожидающие, выполняемые или приостановленные задания', 400));
     }
 
     // Валидация данных
@@ -1238,14 +1251,32 @@ router.put('/tasks/:id', authenticateToken, authorizeRoles('manager', 'productio
     }
 
     if (assignedTo !== undefined) {
-      // Проверяем существование пользователя
-      const user = await db.query.users.findFirst({
-        where: eq(schema.users.id, assignedTo)
-      });
-      if (!user) {
-        return next(createError('Пользователь не найден', 404));
+      if (assignedTo !== null) {
+        // Проверяем существование пользователя только если assignedTo не null
+        const user = await db.query.users.findFirst({
+          where: eq(schema.users.id, assignedTo)
+        });
+        if (!user) {
+          return next(createError('Пользователь не найден', 404));
+        }
       }
-      updateData.assignedTo = assignedTo;
+      updateData.assignedTo = assignedTo; // Устанавливаем assignedTo (может быть null)
+    }
+
+    if (plannedDate !== undefined) {
+      if (plannedDate) {
+        const date = new Date(plannedDate);
+        if (isNaN(date.getTime())) {
+          return next(createError('Некорректная дата планирования', 400));
+        }
+        updateData.plannedDate = date;
+      } else {
+        updateData.plannedDate = null;
+      }
+    }
+
+    if (plannedStartTime !== undefined) {
+      updateData.plannedStartTime = plannedStartTime || null;
     }
 
     // Обновляем задание
@@ -2325,6 +2356,81 @@ router.get('/tasks/by-product/:productId', authenticateToken, authorizeRoles('ma
   }
 });
 
+// POST /api/production/tasks/export - Export production tasks to Excel (Задача 9.2)
+router.post('/tasks/export', authenticateToken, requireExportPermission('production'), async (req: AuthRequest, res, next) => {
+  try {
+    const { filters, format = 'xlsx' } = req.body; // добавляем параметр format
 
+    let whereConditions: any[] = [];
+
+    // Применяем фильтры если они переданы
+    if (filters) {
+      if (filters.status && filters.status !== 'all') {
+        const statusArray = filters.status.split(',').map((s: string) => s.trim());
+        if (statusArray.length === 1) {
+          whereConditions.push(eq(schema.productionTasks.status, statusArray[0] as any));
+        } else {
+          whereConditions.push(inArray(schema.productionTasks.status, statusArray as any[]));
+        }
+      }
+
+      if (filters.assignedTo && filters.assignedTo !== 'all') {
+        whereConditions.push(eq(schema.productionTasks.assignedTo, parseInt(filters.assignedTo)));
+      }
+
+      if (filters.priority && filters.priority !== 'all') {
+        whereConditions.push(eq(schema.productionTasks.priority, parseInt(filters.priority)));
+      }
+
+      // Убираем поиск для избежания проблем с join
+      // if (filters.search) {
+      //   // Поиск временно отключен
+      // }
+
+      if (filters.dateFrom) {
+        whereConditions.push(sql`${schema.productionTasks.createdAt} >= ${filters.dateFrom}`);
+      }
+
+      if (filters.dateTo) {
+        whereConditions.push(sql`${schema.productionTasks.createdAt} <= ${filters.dateTo}`);
+      }
+    }
+
+    // Получаем производственные задания с полной информацией
+    const tasks = await db.query.productionTasks.findMany({
+      where: whereConditions.length > 0 ? and(...whereConditions) : undefined,
+      with: {
+        order: true,
+        product: true,
+        createdByUser: true,
+        assignedToUser: true,
+        startedByUser: true,
+        completedByUser: true
+      },
+      orderBy: [desc(schema.productionTasks.priority), asc(schema.productionTasks.sortOrder)]
+    });
+
+    // Форматируем данные для Excel
+    const formattedData = ExcelExporter.formatProductionTasksData(tasks);
+
+    // Генерируем имя файла
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+    const fileExtension = format === 'csv' ? 'csv' : 'xlsx';
+    const filename = `production-tasks-export-${timestamp}.${fileExtension}`;
+
+    // Экспортируем в указанном формате (Задача 3: Дополнительные форматы)
+    await ExcelExporter.exportData(res, {
+      filename,
+      sheetName: 'Производственные задания',
+      title: `Экспорт производственных заданий - ${new Date().toLocaleDateString('ru-RU')}`,
+      columns: ExcelExporter.getProductionTasksColumns(),
+      data: formattedData,
+      format
+    });
+
+  } catch (error) {
+    next(error);
+  }
+});
 
 export default router; 

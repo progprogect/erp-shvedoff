@@ -117,7 +117,7 @@ async function getProductionQuantities(productIds?: number[]) {
 // GET /api/stock - Get current stock levels
 router.get('/', authenticateToken, async (req, res, next) => {
   try {
-    const { status, categoryId, search } = req.query;
+    const { status, categoryId, search, sortBy, sortOrder } = req.query;
 
     // Build where conditions
     let whereClause = eq(schema.products.isActive, true);
@@ -146,13 +146,13 @@ router.get('/', authenticateToken, async (req, res, next) => {
         productArticle: schema.products.article,
         categoryName: schema.categories.name,
         normStock: schema.products.normStock,
-        price: schema.products.price
+        price: schema.products.price,
+        matArea: schema.products.matArea // Добавляем площадь для сортировки (Задача 7.2)
       })
       .from(schema.stock)
       .innerJoin(schema.products, eq(schema.stock.productId, schema.products.id))
       .leftJoin(schema.categories, eq(schema.products.categoryId, schema.categories.id))
-      .where(whereClause)
-      .orderBy(schema.products.name);
+      .where(whereClause);
 
     // Получаем ID всех продуктов
     const productIds = stockData.map(item => item.productId);
@@ -214,6 +214,43 @@ router.get('/', authenticateToken, async (req, res, next) => {
             return inProduction > 0;
           default:
             return true;
+        }
+      });
+    }
+
+    // Сортировка (Задача 7.2)
+    if (sortBy) {
+      filteredData.sort((a, b) => {
+        let aValue, bValue;
+        
+        switch (sortBy) {
+          case 'matArea':
+            aValue = Number(a.matArea || 0);
+            bValue = Number(b.matArea || 0);
+            break;
+          case 'name':
+            aValue = a.productName.toLowerCase();
+            bValue = b.productName.toLowerCase();
+            break;
+          case 'availableStock':
+            aValue = a.availableStock;
+            bValue = b.availableStock;
+            break;
+          case 'currentStock':
+            aValue = a.currentStock;
+            bValue = b.currentStock;
+            break;
+          default:
+            aValue = a.productName.toLowerCase();
+            bValue = b.productName.toLowerCase();
+        }
+        
+        if (typeof aValue === 'string' && typeof bValue === 'string') {
+          return sortOrder === 'DESC' ? bValue.localeCompare(aValue) : aValue.localeCompare(bValue);
+        } else {
+          const numA = Number(aValue) || 0;
+          const numB = Number(bValue) || 0;
+          return sortOrder === 'DESC' ? numB - numA : numA - numB;
         }
       });
     }

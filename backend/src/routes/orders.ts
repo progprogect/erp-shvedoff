@@ -2,9 +2,11 @@ import express from 'express';
 import { db, schema } from '../db';
 import { eq, and, sql, inArray } from 'drizzle-orm';
 import { authenticateToken, authorizeRoles, AuthRequest } from '../middleware/auth';
+import { requireExportPermission } from '../middleware/permissions';
 import { createError } from '../middleware/errorHandler';
 import { performStockOperation } from '../utils/stockManager';
 import { analyzeOrderAvailability, updateOrderStatus } from '../utils/orderStatusCalculator';
+import { ExcelExporter } from '../utils/excelExporter';
 
 const router = express.Router();
 
@@ -1178,6 +1180,95 @@ router.get('/by-product/:productId', authenticateToken, async (req: AuthRequest,
       success: true,
       data: orders
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/orders/export - Export orders to Excel (Задача 9.2)
+router.post('/export', authenticateToken, requireExportPermission('orders'), async (req: AuthRequest, res, next) => {
+  try {
+    const { filters, format = 'xlsx' } = req.body; // добавляем параметр format
+    const userRole = req.user!.role;
+    const userId = req.user!.id;
+
+    let whereConditions: any[] = [];
+
+    // Role-based filtering
+    if (userRole === 'manager') {
+      whereConditions.push(eq(schema.orders.managerId, userId));
+    }
+
+    // Применяем фильтры если они переданы
+    if (filters) {
+      if (filters.status) {
+        const statusArray = filters.status.split(',').map((s: string) => s.trim());
+        if (statusArray.length === 1) {
+          whereConditions.push(eq(schema.orders.status, statusArray[0] as any));
+        } else {
+          whereConditions.push(inArray(schema.orders.status, statusArray as any[]));
+        }
+      }
+
+      if (filters.priority && filters.priority !== 'all') {
+        whereConditions.push(eq(schema.orders.priority, filters.priority));
+      }
+
+      if (filters.managerId && userRole === 'director') {
+        whereConditions.push(eq(schema.orders.managerId, parseInt(filters.managerId)));
+      }
+
+      if (filters.search) {
+        whereConditions.push(
+          sql`(
+            ${schema.orders.orderNumber} ILIKE ${`%${filters.search}%`} OR
+            ${schema.orders.customerName} ILIKE ${`%${filters.search}%`} OR
+            ${schema.orders.customerContact} ILIKE ${`%${filters.search}%`}
+          )`
+        );
+      }
+
+      if (filters.dateFrom) {
+        whereConditions.push(sql`${schema.orders.createdAt} >= ${filters.dateFrom}`);
+      }
+
+      if (filters.dateTo) {
+        whereConditions.push(sql`${schema.orders.createdAt} <= ${filters.dateTo}`);
+      }
+    }
+
+    // Получаем заказы с полной информацией
+    const orders = await db.query.orders.findMany({
+      where: whereConditions.length > 0 ? and(...whereConditions) : undefined,
+      with: {
+        items: {
+          with: {
+            product: true
+          }
+        },
+        manager: true
+      },
+      orderBy: (orders, { desc }) => [desc(orders.createdAt)]
+    });
+
+    // Форматируем данные для Excel
+    const formattedData = ExcelExporter.formatOrdersData(orders);
+
+    // Генерируем имя файла
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+    const fileExtension = format === 'csv' ? 'csv' : 'xlsx';
+    const filename = `orders-export-${timestamp}.${fileExtension}`;
+
+    // Экспортируем в указанном формате (Задача 3: Дополнительные форматы)
+    await ExcelExporter.exportData(res, {
+      filename,
+      sheetName: 'Заказы',
+      title: `Экспорт заказов - ${new Date().toLocaleDateString('ru-RU')}`,
+      columns: ExcelExporter.getOrdersColumns(),
+      data: formattedData,
+      format
+    });
+
   } catch (error) {
     next(error);
   }

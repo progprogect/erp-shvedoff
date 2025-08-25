@@ -106,6 +106,9 @@ export const puzzleTypes = pgTable('puzzle_types', {
 // Enum для сортов товаров
 export const productGradeEnum = pgEnum('product_grade', ['usual', 'grade_2']);
 
+// Enum для наличия борта (Задача 7.1)
+export const borderTypeEnum = pgEnum('border_type', ['with_border', 'without_border']);
+
 // Products table - FR-002
 export const products = pgTable('products', {
   id: serial('id').primaryKey(),
@@ -116,12 +119,13 @@ export const products = pgTable('products', {
   surfaceId: integer('surface_id').references(() => productSurfaces.id),
   logoId: integer('logo_id').references(() => productLogos.id),
   materialId: integer('material_id').references(() => productMaterials.id),
-  dimensions: jsonb('dimensions'), // {length: 1800, width: 1200, height: 30}
+  dimensions: jsonb('dimensions'), // {length: 1800, width: 1200, thickness: 10}
   characteristics: jsonb('characteristics'), // {surface: "чертёная", material: "резина"}
   puzzleOptions: jsonb('puzzle_options'), // {sides: "1_side", type: "old", enabled: false} - опции для поверхности "Паззл"
   matArea: decimal('mat_area', { precision: 10, scale: 4 }), // Площадь мата в м² (автоматический расчет + коррекция)
   weight: decimal('weight', { precision: 8, scale: 3 }), // Вес товара в кг (опционально)
   grade: productGradeEnum('grade').default('usual'), // Сорт товара: обычный по умолчанию
+  borderType: borderTypeEnum('border_type'), // Наличие борта: с бортом / без борта (Задача 7.1)
   tags: text('tags').array(),
   price: decimal('price', { precision: 10, scale: 2 }),
   costPrice: decimal('cost_price', { precision: 10, scale: 2 }),
@@ -130,7 +134,16 @@ export const products = pgTable('products', {
   photos: text('photos').array(),
   isActive: boolean('is_active').default(true),
   createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow()
+  updatedAt: timestamp('updated_at').defaultNow(),
+  // Новые поля для края ковра
+  carpetEdgeType: varchar('carpet_edge_type', { length: 50 }).default('straight_cut'),
+  carpetEdgeSides: integer('carpet_edge_sides').default(1),
+  carpetEdgeStrength: varchar('carpet_edge_strength', { length: 50 }).default('normal'),
+  // Поле для низа ковра
+  bottomTypeId: integer('bottom_type_id').references(() => bottomTypes.id),
+  // Поля паззла (для обратной совместимости)
+  puzzleTypeId: integer('puzzle_type_id').references(() => puzzleTypes.id),
+  puzzleSides: integer('puzzle_sides').default(1)
 });
 
 // Product relations - FR-002
@@ -355,6 +368,25 @@ export const telegramNotifications = pgTable('telegram_notifications', {
   status: notificationStatusEnum('status').default('pending')
 });
 
+// Carpet Edge Types table - новый справочник для типов края ковра
+export const carpetEdgeTypes = pgTable('carpet_edge_types', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 100 }).notNull().unique(),
+  code: varchar('code', { length: 50 }).notNull().unique(),
+  description: text('description'),
+  isSystem: boolean('is_system').default(false),
+  createdAt: timestamp('created_at').defaultNow()
+});
+
+export const bottomTypes = pgTable('bottom_types', {
+  id: serial('id').primaryKey(),
+  code: varchar('code', { length: 50 }).notNull().unique(),
+  name: varchar('name', { length: 100 }).notNull(),
+  description: text('description'),
+  isSystem: boolean('is_system').default(false).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull()
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   orders: many(orders),
@@ -396,12 +428,22 @@ export const productMaterialsRelations = relations(productMaterials, ({ many }) 
   products: many(products)
 }));
 
+export const carpetEdgeTypesRelations = relations(carpetEdgeTypes, ({ many }) => ({
+  products: many(products)
+}));
+
+export const bottomTypesRelations = relations(bottomTypes, ({ many }) => ({
+  products: many(products)
+}));
+
 export const productsRelations = relations(products, ({ one, many }) => ({
   category: one(categories, { fields: [products.categoryId], references: [categories.id] }),
   manager: one(users, { fields: [products.managerId], references: [users.id] }),
   surface: one(productSurfaces, { fields: [products.surfaceId], references: [productSurfaces.id] }),
   logo: one(productLogos, { fields: [products.logoId], references: [productLogos.id] }),
   material: one(productMaterials, { fields: [products.materialId], references: [productMaterials.id] }),
+  bottomType: one(bottomTypes, { fields: [products.bottomTypeId], references: [bottomTypes.id] }),
+  puzzleType: one(puzzleTypes, { fields: [products.puzzleTypeId], references: [puzzleTypes.id] }),
   stock: one(stock, { fields: [products.id], references: [stock.productId] }),
   orderItems: many(orderItems),
   stockMovements: many(stockMovements),

@@ -1,9 +1,11 @@
 import express from 'express';
 import { db, schema } from '../db';
-import { eq, and, sql, desc, asc } from 'drizzle-orm';
+import { eq, and, sql, desc, asc, inArray } from 'drizzle-orm';
 import { authenticateToken, authorizeRoles, AuthRequest } from '../middleware/auth';
+import { requireExportPermission } from '../middleware/permissions';
 import { createError } from '../middleware/errorHandler';
 import { performStockOperation } from '../utils/stockManager';
+import { ExcelExporter } from '../utils/excelExporter';
 
 const router = express.Router();
 
@@ -825,6 +827,76 @@ router.put('/:id', authenticateToken, authorizeRoles('manager', 'director'), asy
       data: result,
       message: 'Операция резки обновлена'
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/cutting/export - Export cutting operations to Excel (Задача 9.2)
+router.post('/export', authenticateToken, requireExportPermission('cutting'), async (req: AuthRequest, res, next) => {
+  try {
+    const { filters, format = 'xlsx' } = req.body; // добавляем параметр format
+
+    let whereConditions: any[] = [];
+
+    // Применяем фильтры если они переданы
+    if (filters) {
+      if (filters.status && filters.status !== 'all') {
+        const statusArray = filters.status.split(',').map((s: string) => s.trim());
+        if (statusArray.length === 1) {
+          whereConditions.push(eq(schema.cuttingOperations.status, statusArray[0] as any));
+        } else {
+          whereConditions.push(inArray(schema.cuttingOperations.status, statusArray as any[]));
+        }
+      }
+
+      if (filters.operatorId && filters.operatorId !== 'all') {
+        whereConditions.push(eq(schema.cuttingOperations.operatorId, parseInt(filters.operatorId)));
+      }
+
+      if (filters.assignedTo && filters.assignedTo !== 'all') {
+        whereConditions.push(eq(schema.cuttingOperations.assignedTo, parseInt(filters.assignedTo)));
+      }
+
+      if (filters.dateFrom) {
+        whereConditions.push(sql`${schema.cuttingOperations.createdAt} >= ${filters.dateFrom}`);
+      }
+
+      if (filters.dateTo) {
+        whereConditions.push(sql`${schema.cuttingOperations.createdAt} <= ${filters.dateTo}`);
+      }
+    }
+
+    // Получаем операции резки с полной информацией
+    const operations = await db.query.cuttingOperations.findMany({
+      where: whereConditions.length > 0 ? and(...whereConditions) : undefined,
+      with: {
+        sourceProduct: true,
+        targetProduct: true,
+        operator: true,
+        assignedToUser: true
+      },
+      orderBy: [desc(schema.cuttingOperations.createdAt)]
+    });
+
+    // Форматируем данные для Excel
+    const formattedData = ExcelExporter.formatCuttingOperationsData(operations);
+
+    // Генерируем имя файла
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+    const fileExtension = format === 'csv' ? 'csv' : 'xlsx';
+    const filename = `cutting-operations-export-${timestamp}.${fileExtension}`;
+
+    // Экспортируем в указанном формате (Задача 3: Дополнительные форматы)
+    await ExcelExporter.exportData(res, {
+      filename,
+      sheetName: 'Операции резки',
+      title: `Экспорт операций резки - ${new Date().toLocaleDateString('ru-RU')}`,
+      columns: ExcelExporter.getCuttingOperationsColumns(),
+      data: formattedData,
+      format
+    });
+
   } catch (error) {
     next(error);
   }
