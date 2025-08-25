@@ -18,6 +18,7 @@ import { materialsApi, Material } from '../services/materialsApi';
 import { stockApi, StockMovement } from '../services/stockApi';
 import { getOrdersByProduct } from '../services/ordersApi';
 import { getProductionTasksByProduct } from '../services/productionApi';
+import RussianInputNumber from '../components/RussianInputNumber';
 
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -945,17 +946,17 @@ const ProductDetail: React.FC = () => {
           <Row gutter={16}>
             <Col span={8}>
               <Form.Item name="length" label="Длина (мм)">
-                <InputNumber style={{ width: '100%' }} min={1} />
+                <RussianInputNumber style={{ width: '100%' }} min={1} precision={0} />
               </Form.Item>
             </Col>
             <Col span={8}>
               <Form.Item name="width" label="Ширина (мм)">
-                <InputNumber style={{ width: '100%' }} min={1} />
+                <RussianInputNumber style={{ width: '100%' }} min={1} precision={0} />
               </Form.Item>
             </Col>
             <Col span={8}>
               <Form.Item name="thickness" label="Толщина (мм)">
-                <InputNumber style={{ width: '100%' }} min={1} />
+                <RussianInputNumber style={{ width: '100%' }} min={1} precision={0} />
               </Form.Item>
             </Col>
           </Row>
@@ -1028,11 +1029,12 @@ const ProductDetail: React.FC = () => {
 
           <Row gutter={16}>
             <Col span={8}>
-              <Form.Item name="price" label="Цена продажи (₽)">
-                <InputNumber 
+              <Form.Item name="price" label="Цена продажи">
+                <RussianInputNumber 
                   style={{ width: '100%' }} 
                   min={0}
-                  formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                  precision={2}
+                  showCurrency={true}
                 />
               </Form.Item>
             </Col>

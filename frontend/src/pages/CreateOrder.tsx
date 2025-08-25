@@ -13,6 +13,8 @@ import { ordersApi, CreateOrderRequest } from '../services/ordersApi';
 import { catalogApi, Product } from '../services/catalogApi';
 import { usersApi } from '../services/usersApi';
 import dayjs from 'dayjs';
+import RussianInputNumber from '../components/RussianInputNumber';
+import { multiplyMoney, addMoney, formatMoney } from '../utils/moneyCalculations';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -148,7 +150,7 @@ const CreateOrder: React.FC = () => {
       product,
       quantity: 1,
       price: Number(product.price) || 0,
-      total: Number(product.price) || 0,
+      total: multiplyMoney(Number(product.price) || 0, 1),
       availableStock: product.availableStock || 0,
       canReserve: Math.min(1, product.availableStock || 0)
     };
@@ -166,7 +168,7 @@ const CreateOrder: React.FC = () => {
           const updated = { ...item, [field]: value };
           
           if (field === 'quantity' || field === 'price') {
-            updated.total = updated.quantity * updated.price;
+            updated.total = multiplyMoney(updated.price, updated.quantity);
             updated.canReserve = Math.min(updated.quantity, item.availableStock);
           }
           
@@ -184,7 +186,7 @@ const CreateOrder: React.FC = () => {
 
   // Calculate totals
   const calculateTotals = () => {
-    const totalAmount = orderItems.reduce((sum, item) => sum + item.total, 0);
+    const totalAmount = addMoney(...orderItems.map(item => item.total));
     const totalQuantity = orderItems.reduce((sum, item) => sum + item.quantity, 0);
     const totalCanReserve = orderItems.reduce((sum, item) => sum + item.canReserve, 0);
     const totalNeedProduction = orderItems.reduce((sum, item) => 
@@ -280,7 +282,7 @@ const CreateOrder: React.FC = () => {
         <InputNumber
           min={1}
           value={quantity}
-          onChange={(value) => updateOrderItem(record.id, 'quantity', value || 1)}
+          onChange={(value: number | null) => updateOrderItem(record.id, 'quantity', value || 1)}
           style={{ width: 80 }}
         />
       ),
@@ -291,13 +293,13 @@ const CreateOrder: React.FC = () => {
       key: 'price',
       align: 'center' as const,
       render: (price: number, record: OrderItemForm) => (
-        <InputNumber
+        <RussianInputNumber
           min={0}
           precision={2}
           value={price}
-          onChange={(value) => updateOrderItem(record.id, 'price', value || 0)}
-          style={{ width: 100 }}
-          addonAfter="₽"
+          onChange={(value: number | null) => updateOrderItem(record.id, 'price', value || 0)}
+          style={{ width: 120 }}
+          showCurrency={true}
         />
       ),
     },
@@ -327,7 +329,7 @@ const CreateOrder: React.FC = () => {
       key: 'total',
       align: 'right' as const,
       render: (total: number) => (
-        <Text strong>{total.toLocaleString()} ₽</Text>
+        <Text strong>{formatMoney(total)}</Text>
       ),
     },
     {
@@ -474,7 +476,7 @@ const CreateOrder: React.FC = () => {
                   >
                     <Select 
                       placeholder="Выберите источник заказа"
-                      onChange={(value) => {
+                      onChange={(value: string) => {
                         setSelectedSource(value);
                         if (value !== 'other') {
                           form.setFieldValue('customSource', '');
@@ -497,7 +499,7 @@ const CreateOrder: React.FC = () => {
                     rules={[
                       {
                         required: false,
-                        validator: (_, value) => {
+                        validator: (_: any, value: string) => {
                           if (selectedSource === 'other' && (!value || value.trim() === '')) {
                             return Promise.reject(new Error('Укажите описание источника'));
                           }
@@ -524,7 +526,7 @@ const CreateOrder: React.FC = () => {
                     <DatePicker 
                       style={{ width: '100%' }}
                       placeholder="Выберите дату"
-                      disabledDate={(current) => current && current < dayjs().startOf('day')}
+                      disabledDate={(current: any) => current && current < dayjs().startOf('day')}
                     />
                   </Form.Item>
                 </Col>
@@ -676,7 +678,7 @@ const CreateOrder: React.FC = () => {
             placeholder="Поиск товаров по названию или артикулу..."
             prefix={<SearchOutlined />}
             value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchText(e.target.value)}
             allowClear
           />
           
@@ -693,21 +695,23 @@ const CreateOrder: React.FC = () => {
                       <Text strong>Длина (мм)</Text>
                       <Row gutter={8}>
                         <Col span={12}>
-                          <InputNumber
+                          <RussianInputNumber
                             placeholder="От"
                             min={0}
+                            precision={0}
                             style={{ width: '100%' }}
                             value={sizeFilters.lengthMin}
-                            onChange={(value) => setSizeFilters(prev => ({ ...prev, lengthMin: value || undefined }))}
+                            onChange={(value: number | null) => setSizeFilters(prev => ({ ...prev, lengthMin: value || undefined }))}
                           />
                         </Col>
                         <Col span={12}>
-                          <InputNumber
+                          <RussianInputNumber
                             placeholder="До"
                             min={0}
+                            precision={0}
                             style={{ width: '100%' }}
                             value={sizeFilters.lengthMax}
-                            onChange={(value) => setSizeFilters(prev => ({ ...prev, lengthMax: value || undefined }))}
+                            onChange={(value: number | null) => setSizeFilters(prev => ({ ...prev, lengthMax: value || undefined }))}
                           />
                         </Col>
                       </Row>
@@ -718,21 +722,23 @@ const CreateOrder: React.FC = () => {
                       <Text strong>Ширина (мм)</Text>
                       <Row gutter={8}>
                         <Col span={12}>
-                          <InputNumber
+                          <RussianInputNumber
                             placeholder="От"
                             min={0}
+                            precision={0}
                             style={{ width: '100%' }}
                             value={sizeFilters.widthMin}
-                            onChange={(value) => setSizeFilters(prev => ({ ...prev, widthMin: value || undefined }))}
+                            onChange={(value: number | null) => setSizeFilters(prev => ({ ...prev, widthMin: value || undefined }))}
                           />
                         </Col>
                         <Col span={12}>
-                          <InputNumber
+                          <RussianInputNumber
                             placeholder="До"
                             min={0}
+                            precision={0}
                             style={{ width: '100%' }}
                             value={sizeFilters.widthMax}
-                            onChange={(value) => setSizeFilters(prev => ({ ...prev, widthMax: value || undefined }))}
+                            onChange={(value: number | null) => setSizeFilters(prev => ({ ...prev, widthMax: value || undefined }))}
                           />
                         </Col>
                       </Row>
@@ -743,21 +749,23 @@ const CreateOrder: React.FC = () => {
                       <Text strong>Высота (мм)</Text>
                       <Row gutter={8}>
                         <Col span={12}>
-                          <InputNumber
+                          <RussianInputNumber
                             placeholder="От"
                             min={0}
+                            precision={0}
                             style={{ width: '100%' }}
                             value={sizeFilters.heightMin}
-                            onChange={(value) => setSizeFilters(prev => ({ ...prev, heightMin: value || undefined }))}
+                            onChange={(value: number | null) => setSizeFilters(prev => ({ ...prev, heightMin: value || undefined }))}
                           />
                         </Col>
                         <Col span={12}>
-                          <InputNumber
+                          <RussianInputNumber
                             placeholder="До"
                             min={0}
+                            precision={0}
                             style={{ width: '100%' }}
                             value={sizeFilters.heightMax}
-                            onChange={(value) => setSizeFilters(prev => ({ ...prev, heightMax: value || undefined }))}
+                            onChange={(value: number | null) => setSizeFilters(prev => ({ ...prev, heightMax: value || undefined }))}
                           />
                         </Col>
                       </Row>

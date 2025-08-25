@@ -13,6 +13,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
+import RussianInputNumber from '../components/RussianInputNumber';
 import { catalogApi, Category, Product, ProductFilters } from '../services/catalogApi';
 import { logosApi } from '../services/logosApi';
 import { puzzleTypesApi } from '../services/puzzleTypesApi';
@@ -766,21 +767,25 @@ const Catalog: React.FC = () => {
                       <Col span={6}>
                         <Text strong>Вес (кг)</Text>
                         <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
-                          <InputNumber
+                          <RussianInputNumber
                             placeholder="От"
                             value={weightFilter.min}
-                            onChange={(value) => setWeightFilter(prev => ({ ...prev, min: value }))}
+                            onChange={(value: number | null) => setWeightFilter(prev => ({ ...prev, min: value }))}
                             min={0}
                             step={0.1}
+                            precision={1}
+                            customSuffix="кг"
                             style={{ width: '100%' }}
                           />
                           <span>–</span>
-                          <InputNumber
+                          <RussianInputNumber
                             placeholder="До"
                             value={weightFilter.max}
-                            onChange={(value) => setWeightFilter(prev => ({ ...prev, max: value }))}
+                            onChange={(value: number | null) => setWeightFilter(prev => ({ ...prev, max: value }))}
                             min={0}
                             step={0.1}
+                            precision={1}
+                            customSuffix="кг"
                             style={{ width: '100%' }}
                           />
                         </div>
@@ -908,57 +913,63 @@ const Catalog: React.FC = () => {
                         <Col span={8}>
                           <Text>Длина</Text>
                           <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                            <InputNumber
+                            <RussianInputNumber
                               placeholder="от"
                               value={sizeFilters.lengthMin}
-                              onChange={(value) => setSizeFilters({...sizeFilters, lengthMin: value})}
+                              onChange={(value: number | null) => setSizeFilters({...sizeFilters, lengthMin: value})}
                               style={{ width: '50%' }}
                               min={0}
+                              precision={0}
                             />
-                            <InputNumber
+                            <RussianInputNumber
                               placeholder="до"
                               value={sizeFilters.lengthMax}
-                              onChange={(value) => setSizeFilters({...sizeFilters, lengthMax: value})}
+                              onChange={(value: number | null) => setSizeFilters({...sizeFilters, lengthMax: value})}
                               style={{ width: '50%' }}
                               min={0}
+                              precision={0}
                             />
                           </div>
                         </Col>
                         <Col span={8}>
                           <Text>Ширина</Text>
                           <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                            <InputNumber
+                            <RussianInputNumber
                               placeholder="от"
                               value={sizeFilters.widthMin}
-                              onChange={(value) => setSizeFilters({...sizeFilters, widthMin: value})}
+                              onChange={(value: number | null) => setSizeFilters({...sizeFilters, widthMin: value})}
                               style={{ width: '50%' }}
                               min={0}
+                              precision={0}
                             />
-                            <InputNumber
+                            <RussianInputNumber
                               placeholder="до"
                               value={sizeFilters.widthMax}
-                              onChange={(value) => setSizeFilters({...sizeFilters, widthMax: value})}
+                              onChange={(value: number | null) => setSizeFilters({...sizeFilters, widthMax: value})}
                               style={{ width: '50%' }}
                               min={0}
+                              precision={0}
                             />
                           </div>
                         </Col>
                         <Col span={8}>
                           <Text>Толщина</Text>
                           <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                            <InputNumber
+                            <RussianInputNumber
                               placeholder="от"
                               value={sizeFilters.thicknessMin}
-                              onChange={(value) => setSizeFilters({...sizeFilters, thicknessMin: value})}
+                              onChange={(value: number | null) => setSizeFilters({...sizeFilters, thicknessMin: value})}
                               style={{ width: '50%' }}
                               min={0}
+                              precision={0}
                             />
-                            <InputNumber
+                            <RussianInputNumber
                               placeholder="до"
                               value={sizeFilters.thicknessMax}
-                              onChange={(value) => setSizeFilters({...sizeFilters, thicknessMax: value})}
+                              onChange={(value: number | null) => setSizeFilters({...sizeFilters, thicknessMax: value})}
                               style={{ width: '50%' }}
                               min={0}
+                              precision={0}
                             />
                           </div>
                         </Col>

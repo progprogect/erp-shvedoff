@@ -7,6 +7,7 @@ import { logosApi, Logo } from '../services/logosApi';
 import { materialsApi, Material } from '../services/materialsApi';
 import { puzzleTypesApi, PuzzleType } from '../services/puzzleTypesApi';
 import { useAuthStore } from '../stores/authStore';
+import RussianInputNumber from './RussianInputNumber';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -415,7 +416,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                 showSearch
                 optionFilterProp="children"
                 allowClear
-                onChange={(value) => {
+                onChange={(value: number | null) => {
                   setSelectedSurfaceId(value);
                   const isPuzzle = surfaces.find(s => s.id === value)?.name === 'Паззл';
                   if (isPuzzle) {
@@ -563,7 +564,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                   </div>
                   <Select
                     value={puzzleOptions.sides}
-                    onChange={(value) => setPuzzleOptions({...puzzleOptions, sides: value})}
+                    onChange={(value: number | null) => setPuzzleOptions({...puzzleOptions, sides: value})}
                     style={{ width: '100%' }}
                   >
                     <Option value="1_side">1 сторона</Option>
@@ -578,7 +579,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                   </div>
                   <Select
                     value={puzzleOptions.type}
-                    onChange={(value) => setPuzzleOptions({...puzzleOptions, type: value})}
+                    onChange={(value: number | null) => setPuzzleOptions({...puzzleOptions, type: value})}
                     style={{ width: '100%' }}
                     loading={loadingReferences}
                     dropdownRender={(menu) => (
@@ -640,12 +641,13 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                 </span>
               }
             >
-              <InputNumber 
+              <RussianInputNumber 
                 placeholder="Рассчитается автоматически"
                 style={{ width: '100%' }}
                 min={0}
                 precision={4}
                 step={0.0001}
+                customSuffix="м²"
                 onChange={(value: number | null) => {
                   setMatAreaOverride(value ? value.toString() : '');
                 }}
@@ -671,13 +673,14 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
           <Col span={8}>
             <Form.Item
               name="price"
-              label="Цена продажи (₽)"
+              label="Цена продажи"
             >
-              <InputNumber 
-                placeholder="15000"
+              <RussianInputNumber 
+                placeholder="15 000,00"
                 style={{ width: '100%' }}
                 min={0}
                 precision={2}
+                showCurrency={true}
               />
             </Form.Item>
           </Col>
