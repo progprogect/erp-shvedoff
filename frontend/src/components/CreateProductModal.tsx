@@ -446,14 +446,14 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                 showSearch
                 optionFilterProp="children"
                 allowClear
-                dropdownRender={(menu) => (
+                dropdownRender={(menu: React.ReactNode) => (
                   <>
                     {menu}
                     <div style={{ padding: '8px', borderTop: '1px solid #f0f0f0' }}>
                       <Input
                         placeholder="Название нового логотипа"
                         value={newLogoName}
-                        onChange={(e) => setNewLogoName(e.target.value)}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewLogoName(e.target.value)}
                         onPressEnter={createNewLogo}
                         style={{ marginBottom: 8 }}
                       />
@@ -564,7 +564,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                   </div>
                   <Select
                     value={puzzleOptions.sides}
-                    onChange={(value: number | null) => setPuzzleOptions({...puzzleOptions, sides: value})}
+                    onChange={(value: '1_side' | '2_sides' | '3_sides' | '4_sides') => setPuzzleOptions({...puzzleOptions, sides: value})}
                     style={{ width: '100%' }}
                   >
                     <Option value="1_side">1 сторона</Option>
@@ -579,17 +579,17 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                   </div>
                   <Select
                     value={puzzleOptions.type}
-                    onChange={(value: number | null) => setPuzzleOptions({...puzzleOptions, type: value})}
+                    onChange={(value: string) => setPuzzleOptions({...puzzleOptions, type: value})}
                     style={{ width: '100%' }}
                     loading={loadingReferences}
-                    dropdownRender={(menu) => (
+                    dropdownRender={(menu: React.ReactNode) => (
                       <>
                         {menu}
                         <div style={{ padding: '8px', borderTop: '1px solid #f0f0f0' }}>
                           <Input
                             placeholder="Название нового типа паззла"
                             value={newPuzzleTypeName}
-                            onChange={(e) => setNewPuzzleTypeName(e.target.value)}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPuzzleTypeName(e.target.value)}
                             onPressEnter={createNewPuzzleType}
                             style={{ marginBottom: 8 }}
                           />
