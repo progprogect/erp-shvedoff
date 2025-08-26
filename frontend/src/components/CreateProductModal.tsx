@@ -258,7 +258,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
     try {
       const productData = {
         name: values.name,
-        article: values.article || null,
+        article: autoGenerateArticle ? previewArticle : values.article || null,
         categoryId: values.categoryId,
         surfaceId: values.surfaceId || null,
         logoId: values.logoId || null,
@@ -284,7 +284,8 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
         price: values.price ? parseFloat(values.price) : undefined,
         normStock: values.normStock || 0,
         initialStock: values.initialStock || 0,
-        notes: values.notes || null
+        notes: values.notes || null,
+        autoGenerateArticle: autoGenerateArticle
       };
 
       const response = await catalogApi.createProduct(productData);
@@ -661,7 +662,15 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
               <Form.Item label=" " style={{ marginBottom: 0 }}>
                 <Button 
                   type={autoGenerateArticle ? "primary" : "default"}
-                  onClick={() => setAutoGenerateArticle(!autoGenerateArticle)}
+                  onClick={() => {
+                    const newAutoMode = !autoGenerateArticle;
+                    setAutoGenerateArticle(newAutoMode);
+                    
+                    // При переключении в ручной режим очищаем поле артикула
+                    if (!newAutoMode) {
+                      form.setFieldsValue({ article: '' });
+                    }
+                  }}
                   style={{ width: '100%' }}
                 >
                   {autoGenerateArticle ? "Автогенерация ВКЛ" : "Автогенерация ВЫКЛ"}
