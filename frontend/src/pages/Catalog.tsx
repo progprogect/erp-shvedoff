@@ -93,6 +93,7 @@ const Catalog: React.FC = () => {
   const [selectedSurfaces, setSelectedSurfaces] = useState<number[]>([]);
   const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
   const [selectedBorderTypes, setSelectedBorderTypes] = useState<string[]>([]); // Задача 7.1
+  const [selectedPressTypes, setSelectedPressTypes] = useState<string[]>([]); // AC3: Фильтр по прессу
   const [weightFilter, setWeightFilter] = useState({
     min: null as number | null,
     max: null as number | null
@@ -165,7 +166,7 @@ const Catalog: React.FC = () => {
       loadProducts();
     }
   }, [searchText, checkedCategories, stockFilter, selectedMaterials, selectedSurfaces,
-      selectedLogos, selectedGrades, weightFilter, onlyInStock, selectedBorderTypes,
+      selectedLogos, selectedGrades, selectedPressTypes, weightFilter, onlyInStock, selectedBorderTypes,
       selectedCarpetEdgeTypes, selectedCarpetEdgeSides, selectedCarpetEdgeStrength,
       selectedBottomTypeIds, selectedPuzzleTypeIds, sizeFilters, sortBy, sortOrder, currentPage]);
 
@@ -207,6 +208,7 @@ const Catalog: React.FC = () => {
         surfaceIds: selectedSurfaces.length > 0 ? selectedSurfaces : undefined,
         logoIds: selectedLogos.length > 0 ? selectedLogos : undefined,
         grades: selectedGrades.length > 0 ? selectedGrades : undefined,
+        pressTypes: selectedPressTypes.length > 0 ? selectedPressTypes : undefined, // AC3: Фильтр по прессу
         weightMin: weightFilter.min || undefined,
         weightMax: weightFilter.max || undefined,
         onlyInStock,
@@ -416,6 +418,7 @@ const Catalog: React.FC = () => {
     setSelectedSurfaces([]);
     setSelectedGrades([]);
     setSelectedBorderTypes([]); // Задача 7.1
+    setSelectedPressTypes([]); // AC3: Очистка фильтра по прессу
     setWeightFilter({ min: null, max: null });
     setOnlyInStock(false);
     
@@ -500,6 +503,7 @@ const Catalog: React.FC = () => {
     selectedMaterials.length > 0 || 
     selectedSurfaces.length > 0 || 
     selectedGrades.length > 0 || 
+    selectedPressTypes.length > 0 || // AC3: Фильтр по прессу
     selectedBorderTypes.length > 0 || // Задача 7.1
     weightFilter.min !== null || 
     weightFilter.max !== null ||
@@ -526,6 +530,7 @@ const Catalog: React.FC = () => {
       (selectedSurfaces.length > 0 ? 1 : 0) +
       (selectedLogos.length > 0 ? 1 : 0) +
       (selectedGrades.length > 0 ? 1 : 0) +
+      (selectedPressTypes.length > 0 ? 1 : 0) +
       (weightFilter.min !== null || weightFilter.max !== null ? 1 : 0) +
       (stockRangeFilter.min !== null || stockRangeFilter.max !== null ? 1 : 0) +
       (onlyInStock ? 1 : 0) +
@@ -834,6 +839,26 @@ const Catalog: React.FC = () => {
                           >
                             <Option value="usual">⭐ Обычный</Option>
                             <Option value="grade_2">⚠️ Второй сорт</Option>
+                            <Option value="telyatnik">🐄 Телятник</Option>
+                            <Option value="liber">🏆 Либер</Option>
+                          </Select>
+                        </div>
+                      </Col>
+
+                      {/* Фильтр по прессу (AC3) */}
+                      <Col span={6}>
+                        <Text strong>Пресс</Text>
+                        <div style={{ marginTop: 8 }}>
+                          <Select
+                            mode="multiple"
+                            value={selectedPressTypes}
+                            onChange={setSelectedPressTypes}
+                            placeholder="Выберите тип пресса"
+                            style={{ width: '100%' }}
+                          >
+                            <Option value="not_selected">➖ Не выбрано</Option>
+                            <Option value="ukrainian">🇺🇦 Украинский</Option>
+                            <Option value="chinese">🇨🇳 Китайский</Option>
                           </Select>
                         </div>
                       </Col>

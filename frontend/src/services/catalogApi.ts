@@ -118,6 +118,7 @@ export interface ProductFilters {
   surfaceIds?: number[];     // поверхности
   logoIds?: number[];        // логотипы
   grades?: string[];         // сорта товаров
+  pressTypes?: string[];     // типы пресса (AC3)
   weightMin?: number;        // минимальный вес
   weightMax?: number;        // максимальный вес
   matAreaMin?: number;       // минимальная площадь

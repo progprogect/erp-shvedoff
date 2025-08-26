@@ -124,6 +124,7 @@ router.get('/products', authenticateToken, async (req, res, next) => {
       surfaceIds,     // поверхности (массив ID) 
       logoIds,        // логотипы (массив ID)
       grades,         // сорта товаров (массив)
+      pressTypes,     // типы пресса (массив) - AC3
       weightMin,      // минимальный вес
       weightMax,      // максимальный вес
       matAreaMin,     // минимальная площадь
@@ -204,10 +205,21 @@ router.get('/products', authenticateToken, async (req, res, next) => {
     if (grades) {
       const gradesList = Array.isArray(grades) ? grades : [grades];
       const validGrades = gradesList
-        .filter(grade => typeof grade === 'string' && ['usual', 'grade_2'].includes(grade))
-        .map(grade => grade as 'usual' | 'grade_2');
+        .filter(grade => typeof grade === 'string' && ['usual', 'grade_2', 'telyatnik', 'liber'].includes(grade))
+        .map(grade => grade as 'usual' | 'grade_2' | 'telyatnik' | 'liber');
       if (validGrades.length > 0) {
         whereConditions.push(inArray(schema.products.grade, validGrades));
+      }
+    }
+
+    // Фильтр по типу пресса (AC3)
+    if (pressTypes) {
+      const pressTypesList = Array.isArray(pressTypes) ? pressTypes : [pressTypes];
+      const validPressTypes = pressTypesList
+        .filter(pressType => typeof pressType === 'string' && ['not_selected', 'ukrainian', 'chinese'].includes(pressType))
+        .map(pressType => pressType as 'not_selected' | 'ukrainian' | 'chinese');
+      if (validPressTypes.length > 0) {
+        whereConditions.push(inArray(schema.products.pressType, validPressTypes));
       }
     }
 

@@ -575,12 +575,28 @@ const ProductDetail: React.FC = () => {
                     </>
                   )}
                   
-                  <Descriptions.Item label="Поверхность">
-                    {product?.surface?.name || product?.characteristics?.surface || 'Не указана'}
+                  <Descriptions.Item label="Поверхности (AC4)">
+                    {product?.surfaces && product.surfaces.length > 0 ? (
+                      <Space wrap>
+                        {product.surfaces.map(surface => (
+                          <Tag key={surface.id} color="blue">🎨 {surface.name}</Tag>
+                        ))}
+                      </Space>
+                    ) : product?.surface?.name ? (
+                      <Tag color="blue">🎨 {product.surface.name}</Tag>
+                    ) : (
+                      'Не указана'
+                    )}
                   </Descriptions.Item>
                   
                   <Descriptions.Item label="Материал">
                     {product?.material?.name || product?.characteristics?.material || 'Не указан'}
+                  </Descriptions.Item>
+
+                  <Descriptions.Item label="Пресс (AC3)">
+                    {product?.pressType === 'ukrainian' ? '🇺🇦 Украинский' : 
+                     product?.pressType === 'chinese' ? '🇨🇳 Китайский' : 
+                     '➖ Не выбрано'}
                   </Descriptions.Item>
                   
                   <Descriptions.Item label="Логотип">
@@ -1128,6 +1144,15 @@ const ProductDetail: React.FC = () => {
                       🛠️ {material.name}
                     </Option>
                   ))}
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="pressType" label="Пресс (AC3)">
+                <Select placeholder="Выберите тип пресса" allowClear>
+                  <Option value="not_selected">➖ Не выбрано</Option>
+                  <Option value="ukrainian">🇺🇦 Украинский</Option>
+                  <Option value="chinese">🇨🇳 Китайский</Option>
                 </Select>
               </Form.Item>
             </Col>
