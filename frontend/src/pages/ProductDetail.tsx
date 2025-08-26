@@ -575,7 +575,7 @@ const ProductDetail: React.FC = () => {
                     </>
                   )}
                   
-                  <Descriptions.Item label="Поверхности (AC4)">
+                  <Descriptions.Item label="Поверхности">
                     {product?.surfaces && product.surfaces.length > 0 ? (
                       <Space wrap>
                         {product.surfaces.map(surface => (
@@ -593,7 +593,7 @@ const ProductDetail: React.FC = () => {
                     {product?.material?.name || product?.characteristics?.material || 'Не указан'}
                   </Descriptions.Item>
 
-                  <Descriptions.Item label="Пресс (AC3)">
+                  <Descriptions.Item label="Пресс">
                     {product?.pressType === 'ukrainian' ? '🇺🇦 Украинский' : 
                      product?.pressType === 'chinese' ? '🇨🇳 Китайский' : 
                      '➖ Не выбрано'}
@@ -1080,7 +1080,7 @@ const ProductDetail: React.FC = () => {
 
           <Row gutter={16}>
             <Col span={8}>
-              <Form.Item name="surfaceIds" label="Поверхности (AC4)">
+              <Form.Item name="surfaceIds" label="Поверхности">
                 <Select 
                   mode="multiple"
                   placeholder="Выберите поверхности" 
@@ -1148,7 +1148,7 @@ const ProductDetail: React.FC = () => {
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="pressType" label="Пресс (AC3)">
+              <Form.Item name="pressType" label="Пресс">
                 <Select placeholder="Выберите тип пресса" allowClear>
                   <Option value="not_selected">➖ Не выбрано</Option>
                   <Option value="ukrainian">🇺🇦 Украинский</Option>

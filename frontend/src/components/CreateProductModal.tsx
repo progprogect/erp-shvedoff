@@ -720,7 +720,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
         <Row gutter={16}>
           <Col span={8}>
             <Form.Item
-              label="Поверхности (AC4)"
+              label="Поверхности"
               help="Можно выбрать одну или несколько поверхностей"
             >
               <Select 
@@ -814,7 +814,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
           </Col>
           <Col span={6}>
             <Form.Item
-              label="Пресс (AC3)"
+              label="Пресс"
               help="Характеристика пресса для материала"
             >
               <Select 
@@ -853,7 +853,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
           <Col span={8}>
             <Form.Item
               name="grade"
-              label="Сорт товара (AC2)"
+              label="Сорт товара"
               initialValue="usual"
               help="По умолчанию выбран 'Обычный' сорт"
             >
@@ -978,7 +978,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
           <Col span={8}>
             <Form.Item
               name="bottomTypeId"
-              label="Низ ковра (AC6)"
+              label="Низ ковра"
               help="Поле опциональное - можно оставить не выбранным"
               initialValue={selectedBottomTypeId}
             >
