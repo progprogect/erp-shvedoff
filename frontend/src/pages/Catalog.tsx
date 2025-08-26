@@ -1309,6 +1309,12 @@ const Catalog: React.FC = () => {
                           {product.grade === 'grade_2' && (
                             <Tag color="orange">⚠️ Второй сорт</Tag>
                           )}
+                          {product.grade === 'telyatnik' && (
+                            <Tag color="purple">🐄 Телятник</Tag>
+                          )}
+                          {product.grade === 'liber' && (
+                            <Tag color="green">🏆 Либер</Tag>
+                          )}
                         </Space>
                         <br />
                         <Text type="secondary" style={{ fontSize: '12px' }}>

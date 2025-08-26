@@ -546,6 +546,8 @@ const ProductDetail: React.FC = () => {
                   <Descriptions.Item label="Сорт">
                     {product?.grade === 'usual' ? 'Обычный' : 
                      product?.grade === 'grade_2' ? 'Второй сорт' : 
+                     product?.grade === 'telyatnik' ? 'Телятник' :
+                     product?.grade === 'liber' ? 'Либер' :
                      'Не указан'}
                   </Descriptions.Item>
                   
@@ -556,11 +558,18 @@ const ProductDetail: React.FC = () => {
                   </Descriptions.Item>
                   
                   <Descriptions.Item label="Край ковра">
-                    {product?.carpetEdgeType === 'puzzle' ? 'Паззл' : 'Прямой рез'}
+                    {product?.carpetEdgeType === 'straight_cut' ? 'Литой' :
+                     product?.carpetEdgeType === 'direct_cut' ? 'Прямой рез' :
+                     product?.carpetEdgeType === 'puzzle' ? 'Пазл' :
+                     product?.carpetEdgeType === 'sub_puzzle' ? 'Подпазл' :
+                     product?.carpetEdgeType === 'cast_puzzle' ? 'Литой пазл' :
+                     'Не указан'}
                   </Descriptions.Item>
                   
                   <Descriptions.Item label="Усиленный край">
-                    {product?.carpetEdgeStrength === 'reinforced' ? 'Усиленный' : 'Обычный'}
+                    {product?.carpetEdgeStrength === 'normal' ? 'Усиленный' :
+                     product?.carpetEdgeStrength === 'weak' ? 'Не усиленный' :
+                     'Усиленный'}
                   </Descriptions.Item>
                   
                   {product?.carpetEdgeType === 'puzzle' && (
@@ -1038,6 +1047,8 @@ const ProductDetail: React.FC = () => {
                 <Select style={{ width: '100%' }}>
                   <Option value="usual">⭐ Обычный</Option>
                   <Option value="grade_2">⚠️ Второй сорт</Option>
+                  <Option value="telyatnik">🐄 Телятник</Option>
+                  <Option value="liber">🏆 Либер</Option>
                 </Select>
               </Form.Item>
             </Col>
