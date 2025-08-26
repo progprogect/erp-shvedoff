@@ -37,7 +37,7 @@ const PriceInput: React.FC<PriceInputProps> = ({
   }, [value]);
 
   // Валидация при изменении значения
-  const handleChange = (newValue: number | null) => {
+  const handleChange = (newValue: string | number | null) => {
     setError(undefined);
     
     if (newValue === null || newValue === undefined) {
@@ -50,14 +50,22 @@ const PriceInput: React.FC<PriceInputProps> = ({
       }
     }
 
+    // Конвертируем в число
+    const numericValue = typeof newValue === 'string' ? parseFloat(newValue) : newValue;
+    
+    if (isNaN(numericValue)) {
+      setError('Неверный формат цены');
+      return;
+    }
+
     // Валидируем формат
-    const validation = validatePriceFormat(newValue.toString());
+    const validation = validatePriceFormat(numericValue.toString());
     if (!validation.isValid) {
       setError(validation.error);
       return;
     }
 
-    onChange?.(newValue);
+    onChange?.(numericValue);
   };
 
   // Обработка вставки текста (например, с запятой)
@@ -74,13 +82,18 @@ const PriceInput: React.FC<PriceInputProps> = ({
   };
 
   // Форматтер для отображения
-  const formatter = (val: number | undefined): string => {
-    if (val === undefined || val === null || isNaN(val)) {
+  const formatter = (val: string | number | undefined): string => {
+    if (val === undefined || val === null) {
+      return '';
+    }
+    
+    const numVal = typeof val === 'string' ? parseFloat(val) : val;
+    if (isNaN(numVal)) {
       return '';
     }
     
     // Форматируем с валютой и разделителями тысяч
-    const formatted = val.toLocaleString('ru-RU', {
+    const formatted = numVal.toLocaleString('ru-RU', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     });
