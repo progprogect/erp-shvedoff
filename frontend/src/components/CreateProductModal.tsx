@@ -13,7 +13,30 @@ import bottomTypesApi, { BottomType } from '../services/bottomTypesApi';
 
 const { Option } = Select;
 const { TextArea } = Input;
-const { Text } = Typography;
+const { Text, Title } = Typography;
+
+// Компонент для блока формы
+const FormBlock: React.FC<{ title: string; icon?: string; children: React.ReactNode }> = ({ title, icon, children }) => (
+  <div style={{ 
+    backgroundColor: '#fafafa', 
+    border: '1px solid #f0f0f0', 
+    borderRadius: '8px', 
+    padding: '16px', 
+    marginBottom: '24px' 
+  }}>
+    <div style={{ 
+      marginBottom: '16px', 
+      borderBottom: '1px solid #e8e8e8', 
+      paddingBottom: '8px' 
+    }}>
+      <Text strong style={{ fontSize: '16px', color: '#1890ff' }}>
+        {icon && <span style={{ marginRight: '8px' }}>{icon}</span>}
+        {title}
+      </Text>
+    </div>
+    {children}
+  </div>
+);
 
 interface CreateProductModalProps {
   visible: boolean;
@@ -600,151 +623,198 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
         layout="vertical"
         onFinish={handleSubmit}
       >
-        {/* Основная информация */}
-        <Row gutter={16}>
-          <Col span={24}>
-            <Form.Item
-              name="name"
-              label="Название товара"
-              rules={[
-                { required: true, message: 'Введите название товара' },
-                { min: 2, message: 'Минимум 2 символа' }
-              ]}
-            >
-              <Input 
-                placeholder="Например: Лежак резиновый чешский"
-                onChange={generateArticlePreview}
-              />
-            </Form.Item>
-          </Col>
-        </Row>
-
-        {/* Артикул сразу под названием (AC8) */}
-        <Row gutter={16}>
-          <Col span={18}>
-            <Form.Item
-              name="article"
-              label="Артикул товара"
-              help={autoGenerateArticle ? "Артикул генерируется автоматически при изменении характеристик" : "Введите артикул вручную"}
-            >
-              <Input 
-                placeholder={autoGenerateArticle ? previewArticle || "Артикул будет сгенерирован..." : "Введите артикул"}
-                disabled={autoGenerateArticle}
-                value={autoGenerateArticle ? previewArticle : undefined}
-              />
-            </Form.Item>
-          </Col>
-          <Col span={6}>
-            <Form.Item label=" " style={{ marginBottom: 0 }}>
-              <Button 
-                type={autoGenerateArticle ? "primary" : "default"}
-                onClick={() => setAutoGenerateArticle(!autoGenerateArticle)}
-                style={{ width: '100%' }}
+        {/* Блок 1: Основная информация */}
+        <FormBlock title="Основная информация" icon="📝">
+          <Row gutter={16}>
+            <Col span={24}>
+              <Form.Item
+                name="name"
+                label="Название товара"
+                rules={[
+                  { required: true, message: 'Введите название товара' },
+                  { min: 2, message: 'Минимум 2 символа' }
+                ]}
               >
-                {autoGenerateArticle ? "Автогенерация ВКЛ" : "Автогенерация ВЫКЛ"}
-              </Button>
-            </Form.Item>
-          </Col>
-        </Row>
+                <Input 
+                  placeholder="Например: Лежак резиновый чешский"
+                  onChange={generateArticlePreview}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
 
-        <Row gutter={16}>
-          <Col span={24}>
-            <Form.Item
-              name="categoryId"
-              label="Категория"
-              rules={[{ required: true, message: 'Выберите категорию' }]}
-            >
-              <Select 
-                placeholder="Выберите категорию товара"
-                showSearch
-                optionFilterProp="children"
+          <Row gutter={16}>
+            <Col span={18}>
+              <Form.Item
+                name="article"
+                label="Артикул товара"
+                help={autoGenerateArticle ? "Артикул генерируется автоматически при изменении характеристик" : "Введите артикул вручную"}
               >
-                {flatCategories(categories).map(category => (
-                  <Option key={category.id} value={category.id}>
-                    📁 {category.name}
-                  </Option>
-                ))}
-              </Select>
-            </Form.Item>
-          </Col>
-        </Row>
+                <Input 
+                  placeholder={autoGenerateArticle ? previewArticle || "Артикул будет сгенерирован..." : "Введите артикул"}
+                  disabled={autoGenerateArticle}
+                  value={autoGenerateArticle ? previewArticle : undefined}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item label=" " style={{ marginBottom: 0 }}>
+                <Button 
+                  type={autoGenerateArticle ? "primary" : "default"}
+                  onClick={() => setAutoGenerateArticle(!autoGenerateArticle)}
+                  style={{ width: '100%' }}
+                >
+                  {autoGenerateArticle ? "Автогенерация ВКЛ" : "Автогенерация ВЫКЛ"}
+                </Button>
+              </Form.Item>
+            </Col>
+          </Row>
 
-        {/* Размеры */}
-        <Row gutter={16}>
-          <Col span={8}>
-            <Form.Item
-              name="length"
-              label="Длина (мм)"
-            >
-              <InputNumber 
-                placeholder="1800"
-                style={{ width: '100%' }}
-                min={1}
-                onChange={generateArticle}
-              />
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item
-              name="width"
-              label="Ширина (мм)"
-            >
-              <InputNumber 
-                placeholder="1200"
-                style={{ width: '100%' }}
-                min={1}
-                onChange={generateArticle}
-              />
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item
-              name="thickness"
-              label="Высота (мм)"
-              rules={[
-                { required: false, message: 'Введите высоту' },
-                { type: 'number', min: 1, message: 'Высота должна быть больше 0' }
-              ]}
-            >
-              <InputNumber
-                placeholder="30"
-                style={{ width: '100%' }}
-                min={1}
-                onChange={generateArticle}
-              />
-            </Form.Item>
-          </Col>
-        </Row>
-
-        {/* Характеристики */}
-        <Row gutter={16}>
-          <Col span={8}>
-            <Form.Item
-              label="Поверхности"
-              help="Можно выбрать одну или несколько поверхностей"
-            >
-              <Select 
-                mode="multiple"
-                placeholder="Выберите поверхности"
-                loading={loadingReferences}
-                showSearch
-                optionFilterProp="children"
-                allowClear
-                value={selectedSurfaceIds}
-                onChange={(values) => {
-                  setSelectedSurfaceIds(values || []);
-                  generateArticlePreview();
-                }}
-                maxTagCount="responsive"
+          <Row gutter={16}>
+            <Col span={24}>
+              <Form.Item
+                name="categoryId"
+                label="Категория"
+                rules={[{ required: true, message: 'Выберите категорию' }]}
               >
-                {surfaces.map(surface => (
-                  <Option key={surface.id} value={surface.id}>
-                    🎨 {surface.name}
-                  </Option>
-                ))}
-              </Select>
-            </Form.Item>
-          </Col>
+                <Select 
+                  placeholder="Выберите категорию товара"
+                  loading={loadingReferences}
+                  showSearch
+                  optionFilterProp="children"
+                  onChange={generateArticlePreview}
+                >
+                  {flatCategories(categories).map(category => (
+                    <Option key={category.id} value={category.id}>
+                      📁 {category.name}
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+        </FormBlock>
+
+        {/* Блок 2: Размеры */}
+        <FormBlock title="Размеры" icon="📏">
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item
+                name="length"
+                label="Длина (мм)"
+              >
+                <InputNumber 
+                  placeholder="1800"
+                  style={{ width: '100%' }}
+                  min={1}
+                  onChange={generateArticle}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                name="width"
+                label="Ширина (мм)"
+              >
+                <InputNumber 
+                  placeholder="1200"
+                  style={{ width: '100%' }}
+                  min={1}
+                  onChange={generateArticle}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                name="thickness"
+                label="Высота (мм)"
+                rules={[
+                  { required: false, message: 'Введите высоту' },
+                  { type: 'number', min: 1, message: 'Высота должна быть больше 0' }
+                ]}
+              >
+                <InputNumber
+                  placeholder="30"
+                  style={{ width: '100%' }}
+                  min={1}
+                  onChange={generateArticle}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="matArea"
+                label={
+                  <span>
+                    Площадь (м²)
+                    {calculatedMatArea && (
+                      <span style={{ color: '#1890ff', fontWeight: 'normal', marginLeft: 8 }}>
+                        (автоматически: {calculatedMatArea} м²)
+                      </span>
+                    )}
+                  </span>
+                }
+              >
+                <InputNumber 
+                  placeholder="Рассчитается автоматически"
+                  style={{ width: '100%' }}
+                  min={0}
+                  precision={4}
+                  step={0.0001}
+                  onChange={(value: number | null) => {
+                    setMatAreaOverride(value ? value.toString() : '');
+                  }}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <div style={{ paddingTop: '30px', color: '#666', fontSize: '12px' }}>
+                {calculatedMatArea ? (
+                  <>
+                    📏 Расчет: {form.getFieldValue('length') || 0} × {form.getFieldValue('width') || 0} мм = {calculatedMatArea} м²<br/>
+                    💡 Можете скорректировать значение при необходимости
+                  </>
+                ) : (
+                  '📏 Введите длину и ширину для автоматического расчета площади'
+                )}
+              </div>
+            </Col>
+          </Row>
+        </FormBlock>
+
+        {/* Блок 3: Поверхность */}
+        <FormBlock title="Поверхность" icon="🎨">
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item
+                label="Поверхности"
+                help="Можно выбрать одну или несколько поверхностей"
+              >
+                <Select 
+                  mode="multiple"
+                  placeholder="Выберите поверхности"
+                  loading={loadingReferences}
+                  showSearch
+                  optionFilterProp="children"
+                  allowClear
+                  value={selectedSurfaceIds}
+                  onChange={(values) => {
+                    setSelectedSurfaceIds(values || []);
+                    generateArticlePreview();
+                  }}
+                  maxTagCount="responsive"
+                >
+                  {surfaces.map(surface => (
+                    <Option key={surface.id} value={surface.id}>
+                      🎨 {surface.name}
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
           <Col span={8}>
             <Form.Item
               name="logoId"
@@ -833,68 +903,66 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
             </Form.Item>
           </Col>
         </Row>
+      </FormBlock>
 
-        {/* Дополнительные характеристики */}
-        <Row gutter={16}>
-          <Col span={8}>
-            <Form.Item
-              name="weight"
-              label="Вес (кг)"
-            >
-              <InputNumber 
-                placeholder="Например: 15.5"
-                style={{ width: '100%' }}
-                min={0}
-                precision={3}
-                step={0.1}
-              />
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item
-              name="grade"
-              label="Сорт товара"
-              initialValue="usual"
-              help="По умолчанию выбран 'Обычный' сорт"
-            >
-              <Select 
-                style={{ width: '100%' }}
-                onChange={generateArticlePreview}
+        {/* Блок 6: Дополнительно */}
+        <FormBlock title="Дополнительно" icon="⚙️">
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item
+                name="grade"
+                label="Сорт товара"
+                initialValue="usual"
+                help="По умолчанию выбран 'Обычный' сорт"
               >
-                <Option value="usual">Обычный</Option>
-                <Option value="grade_2">2 сорт</Option>
-                <Option value="telyatnik">Телятник</Option>
-                <Option value="liber">Либер</Option>
-              </Select>
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item
-              name="borderType"
-              label="Наличие борта"
-              initialValue="without_border"
-            >
-              <Select 
-                style={{ width: '100%' }} 
-                placeholder="Выберите тип борта"
-                onChange={() => setTimeout(generateArticle, 100)}
+                <Select 
+                  style={{ width: '100%' }}
+                  onChange={generateArticlePreview}
+                >
+                  <Option value="usual">Обычный</Option>
+                  <Option value="grade_2">2 сорт</Option>
+                  <Option value="telyatnik">Телятник</Option>
+                  <Option value="liber">Либер</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                name="borderType"
+                label="Наличие борта"
+                initialValue="without_border"
               >
-                <Option value="with_border">С бортом</Option>
-                <Option value="without_border">Без борта</Option>
-              </Select>
-            </Form.Item>
-          </Col>
-        </Row>
+                <Select 
+                  style={{ width: '100%' }} 
+                  placeholder="Выберите тип борта"
+                  onChange={() => setTimeout(generateArticle, 100)}
+                >
+                  <Option value="with_border">С бортом</Option>
+                  <Option value="without_border">Без борта</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                name="weight"
+                label="Вес (кг)"
+              >
+                <InputNumber 
+                  placeholder="Например: 15.5"
+                  style={{ width: '100%' }}
+                  min={0}
+                  precision={3}
+                  step={0.1}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+        </FormBlock>
 
-        {/* Край ковра - новые поля */}
-        <Row gutter={16} style={{ backgroundColor: '#f0f8ff', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
-          <Col span={24}>
-            <div style={{ marginBottom: '12px' }}>
-              <span style={{ fontWeight: 'bold', color: '#1890ff' }}>✂️ Настройки края ковра</span>
-            </div>
-          </Col>
-          
-          <Col span={8}>
+        {/* Блок 4: Край ковра */}
+        <FormBlock title="Край ковра" icon="✂️">
+          <Row gutter={16}>
+            <Col span={8}>
             <Form.Item
               name="carpetEdgeType"
               label="Край ковра"
@@ -969,99 +1037,58 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
           )}
         </Row>
 
-        {/* Усиленный край */}
         <Row gutter={16}>
           <Col span={8}>
-            <Form.Item
-              name="carpetEdgeStrength"
-              label="Усиленный край"
-              rules={[{ required: true, message: 'Выберите тип усиления' }]}
-              initialValue="normal"
-              help="По умолчанию: Усиленный"
-            >
-              <Select placeholder="Выберите тип усиления">
-                <Option value="normal">Усиленный</Option>
-                <Option value="weak">Не усиленный</Option>
-              </Select>
-            </Form.Item>
-          </Col>
-          
-          <Col span={8}>
-            <Form.Item
-              name="bottomTypeId"
-              label="Низ ковра"
-              help="Поле опциональное - можно оставить не выбранным"
-              initialValue={selectedBottomTypeId}
-            >
-              <Select 
-                placeholder="Не выбрано"
-                loading={loadingReferences}
-                allowClear
-                onChange={(value) => {
-                  setSelectedBottomTypeId(value);
-                  generateArticlePreview();
-                }}
+              <Form.Item
+                name="carpetEdgeStrength"
+                label="Усиленный край"
+                rules={[{ required: true, message: 'Выберите тип усиления' }]}
+                initialValue="normal"
+                help="По умолчанию: Усиленный"
               >
-                <Option value={null}>Не выбрано</Option>
-                {bottomTypes.map(type => (
-                  <Option key={type.id} value={type.id}>
-                    🔽 {type.name}
-                  </Option>
-                ))}
-              </Select>
-            </Form.Item>
-          </Col>
-        </Row>
+                <Select placeholder="Выберите тип усиления">
+                  <Option value="normal">Усиленный</Option>
+                  <Option value="weak">Не усиленный</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+        </FormBlock>
 
-        {/* Площадь мата */}
-        <Row gutter={16} style={{ backgroundColor: '#f9f9f9', padding: '12px', borderRadius: '6px', marginBottom: '16px' }}>
-          <Col span={24}>
-            <div style={{ marginBottom: '8px' }}>
-              <span style={{ fontWeight: 'bold', color: '#52c41a' }}>📐 Площадь мата</span>
-            </div>
-          </Col>
-          <Col span={12}>
-            <Form.Item
-              name="matArea"
-              label={
-                <span>
-                  Площадь (м²)
-                  {calculatedMatArea && (
-                    <span style={{ color: '#1890ff', fontWeight: 'normal', marginLeft: 8 }}>
-                      (автоматически: {calculatedMatArea} м²)
-                    </span>
-                  )}
-                </span>
-              }
-            >
-              <InputNumber 
-                placeholder="Рассчитается автоматически"
-                style={{ width: '100%' }}
-                min={0}
-                precision={4}
-                step={0.0001}
-                onChange={(value: number | null) => {
-                  setMatAreaOverride(value ? value.toString() : '');
-                }}
-              />
-            </Form.Item>
-          </Col>
-          <Col span={12}>
-            <div style={{ paddingTop: '30px', color: '#666', fontSize: '12px' }}>
-              {calculatedMatArea ? (
-                <>
-                  📏 Расчет: {form.getFieldValue('length') || 0} × {form.getFieldValue('width') || 0} мм = {calculatedMatArea} м²<br/>
-                  💡 Можете скорректировать значение при необходимости
-                </>
-              ) : (
-                '📏 Введите длину и ширину для автоматического расчета площади'
-              )}
-            </div>
-          </Col>
-        </Row>
+        {/* Блок 5: Низ ковра */}
+        <FormBlock title="Низ ковра" icon="🔽">
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item
+                name="bottomTypeId"
+                label="Низ ковра"
+                help="Поле опциональное - можно оставить не выбранным"
+                initialValue={selectedBottomTypeId}
+              >
+                <Select 
+                  placeholder="Не выбрано"
+                  loading={loadingReferences}
+                  allowClear
+                  onChange={(value) => {
+                    setSelectedBottomTypeId(value);
+                    generateArticlePreview();
+                  }}
+                >
+                  <Option value={null}>Не выбрано</Option>
+                  {bottomTypes.map(type => (
+                    <Option key={type.id} value={type.id}>
+                      🔽 {type.name}
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+        </FormBlock>
 
-        {/* Цены и нормы */}
-        <Row gutter={16}>
+        {/* Блок 7: Запасы и цены */}
+        <FormBlock title="Запасы и цены" icon="💰">
+          <Row gutter={16}>
           <Col span={8}>
             <Form.Item
               name="price"
@@ -1100,7 +1127,6 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
           </Col>
         </Row>
 
-        {/* Примечания */}
         <Row>
           <Col span={24}>
             <Form.Item
@@ -1116,6 +1142,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
             </Form.Item>
           </Col>
         </Row>
+      </FormBlock>
 
         {/* Кнопки */}
         <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
