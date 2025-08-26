@@ -4,6 +4,7 @@ import {
   Form, Input, InputNumber, Select, Modal, Spin, Badge, Descriptions,
   List, Avatar, App
 } from 'antd';
+import { formatPriceWithCurrency } from '../utils/priceUtils';
 import {
   ArrowLeftOutlined, EditOutlined, SaveOutlined, CloseOutlined,
   ShoppingCartOutlined, HistoryOutlined, InboxOutlined, FileTextOutlined,
@@ -590,7 +591,7 @@ const ProductDetail: React.FC = () => {
                   
                   <Descriptions.Item label="Цена" span={2}>
                     <Text strong style={{ fontSize: 16, color: '#1890ff' }}>
-                      {product?.price ? `${product.price.toLocaleString()}₽` : 'Не указана'}
+                      {product?.price ? formatPriceWithCurrency(product.price) : 'Не указана'}
                     </Text>
                   </Descriptions.Item>
                 </Descriptions>

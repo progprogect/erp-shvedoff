@@ -5,6 +5,7 @@ import { authenticateToken, authorizeRoles, AuthRequest } from '../middleware/au
 import { requireExportPermission, requirePermission } from '../middleware/permissions';
 import { createError } from '../middleware/errorHandler';
 import { ExcelExporter } from '../utils/excelExporter';
+import { parsePrice, formatPrice } from '../utils/priceUtils';
 
 const router = express.Router();
 
@@ -538,6 +539,26 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
       return next(createError('Product name and category are required', 400));
     }
 
+    // Валидация цены
+    let validatedPrice = null;
+    if (price !== undefined && price !== null && price !== '') {
+      const priceResult = parsePrice(price);
+      if (!priceResult.success) {
+        return next(createError(`Ошибка в цене: ${priceResult.error}`, 400));
+      }
+      validatedPrice = priceResult.value;
+    }
+
+    // Валидация себестоимости
+    let validatedCostPrice = null;
+    if (costPrice !== undefined && costPrice !== null && costPrice !== '') {
+      const costPriceResult = parsePrice(costPrice);
+      if (!costPriceResult.success) {
+        return next(createError(`Ошибка в себестоимости: ${costPriceResult.error}`, 400));
+      }
+      validatedCostPrice = costPriceResult.value;
+    }
+
     // Проверяем обязательность bottomTypeId
     if (!bottomTypeId) {
       return next(createError('Выберите низ ковра', 400));
@@ -580,8 +601,8 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
       grade: grade || 'usual',
       borderType: borderType || null,
       tags,
-      price,
-      costPrice,
+      price: validatedPrice,
+      costPrice: validatedCostPrice,
       normStock: normStock || 0,
       notes,
       // Новые поля для края ковра
@@ -630,7 +651,25 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
 router.put('/products/:id', authenticateToken, requirePermission('catalog', 'edit'), async (req: AuthRequest, res, next) => {
   try {
     const productId = Number(req.params.id);
-    const updateData = req.body;
+    const updateData = { ...req.body };
+
+    // Валидация цены, если она передана
+    if ('price' in updateData && updateData.price !== undefined && updateData.price !== null && updateData.price !== '') {
+      const priceResult = parsePrice(updateData.price);
+      if (!priceResult.success) {
+        return next(createError(`Ошибка в цене: ${priceResult.error}`, 400));
+      }
+      updateData.price = priceResult.value;
+    }
+
+    // Валидация себестоимости, если она передана
+    if ('costPrice' in updateData && updateData.costPrice !== undefined && updateData.costPrice !== null && updateData.costPrice !== '') {
+      const costPriceResult = parsePrice(updateData.costPrice);
+      if (!costPriceResult.success) {
+        return next(createError(`Ошибка в себестоимости: ${costPriceResult.error}`, 400));
+      }
+      updateData.costPrice = costPriceResult.value;
+    }
 
     const updatedProduct = await db.update(schema.products)
       .set({

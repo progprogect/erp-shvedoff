@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Row, Col, Card, Tree, Input, Button, Space, Typography, Tag, Badge, Select, InputNumber, Collapse, Spin, Table, Modal, Checkbox, App } from 'antd';
+import { formatPriceWithCurrency } from '../utils/priceUtils';
 import {
   SearchOutlined,
   PlusOutlined,
@@ -1344,7 +1345,7 @@ const Catalog: React.FC = () => {
                     render: (_: any, product: Product) => (
                       <div>
                         <Text strong style={{ color: '#1890ff' }}>
-                          {product.price ? product.price.toLocaleString() : '—'}₽
+                          {product.price ? formatPriceWithCurrency(product.price) : '—'}
                         </Text>
                         {product.price && (
                           <Text type="secondary" style={{ fontSize: '11px', display: 'block' }}>

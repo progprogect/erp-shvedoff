@@ -4,6 +4,8 @@ import {
   Form, Input, Modal, Select, Statistic, Descriptions, Badge, Avatar,
   DatePicker, Popconfirm, InputNumber, App
 } from 'antd';
+import PriceInput from '../components/PriceInput';
+import { formatPriceWithCurrency, calculateLineTotal, calculateOrderTotal } from '../utils/priceUtils';
 import {
   ArrowLeftOutlined, EditOutlined, MessageOutlined, UserOutlined,
   ShoppingCartOutlined, CalendarOutlined, PhoneOutlined, DollarOutlined,
@@ -472,7 +474,7 @@ const OrderDetail: React.FC = () => {
       key: 'price',
       align: 'right' as const,
       render: (price: string) => (
-        <Text>{Number(price).toLocaleString()} ₽</Text>
+        <Text>{formatPriceWithCurrency(price)}</Text>
       ),
     },
     {
@@ -480,7 +482,7 @@ const OrderDetail: React.FC = () => {
       key: 'total',
       align: 'right' as const,
       render: (_: any, record: OrderItem) => (
-        <Text strong>{(Number(record.price) * record.quantity).toLocaleString()} ₽</Text>
+        <Text strong>{formatPriceWithCurrency(calculateLineTotal(record.price, record.quantity))}</Text>
       ),
     },
   ];
@@ -519,14 +521,10 @@ const OrderDetail: React.FC = () => {
       key: 'price',
       align: 'right' as const,
       render: (_: any, record: OrderItem) => (
-        <InputNumber
-          min={0}
-          step={0.01}
+        <PriceInput
           value={Number(record.price)}
           onChange={(value) => updateOrderItem(record.id, 'price', value || 0)}
           size="small"
-          formatter={value => `₽ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-          parser={value => Number(value!.replace(/₽\s?|(,*)/g, ''))}
         />
       ),
     },
@@ -535,7 +533,7 @@ const OrderDetail: React.FC = () => {
       key: 'total',
       align: 'right' as const,
       render: (_: any, record: OrderItem) => (
-        <Text strong>{(Number(record.price) * record.quantity).toLocaleString()} ₽</Text>
+        <Text strong>{formatPriceWithCurrency(calculateLineTotal(record.price, record.quantity))}</Text>
       ),
     },
     {
@@ -1035,7 +1033,7 @@ const OrderDetail: React.FC = () => {
                   <Text type="secondary">{product.article}</Text>
                 </Col>
                 <Col span={8} style={{ textAlign: 'right' }}>
-                  <Text>{Number(product.price).toLocaleString()} ₽</Text>
+                  <Text>{formatPriceWithCurrency(product.price)}</Text>
                   <br />
                   <Text type="secondary">
                     Остаток: {product.availableStock || 0} шт

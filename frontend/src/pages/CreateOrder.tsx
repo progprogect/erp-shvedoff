@@ -3,6 +3,8 @@ import {
   Row, Col, Card, Form, Input, DatePicker, Select, Button, Table, Space, Typography,
   message, InputNumber, Modal, Tag, Divider, Statistic, Steps
 } from 'antd';
+import PriceInput from '../components/PriceInput';
+import { formatPriceWithCurrency, calculateLineTotal, calculateOrderTotal } from '../utils/priceUtils';
 import {
   ShoppingCartOutlined, PlusOutlined, DeleteOutlined, CheckOutlined,
   ExclamationCircleOutlined, SearchOutlined, ArrowLeftOutlined, FilterOutlined,
@@ -211,13 +213,14 @@ const CreateOrder: React.FC = () => {
       return;
     }
 
+    const price = Number(product.price) || 0;
     const newItem: OrderItemForm = {
       id: `${Date.now()}-${product.id}`,
       productId: product.id,
       product,
       quantity: 1,
-      price: Number(product.price) || 0,
-      total: Number(product.price) || 0,
+      price: price,
+      total: parseFloat(calculateLineTotal(price, 1)),
       availableStock: product.availableStock || 0,
       canReserve: Math.min(1, product.availableStock || 0)
     };
@@ -235,7 +238,8 @@ const CreateOrder: React.FC = () => {
           const updated = { ...item, [field]: value };
           
           if (field === 'quantity' || field === 'price') {
-            updated.total = updated.quantity * updated.price;
+            // Используем точные вычисления для суммы
+            updated.total = parseFloat(calculateLineTotal(updated.price, updated.quantity));
             updated.canReserve = Math.min(updated.quantity, item.availableStock);
           }
           
@@ -253,7 +257,12 @@ const CreateOrder: React.FC = () => {
 
   // Calculate totals
   const calculateTotals = () => {
-    const totalAmount = orderItems.reduce((sum, item) => sum + item.total, 0);
+    // Используем точные вычисления для итоговой суммы
+    const totalAmount = parseFloat(calculateOrderTotal(orderItems.map(item => ({
+      price: item.price,
+      quantity: item.quantity
+    }))));
+    
     const totalQuantity = orderItems.reduce((sum, item) => sum + item.quantity, 0);
     const totalCanReserve = orderItems.reduce((sum, item) => sum + item.canReserve, 0);
     const totalNeedProduction = orderItems.reduce((sum, item) => 
@@ -360,13 +369,10 @@ const CreateOrder: React.FC = () => {
       key: 'price',
       align: 'center' as const,
       render: (price: number, record: OrderItemForm) => (
-        <InputNumber
-          min={0}
-          precision={2}
+        <PriceInput
           value={price}
           onChange={(value) => updateOrderItem(record.id, 'price', value || 0)}
-          style={{ width: 100 }}
-          addonAfter="₽"
+          style={{ width: 120 }}
         />
       ),
     },
@@ -396,7 +402,7 @@ const CreateOrder: React.FC = () => {
       key: 'total',
       align: 'right' as const,
       render: (total: number) => (
-        <Text strong>{total.toLocaleString()} ₽</Text>
+        <Text strong>{formatPriceWithCurrency(total)}</Text>
       ),
     },
     {
@@ -447,7 +453,7 @@ const CreateOrder: React.FC = () => {
       key: 'price',
       align: 'right' as const,
       render: (price: string) => (
-        <Text>{Number(price).toLocaleString()} ₽</Text>
+        <Text>{formatPriceWithCurrency(price)}</Text>
       ),
     },
     {
@@ -708,7 +714,7 @@ const CreateOrder: React.FC = () => {
               <Row justify="space-between" align="middle">
                 <Col>
                   <Title level={3} style={{ margin: 0 }}>
-                    Общая сумма: {totals.totalAmount.toLocaleString()} ₽
+                    Общая сумма: {formatPriceWithCurrency(totals.totalAmount)}
                   </Title>
                 </Col>
                 <Col>
@@ -913,7 +919,7 @@ const CreateOrder: React.FC = () => {
             <Col span={12}>
               <Statistic
                 title="Общая сумма"
-                value={totals.totalAmount}
+                value={totals.totalAmount.toFixed(2)}
                 suffix="₽"
                 valueStyle={{ fontSize: '24px', color: '#1890ff' }}
               />

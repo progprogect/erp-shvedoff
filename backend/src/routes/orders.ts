@@ -7,6 +7,7 @@ import { createError } from '../middleware/errorHandler';
 import { performStockOperation } from '../utils/stockManager';
 import { analyzeOrderAvailability, updateOrderStatus } from '../utils/orderStatusCalculator';
 import { ExcelExporter } from '../utils/excelExporter';
+import { parsePrice, calculateOrderTotal as calculateOrderTotalBackend } from '../utils/priceUtils';
 
 const router = express.Router();
 
@@ -291,6 +292,28 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
       return next(createError('Customer name and items are required', 400));
     }
 
+    // Валидация товаров и цен
+    const validatedItems = [];
+    for (const item of items) {
+      if (!item.productId || !item.quantity) {
+        return next(createError('Product ID and quantity are required for all items', 400));
+      }
+
+      // Валидация цены товара
+      if (item.price !== undefined && item.price !== null && item.price !== '') {
+        const priceResult = parsePrice(item.price);
+        if (!priceResult.success) {
+          return next(createError(`Ошибка в цене товара: ${priceResult.error}`, 400));
+        }
+        validatedItems.push({
+          ...item,
+          price: priceResult.value
+        });
+      } else {
+        validatedItems.push(item);
+      }
+    }
+
     // Валидация источника заказа
     const validSources = ['database', 'website', 'avito', 'referral', 'cold_call', 'other'];
     if (source && !validSources.includes(source)) {
@@ -332,13 +355,11 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
     const currentYear = new Date().getFullYear();
     const orderNumber = `ORD-${currentYear}-${String(orderCount + 1).padStart(3, '0')}`;
 
-    // Calculate total amount
-    let totalAmount = 0;
-    for (const item of items) {
-      if (item.price && item.quantity) {
-        totalAmount += Number(item.price) * Number(item.quantity);
-      }
-    }
+    // Calculate total amount using validated items and precise arithmetic
+    const totalAmount = parseFloat(calculateOrderTotalBackend(validatedItems.map(item => ({
+      price: item.price || 0,
+      quantity: item.quantity || 0
+    }))));
 
     // Create order
     const newOrder = await db.insert(schema.orders).values({
@@ -360,8 +381,8 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
     // Create order items and check/reserve stock
     const itemsNeedingProduction = [];
     
-    for (const item of items) {
-      // Create order item
+    for (const item of validatedItems) {
+      // Create order item with validated price
       await db.insert(schema.orderItems).values({
         orderId,
         productId: item.productId,
