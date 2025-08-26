@@ -40,7 +40,12 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
   const [creatingLogo, setCreatingLogo] = useState(false);
   const [newPuzzleTypeName, setNewPuzzleTypeName] = useState('');
   const [creatingPuzzleType, setCreatingPuzzleType] = useState(false);
-  const [selectedSurfaceId, setSelectedSurfaceId] = useState<number | null>(null);
+  const [selectedSurfaceId, setSelectedSurfaceId] = useState<number | null>(null); // DEPRECATED
+  const [selectedSurfaceIds, setSelectedSurfaceIds] = useState<number[]>([]); // новое поле множественного выбора
+  const [pressType, setPressType] = useState<string>('not_selected'); // новое поле пресса
+  const [previewArticle, setPreviewArticle] = useState<string>(''); // превью артикула
+  const [autoGenerateArticle, setAutoGenerateArticle] = useState<boolean>(true); // флаг автогенерации
+  
   // Состояние для новых полей края ковра
   const [carpetEdgeTypes, setCarpetEdgeTypes] = useState<CarpetEdgeType[]>([]);
   const [selectedCarpetEdgeType, setSelectedCarpetEdgeType] = useState<string>('straight_cut');
@@ -50,6 +55,44 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
   // Состояние для низа ковра
   const [bottomTypes, setBottomTypes] = useState<BottomType[]>([]);
   const [selectedBottomTypeId, setSelectedBottomTypeId] = useState<number | null>(null);
+
+  // Функция для генерации превью артикула
+  const generateArticlePreview = async () => {
+    if (!autoGenerateArticle) return;
+
+    try {
+      const formValues = form.getFieldsValue();
+      const previewData = {
+        name: formValues.name || '',
+        dimensions: {
+          length: formValues.length,
+          width: formValues.width, 
+          thickness: formValues.thickness
+        },
+        materialId: formValues.materialId,
+        pressType: pressType,
+        surfaceIds: selectedSurfaceIds,
+        borderType: formValues.borderType,
+        carpetEdgeType: selectedCarpetEdgeType,
+        carpetEdgeSides: carpetEdgeSides,
+        carpetEdgeStrength: carpetEdgeStrength,
+        bottomTypeId: selectedBottomTypeId,
+        puzzleTypeId: formValues.puzzleTypeId,
+        grade: formValues.grade || 'usual'
+      };
+
+      const response = await catalogApi.previewArticle(previewData);
+      if (response.success) {
+        setPreviewArticle(response.data.article);
+        // Если автогенерация включена, обновляем поле артикула
+        if (autoGenerateArticle) {
+          form.setFieldValue('article', response.data.article);
+        }
+      }
+    } catch (error) {
+      console.error('Ошибка генерации превью артикула:', error);
+    }
+  };
   
   // Состояние для площади мата
   const [calculatedMatArea, setCalculatedMatArea] = useState<number | null>(null);
@@ -559,7 +602,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
       >
         {/* Основная информация */}
         <Row gutter={16}>
-          <Col span={12}>
+          <Col span={24}>
             <Form.Item
               name="name"
               label="Название товара"
@@ -570,28 +613,36 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
             >
               <Input 
                 placeholder="Например: Лежак резиновый чешский"
-                onChange={generateArticle}
+                onChange={generateArticlePreview}
               />
             </Form.Item>
           </Col>
-          <Col span={12}>
+        </Row>
+
+        {/* Артикул сразу под названием (AC8) */}
+        <Row gutter={16}>
+          <Col span={18}>
             <Form.Item
               name="article"
-              label="Артикул"
+              label="Артикул товара"
+              help={autoGenerateArticle ? "Артикул генерируется автоматически при изменении характеристик" : "Введите артикул вручную"}
             >
               <Input 
-                placeholder="Автоматически или введите вручную"
-                addonAfter={
-                  <Button 
-                    type="link" 
-                    size="small"
-                    onClick={generateArticle}
-                    style={{ padding: '0 4px' }}
-                  >
-                    🎲
-                  </Button>
-                }
+                placeholder={autoGenerateArticle ? previewArticle || "Артикул будет сгенерирован..." : "Введите артикул"}
+                disabled={autoGenerateArticle}
+                value={autoGenerateArticle ? previewArticle : undefined}
               />
+            </Form.Item>
+          </Col>
+          <Col span={6}>
+            <Form.Item label=" " style={{ marginBottom: 0 }}>
+              <Button 
+                type={autoGenerateArticle ? "primary" : "default"}
+                onClick={() => setAutoGenerateArticle(!autoGenerateArticle)}
+                style={{ width: '100%' }}
+              >
+                {autoGenerateArticle ? "Автогенерация ВКЛ" : "Автогенерация ВЫКЛ"}
+              </Button>
             </Form.Item>
           </Col>
         </Row>
@@ -669,27 +720,22 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
         <Row gutter={16}>
           <Col span={8}>
             <Form.Item
-              name="surfaceId"
-              label="Поверхность"
+              label="Поверхности (AC4)"
+              help="Можно выбрать одну или несколько поверхностей"
             >
               <Select 
-                placeholder="Выберите тип поверхности"
+                mode="multiple"
+                placeholder="Выберите поверхности"
                 loading={loadingReferences}
                 showSearch
                 optionFilterProp="children"
                 allowClear
-                onChange={(value) => {
-                  setSelectedSurfaceId(value);
-                  const isPuzzle = surfaces.find(s => s.id === value)?.name === 'Паззл';
-                  // if (isPuzzle) { // Удалено
-                  //   // Автоматически включаем опции паззла при выборе поверхности "Паззл" // Удалено
-                  //   setPuzzleOptions({ sides: '1_side', type: 'old', enabled: true }); // Удалено
-                  // } else { // Удалено
-                  //   setPuzzleOptions({ sides: '1_side', type: 'old', enabled: false }); // Удалено
-                  // }
-                  // Генерируем артикул при изменении поверхности (Задача 7.4)
-                  setTimeout(generateArticle, 100);
+                value={selectedSurfaceIds}
+                onChange={(values) => {
+                  setSelectedSurfaceIds(values || []);
+                  generateArticlePreview();
                 }}
+                maxTagCount="responsive"
               >
                 {surfaces.map(surface => (
                   <Option key={surface.id} value={surface.id}>
@@ -745,7 +791,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
               </Select>
             </Form.Item>
           </Col>
-          <Col span={8}>
+          <Col span={6}>
             <Form.Item
               name="materialId"
               label="Материал"
@@ -756,13 +802,33 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                 showSearch
                 optionFilterProp="children"
                 allowClear
-                onChange={() => setTimeout(generateArticle, 100)}
+                onChange={generateArticlePreview}
               >
                 {materials.map(material => (
                   <Option key={material.id} value={material.id}>
                     🛠️ {material.name}
                   </Option>
                 ))}
+              </Select>
+            </Form.Item>
+          </Col>
+          <Col span={6}>
+            <Form.Item
+              label="Пресс (AC3)"
+              help="Характеристика пресса для материала"
+            >
+              <Select 
+                placeholder="Не выбрано"
+                value={pressType}
+                onChange={(value) => {
+                  setPressType(value);
+                  generateArticlePreview();
+                }}
+                allowClear
+              >
+                <Option value="not_selected">Не выбрано</Option>
+                <Option value="ukrainian">Украинский</Option>
+                <Option value="chinese">Китайский</Option>
               </Select>
             </Form.Item>
           </Col>
@@ -787,15 +853,18 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
           <Col span={8}>
             <Form.Item
               name="grade"
-              label="Сорт товара"
+              label="Сорт товара (AC2)"
               initialValue="usual"
+              help="По умолчанию выбран 'Обычный' сорт"
             >
               <Select 
                 style={{ width: '100%' }}
-                onChange={() => setTimeout(generateArticle, 100)}
+                onChange={generateArticlePreview}
               >
                 <Option value="usual">Обычный</Option>
                 <Option value="grade_2">2 сорт</Option>
+                <Option value="telyatnik">Телятник</Option>
+                <Option value="liber">Либер</Option>
               </Select>
             </Form.Item>
           </Col>
@@ -909,18 +978,20 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
           <Col span={8}>
             <Form.Item
               name="bottomTypeId"
-              label="Низ ковра"
-              rules={[{ required: true, message: 'Выберите низ ковра' }]}
+              label="Низ ковра (AC6)"
+              help="Поле опциональное - можно оставить не выбранным"
               initialValue={selectedBottomTypeId}
             >
               <Select 
-                placeholder="Выберите низ ковра"
+                placeholder="Не выбрано"
                 loading={loadingReferences}
+                allowClear
                 onChange={(value) => {
                   setSelectedBottomTypeId(value);
-                  setTimeout(generateArticle, 100);
+                  generateArticlePreview();
                 }}
               >
+                <Option value={null}>Не выбрано</Option>
                 {bottomTypes.map(type => (
                   <Option key={type.id} value={type.id}>
                     🔽 {type.name}
