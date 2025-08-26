@@ -1,6 +1,6 @@
 import express from 'express';
 import { db, schema } from '../db';
-import { eq, like, isNull, and, sql, inArray } from 'drizzle-orm';
+import { eq, like, ilike, isNull, and, or, sql, inArray } from 'drizzle-orm';
 import { authenticateToken, authorizeRoles, AuthRequest } from '../middleware/auth';
 import { requireExportPermission, requirePermission } from '../middleware/permissions';
 import { createError } from '../middleware/errorHandler';
@@ -150,8 +150,17 @@ router.get('/products', authenticateToken, async (req, res, next) => {
     let whereConditions = [];
 
     if (search) {
+      // Нормализуем поисковый запрос: убираем пробелы, дефисы, приводим к нижнему регистру
+      const normalizedSearch = search.toString().toLowerCase().replace(/[\s\-]/g, '');
+      
+      // Поиск по названию ИЛИ артикулу (с нормализацией)
       whereConditions.push(
-        like(schema.products.name, `%${search}%`)
+        or(
+          ilike(schema.products.name, `%${search}%`),
+          ilike(schema.products.article, `%${search}%`),
+          // Дополнительный поиск с нормализацией для артикула
+          sql`LOWER(REPLACE(REPLACE(${schema.products.article}, ' ', ''), '-', '')) LIKE ${'%' + normalizedSearch + '%'}`
+        )
       );
     }
 

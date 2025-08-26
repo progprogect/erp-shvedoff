@@ -5,7 +5,8 @@ import {
 } from 'antd';
 import {
   ShoppingCartOutlined, PlusOutlined, DeleteOutlined, CheckOutlined,
-  ExclamationCircleOutlined, SearchOutlined, ArrowLeftOutlined
+  ExclamationCircleOutlined, SearchOutlined, ArrowLeftOutlined, FilterOutlined,
+  ClearOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
@@ -65,12 +66,35 @@ const CreateOrder: React.FC = () => {
   // Modal states
   const [productModalVisible, setProductModalVisible] = useState(false);
   const [confirmModalVisible, setConfirmModalVisible] = useState(false);
+  
+  // Product search and filter states
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
+  const [sizeFilters, setSizeFilters] = useState({
+    lengthMin: null as number | null,
+    lengthMax: null as number | null,
+    widthMin: null as number | null,
+    widthMax: null as number | null,
+    thicknessMin: null as number | null,
+    thicknessMax: null as number | null,
+  });
+  const [showSizeFilters, setShowSizeFilters] = useState(false);
 
   // Load products and users for selection
   useEffect(() => {
     loadProducts();
     loadUsers();
   }, []);
+
+  // Автоматический поиск при открытии модала
+  useEffect(() => {
+    if (productModalVisible) {
+      // При первом открытии показываем все товары
+      if (!searchText && !hasSizeFilters) {
+        setFilteredProducts(products);
+      }
+    }
+  }, [productModalVisible, products]);
 
   const loadProducts = async () => {
     if (!token) return;
@@ -80,9 +104,42 @@ const CreateOrder: React.FC = () => {
       
       if (response.success) {
         setProducts(response.data);
+        setFilteredProducts(response.data); // Инициализация отфильтрованного списка
       }
     } catch (error) {
       console.error('Ошибка загрузки товаров:', error);
+    }
+  };
+
+  // Новая функция для поиска товаров с фильтрами
+  const searchProducts = async () => {
+    if (!token) return;
+    
+    setProductsLoading(true);
+    try {
+      const filters = {
+        search: searchText || undefined,
+        lengthMin: sizeFilters.lengthMin || undefined,
+        lengthMax: sizeFilters.lengthMax || undefined,
+        widthMin: sizeFilters.widthMin || undefined,
+        widthMax: sizeFilters.widthMax || undefined,
+        thicknessMin: sizeFilters.thicknessMin || undefined,
+        thicknessMax: sizeFilters.thicknessMax || undefined,
+        limit: 100
+      };
+
+      const response = await catalogApi.getProducts(filters);
+      
+      if (response.success) {
+        setFilteredProducts(response.data);
+      } else {
+        message.error('Ошибка поиска товаров');
+      }
+    } catch (error) {
+      console.error('Ошибка поиска товаров:', error);
+      message.error('Ошибка поиска товаров');
+    } finally {
+      setProductsLoading(false);
     }
   };
 
@@ -104,12 +161,47 @@ const CreateOrder: React.FC = () => {
     }
   };
 
-  // Filter products for modal
-  const filteredProducts = products.filter(product =>
-    !searchText || 
-    product.name.toLowerCase().includes(searchText.toLowerCase()) ||
-    product.article?.toLowerCase().includes(searchText.toLowerCase())
-  );
+  // Валидация диапазонов размеров
+  const validateSizeRanges = () => {
+    const errors: string[] = [];
+    
+    if (sizeFilters.lengthMin && sizeFilters.lengthMax && sizeFilters.lengthMin > sizeFilters.lengthMax) {
+      errors.push('Минимальная длина не может быть больше максимальной');
+    }
+    if (sizeFilters.widthMin && sizeFilters.widthMax && sizeFilters.widthMin > sizeFilters.widthMax) {
+      errors.push('Минимальная ширина не может быть больше максимальной');
+    }
+    if (sizeFilters.thicknessMin && sizeFilters.thicknessMax && sizeFilters.thicknessMin > sizeFilters.thicknessMax) {
+      errors.push('Минимальная высота не может быть больше максимальной');
+    }
+    
+    return errors;
+  };
+
+  // Проверка наличия активных фильтров размеров
+  const hasSizeFilters = Object.values(sizeFilters).some(value => value !== null);
+
+  // Очистка фильтров размеров
+  const clearSizeFilters = () => {
+    setSizeFilters({
+      lengthMin: null,
+      lengthMax: null,
+      widthMin: null,
+      widthMax: null,
+      thicknessMin: null,
+      thicknessMax: null,
+    });
+  };
+
+  // Обработчик поиска с валидацией
+  const handleSearch = () => {
+    const errors = validateSizeRanges();
+    if (errors.length > 0) {
+      message.error(errors[0]);
+      return;
+    }
+    searchProducts();
+  };
 
   // Add product to order
   const addProduct = (product: Product) => {
@@ -131,8 +223,8 @@ const CreateOrder: React.FC = () => {
     };
 
     setOrderItems([...orderItems, newItem]);
-    setProductModalVisible(false);
-    setSearchText('');
+    // Модал остается открытым для добавления следующих товаров
+    message.success(`Товар "${product.name}" добавлен в заказ`);
   };
 
   // Update order item
@@ -337,6 +429,22 @@ const CreateOrder: React.FC = () => {
           </Text>
         </div>
       ),
+    },
+    {
+      title: 'Размеры (Д×Ш×В), мм',
+      key: 'dimensions',
+      align: 'center' as const,
+      render: (_: any, record: Product) => {
+        const dims = record.dimensions;
+        if (dims && dims.length && dims.width && dims.thickness) {
+          return (
+            <Text>
+              {dims.length}×{dims.width}×{dims.thickness}
+            </Text>
+          );
+        }
+        return <Text type="secondary">—</Text>;
+      },
     },
     {
       title: 'Остаток',
@@ -642,27 +750,165 @@ const CreateOrder: React.FC = () => {
 
       {/* Product Selection Modal */}
       <Modal
-        title="Выбор товаров"
+        title="Расширенный поиск товаров"
         open={productModalVisible}
-        onCancel={() => setProductModalVisible(false)}
+        onCancel={() => {
+          setProductModalVisible(false);
+          setSearchText('');
+          clearSizeFilters();
+          setShowSizeFilters(false);
+        }}
         footer={null}
-        width={1000}
+        width={1200}
       >
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-          <Input
-            placeholder="Поиск товаров..."
-            prefix={<SearchOutlined />}
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            allowClear
-          />
+          {/* Строка поиска и кнопки */}
+          <Row gutter={16} align="middle">
+            <Col flex={1}>
+              <Input
+                placeholder="Поиск по названию или артикулу..."
+                prefix={<SearchOutlined />}
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                onPressEnter={handleSearch}
+                allowClear
+              />
+            </Col>
+            <Col>
+              <Button 
+                type="primary" 
+                icon={<SearchOutlined />}
+                onClick={handleSearch}
+                loading={productsLoading}
+              >
+                Найти
+              </Button>
+            </Col>
+            <Col>
+              <Button 
+                icon={<FilterOutlined />}
+                onClick={() => setShowSizeFilters(!showSizeFilters)}
+                type={showSizeFilters ? 'primary' : 'default'}
+              >
+                Фильтры
+              </Button>
+            </Col>
+            {(searchText || hasSizeFilters) && (
+              <Col>
+                <Button 
+                  icon={<ClearOutlined />}
+                  onClick={() => {
+                    setSearchText('');
+                    clearSizeFilters();
+                    setFilteredProducts(products);
+                  }}
+                >
+                  Очистить
+                </Button>
+              </Col>
+            )}
+          </Row>
+
+          {/* Фильтры по размерам */}
+          {showSizeFilters && (
+            <Card size="small" title="Фильтры по размерам (мм)">
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Text strong>Длина</Text>
+                  <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <InputNumber
+                      placeholder="От"
+                      value={sizeFilters.lengthMin}
+                      onChange={(value) => setSizeFilters(prev => ({ ...prev, lengthMin: value }))}
+                      min={0}
+                      style={{ width: '100%' }}
+                    />
+                    <span>–</span>
+                    <InputNumber
+                      placeholder="До"
+                      value={sizeFilters.lengthMax}
+                      onChange={(value) => setSizeFilters(prev => ({ ...prev, lengthMax: value }))}
+                      min={0}
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                </Col>
+                
+                <Col span={8}>
+                  <Text strong>Ширина</Text>
+                  <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <InputNumber
+                      placeholder="От"
+                      value={sizeFilters.widthMin}
+                      onChange={(value) => setSizeFilters(prev => ({ ...prev, widthMin: value }))}
+                      min={0}
+                      style={{ width: '100%' }}
+                    />
+                    <span>–</span>
+                    <InputNumber
+                      placeholder="До"
+                      value={sizeFilters.widthMax}
+                      onChange={(value) => setSizeFilters(prev => ({ ...prev, widthMax: value }))}
+                      min={0}
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                </Col>
+                
+                <Col span={8}>
+                  <Text strong>Высота</Text>
+                  <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <InputNumber
+                      placeholder="От"
+                      value={sizeFilters.thicknessMin}
+                      onChange={(value) => setSizeFilters(prev => ({ ...prev, thicknessMin: value }))}
+                      min={0}
+                      style={{ width: '100%' }}
+                    />
+                    <span>–</span>
+                    <InputNumber
+                      placeholder="До"
+                      value={sizeFilters.thicknessMax}
+                      onChange={(value) => setSizeFilters(prev => ({ ...prev, thicknessMax: value }))}
+                      min={0}
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                </Col>
+              </Row>
+              
+              <div style={{ marginTop: 16, textAlign: 'right' }}>
+                <Space>
+                  <Button onClick={clearSizeFilters}>
+                    Очистить фильтры
+                  </Button>
+                  <Button type="primary" onClick={handleSearch}>
+                    Применить фильтры
+                  </Button>
+                </Space>
+              </div>
+            </Card>
+          )}
+
+          {/* Результаты поиска */}
+          {filteredProducts.length === 0 && !productsLoading && (searchText || hasSizeFilters) && (
+            <div style={{ textAlign: 'center', padding: '40px 0' }}>
+              <Text type="secondary">Нет товаров по заданным условиям</Text>
+            </div>
+          )}
           
           <Table
             columns={productColumns}
             dataSource={filteredProducts}
             rowKey="id"
-            pagination={{ pageSize: 10 }}
-            scroll={{ x: 600 }}
+            loading={productsLoading}
+            pagination={{ 
+              pageSize: 10,
+              showSizeChanger: true,
+              showQuickJumper: true,
+              showTotal: (total) => `Всего ${total} товаров`
+            }}
+            scroll={{ x: 800 }}
           />
         </Space>
       </Modal>
