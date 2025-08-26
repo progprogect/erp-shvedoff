@@ -228,7 +228,11 @@ const ProductDetail: React.FC = () => {
       normStock: product.normStock,
       notes: product.notes,
       grade: product.grade || 'usual', // новое поле
-      bottomTypeId: product.bottomTypeId // опциональное поле
+      bottomTypeId: product.bottomTypeId, // опциональное поле
+      // Поля края ковра
+      borderType: product.borderType || 'without_border',
+      carpetEdgeType: product.carpetEdgeType || 'straight_cut',
+      carpetEdgeStrength: product.carpetEdgeStrength || 'normal'
     });
     
     setEditModalVisible(true);
@@ -256,6 +260,10 @@ const ProductDetail: React.FC = () => {
         weight: values.weight || null,
         grade: values.grade || 'usual',
         bottomTypeId: values.bottomTypeId || null, // опциональное поле
+        // Поля края ковра
+        borderType: values.borderType || 'without_border',
+        carpetEdgeType: values.carpetEdgeType || 'straight_cut',
+        carpetEdgeStrength: values.carpetEdgeStrength || 'normal',
         price: values.price,
         normStock: values.normStock,
         notes: values.notes
@@ -561,7 +569,7 @@ const ProductDetail: React.FC = () => {
                     {product?.carpetEdgeType === 'straight_cut' ? 'Литой' :
                      product?.carpetEdgeType === 'direct_cut' ? 'Прямой рез' :
                      product?.carpetEdgeType === 'puzzle' ? 'Пазл' :
-                     product?.carpetEdgeType === 'sub_puzzle' ? 'Подпазл' :
+                     product?.carpetEdgeType === 'sub_puzzle' ? 'Под пазл' :
                      product?.carpetEdgeType === 'cast_puzzle' ? 'Литой пазл' :
                      'Не указан'}
                   </Descriptions.Item>
@@ -1164,6 +1172,37 @@ const ProductDetail: React.FC = () => {
                   <Option value="not_selected">➖ Не выбрано</Option>
                   <Option value="ukrainian">🇺🇦 Украинский</Option>
                   <Option value="chinese">🇨🇳 Китайский</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          {/* Поля края ковра */}
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item name="borderType" label="Наличие борта">
+                <Select placeholder="Выберите тип борта">
+                  <Option value="without_border">Без борта</Option>
+                  <Option value="with_border">С бортом</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="carpetEdgeType" label="Край ковра">
+                <Select placeholder="Выберите тип края">
+                  <Option value="straight_cut">Литой</Option>
+                  <Option value="direct_cut">Прямой рез</Option>
+                  <Option value="puzzle">Пазл</Option>
+                  <Option value="sub_puzzle">Под пазл</Option>
+                  <Option value="cast_puzzle">Литой пазл</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="carpetEdgeStrength" label="Усиленный край">
+                <Select placeholder="Выберите тип усиления">
+                  <Option value="normal">Усиленный</Option>
+                  <Option value="weak">Не усиленный</Option>
                 </Select>
               </Form.Item>
             </Col>
