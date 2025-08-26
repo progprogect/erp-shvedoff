@@ -906,10 +906,16 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                 placeholder="Выберите тип края"
                 onChange={(value) => {
                   setSelectedCarpetEdgeType(value);
-                  // Очищаем поля паззла при смене на прямой рез
+                  // Очищаем поля при смене типа края
                   if (value === 'straight_cut') {
+                    // Для Литого края очищаем стороны и тип паззла
                     form.setFieldsValue({
                       carpetEdgeSides: 1,
+                      puzzleTypeId: undefined
+                    });
+                  } else if (value !== 'puzzle') {
+                    // Для не-паззловых краев очищаем только тип паззла
+                    form.setFieldsValue({
                       puzzleTypeId: undefined
                     });
                   }
@@ -924,40 +930,42 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
             </Form.Item>
           </Col>
           
+          {/* Количество сторон - для всех типов кроме Литой */}
+          {selectedCarpetEdgeType !== 'straight_cut' && (
+            <Col span={8}>
+              <Form.Item
+                name="carpetEdgeSides"
+                label="Количество сторон"
+                rules={[{ required: true, message: 'Выберите количество сторон' }]}
+                initialValue={1}
+              >
+                <Select placeholder="Выберите количество сторон">
+                  <Option value={1}>1 сторона</Option>
+                  <Option value={2}>2 стороны</Option>
+                  <Option value={3}>3 стороны</Option>
+                  <Option value={4}>4 стороны</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+          )}
+          
+          {/* Тип паззла - только для паззла */}
           {selectedCarpetEdgeType === 'puzzle' && (
-            <>
-              <Col span={8}>
-                <Form.Item
-                  name="carpetEdgeSides"
-                  label="Количество сторон"
-                  rules={[{ required: true, message: 'Выберите количество сторон' }]}
-                  initialValue={1}
-                >
-                  <Select placeholder="Выберите количество сторон">
-                    <Option value={1}>1 сторона</Option>
-                    <Option value={2}>2 стороны</Option>
-                    <Option value={3}>3 стороны</Option>
-                    <Option value={4}>4 стороны</Option>
-                  </Select>
-                </Form.Item>
-              </Col>
-              
-              <Col span={8}>
-                <Form.Item
-                  name="puzzleTypeId"
-                  label="Тип паззла"
-                  rules={[{ required: true, message: 'Выберите тип паззла' }]}
-                >
-                  <Select placeholder="Выберите тип паззла">
-                    {puzzleTypes.map(type => (
-                      <Option key={type.id} value={type.id}>
-                        {type.name}
-                      </Option>
-                    ))}
-                  </Select>
-                </Form.Item>
-              </Col>
-            </>
+            <Col span={8}>
+              <Form.Item
+                name="puzzleTypeId"
+                label="Тип паззла"
+                rules={[{ required: true, message: 'Выберите тип паззла' }]}
+              >
+                <Select placeholder="Выберите тип паззла">
+                  {puzzleTypes.map(type => (
+                    <Option key={type.id} value={type.id}>
+                      {type.name}
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
           )}
         </Row>
 

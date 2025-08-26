@@ -979,9 +979,9 @@ const Catalog: React.FC = () => {
                         </div>
                       </Col>
 
-                                              {/* Условные фильтры для паззлового края ковра */}
+                                              {/* Фильтр по сторонам края ковра */}
                       <Col span={6}>
-                        <Text strong>Количество сторон паззла</Text>
+                        <Text strong>Количество сторон края</Text>
                         <div style={{ marginTop: 8 }}>
                           <Select
                             mode="multiple"
@@ -989,12 +989,12 @@ const Catalog: React.FC = () => {
                             onChange={setSelectedCarpetEdgeSides}
                             placeholder="Количество сторон"
                             style={{ width: '100%' }}
-                            disabled={!selectedCarpetEdgeTypes.includes('puzzle')}
+                            disabled={selectedCarpetEdgeTypes.length === 1 && selectedCarpetEdgeTypes.includes('straight_cut')}
                           >
-                            <Option value={1}>🧩 1 сторона</Option>
-                            <Option value={2}>🧩 2 стороны</Option>
-                            <Option value={3}>🧩 3 стороны</Option>
-                            <Option value={4}>🧩 4 стороны</Option>
+                            <Option value={1}>🔸 1 сторона</Option>
+                            <Option value={2}>🔸 2 стороны</Option>
+                            <Option value={3}>🔸 3 стороны</Option>
+                            <Option value={4}>🔸 4 стороны</Option>
                           </Select>
                         </div>
                       </Col>

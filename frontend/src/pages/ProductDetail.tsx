@@ -232,7 +232,8 @@ const ProductDetail: React.FC = () => {
       // Поля края ковра
       borderType: product.borderType || 'without_border',
       carpetEdgeType: product.carpetEdgeType || 'straight_cut',
-      carpetEdgeStrength: product.carpetEdgeStrength || 'normal'
+      carpetEdgeStrength: product.carpetEdgeStrength || 'normal',
+      carpetEdgeSides: product.carpetEdgeSides || 1
     });
     
     setEditModalVisible(true);
@@ -264,6 +265,7 @@ const ProductDetail: React.FC = () => {
         borderType: values.borderType || 'without_border',
         carpetEdgeType: values.carpetEdgeType || 'straight_cut',
         carpetEdgeStrength: values.carpetEdgeStrength || 'normal',
+        carpetEdgeSides: values.carpetEdgeSides || 1,
         price: values.price,
         normStock: values.normStock,
         notes: values.notes
@@ -580,16 +582,22 @@ const ProductDetail: React.FC = () => {
                      'Усиленный'}
                   </Descriptions.Item>
                   
+                  {/* Количество сторон - для всех типов кроме Литой */}
+                  {product?.carpetEdgeType && product?.carpetEdgeType !== 'straight_cut' && (
+                    <Descriptions.Item label="Количество сторон">
+                      {product?.carpetEdgeSides || 1} 
+                      {product?.carpetEdgeSides === 1 ? ' сторона' : 
+                       product?.carpetEdgeSides === 2 ? ' стороны' :
+                       product?.carpetEdgeSides === 3 ? ' стороны' : 
+                       ' сторон'}
+                    </Descriptions.Item>
+                  )}
+                  
+                  {/* Тип паззла - только для паззла */}
                   {product?.carpetEdgeType === 'puzzle' && (
-                    <>
-                      <Descriptions.Item label="Количество сторон">
-                        {product?.carpetEdgeSides || product?.puzzleSides || 1} сторона
-                      </Descriptions.Item>
-                      
-                      <Descriptions.Item label="Тип паззла">
-                        {product?.puzzleType?.name || 'Не указан'}
-                      </Descriptions.Item>
-                    </>
+                    <Descriptions.Item label="Тип паззла">
+                      {product?.puzzleType?.name || 'Не указан'}
+                    </Descriptions.Item>
                   )}
                   
                   <Descriptions.Item label="Поверхности">
@@ -1203,6 +1211,20 @@ const ProductDetail: React.FC = () => {
                 <Select placeholder="Выберите тип усиления">
                   <Option value="normal">Усиленный</Option>
                   <Option value="weak">Не усиленный</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          {/* Дополнительные поля края ковра */}
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item name="carpetEdgeSides" label="Количество сторон">
+                <Select placeholder="Выберите количество сторон">
+                  <Option value={1}>1 сторона</Option>
+                  <Option value={2}>2 стороны</Option>
+                  <Option value={3}>3 стороны</Option>
+                  <Option value={4}>4 стороны</Option>
                 </Select>
               </Form.Item>
             </Col>
