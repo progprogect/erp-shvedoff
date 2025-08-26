@@ -242,8 +242,17 @@ function formatEdge(
 function formatBottom(bottomCode?: string): string {
   if (!bottomCode) return '';
   
-  // Коды низа уже в правильном формате: Ш0, Ш1, Ш2, и т.д.
-  return bottomCode.toUpperCase();
+  // Преобразуем английские коды в русские
+  const codeMap: Record<string, string> = {
+    'spike_0': 'ШИП0',
+    'spike_2': 'ШИП2',
+    'spike_5': 'ШИП5',
+    'spike_7': 'ШИП7',
+    'spike_11': 'ШИП11'
+  };
+  
+  const normalizedCode = bottomCode.toLowerCase();
+  return codeMap[normalizedCode] || bottomCode.toUpperCase();
 }
 
 /**
