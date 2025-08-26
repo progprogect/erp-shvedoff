@@ -421,6 +421,25 @@ class CatalogApi {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
   }
+
+  // Предварительный просмотр артикула
+  async previewArticle(productData: any): Promise<{
+    success: boolean;
+    data: {
+      article: string;
+      validation: {
+        isValid: boolean;
+        errors: string[];
+      };
+    };
+  }> {
+    const response = await axios.post(
+      `${API_BASE_URL}/catalog/products/preview-article`,
+      productData,
+      this.getAuthHeaders()
+    );
+    return response.data;
+  }
 }
 
 export const catalogApi = new CatalogApi(); 

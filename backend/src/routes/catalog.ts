@@ -6,6 +6,7 @@ import { requireExportPermission, requirePermission } from '../middleware/permis
 import { createError } from '../middleware/errorHandler';
 import { ExcelExporter } from '../utils/excelExporter';
 import { parsePrice, formatPrice } from '../utils/priceUtils';
+import { generateArticle, validateProductData } from '../utils/articleGenerator';
 
 const router = express.Router();
 
@@ -508,9 +509,11 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
       name, 
       article, 
       categoryId, 
-      surfaceId,
+      surfaceId, // DEPRECATED: для обратной совместимости
+      surfaceIds, // новое поле множественного выбора
       logoId,
       materialId,
+      pressType, // новое поле типа пресса
       dimensions, 
       characteristics,
       puzzleOptions,
@@ -532,7 +535,8 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
       bottomTypeId,
       // Поля паззла
       puzzleTypeId,
-      puzzleSides
+      puzzleSides,
+      autoGenerateArticle // флаг автогенерации артикула
     } = req.body;
 
     if (!name || !categoryId) {
@@ -559,14 +563,62 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
       validatedCostPrice = costPriceResult.value;
     }
 
-    // Проверяем обязательность bottomTypeId
-    if (!bottomTypeId) {
-      return next(createError('Выберите низ ковра', 400));
+    // bottomTypeId теперь опциональный (AC6)
+    // Валидация surface_ids или surfaceId
+    let finalSurfaceIds: number[] = [];
+    
+    if (surfaceIds && Array.isArray(surfaceIds)) {
+      finalSurfaceIds = surfaceIds;
+    } else if (surfaceId) {
+      // Обратная совместимость: конвертируем surfaceId в surfaceIds
+      finalSurfaceIds = [surfaceId];
+    }
+
+    // Валидация pressType
+    const validPressTypes = ['not_selected', 'ukrainian', 'chinese'];
+    if (pressType && !validPressTypes.includes(pressType)) {
+      return next(createError('Недопустимое значение типа пресса', 400));
+    }
+
+    // Автогенерация артикула если включена
+    let finalArticle = article;
+    
+    if (autoGenerateArticle || !article) {
+      try {
+        // Получаем связанные данные для генерации артикула
+        const [material, surfaces, bottomType, puzzleType] = await Promise.all([
+          materialId ? db.query.productMaterials.findFirst({ where: eq(schema.productMaterials.id, materialId) }) : null,
+          finalSurfaceIds.length > 0 ? db.query.productSurfaces.findMany({ where: inArray(schema.productSurfaces.id, finalSurfaceIds) }) : [],
+          bottomTypeId ? db.query.bottomTypes.findFirst({ where: eq(schema.bottomTypes.id, bottomTypeId) }) : null,
+          puzzleTypeId ? db.query.puzzleTypes.findFirst({ where: eq(schema.puzzleTypes.id, puzzleTypeId) }) : null
+        ]);
+
+        const productData = {
+          name,
+          dimensions,
+          material: material ? { name: material.name } : undefined,
+          pressType: pressType || 'not_selected',
+          surfaces: surfaces ? surfaces.map(s => ({ name: s.name })) : [],
+          borderType,
+          carpetEdgeType: carpetEdgeType || 'straight_cut',
+          carpetEdgeSides: carpetEdgeSides || 1,
+          carpetEdgeStrength: carpetEdgeStrength || 'normal',
+          puzzleType: puzzleType ? { name: puzzleType.name } : undefined,
+          bottomType: bottomType ? { code: bottomType.code } : undefined,
+          grade: grade || 'usual'
+        };
+
+        finalArticle = generateArticle(productData);
+      } catch (genError) {
+        console.error('Ошибка генерации артикула:', genError);
+        // Если автогенерация не удалась, используем переданный артикул или генерируем простой
+        finalArticle = article || `${name.toUpperCase()}-${Date.now()}`;
+      }
     }
 
     // Проверяем уникальность артикула (если указан) - проверка без учета регистра
-    if (article) {
-      const normalizedArticle = article.trim().toLowerCase();
+    if (finalArticle) {
+      const normalizedArticle = finalArticle.trim().toLowerCase();
       
       // Ищем существующий товар с таким же артикулом (игнорируя регистр)
       const existingProducts = await db.query.products.findMany({
@@ -588,11 +640,13 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
 
     const newProduct = await db.insert(schema.products).values({
       name,
-      article,
+      article: finalArticle,
       categoryId,
-      surfaceId: surfaceId || null,
+      surfaceId: surfaceId || null, // DEPRECATED: для обратной совместимости
+      surfaceIds: finalSurfaceIds.length > 0 ? finalSurfaceIds : null, // новое поле
       logoId: logoId || null,
       materialId: materialId || null,
+      pressType: pressType || 'not_selected', // новое поле
       dimensions,
       characteristics,
       puzzleOptions: puzzleOptions || null,
@@ -609,7 +663,7 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
       carpetEdgeType: carpetEdgeType || 'straight_cut',
       carpetEdgeSides: carpetEdgeSides || 1,
       carpetEdgeStrength: carpetEdgeStrength || 'normal',
-      // Поле для низа ковра
+      // Поле для низа ковра (теперь опциональное)
       bottomTypeId: bottomTypeId || null,
       // Поля паззла
       puzzleTypeId: puzzleTypeId || null,
@@ -644,6 +698,70 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
     });
   } catch (error) {
     next(error);
+  }
+});
+
+// POST /api/catalog/products/preview-article - Preview article generation
+router.post('/products/preview-article', authenticateToken, async (req: AuthRequest, res, next) => {
+  try {
+    const { 
+      name,
+      dimensions,
+      materialId,
+      pressType,
+      surfaceIds,
+      borderType,
+      carpetEdgeType,
+      carpetEdgeSides,
+      carpetEdgeStrength,
+      bottomTypeId,
+      puzzleTypeId,
+      grade
+    } = req.body;
+
+    // Получаем связанные данные для генерации артикула
+    const [material, surfaces, bottomType, puzzleType] = await Promise.all([
+      materialId ? db.query.productMaterials.findFirst({ where: eq(schema.productMaterials.id, materialId) }) : null,
+      surfaceIds && surfaceIds.length > 0 ? db.query.productSurfaces.findMany({ where: inArray(schema.productSurfaces.id, surfaceIds) }) : [],
+      bottomTypeId ? db.query.bottomTypes.findFirst({ where: eq(schema.bottomTypes.id, bottomTypeId) }) : null,
+      puzzleTypeId ? db.query.puzzleTypes.findFirst({ where: eq(schema.puzzleTypes.id, puzzleTypeId) }) : null
+    ]);
+
+    const productData = {
+      name: name || 'ТОВАР',
+      dimensions: dimensions || {},
+      material: material ? { name: material.name } : undefined,
+      pressType: pressType || 'not_selected',
+      surfaces: surfaces ? surfaces.map(s => ({ name: s.name })) : [],
+      borderType,
+      carpetEdgeType: carpetEdgeType || 'straight_cut',
+      carpetEdgeSides: carpetEdgeSides || 1,
+      carpetEdgeStrength: carpetEdgeStrength || 'normal',
+      puzzleType: puzzleType ? { name: puzzleType.name } : undefined,
+      bottomType: bottomType ? { code: bottomType.code } : undefined,
+      grade: grade || 'usual'
+    };
+
+    const previewArticle = generateArticle(productData);
+    const validation = validateProductData(productData);
+
+    res.json({
+      success: true,
+      data: {
+        article: previewArticle,
+        validation
+      }
+    });
+  } catch (error) {
+    console.error('Ошибка предварительного просмотра артикула:', error);
+    res.json({
+      success: false,
+      error: 'Ошибка генерации артикула',
+      data: {
+        article: '',
+        validation: { isValid: false, errors: ['Ошибка генерации'] }
+      }
+    });
   }
 });
 
