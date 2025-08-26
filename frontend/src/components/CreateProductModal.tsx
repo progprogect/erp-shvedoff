@@ -872,6 +872,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
             <Form.Item
               name="borderType"
               label="Наличие борта"
+              initialValue="without_border"
             >
               <Select 
                 style={{ width: '100%' }} 
@@ -899,6 +900,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
               label="Край ковра"
               rules={[{ required: true, message: 'Выберите тип края' }]}
               initialValue="straight_cut"
+              help="По умолчанию: Литой (не отражается в артикуле)"
             >
               <Select
                 placeholder="Выберите тип края"
@@ -967,10 +969,11 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
               label="Усиленный край"
               rules={[{ required: true, message: 'Выберите тип усиления' }]}
               initialValue="normal"
+              help="По умолчанию: Усиленный"
             >
               <Select placeholder="Выберите тип усиления">
-                <Option value="normal">Обычный</Option>
-                <Option value="reinforced">Усиленный</Option>
+                <Option value="normal">Усиленный</Option>
+                <Option value="weak">Не усиленный</Option>
               </Select>
             </Form.Item>
           </Col>
