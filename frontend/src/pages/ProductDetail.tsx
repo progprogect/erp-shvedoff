@@ -57,6 +57,9 @@ const ProductDetail: React.FC = () => {
   // WBS 2 - Adjustments Задача 3.1: Редактирование остатков в карточке товара
   const [isEditingStock, setIsEditingStock] = useState(false);
   const [editStockValue, setEditStockValue] = useState<number | null>(null);
+  
+  // Состояния для динамической логики в форме редактирования
+  const [editCarpetEdgeType, setEditCarpetEdgeType] = useState<string>('straight_cut');
   const [stockEditLoading, setStockEditLoading] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [showAllMovements, setShowAllMovements] = useState(false);
@@ -235,6 +238,9 @@ const ProductDetail: React.FC = () => {
       carpetEdgeStrength: product.carpetEdgeStrength || 'normal',
       carpetEdgeSides: product.carpetEdgeSides || 1
     });
+    
+    // Устанавливаем состояние для динамической логики
+    setEditCarpetEdgeType(product.carpetEdgeType || 'straight_cut');
     
     setEditModalVisible(true);
   };
@@ -1197,7 +1203,23 @@ const ProductDetail: React.FC = () => {
             </Col>
             <Col span={8}>
               <Form.Item name="carpetEdgeType" label="Край ковра">
-                <Select placeholder="Выберите тип края">
+                <Select 
+                  placeholder="Выберите тип края"
+                  onChange={(value) => {
+                    setEditCarpetEdgeType(value);
+                    // Очищаем зависимые поля при смене типа
+                    if (value === 'straight_cut') {
+                      editForm.setFieldsValue({
+                        carpetEdgeSides: 1,
+                        puzzleTypeId: undefined
+                      });
+                    } else if (value !== 'puzzle') {
+                      editForm.setFieldsValue({
+                        puzzleTypeId: undefined
+                      });
+                    }
+                  }}
+                >
                   <Option value="straight_cut">Литой</Option>
                   <Option value="direct_cut">Прямой рез</Option>
                   <Option value="puzzle">Пазл</Option>
@@ -1217,18 +1239,32 @@ const ProductDetail: React.FC = () => {
           </Row>
 
           {/* Дополнительные поля края ковра */}
-          <Row gutter={16}>
-            <Col span={8}>
-              <Form.Item name="carpetEdgeSides" label="Количество сторон">
-                <Select placeholder="Выберите количество сторон">
-                  <Option value={1}>1 сторона</Option>
-                  <Option value={2}>2 стороны</Option>
-                  <Option value={3}>3 стороны</Option>
-                  <Option value={4}>4 стороны</Option>
-                </Select>
-              </Form.Item>
-            </Col>
-          </Row>
+          {editCarpetEdgeType !== 'straight_cut' && (
+            <Row gutter={16}>
+              <Col span={8}>
+                <Form.Item name="carpetEdgeSides" label="Количество сторон">
+                  <Select placeholder="Выберите количество сторон">
+                    <Option value={1}>1 сторона</Option>
+                    <Option value={2}>2 стороны</Option>
+                    <Option value={3}>3 стороны</Option>
+                    <Option value={4}>4 стороны</Option>
+                  </Select>
+                </Form.Item>
+              </Col>
+              
+              {/* Тип паззла - только для паззла */}
+              {editCarpetEdgeType === 'puzzle' && (
+                <Col span={8}>
+                  <Form.Item name="puzzleTypeId" label="Тип паззла">
+                    <Select placeholder="Выберите тип паззла">
+                      <Option value={1}>Тип 1</Option>
+                      <Option value={2}>Тип 2</Option>
+                    </Select>
+                  </Form.Item>
+                </Col>
+              )}
+            </Row>
+          )}
 
           <Row gutter={16}>
             <Col span={8}>
