@@ -206,17 +206,7 @@ function formatEdge(
     'cast_puzzle': 'ЛитПазл'
   };
 
-  const edgePrefix = edgeMap[edgeType] || edgeType.toUpperCase();
-  if (edgePrefix) parts.push(edgePrefix);
-
-  // Количество сторон
-  if (sides && sides > 1) {
-    parts.push(`${sides}ст`);
-  } else if (sides === 1) {
-    parts.push('1ст');
-  }
-
-  // Для типа "Пазл" добавляем тип пазла
+  // Для типа "Пазл" сначала добавляем тип пазла
   if (edgeType === 'puzzle' && puzzleType?.name) {
     const puzzleMap: Record<string, string> = {
       'старый': 'Стар',
@@ -227,9 +217,18 @@ function formatEdge(
     parts.push(puzzleSuffix);
   }
 
+  // Количество сторон (всегда для не-Литых краев)
+  if (sides) {
+    parts.push(`${sides}ст`);
+  }
+
+  // Тип края
+  const edgePrefix = edgeMap[edgeType] || edgeType.toUpperCase();
+  if (edgePrefix) parts.push(edgePrefix);
+
   // Усиление (только если не усиленный)
   if (strength === 'weak') {
-    parts.push('НеУсил');
+    parts.push('Н/У');
   }
   // Усиленный по умолчанию - не показываем
 
