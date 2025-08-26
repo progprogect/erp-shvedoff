@@ -217,15 +217,18 @@ const ProductDetail: React.FC = () => {
       article: product.article,
       categoryId: product.categoryId,
       managerId: product.managerId,
-      surfaceId: product.surfaceId,
+      surfaceIds: product.surfaceIds || (product.surfaceId ? [product.surfaceId] : []), // обратная совместимость
       logoId: product.logoId,
       materialId: product.materialId,
+      pressType: product.pressType || 'not_selected', // новое поле
       length: product.dimensions?.length,
       width: product.dimensions?.width,
       thickness: product.dimensions?.thickness,
       price: product.price,
       normStock: product.normStock,
-      notes: product.notes
+      notes: product.notes,
+      grade: product.grade || 'usual', // новое поле
+      bottomTypeId: product.bottomTypeId // опциональное поле
     });
     
     setEditModalVisible(true);
@@ -241,9 +244,10 @@ const ProductDetail: React.FC = () => {
         article: values.article,
         categoryId: values.categoryId,
         managerId: values.managerId,
-        surfaceId: values.surfaceId || null,
+        surfaceIds: values.surfaceIds || [], // новое поле множественных поверхностей
         logoId: values.logoId || null,
         materialId: values.materialId || null,
+        pressType: values.pressType || 'not_selected', // новое поле
         dimensions: {
           length: values.length || 0,
           width: values.width || 0,
@@ -251,6 +255,7 @@ const ProductDetail: React.FC = () => {
         },
         weight: values.weight || null,
         grade: values.grade || 'usual',
+        bottomTypeId: values.bottomTypeId || null, // опциональное поле
         price: values.price,
         normStock: values.normStock,
         notes: values.notes
@@ -1059,8 +1064,13 @@ const ProductDetail: React.FC = () => {
 
           <Row gutter={16}>
             <Col span={8}>
-              <Form.Item name="surfaceId" label="Поверхность">
-                <Select placeholder="Выберите поверхность" allowClear>
+              <Form.Item name="surfaceIds" label="Поверхности (AC4)">
+                <Select 
+                  mode="multiple"
+                  placeholder="Выберите поверхности" 
+                  allowClear
+                  maxTagCount="responsive"
+                >
                   {surfaces.map(surface => (
                     <Option key={surface.id} value={surface.id}>
                       🎨 {surface.name}

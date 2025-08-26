@@ -181,12 +181,13 @@ router.get('/products', authenticateToken, async (req, res, next) => {
       }
     }
 
-    // Фильтр по поверхностям
+    // Фильтр по поверхностям (обновлено для surfaceIds массива)
     if (surfaceIds) {
       const ids = Array.isArray(surfaceIds) ? surfaceIds : [surfaceIds];
       const numericIds = ids.map(id => Number(id)).filter(id => !isNaN(id));
       if (numericIds.length > 0) {
-        whereConditions.push(inArray(schema.products.surfaceId, numericIds));
+        // Используем оператор && для проверки пересечения массивов
+        whereConditions.push(sql`${schema.products.surfaceIds} && ${numericIds}`);
       }
     }
 

@@ -10,12 +10,15 @@ export interface Product {
   categoryId?: number;
   category?: Category;
   managerId?: number;
-  surfaceId?: number;
-  surface?: Surface;
+  surfaceId?: number; // DEPRECATED: для обратной совместимости
+  surface?: Surface; // DEPRECATED: для обратной совместимости
+  surfaceIds?: number[]; // новое поле множественных поверхностей
+  surfaces?: Surface[]; // связанные поверхности
   logoId?: number;
   logo?: Logo;
   materialId?: number;
   material?: Material;
+  pressType?: 'not_selected' | 'ukrainian' | 'chinese'; // новое поле
   bottomTypeId?: number;
   bottomType?: BottomType;
   dimensions?: {
