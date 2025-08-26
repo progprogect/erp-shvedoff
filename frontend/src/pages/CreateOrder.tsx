@@ -431,22 +431,6 @@ const CreateOrder: React.FC = () => {
       ),
     },
     {
-      title: 'Размеры (Д×Ш×В), мм',
-      key: 'dimensions',
-      align: 'center' as const,
-      render: (_: any, record: Product) => {
-        const dims = record.dimensions;
-        if (dims && dims.length && dims.width && dims.thickness) {
-          return (
-            <Text>
-              {dims.length}×{dims.width}×{dims.thickness}
-            </Text>
-          );
-        }
-        return <Text type="secondary">—</Text>;
-      },
-    },
-    {
       title: 'Остаток',
       dataIndex: 'availableStock',
       key: 'availableStock',
@@ -908,7 +892,7 @@ const CreateOrder: React.FC = () => {
               showQuickJumper: true,
               showTotal: (total) => `Всего ${total} товаров`
             }}
-            scroll={{ x: 800 }}
+            scroll={{ x: 600 }}
           />
         </Space>
       </Modal>
