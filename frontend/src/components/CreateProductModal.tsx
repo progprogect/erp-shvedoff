@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Form, Input, Select, InputNumber, Row, Col, Button, Space, Typography, App } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
+import PriceInput from './PriceInput';
 import { catalogApi, Category } from '../services/catalogApi';
 import { surfacesApi, Surface } from '../services/surfacesApi';
 import { logosApi, Logo } from '../services/logosApi';
@@ -982,13 +983,11 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
           <Col span={8}>
             <Form.Item
               name="price"
-              label="Цена продажи (₽)"
+              label="Цена продажи"
             >
-              <InputNumber 
+              <PriceInput 
                 placeholder="15000"
                 style={{ width: '100%' }}
-                min={0}
-                precision={2}
               />
             </Form.Item>
           </Col>

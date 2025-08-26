@@ -5,6 +5,7 @@ import {
   List, Avatar, App
 } from 'antd';
 import { formatPriceWithCurrency } from '../utils/priceUtils';
+import PriceInput from '../components/PriceInput';
 import {
   ArrowLeftOutlined, EditOutlined, SaveOutlined, CloseOutlined,
   ShoppingCartOutlined, HistoryOutlined, InboxOutlined, FileTextOutlined,
@@ -1124,11 +1125,9 @@ const ProductDetail: React.FC = () => {
 
           <Row gutter={16}>
             <Col span={8}>
-              <Form.Item name="price" label="Цена продажи (₽)">
-                <InputNumber 
-                  style={{ width: '100%' }} 
-                  min={0}
-                  formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              <Form.Item name="price" label="Цена продажи">
+                <PriceInput 
+                  style={{ width: '100%' }}
                 />
               </Form.Item>
             </Col>
