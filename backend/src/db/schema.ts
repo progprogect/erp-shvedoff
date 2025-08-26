@@ -104,7 +104,10 @@ export const puzzleTypes = pgTable('puzzle_types', {
 });
 
 // Enum для сортов товаров
-export const productGradeEnum = pgEnum('product_grade', ['usual', 'grade_2']);
+export const productGradeEnum = pgEnum('product_grade', ['usual', 'grade_2', 'telyatnik', 'liber']);
+
+// Enum для типа пресса
+export const pressTypeEnum = pgEnum('press_type', ['not_selected', 'ukrainian', 'chinese']);
 
 // Enum для наличия борта (Задача 7.1)
 export const borderTypeEnum = pgEnum('border_type', ['with_border', 'without_border']);
@@ -116,9 +119,11 @@ export const products = pgTable('products', {
   article: varchar('article', { length: 100 }).unique(),
   categoryId: integer('category_id').references(() => categories.id),
   managerId: integer('manager_id').references(() => users.id), // ответственный за товар
-  surfaceId: integer('surface_id').references(() => productSurfaces.id),
+  surfaceId: integer('surface_id').references(() => productSurfaces.id), // DEPRECATED: используется для обратной совместимости
+  surfaceIds: integer('surface_ids').array(), // множественный выбор поверхностей
   logoId: integer('logo_id').references(() => productLogos.id),
   materialId: integer('material_id').references(() => productMaterials.id),
+  pressType: pressTypeEnum('press_type').default('not_selected'), // тип пресса
   dimensions: jsonb('dimensions'), // {length: 1800, width: 1200, thickness: 10}
   characteristics: jsonb('characteristics'), // {surface: "чертёная", material: "резина"}
   puzzleOptions: jsonb('puzzle_options'), // {sides: "1_side", type: "old", enabled: false} - опции для поверхности "Паззл"
@@ -439,7 +444,8 @@ export const bottomTypesRelations = relations(bottomTypes, ({ many }) => ({
 export const productsRelations = relations(products, ({ one, many }) => ({
   category: one(categories, { fields: [products.categoryId], references: [categories.id] }),
   manager: one(users, { fields: [products.managerId], references: [users.id] }),
-  surface: one(productSurfaces, { fields: [products.surfaceId], references: [productSurfaces.id] }),
+  surface: one(productSurfaces, { fields: [products.surfaceId], references: [productSurfaces.id] }), // DEPRECATED: для обратной совместимости
+  // surfaceIds обрабатывается отдельно в API, так как это array связь
   logo: one(productLogos, { fields: [products.logoId], references: [productLogos.id] }),
   material: one(productMaterials, { fields: [products.materialId], references: [productMaterials.id] }),
   bottomType: one(bottomTypes, { fields: [products.bottomTypeId], references: [bottomTypes.id] }),
