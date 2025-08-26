@@ -21,6 +21,9 @@ import { materialsApi, Material } from '../services/materialsApi';
 import { stockApi, StockMovement } from '../services/stockApi';
 import { getOrdersByProduct } from '../services/ordersApi';
 import { getProductionTasksByProduct } from '../services/productionApi';
+import carpetEdgeTypesApi, { CarpetEdgeType } from '../services/carpetEdgeTypesApi';
+import bottomTypesApi, { BottomType } from '../services/bottomTypesApi';
+import { puzzleTypesApi, PuzzleType } from '../services/puzzleTypesApi';
 
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -48,6 +51,9 @@ const ProductDetail: React.FC = () => {
   const [surfaces, setSurfaces] = useState<Surface[]>([]);
   const [logos, setLogos] = useState<Logo[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
+  const [carpetEdgeTypes, setCarpetEdgeTypes] = useState<CarpetEdgeType[]>([]);
+  const [bottomTypes, setBottomTypes] = useState<BottomType[]>([]);
+  const [puzzleTypes, setPuzzleTypes] = useState<PuzzleType[]>([]);
   const [users, setUsers] = useState<{id: number; fullName?: string; username: string; role: string}[]>([]);
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
   const [productOrders, setProductOrders] = useState<any[]>([]);
@@ -109,6 +115,9 @@ const ProductDetail: React.FC = () => {
         surfacesResponse,
         logosResponse,
         materialsResponse,
+        carpetEdgeTypesResponse,
+        bottomTypesResponse,
+        puzzleTypesResponse,
         usersResponse,
         movementsResponse,
         ordersResponse,
@@ -119,6 +128,9 @@ const ProductDetail: React.FC = () => {
         surfacesApi.getSurfaces(token),
         logosApi.getLogos(token),
         materialsApi.getMaterials(token),
+        carpetEdgeTypesApi.getCarpetEdgeTypes(token),
+        bottomTypesApi.getBottomTypes(token),
+        puzzleTypesApi.getPuzzleTypes(token),
         catalogApi.getUsers(),
         stockApi.getStockMovements(parseInt(id)),
         getOrdersByProduct(parseInt(id)),
@@ -147,6 +159,18 @@ const ProductDetail: React.FC = () => {
 
       if (materialsResponse.success) {
         setMaterials(materialsResponse.data);
+      }
+
+      if (carpetEdgeTypesResponse.success) {
+        setCarpetEdgeTypes(carpetEdgeTypesResponse.data);
+      }
+
+      if (bottomTypesResponse.success) {
+        setBottomTypes(bottomTypesResponse.data);
+      }
+
+      if (puzzleTypesResponse.success) {
+        setPuzzleTypes(puzzleTypesResponse.data);
       }
 
       if (usersResponse.success) {
@@ -1220,11 +1244,11 @@ const ProductDetail: React.FC = () => {
                     }
                   }}
                 >
-                  <Option value="straight_cut">Литой</Option>
-                  <Option value="direct_cut">Прямой рез</Option>
-                  <Option value="puzzle">Пазл</Option>
-                  <Option value="sub_puzzle">Под пазл</Option>
-                  <Option value="cast_puzzle">Литой пазл</Option>
+                  {carpetEdgeTypes.map(type => (
+                    <Option key={type.code} value={type.code}>
+                      {type.name}
+                    </Option>
+                  ))}
                 </Select>
               </Form.Item>
             </Col>
@@ -1257,8 +1281,11 @@ const ProductDetail: React.FC = () => {
                 <Col span={8}>
                   <Form.Item name="puzzleTypeId" label="Тип паззла">
                     <Select placeholder="Выберите тип паззла">
-                      <Option value={1}>Тип 1</Option>
-                      <Option value={2}>Тип 2</Option>
+                      {puzzleTypes.map(type => (
+                        <Option key={type.id} value={type.id}>
+                          {type.name}
+                        </Option>
+                      ))}
                     </Select>
                   </Form.Item>
                 </Col>

@@ -203,7 +203,10 @@ function formatEdge(
     'direct_cut': 'ПрямРез',
     'puzzle': 'Пазл',
     'sub_puzzle': 'Подпазл',
-    'cast_puzzle': 'ЛитПазл'
+    'cast_puzzle': 'ЛитПазл',
+    // Backward compatibility for old enum values
+    'podpuzzle': 'Подпазл',
+    'litoy_puzzle': 'ЛитПазл'
   };
 
   // Для типа "Пазл" сначала добавляем тип пазла
