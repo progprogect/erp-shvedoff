@@ -121,6 +121,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
         ...overrides
       };
 
+      console.log('🚀 Отправляем данные для preview:', previewData);
       const response = await catalogApi.previewArticle(previewData);
       if (response.success) {
         setPreviewArticle(response.data.article);

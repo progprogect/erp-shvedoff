@@ -873,7 +873,9 @@ router.post('/products/preview-article', authenticateToken, async (req: AuthRequ
         grade: grade || 'usual'
       };
 
+      console.log('🔧 Данные для генерации артикула ковра:', productData);
       previewArticle = generateArticle(productData);
+      console.log('✅ Сгенерированный артикул:', previewArticle);
       validationData = productData;
     }
     
