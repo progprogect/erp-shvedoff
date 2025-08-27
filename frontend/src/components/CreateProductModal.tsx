@@ -79,12 +79,14 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
   const [bottomTypes, setBottomTypes] = useState<BottomType[]>([]);
   const [selectedBottomTypeId, setSelectedBottomTypeId] = useState<number | null>(null);
 
-  // Функция для генерации превью артикула
-  const generateArticlePreview = async () => {
+  // Функция для генерации превью артикула с актуальными данными
+  const generateArticlePreview = async (overrides = {}) => {
     if (!autoGenerateArticle) return;
 
     try {
       const formValues = form.getFieldsValue();
+      
+      // Объединяем текущие значения состояния с переданными изменениями
       const previewData = {
         name: formValues.name || '',
         dimensions: {
@@ -101,7 +103,9 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
         carpetEdgeStrength: carpetEdgeStrength,
         bottomTypeId: selectedBottomTypeId,
         puzzleTypeId: formValues.puzzleTypeId,
-        grade: formValues.grade || 'usual'
+        grade: formValues.grade || 'usual',
+        // Применяем переданные изменения поверх текущих значений
+        ...overrides
       };
 
       const response = await catalogApi.previewArticle(previewData);
@@ -121,6 +125,66 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
   const [calculatedMatArea, setCalculatedMatArea] = useState<number | null>(null);
   const [matAreaOverride, setMatAreaOverride] = useState<string>('');
   const { token } = useAuthStore();
+
+  // Элегантные handler функции для мгновенного обновления артикула
+  const handlePressTypeChange = (value: string) => {
+    setPressType(value);
+    generateArticlePreview({ pressType: value });
+  };
+
+  const handleSurfaceIdsChange = (value: number[]) => {
+    setSelectedSurfaceIds(value);
+    generateArticlePreview({ surfaceIds: value });
+  };
+
+  const handleCarpetEdgeTypeChange = (value: string) => {
+    setSelectedCarpetEdgeType(value);
+    
+    // Очищаем поля при смене типа края
+    if (value === 'straight_cut') {
+      // Для Литого края очищаем стороны и тип паззла
+      form.setFieldsValue({
+        carpetEdgeSides: 1,
+        puzzleTypeId: undefined
+      });
+      generateArticlePreview({ 
+        carpetEdgeType: value, 
+        carpetEdgeSides: 1, 
+        puzzleTypeId: null 
+      });
+    } else if (value !== 'puzzle') {
+      // Для не-паззловых краев очищаем только тип паззла
+      form.setFieldsValue({
+        puzzleTypeId: undefined
+      });
+      generateArticlePreview({ 
+        carpetEdgeType: value, 
+        puzzleTypeId: null 
+      });
+    } else {
+      generateArticlePreview({ carpetEdgeType: value });
+    }
+  };
+
+  const handleCarpetEdgeSidesChange = (value: number) => {
+    setCarpetEdgeSides(value);
+    generateArticlePreview({ carpetEdgeSides: value });
+  };
+
+  const handleCarpetEdgeStrengthChange = (value: string) => {
+    setCarpetEdgeStrength(value);
+    generateArticlePreview({ carpetEdgeStrength: value });
+  };
+
+  const handleBottomTypeChange = (value: number | null) => {
+    setSelectedBottomTypeId(value);
+    generateArticlePreview({ bottomTypeId: value });
+  };
+
+  // Универсальный handler для полей формы
+  const handleFormFieldChange = (field: string, value: any) => {
+    generateArticlePreview({ [field]: value });
+  };
 
   // Загрузка справочников при открытии модала
   useEffect(() => {
@@ -638,7 +702,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
               >
                 <Input 
                   placeholder="Например: Лежак резиновый чешский"
-                  onChange={generateArticlePreview}
+                  onChange={(e) => handleFormFieldChange('name', e.target.value)}
                 />
               </Form.Item>
             </Col>
@@ -716,7 +780,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                   placeholder="1800"
                   style={{ width: '100%' }}
                   min={1}
-                  onChange={generateArticle}
+                  onChange={(value) => handleFormFieldChange('length', value)}
                 />
               </Form.Item>
             </Col>
@@ -729,7 +793,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                   placeholder="1200"
                   style={{ width: '100%' }}
                   min={1}
-                  onChange={generateArticle}
+                  onChange={(value) => handleFormFieldChange('width', value)}
                 />
               </Form.Item>
             </Col>
@@ -746,7 +810,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                   placeholder="30"
                   style={{ width: '100%' }}
                   min={1}
-                  onChange={generateArticle}
+                  onChange={(value) => handleFormFieldChange('thickness', value)}
                 />
               </Form.Item>
             </Col>
@@ -810,10 +874,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                   optionFilterProp="children"
                   allowClear
                   value={selectedSurfaceIds}
-                  onChange={(values) => {
-                    setSelectedSurfaceIds(values || []);
-                    generateArticlePreview();
-                  }}
+                  onChange={handleSurfaceIdsChange}
                   maxTagCount="responsive"
                 >
                   {surfaces.map(surface => (
@@ -835,7 +896,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                 showSearch
                 optionFilterProp="children"
                 allowClear
-                onChange={() => setTimeout(generateArticle, 100)}
+                onChange={(value) => handleFormFieldChange('logoId', value)}
                 popupRender={(menu) => (
                   <>
                     {menu}
@@ -881,7 +942,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                 showSearch
                 optionFilterProp="children"
                 allowClear
-                onChange={generateArticlePreview}
+                onChange={(value) => handleFormFieldChange('materialId', value)}
               >
                 {materials.map(material => (
                   <Option key={material.id} value={material.id}>
@@ -899,10 +960,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
               <Select 
                 placeholder="Не выбрано"
                 value={pressType}
-                onChange={(value) => {
-                  setPressType(value);
-                  generateArticlePreview();
-                }}
+                onChange={handlePressTypeChange}
                 allowClear
               >
                 <Option value="not_selected">Не выбрано</Option>
@@ -926,7 +984,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
               >
                 <Select 
                   style={{ width: '100%' }}
-                  onChange={generateArticlePreview}
+                  onChange={(value) => handleFormFieldChange('grade', value)}
                 >
                   <Option value="usual">Обычный</Option>
                   <Option value="grade_2">2 сорт</Option>
@@ -944,7 +1002,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                 <Select 
                   style={{ width: '100%' }} 
                   placeholder="Выберите тип борта"
-                  onChange={() => setTimeout(generateArticle, 100)}
+                  onChange={(value) => handleFormFieldChange('borderType', value)}
                 >
                   <Option value="with_border">С бортом</Option>
                   <Option value="without_border">Без борта</Option>
@@ -981,22 +1039,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
             >
               <Select
                 placeholder="Выберите тип края"
-                onChange={(value) => {
-                  setSelectedCarpetEdgeType(value);
-                  // Очищаем поля при смене типа края
-                  if (value === 'straight_cut') {
-                    // Для Литого края очищаем стороны и тип паззла
-                    form.setFieldsValue({
-                      carpetEdgeSides: 1,
-                      puzzleTypeId: undefined
-                    });
-                  } else if (value !== 'puzzle') {
-                    // Для не-паззловых краев очищаем только тип паззла
-                    form.setFieldsValue({
-                      puzzleTypeId: undefined
-                    });
-                  }
-                }}
+                onChange={handleCarpetEdgeTypeChange}
               >
                 {carpetEdgeTypes.map(type => (
                   <Option key={type.code} value={type.code}>
@@ -1016,7 +1059,10 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                 rules={[{ required: true, message: 'Выберите количество сторон' }]}
                 initialValue={1}
               >
-                <Select placeholder="Выберите количество сторон">
+                <Select 
+                  placeholder="Выберите количество сторон"
+                  onChange={handleCarpetEdgeSidesChange}
+                >
                   <Option value={1}>1 сторона</Option>
                   <Option value={2}>2 стороны</Option>
                   <Option value={3}>3 стороны</Option>
@@ -1034,7 +1080,10 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                 label="Тип паззла"
                 rules={[{ required: true, message: 'Выберите тип паззла' }]}
               >
-                <Select placeholder="Выберите тип паззла">
+                <Select 
+                  placeholder="Выберите тип паззла"
+                  onChange={(value) => handleFormFieldChange('puzzleTypeId', value)}
+                >
                   {puzzleTypes.map(type => (
                     <Option key={type.id} value={type.id}>
                       {type.name}
@@ -1055,7 +1104,10 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                 initialValue="normal"
                 help="По умолчанию: Усиленный"
               >
-                <Select placeholder="Выберите тип усиления">
+                <Select 
+                  placeholder="Выберите тип усиления"
+                  onChange={handleCarpetEdgeStrengthChange}
+                >
                   <Option value="normal">Усиленный</Option>
                   <Option value="weak">Не усиленный</Option>
                 </Select>
@@ -1078,10 +1130,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                   placeholder="Не выбрано"
                   loading={loadingReferences}
                   allowClear
-                  onChange={(value) => {
-                    setSelectedBottomTypeId(value);
-                    generateArticlePreview();
-                  }}
+                  onChange={handleBottomTypeChange}
                 >
                   <Option value={null}>Не выбрано</Option>
                   {bottomTypes.map(type => (
