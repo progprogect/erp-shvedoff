@@ -833,7 +833,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                     : (autoGenerateArticle ? "Артикул генерируется автоматически при изменении характеристик" : "Введите артикул вручную")
                 }
               >
-                <Input 
+                <TextArea 
                   placeholder={
                     productType === 'other' 
                       ? "Например: ИНСТР-001, КЛЕЙ-МОМЕНТ" 
@@ -849,6 +849,12 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                     if (productType === 'roll_covering' && !manualOverride) {
                       setManualOverride(true);
                     }
+                  }}
+                  autoSize={{ minRows: 1, maxRows: 3 }}
+                  style={{ 
+                    resize: 'none',
+                    wordWrap: 'break-word',
+                    whiteSpace: 'pre-wrap'
                   }}
                 />
               </Form.Item>
@@ -1414,10 +1420,23 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                                  carpet.name.toLowerCase().includes(searchText);
                         }}
                         loading={loadingReferences}
+                        dropdownStyle={{ maxHeight: 300 }}
+                        optionLabelProp="title"
                       >
                         {carpets.map(carpet => (
-                          <Option key={carpet.id} value={carpet.id}>
-                            🪄 {carpet.article} - {carpet.name}
+                          <Option key={carpet.id} value={carpet.id} title={`${carpet.article} - ${carpet.name}`}>
+                            <div style={{ 
+                              display: 'flex', 
+                              flexDirection: 'column',
+                              lineHeight: '1.2'
+                            }}>
+                              <span style={{ fontWeight: 'bold', fontSize: '11px', color: '#1890ff' }}>
+                                🪄 {carpet.article}
+                              </span>
+                              <span style={{ fontSize: '12px', color: '#666' }}>
+                                {carpet.name.length > 30 ? `${carpet.name.substring(0, 30)}...` : carpet.name}
+                              </span>
+                            </div>
                           </Option>
                         ))}
                       </Select>
