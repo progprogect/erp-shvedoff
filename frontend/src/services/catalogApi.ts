@@ -12,6 +12,8 @@ export interface Product {
   categoryId?: number;
   category?: Category;
   managerId?: number;
+  // Состав рулонного покрытия
+  rollComposition?: RollCompositionItem[];
   surfaceId?: number; // DEPRECATED: для обратной совместимости
   surface?: Surface; // DEPRECATED: для обратной совместимости
   surfaceIds?: number[]; // новое поле множественных поверхностей
@@ -459,6 +461,12 @@ export interface RollCompositionItem {
   carpetName?: string;
   quantity: number;
   sortOrder: number;
+  // Связанный ковер
+  carpet?: {
+    id: number;
+    name: string;
+    article: string;
+  };
 }
 
 export const catalogApi = new CatalogApi(); 

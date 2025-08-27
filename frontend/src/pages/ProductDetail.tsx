@@ -634,6 +634,47 @@ const ProductDetail: React.FC = () => {
                       <Descriptions.Item label="Низ ковра">
                         {(typeof product?.bottomType === 'string' ? product.bottomType : product?.bottomType?.name) || 'Не указан'}
                       </Descriptions.Item>
+                      
+                      {/* Состав рулонного покрытия - только для рулонных покрытий */}
+                      {product?.productType === 'roll_covering' && (
+                        <Descriptions.Item label="Состав рулонного покрытия">
+                          {product?.rollComposition && product.rollComposition.length > 0 ? (
+                            <div style={{ maxWidth: '100%' }}>
+                              {product.rollComposition.map((item, index) => (
+                                <div key={index} style={{ 
+                                  display: 'flex', 
+                                  alignItems: 'center', 
+                                  marginBottom: index < (product.rollComposition?.length || 0) - 1 ? 8 : 0,
+                                  padding: '6px 12px',
+                                  backgroundColor: '#f8f9fa',
+                                  borderRadius: '6px',
+                                  border: '1px solid #e9ecef'
+                                }}>
+                                  <span style={{ fontWeight: 'bold', color: '#1890ff', marginRight: 8 }}>
+                                    🪄 {item.carpet?.article || `ID: ${item.carpetId}`}
+                                  </span>
+                                  <span style={{ flex: 1, color: '#666' }}>
+                                    {item.carpet?.name || 'Название не найдено'}
+                                  </span>
+                                  <span style={{ 
+                                    fontWeight: 'bold', 
+                                    color: '#52c41a',
+                                    marginLeft: 'auto',
+                                    backgroundColor: '#f6ffed',
+                                    padding: '2px 8px',
+                                    borderRadius: '4px',
+                                    border: '1px solid #b7eb8f'
+                                  }}>
+                                    ×{item.quantity}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <span style={{ color: '#999' }}>Состав не указан</span>
+                          )}
+                        </Descriptions.Item>
+                      )}
                     </>
                   )}
                   

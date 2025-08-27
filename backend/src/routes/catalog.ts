@@ -482,12 +482,32 @@ router.get('/products/:id', authenticateToken, async (req, res, next) => {
           },
           orderBy: sql`${schema.stockMovements.createdAt} DESC`,
           limit: 10
+        },
+        rollComposition: {
+          with: {
+            carpet: {
+              columns: {
+                id: true,
+                name: true,
+                article: true
+              }
+            }
+          },
+          orderBy: sql`${schema.rollCoveringComposition.sortOrder} ASC`
         }
       }
     });
 
     if (!product) {
       return next(createError('Product not found', 404));
+    }
+
+    // Загружаем множественные поверхности если есть surfaceIds
+    let surfaces: any[] = [];
+    if (product.surfaceIds && product.surfaceIds.length > 0) {
+      surfaces = await db.query.productSurfaces.findMany({
+        where: inArray(schema.productSurfaces.id, product.surfaceIds)
+      });
     }
 
     // Получаем точные резервы и производственные количества для этого товара
@@ -504,6 +524,7 @@ router.get('/products/:id', authenticateToken, async (req, res, next) => {
     // Обновляем данные продукта с точными расчетами
     const productWithAccurateStock = {
       ...product,
+      surfaces, // Добавляем множественные поверхности
       currentStock,
       reservedStock,
       availableStock,
