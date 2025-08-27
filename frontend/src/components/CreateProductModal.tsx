@@ -74,6 +74,11 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
   const [manualOverride, setManualOverride] = useState<boolean>(false); // режим ручного редактирования артикула
   const [carpets, setCarpets] = useState<any[]>([]); // список ковров для состава рулонных покрытий
   
+  // Функция для определения типов краев без выбора сторон
+  const isEdgeTypeWithoutSidesSelection = (edgeType: string): boolean => {
+    return ['straight_cut', 'direct_cut', 'straight'].includes(edgeType);
+  };
+  
   // Состояние для новых полей края ковра
   const [carpetEdgeTypes, setCarpetEdgeTypes] = useState<CarpetEdgeType[]>([]);
   const [selectedCarpetEdgeType, setSelectedCarpetEdgeType] = useState<string>('straight_cut');
@@ -180,8 +185,8 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
     setSelectedCarpetEdgeType(value);
     
     // Очищаем поля при смене типа края
-    if (value === 'straight_cut') {
-      // Для Литого края очищаем стороны и тип паззла
+    if (isEdgeTypeWithoutSidesSelection(value)) {
+      // Для Литого края и Прямого реза очищаем стороны и тип паззла
       form.setFieldsValue({
         carpetEdgeSides: 1,
         puzzleTypeId: undefined
@@ -1231,7 +1236,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
               label="Край ковра"
               rules={[{ required: true, message: 'Выберите тип края' }]}
               initialValue="straight_cut"
-              help="По умолчанию: Литой (не отражается в артикуле)"
+              help="По умолчанию: Литой (не отражается в артикуле). Прямой рез - без выбора сторон"
             >
               <Select
                 placeholder="Выберите тип края"
@@ -1246,8 +1251,8 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
             </Form.Item>
           </Col>
           
-          {/* Количество сторон - для всех типов кроме Литой */}
-          {selectedCarpetEdgeType !== 'straight_cut' && (
+          {/* Количество сторон - для всех типов кроме Литой и Прямого реза */}
+          {!isEdgeTypeWithoutSidesSelection(selectedCarpetEdgeType) && (
             <Col span={8}>
               <Form.Item
                 name="carpetEdgeSides"
