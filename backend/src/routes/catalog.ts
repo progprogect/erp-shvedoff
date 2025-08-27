@@ -259,8 +259,8 @@ router.get('/products', authenticateToken, async (req, res, next) => {
     if (productTypes) {
       const typesList = Array.isArray(productTypes) ? productTypes : [productTypes];
       const validTypes = typesList
-        .filter(type => typeof type === 'string' && ['carpet', 'other'].includes(type))
-        .map(type => type as 'carpet' | 'other');
+        .filter(type => typeof type === 'string' && ['carpet', 'other', 'pur'].includes(type))
+        .map(type => type as 'carpet' | 'other' | 'pur');
       if (validTypes.length > 0) {
         whereConditions.push(inArray(schema.products.productType, validTypes));
       }
@@ -533,7 +533,8 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
     const { 
       name, 
       article, 
-      productType, // тип товара: carpet или other
+      productType, // тип товара: carpet, other или pur
+      purNumber, // номер ПУР (только для товаров типа pur)
       categoryId, 
       surfaceId, // DEPRECATED: для обратной совместимости
       surfaceIds, // новое поле множественного выбора
@@ -571,14 +572,35 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
 
     // Валидация типа товара
     const validProductType = productType || 'carpet'; // по умолчанию ковер
-    if (!['carpet', 'other'].includes(validProductType)) {
-      return next(createError('Product type must be "carpet" or "other"', 400));
+    if (!['carpet', 'other', 'pur'].includes(validProductType)) {
+      return next(createError('Product type must be "carpet", "other", or "pur"', 400));
     }
 
     // Для товаров типа "other" артикул обязателен и автогенерация отключена
     if (validProductType === 'other') {
       if (!article || article.trim().length === 0) {
         return next(createError('Для товаров типа "Другое" артикул обязателен', 400));
+      }
+    }
+
+    // Для товаров типа "pur" артикул обязателен, размеры обязательны
+    if (validProductType === 'pur') {
+      if (!article || article.trim().length === 0) {
+        return next(createError('Для товаров типа "ПУР" артикул обязателен', 400));
+      }
+      
+      // Валидация размеров для ПУР (обязательные)
+      if (!dimensions || !dimensions.length || !dimensions.width || !dimensions.thickness) {
+        return next(createError('Для товаров типа "ПУР" размеры (длина, ширина, высота) обязательны', 400));
+      }
+      
+      if (dimensions.length <= 0 || dimensions.width <= 0 || dimensions.thickness <= 0) {
+        return next(createError('Для товаров типа "ПУР" все размеры должны быть больше 0', 400));
+      }
+      
+      // Валидация номера ПУР (опционально, но если указан - должен быть положительным)
+      if (purNumber !== undefined && purNumber !== null && (typeof purNumber !== 'number' || purNumber <= 0)) {
+        return next(createError('Номер ПУР должен быть положительным числом', 400));
       }
     }
 
@@ -681,6 +703,7 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
       name,
       article: finalArticle,
       productType: validProductType,
+      purNumber: validProductType === 'pur' ? (purNumber || null) : null, // номер ПУР только для товаров типа pur
       categoryId,
       // Ковровые поля (только для товаров типа 'carpet')
       surfaceId: validProductType === 'carpet' ? (surfaceId || null) : null, // DEPRECATED: для обратной совместимости
@@ -688,7 +711,7 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
       logoId: validProductType === 'carpet' ? (logoId || null) : null,
       materialId: validProductType === 'carpet' ? (materialId || null) : null,
       pressType: validProductType === 'carpet' ? (pressType || 'not_selected') : null, // новое поле
-      dimensions: validProductType === 'carpet' ? dimensions : null,
+      dimensions: (validProductType === 'carpet' || validProductType === 'pur') ? dimensions : null, // размеры для ковров и ПУР
       characteristics: validProductType === 'carpet' ? characteristics : null,
       puzzleOptions: validProductType === 'carpet' ? (puzzleOptions || null) : null,
       matArea: validProductType === 'carpet' && matArea ? parseFloat(matArea).toString() : null,

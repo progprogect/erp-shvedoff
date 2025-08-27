@@ -7,7 +7,8 @@ export interface Product {
   id: number;
   name: string;
   article?: string;
-  productType?: 'carpet' | 'other'; // тип товара
+  productType?: 'carpet' | 'other' | 'pur'; // тип товара
+  purNumber?: number; // номер ПУР (только для товаров типа pur)
   categoryId?: number;
   category?: Category;
   managerId?: number;

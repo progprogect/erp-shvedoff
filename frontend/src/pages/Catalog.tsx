@@ -863,6 +863,7 @@ const Catalog: React.FC = () => {
                           >
                             <Option value="carpet">🪄 Ковровое изделие</Option>
                             <Option value="other">📦 Другое</Option>
+                            <Option value="pur">🔧 ПУР</Option>
                           </Select>
                         </div>
                       </Col>

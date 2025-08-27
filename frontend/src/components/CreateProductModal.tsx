@@ -68,7 +68,8 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
   const [pressType, setPressType] = useState<string>('not_selected'); // новое поле пресса
   const [previewArticle, setPreviewArticle] = useState<string>(''); // превью артикула
   const [autoGenerateArticle, setAutoGenerateArticle] = useState<boolean>(true); // флаг автогенерации
-  const [productType, setProductType] = useState<'carpet' | 'other'>('carpet'); // тип товара
+  const [productType, setProductType] = useState<'carpet' | 'other' | 'pur'>('carpet'); // тип товара
+  const [purNumber, setPurNumber] = useState<number | undefined>(undefined); // номер ПУР
   
   // Состояние для новых полей края ковра
   const [carpetEdgeTypes, setCarpetEdgeTypes] = useState<CarpetEdgeType[]>([]);
@@ -188,16 +189,22 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
   };
 
   // Handler для смены типа товара
-  const handleProductTypeChange = (type: 'carpet' | 'other') => {
+  const handleProductTypeChange = (type: 'carpet' | 'other' | 'pur') => {
     setProductType(type);
     
-    // При смене на "other" отключаем автогенерацию артикула
-    if (type === 'other') {
+    // При смене на "other" или "pur" отключаем автогенерацию артикула
+    if (type === 'other' || type === 'pur') {
       setAutoGenerateArticle(false);
       setPreviewArticle('');
       form.setFieldValue('article', ''); // очищаем поле артикула
     } else {
       setAutoGenerateArticle(true);
+    }
+    
+    // При смене типа очищаем номер ПУР
+    if (type !== 'pur') {
+      setPurNumber(undefined);
+      form.setFieldValue('purNumber', undefined);
     }
   };
 
@@ -339,6 +346,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
         name: values.name,
         article: autoGenerateArticle ? previewArticle : values.article || null,
         productType: productType, // добавляем тип товара
+        purNumber: productType === 'pur' ? purNumber : undefined, // номер ПУР только для ПУР товаров
         categoryId: values.categoryId,
         surfaceId: values.surfaceId || null,
         logoId: values.logoId || null,
@@ -721,6 +729,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                 >
                   <Option value="carpet">🪄 Ковровое изделие (с автогенерацией артикула)</Option>
                   <Option value="other">📦 Другое (ручной артикул)</Option>
+                  <Option value="pur">🔧 ПУР (ручной артикул + размеры)</Option>
                 </Select>
               </Form.Item>
             </Col>
@@ -749,10 +758,18 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
               <Form.Item
                 name="article"
                 label="Артикул товара"
-                rules={productType === 'other' ? [{ required: true, message: 'Для товаров типа "Другое" артикул обязателен' }] : []}
+                rules={
+                  productType === 'other' 
+                    ? [{ required: true, message: 'Для товаров типа "Другое" артикул обязателен' }] 
+                    : productType === 'pur'
+                    ? [{ required: true, message: 'Для товаров типа "ПУР" артикул обязателен' }]
+                    : []
+                }
                 help={
                   productType === 'other' 
                     ? 'Введите уникальный артикул вручную' 
+                    : productType === 'pur'
+                    ? 'Введите уникальный артикул вручную для ПУР товара'
                     : (autoGenerateArticle ? "Артикул генерируется автоматически при изменении характеристик" : "Введите артикул вручную")
                 }
               >
@@ -760,6 +777,8 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                   placeholder={
                     productType === 'other' 
                       ? "Например: ИНСТР-001, КЛЕЙ-МОМЕНТ" 
+                      : productType === 'pur'
+                      ? "Например: ПУР-001, ПУР-ИЗОЛЯЦИЯ"
                       : (autoGenerateArticle ? (previewArticle || "Артикул будет сгенерирован...") : "Введите артикул")
                   }
                   disabled={productType === 'carpet' && autoGenerateArticle}
@@ -813,16 +832,42 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
               </Form.Item>
             </Col>
           </Row>
+
+          {/* Поле номера ПУР - только для товаров типа ПУР */}
+          {productType === 'pur' && (
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item
+                  name="purNumber"
+                  label="Номер ПУР"
+                  help="Опциональное поле. Если указано, должно быть положительным числом"
+                >
+                  <InputNumber 
+                    placeholder="Например: 123"
+                    style={{ width: '100%' }}
+                    min={1}
+                    precision={0}
+                    value={purNumber}
+                    onChange={(value) => setPurNumber(value || undefined)}
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+          )}
         </FormBlock>
 
-        {/* Блок 2: Размеры (только для ковров) */}
-        {productType === 'carpet' && (
-          <FormBlock title="Размеры" icon="📏">
+        {/* Блок 2: Размеры (для ковров и ПУР) */}
+        {(productType === 'carpet' || productType === 'pur') && (
+          <FormBlock title={productType === 'pur' ? "Размеры (обязательно)" : "Размеры"} icon="📏">
           <Row gutter={16}>
             <Col span={8}>
               <Form.Item
                 name="length"
                 label="Длина (мм)"
+                rules={productType === 'pur' ? [
+                  { required: true, message: 'Длина обязательна для ПУР товаров' },
+                  { type: 'number', min: 1, message: 'Длина должна быть больше 0' }
+                ] : []}
               >
                 <InputNumber 
                   placeholder="1800"
@@ -836,6 +881,10 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
               <Form.Item
                 name="width"
                 label="Ширина (мм)"
+                rules={productType === 'pur' ? [
+                  { required: true, message: 'Ширина обязательна для ПУР товаров' },
+                  { type: 'number', min: 1, message: 'Ширина должна быть больше 0' }
+                ] : []}
               >
                 <InputNumber 
                   placeholder="1200"
@@ -849,7 +898,10 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
               <Form.Item
                 name="thickness"
                 label="Высота (мм)"
-                rules={[
+                rules={productType === 'pur' ? [
+                  { required: true, message: 'Высота обязательна для ПУР товаров' },
+                  { type: 'number', min: 1, message: 'Высота должна быть больше 0' }
+                ] : [
                   { required: false, message: 'Введите высоту' },
                   { type: 'number', min: 1, message: 'Высота должна быть больше 0' }
                 ]}

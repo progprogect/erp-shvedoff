@@ -564,6 +564,8 @@ const ProductDetail: React.FC = () => {
                       <Tag color="blue" icon="🪄">Ковровое изделие</Tag>
                     ) : product?.productType === 'other' ? (
                       <Tag color="green" icon="📦">Другое</Tag>
+                    ) : product?.productType === 'pur' ? (
+                      <Tag color="orange" icon="🔧">ПУР</Tag>
                     ) : (
                       <Tag color="default">Не указан</Tag>
                     )}
@@ -573,8 +575,19 @@ const ProductDetail: React.FC = () => {
                     {product?.categoryName || product?.category?.name || 'Не указана'}
                   </Descriptions.Item>
                   
-                  {/* Размеры - только для ковров */}
-                  {product?.productType === 'carpet' && (
+                  {/* Номер ПУР - только для товаров типа ПУР */}
+                  {product?.productType === 'pur' && (
+                    <Descriptions.Item label="Номер ПУР">
+                      {product?.purNumber ? (
+                        <Tag color="orange">🔧 {product.purNumber}</Tag>
+                      ) : (
+                        'Не указан'
+                      )}
+                    </Descriptions.Item>
+                  )}
+                  
+                  {/* Размеры - для ковров и ПУР */}
+                  {(product?.productType === 'carpet' || product?.productType === 'pur') && (
                     <>
                       <Descriptions.Item label="Длина">
                         {dimensions?.length || 0} мм
@@ -1068,7 +1081,11 @@ const ProductDetail: React.FC = () => {
             <Col span={24}>
               <Form.Item label="Тип товара">
                 <Input 
-                  value={product?.productType === 'carpet' ? '🪄 Ковровое изделие' : '📦 Другое'}
+                  value={
+                    product?.productType === 'carpet' ? '🪄 Ковровое изделие' : 
+                    product?.productType === 'other' ? '📦 Другое' :
+                    product?.productType === 'pur' ? '🔧 ПУР' : 'Не указан'
+                  }
                   disabled
                   style={{ backgroundColor: '#f5f5f5', color: '#666' }}
                 />
@@ -1155,8 +1172,8 @@ const ProductDetail: React.FC = () => {
             </Col>
           </Row>
 
-          {/* Размеры - только для ковров */}
-          {product?.productType === 'carpet' && (
+          {/* Размеры - для ковров и ПУР */}
+          {(product?.productType === 'carpet' || product?.productType === 'pur') && (
             <Row gutter={16}>
               <Col span={8}>
                 <Form.Item name="length" label="Длина (мм)">
