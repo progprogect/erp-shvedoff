@@ -815,6 +815,7 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
 router.post('/products/preview-article', authenticateToken, async (req: AuthRequest, res, next) => {
   try {
     const { 
+      productType,
       name,
       dimensions,
       materialId,
@@ -826,7 +827,8 @@ router.post('/products/preview-article', authenticateToken, async (req: AuthRequ
       carpetEdgeStrength,
       bottomTypeId,
       puzzleTypeId,
-      grade
+      grade,
+      composition
     } = req.body;
 
     // Получаем связанные данные для генерации артикула
@@ -837,23 +839,45 @@ router.post('/products/preview-article', authenticateToken, async (req: AuthRequ
       puzzleTypeId ? db.query.puzzleTypes.findFirst({ where: eq(schema.puzzleTypes.id, puzzleTypeId) }) : null
     ]);
 
-    const productData = {
-      name: name || 'ТОВАР',
-      dimensions: dimensions || {},
-      material: material ? { name: material.name } : undefined,
-      pressType: pressType || 'not_selected',
-      surfaces: surfaces ? surfaces.map(s => ({ name: s.name })) : [],
-      borderType,
-      carpetEdgeType: carpetEdgeType || 'straight_cut',
-      carpetEdgeSides: carpetEdgeSides || 1,
-      carpetEdgeStrength: carpetEdgeStrength || 'normal',
-      puzzleType: puzzleType ? { name: puzzleType.name } : undefined,
-      bottomType: bottomType ? { code: bottomType.code } : undefined,
-      grade: grade || 'usual'
-    };
+    let previewArticle = '';
+    let validationData: any;
 
-    const previewArticle = generateArticle(productData);
-    const validation = validateProductData(productData);
+    if (productType === 'roll_covering') {
+      // Для рулонных покрытий используем специальный генератор
+      const { generateRollCoveringArticle } = await import('../utils/articleGenerator');
+      
+      const rollData = {
+        name: name || 'ТОВАР',
+        dimensions: dimensions || {},
+        surfaces: surfaces ? surfaces.map(s => ({ name: s.name })) : undefined,
+        bottomType: bottomType ? { code: bottomType.code } : undefined,
+        composition: composition || []
+      };
+      
+      previewArticle = generateRollCoveringArticle(rollData);
+      validationData = { name: name || 'ТОВАР' };
+    } else {
+      // Для ковровых изделий используем обычный генератор
+      const productData = {
+        name: name || 'ТОВАР',
+        dimensions: dimensions || {},
+        material: material ? { name: material.name } : undefined,
+        pressType: pressType || 'not_selected',
+        surfaces: surfaces ? surfaces.map(s => ({ name: s.name })) : [],
+        borderType,
+        carpetEdgeType: carpetEdgeType || 'straight_cut',
+        carpetEdgeSides: carpetEdgeSides || 1,
+        carpetEdgeStrength: carpetEdgeStrength || 'normal',
+        puzzleType: puzzleType ? { name: puzzleType.name } : undefined,
+        bottomType: bottomType ? { code: bottomType.code } : undefined,
+        grade: grade || 'usual'
+      };
+
+      previewArticle = generateArticle(productData);
+      validationData = productData;
+    }
+    
+    const validation = validateProductData(validationData);
 
     res.json({
       success: true,

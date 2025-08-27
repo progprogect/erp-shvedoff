@@ -72,6 +72,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
   const [purNumber, setPurNumber] = useState<number | undefined>(undefined); // номер ПУР
   const [rollComposition, setRollComposition] = useState<RollCompositionItem[]>([]); // состав рулонного покрытия
   const [manualOverride, setManualOverride] = useState<boolean>(false); // режим ручного редактирования артикула
+  const [carpets, setCarpets] = useState<any[]>([]); // список ковров для состава рулонных покрытий
   
   // Состояние для новых полей края ковра
   const [carpetEdgeTypes, setCarpetEdgeTypes] = useState<CarpetEdgeType[]>([]);
@@ -85,13 +86,14 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
 
   // Функция для генерации превью артикула с актуальными данными
   const generateArticlePreview = async (overrides = {}) => {
-    if (!autoGenerateArticle) return;
+    if ((productType === 'carpet' && !autoGenerateArticle) || (productType === 'roll_covering' && manualOverride)) return;
 
     try {
       const formValues = form.getFieldsValue();
       
       // Объединяем текущие значения состояния с переданными изменениями
       const previewData = {
+        productType: productType,
         name: formValues.name || '',
         dimensions: {
           length: formValues.length,
@@ -108,6 +110,8 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
         bottomTypeId: selectedBottomTypeId,
         puzzleTypeId: formValues.puzzleTypeId,
         grade: formValues.grade || 'usual',
+        // Добавляем состав для рулонных покрытий
+        composition: productType === 'roll_covering' ? rollComposition : undefined,
         // Применяем переданные изменения поверх текущих значений
         ...overrides
       };
@@ -116,7 +120,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
       if (response.success) {
         setPreviewArticle(response.data.article);
         // Если автогенерация включена, обновляем поле артикула
-        if (autoGenerateArticle) {
+        if ((productType === 'carpet' && autoGenerateArticle) || (productType === 'roll_covering' && !manualOverride)) {
           form.setFieldValue('article', response.data.article);
         }
       }
@@ -139,6 +143,35 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
   const handleSurfaceIdsChange = (value: number[]) => {
     setSelectedSurfaceIds(value);
     generateArticlePreview({ surfaceIds: value });
+  };
+
+  // Функции для управления составом рулонного покрытия
+  const addCompositionItem = () => {
+    const newItem: RollCompositionItem = {
+      carpetId: 0,
+      quantity: 1,
+      sortOrder: rollComposition.length
+    };
+    setRollComposition([...rollComposition, newItem]);
+  };
+
+  const removeCompositionItem = (index: number) => {
+    const newComposition = rollComposition.filter((_, i) => i !== index);
+    // Пересчитываем sortOrder
+    const reorderedComposition = newComposition.map((item, i) => ({
+      ...item,
+      sortOrder: i
+    }));
+    setRollComposition(reorderedComposition);
+    generateArticlePreview({ composition: reorderedComposition });
+  };
+
+  const updateCompositionItem = (index: number, field: 'carpetId' | 'quantity', value: number) => {
+    const newComposition = rollComposition.map((item, i) => 
+      i === index ? { ...item, [field]: value } : item
+    );
+    setRollComposition(newComposition);
+    generateArticlePreview({ composition: newComposition });
   };
 
 
@@ -250,12 +283,13 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
     
     setLoadingReferences(true);
     try {
-      const [surfacesResponse, logosResponse, materialsResponse, puzzleTypesResponse] = await Promise.all([
+      const [surfacesResponse, logosResponse, materialsResponse, puzzleTypesResponse, carpetsResponse] = await Promise.all([
         surfacesApi.getSurfaces(token),
         logosApi.getLogos(token),
         materialsApi.getMaterials(token),
         puzzleTypesApi.getPuzzleTypes(token),
-        bottomTypesApi.getBottomTypes(token)
+        bottomTypesApi.getBottomTypes(token),
+        catalogApi.getProducts({ productTypes: ['carpet'] }) // загружаем только ковры для состава
       ]);
 
       if (surfacesResponse.success) {
@@ -269,6 +303,9 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
       }
       if (puzzleTypesResponse.success) {
         setPuzzleTypes(puzzleTypesResponse.data);
+      }
+      if (carpetsResponse.success) {
+        setCarpets(carpetsResponse.data);
       }
       
       const bottomTypesResponse = await bottomTypesApi.getBottomTypes(token);
@@ -1300,6 +1337,78 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
             </Col>
           </Row>
         </FormBlock>
+        )}
+
+        {/* Блок 6: Состав рулонного покрытия (только для рулонных покрытий) */}
+        {productType === 'roll_covering' && (
+          <FormBlock title="Состав рулонного покрытия" icon="📋">
+            <div style={{ marginBottom: 16 }}>
+              <Button 
+                type="dashed" 
+                onClick={addCompositionItem} 
+                icon={<PlusOutlined />}
+                block
+              >
+                Добавить ковер в состав
+              </Button>
+            </div>
+            
+            {rollComposition.length > 0 && (
+              <div>
+                <Text strong style={{ display: 'block', marginBottom: 8 }}>
+                  Ковры в составе:
+                </Text>
+                {rollComposition.map((item, index) => (
+                  <Row key={index} gutter={16} style={{ marginBottom: 8 }}>
+                    <Col span={10}>
+                      <Select
+                        placeholder="Выберите ковер"
+                        value={item.carpetId || undefined}
+                        onChange={(value) => updateCompositionItem(index, 'carpetId', value)}
+                        style={{ width: '100%' }}
+                        showSearch
+                        optionFilterProp="children"
+                        loading={loadingReferences}
+                      >
+                        {carpets.map(carpet => (
+                          <Option key={carpet.id} value={carpet.id}>
+                            🪄 {carpet.name} ({carpet.article})
+                          </Option>
+                        ))}
+                      </Select>
+                    </Col>
+                    <Col span={6}>
+                      <InputNumber
+                        placeholder="Количество"
+                        min={1}
+                        value={item.quantity}
+                        onChange={(value) => updateCompositionItem(index, 'quantity', value || 1)}
+                        style={{ width: '100%' }}
+                      />
+                    </Col>
+                    <Col span={6}>
+                      <Text type="secondary">
+                        Позиция {index + 1}
+                      </Text>
+                    </Col>
+                    <Col span={2}>
+                      <Button 
+                        type="text" 
+                        danger 
+                        onClick={() => removeCompositionItem(index)}
+                        size="small"
+                      >
+                        ✕
+                      </Button>
+                    </Col>
+                  </Row>
+                ))}
+                <Text type="secondary" style={{ fontSize: '12px' }}>
+                  💡 Состав влияет на артикул: общее количество ковров будет добавлено как "СОСТАВ{'{N}'}"
+                </Text>
+              </div>
+            )}
+          </FormBlock>
         )}
 
         {/* Блок 7: Запасы и цены (для всех товаров) */}
