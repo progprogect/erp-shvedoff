@@ -125,6 +125,7 @@ router.get('/products', authenticateToken, async (req, res, next) => {
       logoIds,        // логотипы (массив ID)
       grades,         // сорта товаров (массив)
       pressTypes,     // типы пресса (массив) - AC3
+      productTypes,   // типы товара (массив) - carpet/other
       weightMin,      // минимальный вес
       weightMax,      // максимальный вес
       matAreaMin,     // минимальная площадь
@@ -251,6 +252,17 @@ router.get('/products', authenticateToken, async (req, res, next) => {
         .map(type => type as 'with_border' | 'without_border');
       if (validTypes.length > 0) {
         whereConditions.push(inArray(schema.products.borderType, validTypes));
+      }
+    }
+
+    // Фильтр по типу товара
+    if (productTypes) {
+      const typesList = Array.isArray(productTypes) ? productTypes : [productTypes];
+      const validTypes = typesList
+        .filter(type => typeof type === 'string' && ['carpet', 'other'].includes(type))
+        .map(type => type as 'carpet' | 'other');
+      if (validTypes.length > 0) {
+        whereConditions.push(inArray(schema.products.productType, validTypes));
       }
     }
 

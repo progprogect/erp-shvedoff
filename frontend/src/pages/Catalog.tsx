@@ -94,6 +94,7 @@ const Catalog: React.FC = () => {
   const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
   const [selectedBorderTypes, setSelectedBorderTypes] = useState<string[]>([]); // Задача 7.1
   const [selectedPressTypes, setSelectedPressTypes] = useState<string[]>([]); // AC3: Фильтр по прессу
+  const [selectedProductTypes, setSelectedProductTypes] = useState<string[]>([]); // Фильтр по типу товара
   const [weightFilter, setWeightFilter] = useState({
     min: null as number | null,
     max: null as number | null
@@ -166,7 +167,7 @@ const Catalog: React.FC = () => {
       loadProducts();
     }
   }, [searchText, checkedCategories, stockFilter, selectedMaterials, selectedSurfaces,
-      selectedLogos, selectedGrades, selectedPressTypes, weightFilter, onlyInStock, selectedBorderTypes,
+      selectedLogos, selectedGrades, selectedPressTypes, selectedProductTypes, weightFilter, onlyInStock, selectedBorderTypes,
       selectedCarpetEdgeTypes, selectedCarpetEdgeSides, selectedCarpetEdgeStrength,
       selectedBottomTypeIds, selectedPuzzleTypeIds, sizeFilters, sortBy, sortOrder, currentPage]);
 
@@ -209,6 +210,7 @@ const Catalog: React.FC = () => {
         logoIds: selectedLogos.length > 0 ? selectedLogos : undefined,
         grades: selectedGrades.length > 0 ? selectedGrades : undefined,
         pressTypes: selectedPressTypes.length > 0 ? selectedPressTypes : undefined, // AC3: Фильтр по прессу
+        productTypes: selectedProductTypes.length > 0 ? selectedProductTypes : undefined, // Фильтр по типу товара
         weightMin: weightFilter.min || undefined,
         weightMax: weightFilter.max || undefined,
         onlyInStock,
@@ -419,6 +421,7 @@ const Catalog: React.FC = () => {
     setSelectedGrades([]);
     setSelectedBorderTypes([]); // Задача 7.1
     setSelectedPressTypes([]); // AC3: Очистка фильтра по прессу
+    setSelectedProductTypes([]); // Очистка фильтра по типу товара
     setWeightFilter({ min: null, max: null });
     setOnlyInStock(false);
     
@@ -504,6 +507,7 @@ const Catalog: React.FC = () => {
     selectedSurfaces.length > 0 || 
     selectedGrades.length > 0 || 
     selectedPressTypes.length > 0 || // AC3: Фильтр по прессу
+    selectedProductTypes.length > 0 || // Фильтр по типу товара
     selectedBorderTypes.length > 0 || // Задача 7.1
     weightFilter.min !== null || 
     weightFilter.max !== null ||
@@ -531,6 +535,7 @@ const Catalog: React.FC = () => {
       (selectedLogos.length > 0 ? 1 : 0) +
       (selectedGrades.length > 0 ? 1 : 0) +
       (selectedPressTypes.length > 0 ? 1 : 0) +
+      (selectedProductTypes.length > 0 ? 1 : 0) +
       (weightFilter.min !== null || weightFilter.max !== null ? 1 : 0) +
       (stockRangeFilter.min !== null || stockRangeFilter.max !== null ? 1 : 0) +
       (onlyInStock ? 1 : 0) +
@@ -841,6 +846,23 @@ const Catalog: React.FC = () => {
                             <Option value="grade_2">⚠️ Второй сорт</Option>
                             <Option value="telyatnik">🐄 Телятник</Option>
                             <Option value="liber">🏆 Либер</Option>
+                          </Select>
+                        </div>
+                      </Col>
+
+                      {/* Фильтр по типу товара */}
+                      <Col span={6}>
+                        <Text strong>Тип товара</Text>
+                        <div style={{ marginTop: 8 }}>
+                          <Select
+                            mode="multiple"
+                            value={selectedProductTypes}
+                            onChange={setSelectedProductTypes}
+                            placeholder="Выберите тип"
+                            style={{ width: '100%' }}
+                          >
+                            <Option value="carpet">🪄 Ковровое изделие</Option>
+                            <Option value="other">📦 Другое</Option>
                           </Select>
                         </div>
                       </Col>

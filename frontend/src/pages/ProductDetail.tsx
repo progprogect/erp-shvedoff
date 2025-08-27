@@ -559,108 +559,128 @@ const ProductDetail: React.FC = () => {
                     {product?.article || 'Не указан'}
                   </Descriptions.Item>
                   
+                  <Descriptions.Item label="Тип товара">
+                    {product?.productType === 'carpet' ? (
+                      <Tag color="blue" icon="🪄">Ковровое изделие</Tag>
+                    ) : product?.productType === 'other' ? (
+                      <Tag color="green" icon="📦">Другое</Tag>
+                    ) : (
+                      <Tag color="default">Не указан</Tag>
+                    )}
+                  </Descriptions.Item>
+                  
                   <Descriptions.Item label="Категория">
                     {product?.categoryName || product?.category?.name || 'Не указана'}
                   </Descriptions.Item>
                   
-                  <Descriptions.Item label="Длина">
-                    {dimensions?.length || 0} мм
-                  </Descriptions.Item>
-                  
-                  <Descriptions.Item label="Ширина">
-                    {dimensions?.width || 0} мм
-                  </Descriptions.Item>
-                  
-                  <Descriptions.Item label="Высота">
-                    {dimensions?.thickness || 0} мм
-                  </Descriptions.Item>
-                  
-                  <Descriptions.Item label="Площадь">
-                    {product?.matArea ? `${product.matArea} м²` : 'Не указана'}
-                  </Descriptions.Item>
+                  {/* Размеры - только для ковров */}
+                  {product?.productType === 'carpet' && (
+                    <>
+                      <Descriptions.Item label="Длина">
+                        {dimensions?.length || 0} мм
+                      </Descriptions.Item>
+                      
+                      <Descriptions.Item label="Ширина">
+                        {dimensions?.width || 0} мм
+                      </Descriptions.Item>
+                      
+                      <Descriptions.Item label="Высота">
+                        {dimensions?.thickness || 0} мм
+                      </Descriptions.Item>
+                      
+                      <Descriptions.Item label="Площадь">
+                        {product?.matArea ? `${product.matArea} м²` : 'Не указана'}
+                      </Descriptions.Item>
+                    </>
+                  )}
                   
                   <Descriptions.Item label="Вес">
                     {product?.weight ? `${product.weight} кг` : 'Не указан'}
                   </Descriptions.Item>
                   
-                  <Descriptions.Item label="Сорт">
-                    {product?.grade === 'usual' ? 'Обычный' : 
-                     product?.grade === 'grade_2' ? 'Второй сорт' : 
-                     product?.grade === 'telyatnik' ? 'Телятник' :
-                     product?.grade === 'liber' ? 'Либер' :
-                     'Не указан'}
-                  </Descriptions.Item>
-                  
-                  <Descriptions.Item label="Тип борта">
-                    {product?.borderType === 'with_border' ? 'С бортом' : 
-                     product?.borderType === 'without_border' ? 'Без борта' : 
-                     'Не указан'}
-                  </Descriptions.Item>
-                  
-                  <Descriptions.Item label="Край ковра">
-                    {product?.carpetEdgeType === 'straight_cut' ? 'Литой' :
-                     product?.carpetEdgeType === 'direct_cut' ? 'Прямой рез' :
-                     product?.carpetEdgeType === 'puzzle' ? 'Пазл' :
-                     product?.carpetEdgeType === 'sub_puzzle' ? 'Под пазл' :
-                     product?.carpetEdgeType === 'cast_puzzle' ? 'Литой пазл' :
-                     'Не указан'}
-                  </Descriptions.Item>
-                  
-                  <Descriptions.Item label="Усиленный край">
-                    {product?.carpetEdgeStrength === 'normal' ? 'Усиленный' :
-                     product?.carpetEdgeStrength === 'weak' ? 'Не усиленный' :
-                     'Усиленный'}
-                  </Descriptions.Item>
-                  
-                  {/* Количество сторон - для всех типов кроме Литой */}
-                  {product?.carpetEdgeType && product?.carpetEdgeType !== 'straight_cut' && (
-                    <Descriptions.Item label="Количество сторон">
-                      {product?.carpetEdgeSides || 1} 
-                      {product?.carpetEdgeSides === 1 ? ' сторона' : 
-                       product?.carpetEdgeSides === 2 ? ' стороны' :
-                       product?.carpetEdgeSides === 3 ? ' стороны' : 
-                       ' сторон'}
-                    </Descriptions.Item>
-                  )}
-                  
-                  {/* Тип паззла - только для паззла */}
-                  {product?.carpetEdgeType === 'puzzle' && (
-                    <Descriptions.Item label="Тип паззла">
-                      {product?.puzzleType?.name || 'Не указан'}
-                    </Descriptions.Item>
-                  )}
-                  
-                  <Descriptions.Item label="Поверхности">
-                    {product?.surfaces && product.surfaces.length > 0 ? (
-                      <Space wrap>
-                        {product.surfaces.map(surface => (
-                          <Tag key={surface.id} color="blue">🎨 {surface.name}</Tag>
-                        ))}
-                      </Space>
-                    ) : product?.surface?.name ? (
-                      <Tag color="blue">🎨 {product.surface.name}</Tag>
-                    ) : (
-                      'Не указана'
-                    )}
-                  </Descriptions.Item>
-                  
-                  <Descriptions.Item label="Материал">
-                    {product?.material?.name || product?.characteristics?.material || 'Не указан'}
-                  </Descriptions.Item>
+                  {/* Ковровые характеристики - только для ковров */}
+                  {product?.productType === 'carpet' && (
+                    <>
+                      <Descriptions.Item label="Сорт">
+                        {product?.grade === 'usual' ? 'Обычный' : 
+                         product?.grade === 'grade_2' ? 'Второй сорт' : 
+                         product?.grade === 'telyatnik' ? 'Телятник' :
+                         product?.grade === 'liber' ? 'Либер' :
+                         'Не указан'}
+                      </Descriptions.Item>
+                      
+                      <Descriptions.Item label="Тип борта">
+                        {product?.borderType === 'with_border' ? 'С бортом' : 
+                         product?.borderType === 'without_border' ? 'Без борта' : 
+                         'Не указан'}
+                      </Descriptions.Item>
+                      
+                      <Descriptions.Item label="Край ковра">
+                        {product?.carpetEdgeType === 'straight_cut' ? 'Литой' :
+                         product?.carpetEdgeType === 'direct_cut' ? 'Прямой рез' :
+                         product?.carpetEdgeType === 'puzzle' ? 'Пазл' :
+                         product?.carpetEdgeType === 'sub_puzzle' ? 'Под пазл' :
+                         product?.carpetEdgeType === 'cast_puzzle' ? 'Литой пазл' :
+                         'Не указан'}
+                      </Descriptions.Item>
+                      
+                      <Descriptions.Item label="Усиленный край">
+                        {product?.carpetEdgeStrength === 'normal' ? 'Усиленный' :
+                         product?.carpetEdgeStrength === 'weak' ? 'Не усиленный' :
+                         'Усиленный'}
+                      </Descriptions.Item>
+                      
+                      {/* Количество сторон - для всех типов кроме Литой */}
+                      {product?.carpetEdgeType && product?.carpetEdgeType !== 'straight_cut' && (
+                        <Descriptions.Item label="Количество сторон">
+                          {product?.carpetEdgeSides || 1} 
+                          {product?.carpetEdgeSides === 1 ? ' сторона' : 
+                           product?.carpetEdgeSides === 2 ? ' стороны' :
+                           product?.carpetEdgeSides === 3 ? ' стороны' : 
+                           ' сторон'}
+                        </Descriptions.Item>
+                      )}
+                      
+                      {/* Тип паззла - только для паззла */}
+                      {product?.carpetEdgeType === 'puzzle' && (
+                        <Descriptions.Item label="Тип паззла">
+                          {product?.puzzleType?.name || 'Не указан'}
+                        </Descriptions.Item>
+                      )}
+                      
+                      <Descriptions.Item label="Поверхности">
+                        {product?.surfaces && product.surfaces.length > 0 ? (
+                          <Space wrap>
+                            {product.surfaces.map(surface => (
+                              <Tag key={surface.id} color="blue">🎨 {surface.name}</Tag>
+                            ))}
+                          </Space>
+                        ) : product?.surface?.name ? (
+                          <Tag color="blue">🎨 {product.surface.name}</Tag>
+                        ) : (
+                          'Не указана'
+                        )}
+                      </Descriptions.Item>
+                      
+                      <Descriptions.Item label="Материал">
+                        {product?.material?.name || product?.characteristics?.material || 'Не указан'}
+                      </Descriptions.Item>
 
-                  <Descriptions.Item label="Пресс">
-                    {product?.pressType === 'ukrainian' ? '🇺🇦 Украинский' : 
-                     product?.pressType === 'chinese' ? '🇨🇳 Китайский' : 
-                     '➖ Не выбрано'}
-                  </Descriptions.Item>
-                  
-                  <Descriptions.Item label="Логотип">
-                    {product?.logo?.name || 'Не указан'}
-                  </Descriptions.Item>
-                  
-                  <Descriptions.Item label="Низ ковра">
-                    {product?.bottomType?.name || 'Не указан'}
-                  </Descriptions.Item>
+                      <Descriptions.Item label="Пресс">
+                        {product?.pressType === 'ukrainian' ? '🇺🇦 Украинский' : 
+                         product?.pressType === 'chinese' ? '🇨🇳 Китайский' : 
+                         '➖ Не выбрано'}
+                      </Descriptions.Item>
+                      
+                      <Descriptions.Item label="Логотип">
+                        {product?.logo?.name || 'Не указан'}
+                      </Descriptions.Item>
+                      
+                      <Descriptions.Item label="Низ ковра">
+                        {product?.bottomType?.name || 'Не указан'}
+                      </Descriptions.Item>
+                    </>
+                  )}
                   
                   <Descriptions.Item label="Норма остатка">
                     {product?.normStock || 0} шт
@@ -1045,6 +1065,21 @@ const ProductDetail: React.FC = () => {
           </Row>
 
           <Row gutter={16}>
+            <Col span={24}>
+              <Form.Item label="Тип товара">
+                <Input 
+                  value={product?.productType === 'carpet' ? '🪄 Ковровое изделие' : '📦 Другое'}
+                  disabled
+                  style={{ backgroundColor: '#f5f5f5', color: '#666' }}
+                />
+                <div style={{ fontSize: '12px', color: '#999', marginTop: 4 }}>
+                  Тип товара нельзя изменить после создания
+                </div>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
             <Col span={12}>
               <Form.Item
                 name="article"
@@ -1085,19 +1120,22 @@ const ProductDetail: React.FC = () => {
                 />
               </Form.Item>
             </Col>
-            <Col span={12}>
-              <Form.Item
-                name="grade"
-                label="Сорт товара"
-              >
-                <Select style={{ width: '100%' }}>
-                  <Option value="usual">⭐ Обычный</Option>
-                  <Option value="grade_2">⚠️ Второй сорт</Option>
-                  <Option value="telyatnik">🐄 Телятник</Option>
-                  <Option value="liber">🏆 Либер</Option>
-                </Select>
-              </Form.Item>
-            </Col>
+            {/* Сорт товара - только для ковров */}
+            {product?.productType === 'carpet' && (
+              <Col span={12}>
+                <Form.Item
+                  name="grade"
+                  label="Сорт товара"
+                >
+                  <Select style={{ width: '100%' }}>
+                    <Option value="usual">⭐ Обычный</Option>
+                    <Option value="grade_2">⚠️ Второй сорт</Option>
+                    <Option value="telyatnik">🐄 Телятник</Option>
+                    <Option value="liber">🏆 Либер</Option>
+                  </Select>
+                </Form.Item>
+              </Col>
+            )}
           </Row>
 
           <Row gutter={16}>
@@ -1117,41 +1155,47 @@ const ProductDetail: React.FC = () => {
             </Col>
           </Row>
 
-          <Row gutter={16}>
-            <Col span={8}>
-              <Form.Item name="length" label="Длина (мм)">
-                <InputNumber style={{ width: '100%' }} min={1} />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item name="width" label="Ширина (мм)">
-                <InputNumber style={{ width: '100%' }} min={1} />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item name="thickness" label="Высота (мм)">
-                <InputNumber style={{ width: '100%' }} min={1} />
-              </Form.Item>
-            </Col>
-          </Row>
+          {/* Размеры - только для ковров */}
+          {product?.productType === 'carpet' && (
+            <Row gutter={16}>
+              <Col span={8}>
+                <Form.Item name="length" label="Длина (мм)">
+                  <InputNumber style={{ width: '100%' }} min={1} />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="width" label="Ширина (мм)">
+                  <InputNumber style={{ width: '100%' }} min={1} />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="thickness" label="Высота (мм)">
+                  <InputNumber style={{ width: '100%' }} min={1} />
+                </Form.Item>
+              </Col>
+            </Row>
+          )}
 
-          <Row gutter={16}>
-            <Col span={8}>
-              <Form.Item name="surfaceIds" label="Поверхности">
-                <Select 
-                  mode="multiple"
-                  placeholder="Выберите поверхности" 
-                  allowClear
-                  maxTagCount="responsive"
-                >
-                  {surfaces.map(surface => (
-                    <Option key={surface.id} value={surface.id}>
-                      🎨 {surface.name}
-                    </Option>
-                  ))}
-                </Select>
-              </Form.Item>
-            </Col>
+          {/* Ковровые характеристики - только для ковров */}
+          {product?.productType === 'carpet' && (
+            <>
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Form.Item name="surfaceIds" label="Поверхности">
+                    <Select 
+                      mode="multiple"
+                      placeholder="Выберите поверхности" 
+                      allowClear
+                      maxTagCount="responsive"
+                    >
+                      {surfaces.map(surface => (
+                        <Option key={surface.id} value={surface.id}>
+                          🎨 {surface.name}
+                        </Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+                </Col>
             <Col span={8}>
               <Form.Item name="logoId" label="Логотип">
                 <Select 
@@ -1291,6 +1335,8 @@ const ProductDetail: React.FC = () => {
                 </Col>
               )}
             </Row>
+          )}
+            </>
           )}
 
           <Row gutter={16}>

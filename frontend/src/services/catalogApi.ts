@@ -120,6 +120,7 @@ export interface ProductFilters {
   logoIds?: number[];        // логотипы
   grades?: string[];         // сорта товаров
   pressTypes?: string[];     // типы пресса (AC3)
+  productTypes?: string[];   // типы товара: carpet/other
   weightMin?: number;        // минимальный вес
   weightMax?: number;        // максимальный вес
   matAreaMin?: number;       // минимальная площадь
@@ -264,6 +265,9 @@ class CatalogApi {
     }
     if (filters.carpetEdgeStrength && filters.carpetEdgeStrength.length > 0) {
       filters.carpetEdgeStrength.forEach(strength => params.append('carpetEdgeStrength', strength));
+    }
+    if (filters.productTypes && filters.productTypes.length > 0) {
+      filters.productTypes.forEach(type => params.append('productTypes', type));
     }
     
     if (filters.sortBy) {
