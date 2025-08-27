@@ -141,11 +141,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
     generateArticlePreview({ surfaceIds: value });
   };
 
-  // Handler для изменения одиночного выбора поверхности (для рулонных покрытий)
-  const handleSurfaceIdChange = (value: number) => {
-    setSelectedSurfaceId(value);
-    generateArticlePreview({ surfaceId: value });
-  };
+
 
   const handleCarpetEdgeTypeChange = (value: string) => {
     setSelectedCarpetEdgeType(value);
@@ -801,7 +797,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                       : productType === 'pur'
                       ? "Например: ПУР-001, ПУР-ИЗОЛЯЦИЯ"
                       : productType === 'roll_covering'
-                      ? (manualOverride ? "Введите артикул вручную" : (previewArticle || "РУЛ-ПОКР-ЧЕШУЙ-ШИП0"))
+                      ? (manualOverride ? "Введите артикул вручную" : (previewArticle || "РУЛ-ПОКР-ЧЕШУЙ-ЧЕРТ-ШИП0"))
                       : (autoGenerateArticle ? (previewArticle || "Артикул будет сгенерирован...") : "Введите артикул")
                   }
                   disabled={(productType === 'carpet' && autoGenerateArticle) || (productType === 'roll_covering' && !manualOverride)}
@@ -1014,24 +1010,18 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
           <Row gutter={16}>
             <Col span={8}>
               <Form.Item
-                label={productType === 'carpet' ? "Поверхности" : "Поверхность"}
-                help={productType === 'carpet' ? "Можно выбрать одну или несколько поверхностей" : "Выберите одну поверхность (опционально)"}
+                label="Поверхности"
+                help="Можно выбрать одну или несколько поверхностей"
               >
                 <Select 
-                  mode={productType === 'carpet' ? "multiple" : undefined}
-                  placeholder={productType === 'carpet' ? "Выберите поверхности" : "Выберите поверхность"}
+                  mode="multiple"
+                  placeholder="Выберите поверхности"
                   loading={loadingReferences}
                   showSearch
                   optionFilterProp="children"
                   allowClear
-                  value={productType === 'carpet' ? selectedSurfaceIds : (selectedSurfaceId ? [selectedSurfaceId] : undefined)}
-                  onChange={(value: any) => {
-                    if (productType === 'carpet') {
-                      handleSurfaceIdsChange(value);
-                    } else {
-                      handleSurfaceIdChange(value);
-                    }
-                  }}
+                  value={selectedSurfaceIds}
+                  onChange={handleSurfaceIdsChange}
                   maxTagCount="responsive"
                 >
                   {surfaces.map(surface => (

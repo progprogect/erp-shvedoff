@@ -686,15 +686,15 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
         const { generateRollCoveringArticle } = await import('../utils/articleGenerator');
         
         // Получаем связанные данные для генерации артикула
-        const [surface, bottomType] = await Promise.all([
-          surfaceId ? db.query.productSurfaces.findFirst({ where: eq(schema.productSurfaces.id, surfaceId) }) : null,
+        const [surfaces, bottomType] = await Promise.all([
+          finalSurfaceIds.length > 0 ? db.query.productSurfaces.findMany({ where: inArray(schema.productSurfaces.id, finalSurfaceIds) }) : [],
           bottomTypeId ? db.query.bottomTypes.findFirst({ where: eq(schema.bottomTypes.id, bottomTypeId) }) : null
         ]);
         
         const rollData = {
           name,
           dimensions,
-          surface: surface ? { name: surface.name } : undefined,
+          surfaces: surfaces.length > 0 ? surfaces.map(s => ({ name: s.name })) : undefined,
           bottomType: bottomType ? { code: bottomType.code } : undefined,
           composition: composition || []
         };
@@ -736,7 +736,7 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
       categoryId,
       // Ковровые поля (для товаров типа 'carpet' и 'roll_covering')
       surfaceId: (validProductType === 'carpet' || validProductType === 'roll_covering') ? (surfaceId || null) : null, // DEPRECATED: для обратной совместимости
-      surfaceIds: validProductType === 'carpet' && finalSurfaceIds.length > 0 ? finalSurfaceIds : null, // новое поле - только для ковров (множественный выбор)
+      surfaceIds: (validProductType === 'carpet' || validProductType === 'roll_covering') && finalSurfaceIds.length > 0 ? finalSurfaceIds : null, // множественный выбор для ковров и рулонов
       logoId: validProductType === 'carpet' ? (logoId || null) : null, // логотип только для ковров
       materialId: validProductType === 'carpet' ? (materialId || null) : null, // материал только для ковров
       pressType: validProductType === 'carpet' ? (pressType || 'not_selected') : null, // пресс только для ковров

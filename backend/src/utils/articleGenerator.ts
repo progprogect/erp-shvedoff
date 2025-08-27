@@ -37,9 +37,9 @@ export interface RollCoveringData {
     width?: number;
     thickness?: number;
   };
-  surface?: {
+  surfaces?: Array<{
     name: string;
-  };
+  }>;
   bottomType?: {
     code?: string;
   };
@@ -357,8 +357,8 @@ export function generateRollCoveringArticle(productData: RollCoveringData): stri
   const dimensionsPart = formatRollDimensions(productData.dimensions);
   if (dimensionsPart) parts.push(dimensionsPart);
   
-  // 4. Поверхность (русскими буквами, как у ковров)
-  const surfaceCode = formatRollSurface(productData.surface);
+  // 4. Поверхности (русскими буквами, множественный выбор как у ковров)
+  const surfaceCode = formatRollSurfaces(productData.surfaces);
   if (surfaceCode) parts.push(surfaceCode);
   
   // 5. Низ ковра (используем коды из справочника)
@@ -425,10 +425,10 @@ function formatRollDimensions(dimensions?: { length?: number; width?: number; th
 }
 
 /**
- * Форматирует поверхность для рулонных покрытий (русскими буквами как у ковров)
+ * Форматирует поверхности для рулонных покрытий (множественный выбор, русскими буквами как у ковров)
  */
-function formatRollSurface(surface?: { name: string }): string {
-  if (!surface?.name) return '';
+function formatRollSurfaces(surfaces?: Array<{ name: string }>): string {
+  if (!surfaces || surfaces.length === 0) return '';
   
   // Используем те же русские коды что и для ковровых изделий
   const surfaceMappings: { [key: string]: string } = {
@@ -440,8 +440,13 @@ function formatRollSurface(surface?: { name: string }): string {
     'чешуйка с лого': 'ЧЕШУЙ-ЛОГО'
   };
   
-  const normalized = surface.name.toLowerCase().trim();
-  return surfaceMappings[normalized] || surface.name.toUpperCase().substring(0, 5);
+  const formattedSurfaces = surfaces.map(surface => {
+    const normalized = surface.name.toLowerCase().trim();
+    return surfaceMappings[normalized] || surface.name.toUpperCase().substring(0, 5);
+  });
+  
+  // Объединяем поверхности через дефис (как у ковров)
+  return formattedSurfaces.join('-');
 }
 
 /**
@@ -480,7 +485,7 @@ export function previewRollCoveringArticle(productData: Partial<RollCoveringData
       length: productData.dimensions?.length || 0,
       thickness: productData.dimensions?.thickness || 0
     },
-    surface: productData.surface,
+    surfaces: productData.surfaces,
     bottomType: productData.bottomType,
     composition: productData.composition || []
   };
