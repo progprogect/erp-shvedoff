@@ -618,10 +618,10 @@ const ProductDetail: React.FC = () => {
                     <>
                       {/* Поверхность */}
                       <Descriptions.Item label="Поверхность">
-                        {surfaces.length > 0 ? (
+                        {product?.surfaces && product.surfaces.length > 0 ? (
                           <Space wrap>
-                            {surfaces.map((surface, index) => (
-                              <Tag key={index} color="blue">{`🎨 ${surface}`}</Tag>
+                            {product.surfaces.map((surface, index) => (
+                              <Tag key={index} color="blue">{`🎨 ${surface.name || surface}`}</Tag>
                             ))}
                           </Space>
                         ) : (

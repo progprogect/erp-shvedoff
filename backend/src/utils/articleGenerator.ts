@@ -477,13 +477,13 @@ function formatRollSurfaces(surfaces?: Array<{ name: string }>): string {
 }
 
 /**
- * Форматирует низ ковра для рулонных покрытий
+ * Форматирует низ ковра для рулонных покрытий (аналогично ковровым изделиям)
  */
 function formatRollBottom(bottomType?: { code?: string }): string {
   if (!bottomType?.code) return '';
   
-  // Используем коды из справочника низов (как они есть)
-  return bottomType.code.toUpperCase();
+  // Используем ту же логику что и для ковровых изделий
+  return formatBottom(bottomType.code);
 }
 
 /**
