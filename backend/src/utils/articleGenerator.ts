@@ -268,8 +268,9 @@ function formatEdge(
     parts.push(puzzleSuffix);
   }
 
-  // Количество сторон (всегда для не-Литых краев)
-  if (sides) {
+  // Количество сторон (для краев которые требуют выбора сторон)
+  // Прямой рез применяется ко всем сторонам - стороны не указываем
+  if (sides && edgeType !== 'direct_cut' && edgeType !== 'straight') {
     parts.push(`${sides}ст`);
   }
 
