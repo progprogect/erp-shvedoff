@@ -1398,6 +1398,58 @@ const ProductDetail: React.FC = () => {
             </>
           )}
 
+          {/* Характеристики рулонного покрытия - только для рулонных покрытий */}
+          {product?.productType === 'roll_covering' && (
+            <>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item name="surfaceIds" label="Поверхности">
+                    <Select 
+                      mode="multiple"
+                      placeholder="Выберите поверхности" 
+                      allowClear
+                      maxTagCount="responsive"
+                    >
+                      {surfaces.map(surface => (
+                        <Option key={surface.id} value={surface.id}>
+                          🎨 {surface.name}
+                        </Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="bottomTypeId" label="Низ ковра">
+                    <Select placeholder="Выберите тип низа" allowClear>
+                      {bottomTypes.map(type => (
+                        <Option key={type.id} value={type.id}>
+                          🔽 {type.name}
+                        </Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              {/* Состав рулонного покрытия */}
+              <Form.Item label="Состав рулонного покрытия">
+                <div style={{ 
+                  border: '1px solid #d9d9d9', 
+                  borderRadius: '6px', 
+                  padding: '12px',
+                  backgroundColor: '#fafafa'
+                }}>
+                  <div style={{ marginBottom: 8, fontSize: '12px', color: '#666' }}>
+                    Состав рулонного покрытия можно изменить только при создании товара
+                  </div>
+                  <div style={{ fontSize: '14px', color: '#999' }}>
+                    Для изменения состава создайте новое рулонное покрытие
+                  </div>
+                </div>
+              </Form.Item>
+            </>
+          )}
+
           <Row gutter={16}>
             <Col span={8}>
               <Form.Item name="price" label="Цена продажи">
