@@ -244,6 +244,7 @@ const ProductDetail: React.FC = () => {
       article: product.article,
       categoryId: product.categoryId,
       managerId: product.managerId,
+      purNumber: product.purNumber, // номер ПУР для товаров типа ПУР
       surfaceIds: product.surfaceIds || (product.surfaceId ? [product.surfaceId] : []), // обратная совместимость
       logoId: product.logoId,
       materialId: product.materialId,
@@ -1214,6 +1215,21 @@ const ProductDetail: React.FC = () => {
               <Col span={8}>
                 <Form.Item name="thickness" label="Высота (мм)">
                   <InputNumber style={{ width: '100%' }} min={1} />
+                </Form.Item>
+              </Col>
+            </Row>
+          )}
+
+          {/* Номер ПУР - только для товаров типа ПУР */}
+          {product?.productType === 'pur' && (
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item name="purNumber" label="Номер ПУР">
+                  <InputNumber 
+                    placeholder="Введите номер ПУР"
+                    style={{ width: '100%' }}
+                    min={1}
+                  />
                 </Form.Item>
               </Col>
             </Row>
