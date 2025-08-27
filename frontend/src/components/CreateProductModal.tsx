@@ -283,7 +283,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
     
     setLoadingReferences(true);
     try {
-      const [surfacesResponse, logosResponse, materialsResponse, puzzleTypesResponse, carpetsResponse] = await Promise.all([
+      const [surfacesResponse, logosResponse, materialsResponse, puzzleTypesResponse, bottomTypesResponse, carpetsResponse] = await Promise.all([
         surfacesApi.getSurfaces(token),
         logosApi.getLogos(token),
         materialsApi.getMaterials(token),
@@ -304,14 +304,15 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
       if (puzzleTypesResponse.success) {
         setPuzzleTypes(puzzleTypesResponse.data);
       }
+      if (bottomTypesResponse.success) {
+        setBottomTypes(bottomTypesResponse.data);
+      }
       if (carpetsResponse.success) {
         setCarpets(carpetsResponse.data);
       }
       
-      const bottomTypesResponse = await bottomTypesApi.getBottomTypes(token);
+      // Устанавливаем значение по умолчанию (шип-0)
       if (bottomTypesResponse.success) {
-        setBottomTypes(bottomTypesResponse.data);
-        // Устанавливаем значение по умолчанию (шип-0)
         const defaultBottomType = bottomTypesResponse.data.find(bt => bt.code === 'spike_0');
         if (defaultBottomType) {
           setSelectedBottomTypeId(defaultBottomType.id);
@@ -1312,8 +1313,8 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
         </FormBlock>
         )}
 
-        {/* Блок 5: Низ ковра (только для ковров) */}
-        {productType === 'carpet' && (
+        {/* Блок 5: Низ ковра (для ковров и рулонных покрытий) */}
+        {(productType === 'carpet' || productType === 'roll_covering') && (
           <FormBlock title="Низ ковра" icon="🔽">
           <Row gutter={16}>
             <Col span={8}>
@@ -1371,11 +1372,18 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                         style={{ width: '100%' }}
                         showSearch
                         optionFilterProp="children"
+                        filterOption={(input, option) => {
+                          const carpet = carpets.find(c => c.id === option?.value);
+                          if (!carpet) return false;
+                          const searchText = input.toLowerCase();
+                          return carpet.article.toLowerCase().includes(searchText) ||
+                                 carpet.name.toLowerCase().includes(searchText);
+                        }}
                         loading={loadingReferences}
                       >
                         {carpets.map(carpet => (
                           <Option key={carpet.id} value={carpet.id}>
-                            🪄 {carpet.name} ({carpet.article})
+                            🪄 {carpet.article} - {carpet.name}
                           </Option>
                         ))}
                       </Select>
