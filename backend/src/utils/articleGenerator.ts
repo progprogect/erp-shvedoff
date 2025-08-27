@@ -126,11 +126,13 @@ function formatDimensions(dimensions: { length?: number; width?: number; thickne
 function formatMaterial(material?: string): string {
   if (!material) return '';
 
-  // Можно добавить мапинг для сокращений материалов
+  // Мапинг для сокращений материалов
   const materialMap: Record<string, string> = {
     'резина': 'РЕЗ',
     'каучук': 'КАУ',
     'gea': 'GEA',
+    'дробленка': 'ДРОБ',
+    'протектор': 'ПРОТ',
     // добавить другие при необходимости
   };
 
