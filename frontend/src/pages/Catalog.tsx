@@ -864,6 +864,7 @@ const Catalog: React.FC = () => {
                             <Option value="carpet">🪄 Ковровое изделие</Option>
                             <Option value="other">📦 Другое</Option>
                             <Option value="pur">🔧 ПУР</Option>
+                            <Option value="roll_covering">🏭 Рулонное покрытие</Option>
                           </Select>
                         </div>
                       </Col>

@@ -113,7 +113,7 @@ export const pressTypeEnum = pgEnum('press_type', ['not_selected', 'ukrainian', 
 export const borderTypeEnum = pgEnum('border_type', ['with_border', 'without_border']);
 
 // Enum для типа товара (Задача: Товары типа "Другое")
-export const productTypeEnum = pgEnum('product_type', ['carpet', 'other', 'pur']);
+export const productTypeEnum = pgEnum('product_type', ['carpet', 'other', 'pur', 'roll_covering']);
 
 // Products table - FR-002
 export const products = pgTable('products', {
@@ -397,6 +397,17 @@ export const bottomTypes = pgTable('bottom_types', {
   createdAt: timestamp('created_at').defaultNow().notNull()
 });
 
+// Таблица состава рулонных покрытий
+export const rollCoveringComposition = pgTable('roll_covering_composition', {
+  id: serial('id').primaryKey(),
+  rollCoveringId: integer('roll_covering_id').references(() => products.id, { onDelete: 'cascade' }).notNull(),
+  carpetId: integer('carpet_id').references(() => products.id, { onDelete: 'cascade' }).notNull(),
+  quantity: integer('quantity').notNull(),
+  sortOrder: integer('sort_order').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   orders: many(orders),
@@ -446,6 +457,11 @@ export const bottomTypesRelations = relations(bottomTypes, ({ many }) => ({
   products: many(products)
 }));
 
+export const rollCoveringCompositionRelations = relations(rollCoveringComposition, ({ one }) => ({
+  rollCovering: one(products, { fields: [rollCoveringComposition.rollCoveringId], references: [products.id] }),
+  carpet: one(products, { fields: [rollCoveringComposition.carpetId], references: [products.id] })
+}));
+
 export const productsRelations = relations(products, ({ one, many }) => ({
   category: one(categories, { fields: [products.categoryId], references: [categories.id] }),
   manager: one(users, { fields: [products.managerId], references: [users.id] }),
@@ -462,7 +478,9 @@ export const productsRelations = relations(products, ({ one, many }) => ({
   productionTasks: many(productionTasks),
   productionTaskExtras: many(productionTaskExtras),
   sourceCuttingOperations: many(cuttingOperations, { relationName: 'sourceCuttingOperations' }),
-  targetCuttingOperations: many(cuttingOperations, { relationName: 'targetCuttingOperations' })
+  targetCuttingOperations: many(cuttingOperations, { relationName: 'targetCuttingOperations' }),
+  rollComposition: many(rollCoveringComposition, { relationName: 'rollComposition' }),
+  carpetInRolls: many(rollCoveringComposition, { relationName: 'carpetInRolls' })
 }));
 
 export const ordersRelations = relations(orders, ({ one, many }) => ({

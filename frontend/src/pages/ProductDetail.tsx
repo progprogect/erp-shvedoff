@@ -566,6 +566,8 @@ const ProductDetail: React.FC = () => {
                       <Tag color="green" icon="📦">Другое</Tag>
                     ) : product?.productType === 'pur' ? (
                       <Tag color="orange" icon="🔧">ПУР</Tag>
+                    ) : product?.productType === 'roll_covering' ? (
+                      <Tag color="purple" icon="🏭">Рулонное покрытие</Tag>
                     ) : (
                       <Tag color="default">Не указан</Tag>
                     )}
@@ -586,8 +588,8 @@ const ProductDetail: React.FC = () => {
                     </Descriptions.Item>
                   )}
                   
-                  {/* Размеры - для ковров и ПУР */}
-                  {(product?.productType === 'carpet' || product?.productType === 'pur') && (
+                  {/* Размеры - для ковров, ПУР и рулонных покрытий */}
+                  {(product?.productType === 'carpet' || product?.productType === 'pur' || product?.productType === 'roll_covering') && (
                     <>
                       <Descriptions.Item label="Длина">
                         {dimensions?.length || 0} мм
@@ -611,7 +613,30 @@ const ProductDetail: React.FC = () => {
                     {product?.weight ? `${product.weight} кг` : 'Не указан'}
                   </Descriptions.Item>
                   
-                  {/* Ковровые характеристики - только для ковров */}
+                  {/* Общие характеристики для ковров и рулонных покрытий */}
+                  {(product?.productType === 'carpet' || product?.productType === 'roll_covering') && (
+                    <>
+                      {/* Поверхность */}
+                      <Descriptions.Item label="Поверхность">
+                        {surfaces.length > 0 ? (
+                          <Space wrap>
+                            {surfaces.map((surface, index) => (
+                              <Tag key={index} color="blue">🎨 {surface}</Tag>
+                            ))}
+                          </Space>
+                        ) : (
+                          'Не указана'
+                        )}
+                      </Descriptions.Item>
+                      
+                      {/* Низ ковра */}
+                      <Descriptions.Item label="Низ ковра">
+                        {product?.bottomTypeName || 'Не указан'}
+                      </Descriptions.Item>
+                    </>
+                  )}
+                  
+                  {/* Характеристики только для ковров */}
                   {product?.productType === 'carpet' && (
                     <>
                       <Descriptions.Item label="Сорт">
@@ -1084,7 +1109,8 @@ const ProductDetail: React.FC = () => {
                   value={
                     product?.productType === 'carpet' ? '🪄 Ковровое изделие' : 
                     product?.productType === 'other' ? '📦 Другое' :
-                    product?.productType === 'pur' ? '🔧 ПУР' : 'Не указан'
+                    product?.productType === 'pur' ? '🔧 ПУР' :
+                    product?.productType === 'roll_covering' ? '🏭 Рулонное покрытие' : 'Не указан'
                   }
                   disabled
                   style={{ backgroundColor: '#f5f5f5', color: '#666' }}
@@ -1172,8 +1198,8 @@ const ProductDetail: React.FC = () => {
             </Col>
           </Row>
 
-          {/* Размеры - для ковров и ПУР */}
-          {(product?.productType === 'carpet' || product?.productType === 'pur') && (
+          {/* Размеры - для ковров, ПУР и рулонных покрытий */}
+          {(product?.productType === 'carpet' || product?.productType === 'pur' || product?.productType === 'roll_covering') && (
             <Row gutter={16}>
               <Col span={8}>
                 <Form.Item name="length" label="Длина (мм)">

@@ -30,6 +30,26 @@ export interface ProductData {
   grade?: 'usual' | 'grade_2' | 'telyatnik' | 'liber';
 }
 
+export interface RollCoveringData {
+  name: string;
+  dimensions?: {
+    length?: number;
+    width?: number;
+    thickness?: number;
+  };
+  surface?: {
+    name: string;
+  };
+  bottomType?: {
+    code?: string;
+  };
+  composition?: Array<{
+    carpetId: number;
+    quantity: number;
+    sortOrder: number;
+  }>;
+}
+
 /**
  * Генерирует артикул на основе характеристик товара
  */
@@ -314,4 +334,116 @@ export function previewArticle(product: Partial<ProductData>): string {
   };
 
   return generateArticle(defaultProduct);
+}
+
+// ==================== РУЛОННЫЕ ПОКРЫТИЯ ====================
+
+/**
+ * Генерация артикула для рулонных покрытий
+ * Формат: RLN-{ШИР}x{ДЛН}x{ВЫС}-{P}-{B}-{C}-{SEQ}
+ */
+export function generateRollCoveringArticle(productData: RollCoveringData): string {
+  const parts: string[] = [];
+  
+  // 1. Префикс для рулонных покрытий
+  parts.push('RLN');
+  
+  // 2. Размеры: {ШИР}x{ДЛН}x{ВЫС}
+  const width = productData.dimensions?.width || 0;
+  const length = productData.dimensions?.length || 0;
+  const thickness = productData.dimensions?.thickness || 0;
+  parts.push(`${width}x${length}x${thickness}`);
+  
+  // 3. Код поверхности: {P}
+  const surfaceCode = formatRollSurface(productData.surface);
+  parts.push(surfaceCode);
+  
+  // 4. Код низа ковра: {B}
+  const bottomCode = formatRollBottom(productData.bottomType);
+  parts.push(bottomCode);
+  
+  // 5. Состав: {C}
+  const compositionCode = formatRollComposition(productData.composition);
+  parts.push(compositionCode);
+  
+  // 6. Уникальный суффикс: {SEQ}
+  const sequence = generateSequence();
+  parts.push(sequence);
+  
+  return parts.join('-');
+}
+
+/**
+ * Форматирует поверхность для рулонных покрытий
+ */
+function formatRollSurface(surface?: { name: string }): string {
+  if (!surface?.name) return 'NP'; // No Pattern
+  
+  // Используем существующие коды поверхностей
+  const surfaceMappings: { [key: string]: string } = {
+    'черточки': 'CHR',
+    'чешуйки': 'CHE', 
+    'чешуйка': 'CHE',
+    'гладкая': 'GLD',
+    '1 коровка': 'K1',
+    '3 коровки': 'K3',
+    'чешуйка с лого': 'CHL'
+  };
+  
+  const normalized = surface.name.toLowerCase().trim();
+  return surfaceMappings[normalized] || 'NP';
+}
+
+/**
+ * Форматирует низ ковра для рулонных покрытий
+ */
+function formatRollBottom(bottomType?: { code?: string }): string {
+  if (!bottomType?.code) return 'NB'; // No Bottom
+  
+  // Используем коды из справочника низов
+  return bottomType.code.toUpperCase();
+}
+
+/**
+ * Форматирует состав рулонного покрытия
+ */
+function formatRollComposition(composition?: Array<{ carpetId: number; quantity: number; sortOrder: number }>): string {
+  if (!composition || composition.length === 0) return 'C0';
+  
+  // Считаем общее количество ковров в составе
+  const totalQuantity = composition.reduce((sum, item) => sum + item.quantity, 0);
+  return `C${totalQuantity}`;
+}
+
+/**
+ * Генерирует уникальный последовательный суффикс
+ */
+function generateSequence(): string {
+  // Для демонстрации используем простой счетчик на основе времени
+  // В реальном приложении это должно быть более надежное решение
+  const now = new Date();
+  const dayOfYear = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24));
+  const timeComponent = String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0');
+  const sequence = (dayOfYear * 10000 + parseInt(timeComponent)) % 9999;
+  
+  return String(sequence).padStart(4, '0');
+}
+
+/**
+ * Предварительный просмотр артикула для рулонных покрытий
+ */
+export function previewRollCoveringArticle(productData: Partial<RollCoveringData>): string {
+  const defaultData: RollCoveringData = {
+    name: productData.name || '',
+    dimensions: {
+      width: productData.dimensions?.width || 0,
+      length: productData.dimensions?.length || 0,
+      thickness: productData.dimensions?.thickness || 0
+    },
+    surface: productData.surface,
+    bottomType: productData.bottomType,
+    composition: productData.composition || []
+  };
+  
+  return generateRollCoveringArticle(defaultData);
 }

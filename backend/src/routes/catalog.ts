@@ -259,8 +259,8 @@ router.get('/products', authenticateToken, async (req, res, next) => {
     if (productTypes) {
       const typesList = Array.isArray(productTypes) ? productTypes : [productTypes];
       const validTypes = typesList
-        .filter(type => typeof type === 'string' && ['carpet', 'other', 'pur'].includes(type))
-        .map(type => type as 'carpet' | 'other' | 'pur');
+        .filter(type => typeof type === 'string' && ['carpet', 'other', 'pur', 'roll_covering'].includes(type))
+        .map(type => type as 'carpet' | 'other' | 'pur' | 'roll_covering');
       if (validTypes.length > 0) {
         whereConditions.push(inArray(schema.products.productType, validTypes));
       }
@@ -563,7 +563,9 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
       // Поля паззла
       puzzleTypeId,
       puzzleSides,
-      autoGenerateArticle // флаг автогенерации артикула
+      autoGenerateArticle, // флаг автогенерации артикула
+      // Поля для рулонных покрытий
+      composition // состав рулонного покрытия
     } = req.body;
 
     if (!name || !categoryId) {
@@ -572,8 +574,8 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
 
     // Валидация типа товара
     const validProductType = productType || 'carpet'; // по умолчанию ковер
-    if (!['carpet', 'other', 'pur'].includes(validProductType)) {
-      return next(createError('Product type must be "carpet", "other", or "pur"', 400));
+    if (!['carpet', 'other', 'pur', 'roll_covering'].includes(validProductType)) {
+      return next(createError('Product type must be "carpet", "other", "pur", or "roll_covering"', 400));
     }
 
     // Для товаров типа "other" артикул обязателен и автогенерация отключена
@@ -641,7 +643,7 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
       return next(createError('Недопустимое значение типа пресса', 400));
     }
 
-    // Автогенерация артикула если включена (только для ковров)
+    // Автогенерация артикула если включена (для ковров и рулонных покрытий)
     let finalArticle = article;
     
     if (validProductType === 'carpet' && (autoGenerateArticle || !article)) {
@@ -676,6 +678,33 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
         finalArticle = article || `${name.toUpperCase()}-${Date.now()}`;
       }
     }
+    
+    // Автогенерация артикула для рулонных покрытий
+    if (validProductType === 'roll_covering' && (autoGenerateArticle || !article)) {
+      try {
+        // Импортируем функцию генерации для рулонных покрытий
+        const { generateRollCoveringArticle } = await import('../utils/articleGenerator');
+        
+        // Получаем связанные данные для генерации артикула
+        const [surface, bottomType] = await Promise.all([
+          surfaceId ? db.query.productSurfaces.findFirst({ where: eq(schema.productSurfaces.id, surfaceId) }) : null,
+          bottomTypeId ? db.query.bottomTypes.findFirst({ where: eq(schema.bottomTypes.id, bottomTypeId) }) : null
+        ]);
+        
+        const rollData = {
+          name,
+          dimensions,
+          surface: surface ? { name: surface.name } : undefined,
+          bottomType: bottomType ? { code: bottomType.code } : undefined,
+          composition: composition || []
+        };
+        
+        finalArticle = generateRollCoveringArticle(rollData);
+      } catch (genError) {
+        console.error('Ошибка генерации артикула для рулонного покрытия:', genError);
+        finalArticle = article || `RLN-${Date.now()}`;
+      }
+    }
 
     // Проверяем уникальность артикула (если указан) - проверка без учета регистра
     if (finalArticle) {
@@ -705,13 +734,13 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
       productType: validProductType,
       purNumber: validProductType === 'pur' ? (purNumber || null) : null, // номер ПУР только для товаров типа pur
       categoryId,
-      // Ковровые поля (только для товаров типа 'carpet')
-      surfaceId: validProductType === 'carpet' ? (surfaceId || null) : null, // DEPRECATED: для обратной совместимости
-      surfaceIds: validProductType === 'carpet' && finalSurfaceIds.length > 0 ? finalSurfaceIds : null, // новое поле
-      logoId: validProductType === 'carpet' ? (logoId || null) : null,
-      materialId: validProductType === 'carpet' ? (materialId || null) : null,
-      pressType: validProductType === 'carpet' ? (pressType || 'not_selected') : null, // новое поле
-      dimensions: (validProductType === 'carpet' || validProductType === 'pur') ? dimensions : null, // размеры для ковров и ПУР
+      // Ковровые поля (для товаров типа 'carpet' и 'roll_covering')
+      surfaceId: (validProductType === 'carpet' || validProductType === 'roll_covering') ? (surfaceId || null) : null, // DEPRECATED: для обратной совместимости
+      surfaceIds: validProductType === 'carpet' && finalSurfaceIds.length > 0 ? finalSurfaceIds : null, // новое поле - только для ковров (множественный выбор)
+      logoId: validProductType === 'carpet' ? (logoId || null) : null, // логотип только для ковров
+      materialId: validProductType === 'carpet' ? (materialId || null) : null, // материал только для ковров
+      pressType: validProductType === 'carpet' ? (pressType || 'not_selected') : null, // пресс только для ковров
+      dimensions: (validProductType === 'carpet' || validProductType === 'pur' || validProductType === 'roll_covering') ? dimensions : null, // размеры для ковров, ПУР и рулонов
       characteristics: validProductType === 'carpet' ? characteristics : null,
       puzzleOptions: validProductType === 'carpet' ? (puzzleOptions || null) : null,
       matArea: validProductType === 'carpet' && matArea ? parseFloat(matArea).toString() : null,
@@ -727,8 +756,8 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
       carpetEdgeType: validProductType === 'carpet' ? (carpetEdgeType || 'straight_cut') : null,
       carpetEdgeSides: validProductType === 'carpet' ? (carpetEdgeSides || 1) : null,
       carpetEdgeStrength: validProductType === 'carpet' ? (carpetEdgeStrength || 'normal') : null,
-      // Поле для низа ковра (только для ковров)
-      bottomTypeId: validProductType === 'carpet' ? (bottomTypeId || null) : null,
+      // Поле для низа ковра (для ковров и рулонных покрытий)
+      bottomTypeId: (validProductType === 'carpet' || validProductType === 'roll_covering') ? (bottomTypeId || null) : null,
       // Поля паззла (только для ковров)
       puzzleTypeId: validProductType === 'carpet' ? (puzzleTypeId || null) : null,
       puzzleSides: validProductType === 'carpet' ? (puzzleSides || null) : null
@@ -754,6 +783,23 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
         userId: req.user!.id,
         createdAt: new Date()
       });
+    }
+
+    // Сохраняем состав для рулонных покрытий
+    if (validProductType === 'roll_covering' && composition && composition.length > 0) {
+      try {
+        const compositionItems = composition.map((item: any, index: number) => ({
+          rollCoveringId: newProduct[0].id,
+          carpetId: item.carpetId,
+          quantity: item.quantity,
+          sortOrder: item.sortOrder || index
+        }));
+        
+        await db.insert(schema.rollCoveringComposition).values(compositionItems);
+      } catch (compositionError) {
+        console.error('Ошибка сохранения состава рулонного покрытия:', compositionError);
+        // Состав не критичен, товар уже создан, продолжаем
+      }
     }
 
     res.status(201).json({

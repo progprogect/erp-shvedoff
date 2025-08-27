@@ -7,7 +7,7 @@ export interface Product {
   id: number;
   name: string;
   article?: string;
-  productType?: 'carpet' | 'other' | 'pur'; // тип товара
+  productType?: 'carpet' | 'other' | 'pur' | 'roll_covering'; // тип товара
   purNumber?: number; // номер ПУР (только для товаров типа pur)
   categoryId?: number;
   category?: Category;
@@ -450,6 +450,15 @@ class CatalogApi {
     );
     return response.data;
   }
+}
+
+// Интерфейс для состава рулонного покрытия
+export interface RollCompositionItem {
+  id?: number;
+  carpetId: number;
+  carpetName?: string;
+  quantity: number;
+  sortOrder: number;
 }
 
 export const catalogApi = new CatalogApi(); 

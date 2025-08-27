@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal, Form, Input, Select, InputNumber, Row, Col, Button, Space, Typography, App } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import PriceInput from './PriceInput';
-import { catalogApi, Category } from '../services/catalogApi';
+import { catalogApi, Category, RollCompositionItem } from '../services/catalogApi';
 import { surfacesApi, Surface } from '../services/surfacesApi';
 import { logosApi, Logo } from '../services/logosApi';
 import { materialsApi, Material } from '../services/materialsApi';
@@ -68,8 +68,10 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
   const [pressType, setPressType] = useState<string>('not_selected'); // новое поле пресса
   const [previewArticle, setPreviewArticle] = useState<string>(''); // превью артикула
   const [autoGenerateArticle, setAutoGenerateArticle] = useState<boolean>(true); // флаг автогенерации
-  const [productType, setProductType] = useState<'carpet' | 'other' | 'pur'>('carpet'); // тип товара
+  const [productType, setProductType] = useState<'carpet' | 'other' | 'pur' | 'roll_covering'>('carpet'); // тип товара
   const [purNumber, setPurNumber] = useState<number | undefined>(undefined); // номер ПУР
+  const [rollComposition, setRollComposition] = useState<RollCompositionItem[]>([]); // состав рулонного покрытия
+  const [manualOverride, setManualOverride] = useState<boolean>(false); // режим ручного редактирования артикула
   
   // Состояние для новых полей края ковра
   const [carpetEdgeTypes, setCarpetEdgeTypes] = useState<CarpetEdgeType[]>([]);
@@ -139,6 +141,12 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
     generateArticlePreview({ surfaceIds: value });
   };
 
+  // Handler для изменения одиночного выбора поверхности (для рулонных покрытий)
+  const handleSurfaceIdChange = (value: number) => {
+    setSelectedSurfaceId(value);
+    generateArticlePreview({ surfaceId: value });
+  };
+
   const handleCarpetEdgeTypeChange = (value: string) => {
     setSelectedCarpetEdgeType(value);
     
@@ -189,7 +197,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
   };
 
   // Handler для смены типа товара
-  const handleProductTypeChange = (type: 'carpet' | 'other' | 'pur') => {
+  const handleProductTypeChange = (type: 'carpet' | 'other' | 'pur' | 'roll_covering') => {
     setProductType(type);
     
     // При смене на "other" или "pur" отключаем автогенерацию артикула
@@ -201,11 +209,18 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
       setAutoGenerateArticle(true);
     }
     
-    // При смене типа очищаем номер ПУР
+    // При смене типа очищаем специфичные поля
     if (type !== 'pur') {
       setPurNumber(undefined);
       form.setFieldValue('purNumber', undefined);
     }
+    
+    if (type !== 'roll_covering') {
+      setRollComposition([]);
+    }
+    
+    // Сбрасываем manual override
+    setManualOverride(false);
   };
 
   // Загрузка справочников при открытии модала
@@ -344,9 +359,10 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
     try {
       const productData = {
         name: values.name,
-        article: autoGenerateArticle ? previewArticle : values.article || null,
+        article: (productType === 'carpet' && autoGenerateArticle) || (productType === 'roll_covering' && !manualOverride) ? previewArticle : values.article || null,
         productType: productType, // добавляем тип товара
         purNumber: productType === 'pur' ? purNumber : undefined, // номер ПУР только для ПУР товаров
+        composition: productType === 'roll_covering' ? rollComposition : undefined, // состав только для рулонных покрытий
         categoryId: values.categoryId,
         surfaceId: values.surfaceId || null,
         logoId: values.logoId || null,
@@ -730,6 +746,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                   <Option value="carpet">🪄 Ковровое изделие (с автогенерацией артикула)</Option>
                   <Option value="other">📦 Другое (ручной артикул)</Option>
                   <Option value="pur">🔧 ПУР (ручной артикул + размеры)</Option>
+                  <Option value="roll_covering">🏭 Рулонное покрытие (автогенерация + состав)</Option>
                 </Select>
               </Form.Item>
             </Col>
@@ -763,6 +780,8 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                     ? [{ required: true, message: 'Для товаров типа "Другое" артикул обязателен' }] 
                     : productType === 'pur'
                     ? [{ required: true, message: 'Для товаров типа "ПУР" артикул обязателен' }]
+                    : productType === 'roll_covering'
+                    ? [{ required: true, message: 'Для рулонных покрытий артикул обязателен' }]
                     : []
                 }
                 help={
@@ -770,6 +789,8 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                     ? 'Введите уникальный артикул вручную' 
                     : productType === 'pur'
                     ? 'Введите уникальный артикул вручную для ПУР товара'
+                    : productType === 'roll_covering'
+                    ? (manualOverride ? 'Артикул редактируется вручную (автогенерация отключена)' : 'Артикул генерируется автоматически по формуле RLN-')
                     : (autoGenerateArticle ? "Артикул генерируется автоматически при изменении характеристик" : "Введите артикул вручную")
                 }
               >
@@ -779,30 +800,54 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                       ? "Например: ИНСТР-001, КЛЕЙ-МОМЕНТ" 
                       : productType === 'pur'
                       ? "Например: ПУР-001, ПУР-ИЗОЛЯЦИЯ"
+                      : productType === 'roll_covering'
+                      ? (manualOverride ? "Введите артикул вручную" : (previewArticle || "RLN-0x0x0-NP-NB-C0-XXXX"))
                       : (autoGenerateArticle ? (previewArticle || "Артикул будет сгенерирован...") : "Введите артикул")
                   }
-                  disabled={productType === 'carpet' && autoGenerateArticle}
-                  value={productType === 'carpet' && autoGenerateArticle ? previewArticle : undefined}
+                  disabled={(productType === 'carpet' && autoGenerateArticle) || (productType === 'roll_covering' && !manualOverride)}
+                  value={(productType === 'carpet' && autoGenerateArticle) || (productType === 'roll_covering' && !manualOverride) ? previewArticle : undefined}
+                  onFocus={() => {
+                    if (productType === 'roll_covering' && !manualOverride) {
+                      setManualOverride(true);
+                    }
+                  }}
                 />
               </Form.Item>
             </Col>
-            {productType === 'carpet' && (
+            {(productType === 'carpet' || productType === 'roll_covering') && (
               <Col span={6}>
                 <Form.Item label=" " style={{ marginBottom: 0 }}>
                   <Button 
-                    type={autoGenerateArticle ? "primary" : "default"}
+                    type={
+                      productType === 'carpet' 
+                        ? (autoGenerateArticle ? "primary" : "default")
+                        : (!manualOverride ? "primary" : "default")
+                    }
                     onClick={() => {
-                      const newAutoMode = !autoGenerateArticle;
-                      setAutoGenerateArticle(newAutoMode);
-                      
-                      // При переключении в ручной режим очищаем поле артикула
-                      if (!newAutoMode) {
-                        form.setFieldsValue({ article: '' });
+                      if (productType === 'carpet') {
+                        const newAutoMode = !autoGenerateArticle;
+                        setAutoGenerateArticle(newAutoMode);
+                        
+                        // При переключении в ручной режим очищаем поле артикула
+                        if (!newAutoMode) {
+                          form.setFieldsValue({ article: '' });
+                        }
+                      } else if (productType === 'roll_covering') {
+                        if (manualOverride) {
+                          setManualOverride(false);
+                          generateArticlePreview();
+                        } else {
+                          setManualOverride(true);
+                          form.setFieldsValue({ article: '' });
+                        }
                       }
                     }}
                     style={{ width: '100%' }}
                   >
-                    {autoGenerateArticle ? "Автогенерация ВКЛ" : "Автогенерация ВЫКЛ"}
+                    {productType === 'carpet' 
+                      ? (autoGenerateArticle ? "Автогенерация ВКЛ" : "Автогенерация ВЫКЛ")
+                      : (manualOverride ? "Ручной режим ВКЛ" : "Автогенерация ВКЛ")
+                    }
                   </Button>
                 </Form.Item>
               </Col>
@@ -856,9 +901,13 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
           )}
         </FormBlock>
 
-        {/* Блок 2: Размеры (для ковров и ПУР) */}
-        {(productType === 'carpet' || productType === 'pur') && (
-          <FormBlock title={productType === 'pur' ? "Размеры (обязательно)" : "Размеры"} icon="📏">
+        {/* Блок 2: Размеры (для ковров, ПУР и рулонных покрытий) */}
+        {(productType === 'carpet' || productType === 'pur' || productType === 'roll_covering') && (
+          <FormBlock title={
+            productType === 'pur' ? "Размеры (обязательно)" : 
+            productType === 'roll_covering' ? "Размеры (опционально)" :
+            "Размеры"
+          } icon="📏">
           <Row gutter={16}>
             <Col span={8}>
               <Form.Item
@@ -959,24 +1008,30 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
         </FormBlock>
         )}
 
-        {/* Блок 3: Поверхность (только для ковров) */}
-        {productType === 'carpet' && (
+        {/* Блок 3: Поверхность (для ковров и рулонных покрытий) */}
+        {(productType === 'carpet' || productType === 'roll_covering') && (
           <FormBlock title="Поверхность" icon="🎨">
           <Row gutter={16}>
             <Col span={8}>
               <Form.Item
-                label="Поверхности"
-                help="Можно выбрать одну или несколько поверхностей"
+                label={productType === 'carpet' ? "Поверхности" : "Поверхность"}
+                help={productType === 'carpet' ? "Можно выбрать одну или несколько поверхностей" : "Выберите одну поверхность (опционально)"}
               >
                 <Select 
-                  mode="multiple"
-                  placeholder="Выберите поверхности"
+                  mode={productType === 'carpet' ? "multiple" : undefined}
+                  placeholder={productType === 'carpet' ? "Выберите поверхности" : "Выберите поверхность"}
                   loading={loadingReferences}
                   showSearch
                   optionFilterProp="children"
                   allowClear
-                  value={selectedSurfaceIds}
-                  onChange={handleSurfaceIdsChange}
+                  value={productType === 'carpet' ? selectedSurfaceIds : (selectedSurfaceId ? [selectedSurfaceId] : undefined)}
+                  onChange={(value: any) => {
+                    if (productType === 'carpet') {
+                      handleSurfaceIdsChange(value);
+                    } else {
+                      handleSurfaceIdChange(value);
+                    }
+                  }}
                   maxTagCount="responsive"
                 >
                   {surfaces.map(surface => (
