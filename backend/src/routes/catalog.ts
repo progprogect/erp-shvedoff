@@ -521,6 +521,7 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
     const { 
       name, 
       article, 
+      productType, // тип товара: carpet или other
       categoryId, 
       surfaceId, // DEPRECATED: для обратной совместимости
       surfaceIds, // новое поле множественного выбора
@@ -554,6 +555,19 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
 
     if (!name || !categoryId) {
       return next(createError('Product name and category are required', 400));
+    }
+
+    // Валидация типа товара
+    const validProductType = productType || 'carpet'; // по умолчанию ковер
+    if (!['carpet', 'other'].includes(validProductType)) {
+      return next(createError('Product type must be "carpet" or "other"', 400));
+    }
+
+    // Для товаров типа "other" артикул обязателен и автогенерация отключена
+    if (validProductType === 'other') {
+      if (!article || article.trim().length === 0) {
+        return next(createError('Для товаров типа "Другое" артикул обязателен', 400));
+      }
     }
 
     // Валидация цены
@@ -593,10 +607,10 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
       return next(createError('Недопустимое значение типа пресса', 400));
     }
 
-    // Автогенерация артикула если включена
+    // Автогенерация артикула если включена (только для ковров)
     let finalArticle = article;
     
-    if (autoGenerateArticle || !article) {
+    if (validProductType === 'carpet' && (autoGenerateArticle || !article)) {
       try {
         // Получаем связанные данные для генерации артикула
         const [material, surfaces, bottomType, puzzleType] = await Promise.all([
@@ -654,33 +668,35 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
     const newProduct = await db.insert(schema.products).values({
       name,
       article: finalArticle,
+      productType: validProductType,
       categoryId,
-      surfaceId: surfaceId || null, // DEPRECATED: для обратной совместимости
-      surfaceIds: finalSurfaceIds.length > 0 ? finalSurfaceIds : null, // новое поле
-      logoId: logoId || null,
-      materialId: materialId || null,
-      pressType: pressType || 'not_selected', // новое поле
-      dimensions,
-      characteristics,
-      puzzleOptions: puzzleOptions || null,
-      matArea: matArea ? parseFloat(matArea).toString() : null,
-      weight: weight ? parseFloat(weight).toString() : null,
-      grade: grade || 'usual',
-      borderType: borderType || null,
+      // Ковровые поля (только для товаров типа 'carpet')
+      surfaceId: validProductType === 'carpet' ? (surfaceId || null) : null, // DEPRECATED: для обратной совместимости
+      surfaceIds: validProductType === 'carpet' && finalSurfaceIds.length > 0 ? finalSurfaceIds : null, // новое поле
+      logoId: validProductType === 'carpet' ? (logoId || null) : null,
+      materialId: validProductType === 'carpet' ? (materialId || null) : null,
+      pressType: validProductType === 'carpet' ? (pressType || 'not_selected') : null, // новое поле
+      dimensions: validProductType === 'carpet' ? dimensions : null,
+      characteristics: validProductType === 'carpet' ? characteristics : null,
+      puzzleOptions: validProductType === 'carpet' ? (puzzleOptions || null) : null,
+      matArea: validProductType === 'carpet' && matArea ? parseFloat(matArea).toString() : null,
+      weight: weight ? parseFloat(weight).toString() : null, // вес может быть у любого товара
+      grade: validProductType === 'carpet' ? (grade || 'usual') : null,
+      borderType: validProductType === 'carpet' ? (borderType || null) : null,
       tags,
       price: validatedPrice,
       costPrice: validatedCostPrice,
       normStock: normStock || 0,
       notes,
-      // Новые поля для края ковра
-      carpetEdgeType: carpetEdgeType || 'straight_cut',
-      carpetEdgeSides: carpetEdgeSides || 1,
-      carpetEdgeStrength: carpetEdgeStrength || 'normal',
-      // Поле для низа ковра (теперь опциональное)
-      bottomTypeId: bottomTypeId || null,
-      // Поля паззла
-      puzzleTypeId: puzzleTypeId || null,
-      puzzleSides: puzzleSides || null
+      // Новые поля для края ковра (только для ковров)
+      carpetEdgeType: validProductType === 'carpet' ? (carpetEdgeType || 'straight_cut') : null,
+      carpetEdgeSides: validProductType === 'carpet' ? (carpetEdgeSides || 1) : null,
+      carpetEdgeStrength: validProductType === 'carpet' ? (carpetEdgeStrength || 'normal') : null,
+      // Поле для низа ковра (только для ковров)
+      bottomTypeId: validProductType === 'carpet' ? (bottomTypeId || null) : null,
+      // Поля паззла (только для ковров)
+      puzzleTypeId: validProductType === 'carpet' ? (puzzleTypeId || null) : null,
+      puzzleSides: validProductType === 'carpet' ? (puzzleSides || null) : null
     }).returning();
 
     // Create initial stock record with initial quantity

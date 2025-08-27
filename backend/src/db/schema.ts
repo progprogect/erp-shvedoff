@@ -112,11 +112,15 @@ export const pressTypeEnum = pgEnum('press_type', ['not_selected', 'ukrainian', 
 // Enum для наличия борта (Задача 7.1)
 export const borderTypeEnum = pgEnum('border_type', ['with_border', 'without_border']);
 
+// Enum для типа товара (Задача: Товары типа "Другое")
+export const productTypeEnum = pgEnum('product_type', ['carpet', 'other']);
+
 // Products table - FR-002
 export const products = pgTable('products', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 500 }).notNull(),
   article: varchar('article', { length: 100 }).unique(),
+  productType: productTypeEnum('product_type').default('carpet').notNull(), // тип товара: ковер или другое
   categoryId: integer('category_id').references(() => categories.id),
   managerId: integer('manager_id').references(() => users.id), // ответственный за товар
   surfaceId: integer('surface_id').references(() => productSurfaces.id), // DEPRECATED: используется для обратной совместимости

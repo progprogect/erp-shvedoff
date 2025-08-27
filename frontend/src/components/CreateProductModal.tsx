@@ -68,6 +68,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
   const [pressType, setPressType] = useState<string>('not_selected'); // новое поле пресса
   const [previewArticle, setPreviewArticle] = useState<string>(''); // превью артикула
   const [autoGenerateArticle, setAutoGenerateArticle] = useState<boolean>(true); // флаг автогенерации
+  const [productType, setProductType] = useState<'carpet' | 'other'>('carpet'); // тип товара
   
   // Состояние для новых полей края ковра
   const [carpetEdgeTypes, setCarpetEdgeTypes] = useState<CarpetEdgeType[]>([]);
@@ -184,6 +185,20 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
   // Универсальный handler для полей формы
   const handleFormFieldChange = (field: string, value: any) => {
     generateArticlePreview({ [field]: value });
+  };
+
+  // Handler для смены типа товара
+  const handleProductTypeChange = (type: 'carpet' | 'other') => {
+    setProductType(type);
+    
+    // При смене на "other" отключаем автогенерацию артикула
+    if (type === 'other') {
+      setAutoGenerateArticle(false);
+      setPreviewArticle('');
+      form.setFieldValue('article', ''); // очищаем поле артикула
+    } else {
+      setAutoGenerateArticle(true);
+    }
   };
 
   // Загрузка справочников при открытии модала
@@ -323,6 +338,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
       const productData = {
         name: values.name,
         article: autoGenerateArticle ? previewArticle : values.article || null,
+        productType: productType, // добавляем тип товара
         categoryId: values.categoryId,
         surfaceId: values.surfaceId || null,
         logoId: values.logoId || null,
@@ -690,6 +706,26 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
       >
         {/* Блок 1: Основная информация */}
         <FormBlock title="Основная информация" icon="📝">
+          {/* Выбор типа товара */}
+          <Row gutter={16}>
+            <Col span={24}>
+              <Form.Item
+                label="Тип товара"
+                style={{ marginBottom: 16 }}
+              >
+                <Select 
+                  value={productType}
+                  onChange={handleProductTypeChange}
+                  size="large"
+                  style={{ width: '100%' }}
+                >
+                  <Option value="carpet">🪄 Ковровое изделие (с автогенерацией артикула)</Option>
+                  <Option value="other">📦 Другое (ручной артикул)</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+
           <Row gutter={16}>
             <Col span={24}>
               <Form.Item
@@ -701,7 +737,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                 ]}
               >
                 <Input 
-                  placeholder="Например: Лежак резиновый чешский"
+                  placeholder={productType === 'carpet' ? "Например: Лежак резиновый чешский" : "Например: Инструмент для резки"}
                   onChange={(e) => handleFormFieldChange('name', e.target.value)}
                 />
               </Form.Item>
@@ -713,34 +749,45 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
               <Form.Item
                 name="article"
                 label="Артикул товара"
-                help={autoGenerateArticle ? "Артикул генерируется автоматически при изменении характеристик" : "Введите артикул вручную"}
+                rules={productType === 'other' ? [{ required: true, message: 'Для товаров типа "Другое" артикул обязателен' }] : []}
+                help={
+                  productType === 'other' 
+                    ? 'Введите уникальный артикул вручную' 
+                    : (autoGenerateArticle ? "Артикул генерируется автоматически при изменении характеристик" : "Введите артикул вручную")
+                }
               >
                 <Input 
-                  placeholder={autoGenerateArticle ? previewArticle || "Артикул будет сгенерирован..." : "Введите артикул"}
-                  disabled={autoGenerateArticle}
-                  value={autoGenerateArticle ? previewArticle : undefined}
+                  placeholder={
+                    productType === 'other' 
+                      ? "Например: ИНСТР-001, КЛЕЙ-МОМЕНТ" 
+                      : (autoGenerateArticle ? (previewArticle || "Артикул будет сгенерирован...") : "Введите артикул")
+                  }
+                  disabled={productType === 'carpet' && autoGenerateArticle}
+                  value={productType === 'carpet' && autoGenerateArticle ? previewArticle : undefined}
                 />
               </Form.Item>
             </Col>
-            <Col span={6}>
-              <Form.Item label=" " style={{ marginBottom: 0 }}>
-                <Button 
-                  type={autoGenerateArticle ? "primary" : "default"}
-                  onClick={() => {
-                    const newAutoMode = !autoGenerateArticle;
-                    setAutoGenerateArticle(newAutoMode);
-                    
-                    // При переключении в ручной режим очищаем поле артикула
-                    if (!newAutoMode) {
-                      form.setFieldsValue({ article: '' });
-                    }
-                  }}
-                  style={{ width: '100%' }}
-                >
-                  {autoGenerateArticle ? "Автогенерация ВКЛ" : "Автогенерация ВЫКЛ"}
-                </Button>
-              </Form.Item>
-            </Col>
+            {productType === 'carpet' && (
+              <Col span={6}>
+                <Form.Item label=" " style={{ marginBottom: 0 }}>
+                  <Button 
+                    type={autoGenerateArticle ? "primary" : "default"}
+                    onClick={() => {
+                      const newAutoMode = !autoGenerateArticle;
+                      setAutoGenerateArticle(newAutoMode);
+                      
+                      // При переключении в ручной режим очищаем поле артикула
+                      if (!newAutoMode) {
+                        form.setFieldsValue({ article: '' });
+                      }
+                    }}
+                    style={{ width: '100%' }}
+                  >
+                    {autoGenerateArticle ? "Автогенерация ВКЛ" : "Автогенерация ВЫКЛ"}
+                  </Button>
+                </Form.Item>
+              </Col>
+            )}
           </Row>
 
           <Row gutter={16}>
@@ -768,8 +815,9 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
           </Row>
         </FormBlock>
 
-        {/* Блок 2: Размеры */}
-        <FormBlock title="Размеры" icon="📏">
+        {/* Блок 2: Размеры (только для ковров) */}
+        {productType === 'carpet' && (
+          <FormBlock title="Размеры" icon="📏">
           <Row gutter={16}>
             <Col span={8}>
               <Form.Item
@@ -857,9 +905,11 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
             </Col>
           </Row>
         </FormBlock>
+        )}
 
-        {/* Блок 3: Поверхность */}
-        <FormBlock title="Поверхность" icon="🎨">
+        {/* Блок 3: Поверхность (только для ковров) */}
+        {productType === 'carpet' && (
+          <FormBlock title="Поверхность" icon="🎨">
           <Row gutter={16}>
             <Col span={8}>
               <Form.Item
@@ -971,44 +1021,51 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
           </Col>
         </Row>
       </FormBlock>
+        )}
 
         {/* Блок 6: Дополнительно */}
         <FormBlock title="Дополнительно" icon="⚙️">
           <Row gutter={16}>
-            <Col span={8}>
-              <Form.Item
-                name="grade"
-                label="Сорт товара"
-                initialValue="usual"
-                help="По умолчанию выбран 'Обычный' сорт"
-              >
-                <Select 
-                  style={{ width: '100%' }}
-                  onChange={(value) => handleFormFieldChange('grade', value)}
+            {/* Сорт товара - только для ковров */}
+            {productType === 'carpet' && (
+              <Col span={8}>
+                <Form.Item
+                  name="grade"
+                  label="Сорт товара"
+                  initialValue="usual"
+                  help="По умолчанию выбран 'Обычный' сорт"
                 >
-                  <Option value="usual">Обычный</Option>
-                  <Option value="grade_2">2 сорт</Option>
-                  <Option value="telyatnik">Телятник</Option>
-                  <Option value="liber">Либер</Option>
-                </Select>
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item
-                name="borderType"
-                label="Наличие борта"
-                initialValue="without_border"
-              >
-                <Select 
-                  style={{ width: '100%' }} 
-                  placeholder="Выберите тип борта"
-                  onChange={(value) => handleFormFieldChange('borderType', value)}
+                  <Select 
+                    style={{ width: '100%' }}
+                    onChange={(value) => handleFormFieldChange('grade', value)}
+                  >
+                    <Option value="usual">Обычный</Option>
+                    <Option value="grade_2">2 сорт</Option>
+                    <Option value="telyatnik">Телятник</Option>
+                    <Option value="liber">Либер</Option>
+                  </Select>
+                </Form.Item>
+              </Col>
+            )}
+            {/* Наличие борта - только для ковров */}
+            {productType === 'carpet' && (
+              <Col span={8}>
+                <Form.Item
+                  name="borderType"
+                  label="Наличие борта"
+                  initialValue="without_border"
                 >
-                  <Option value="with_border">С бортом</Option>
-                  <Option value="without_border">Без борта</Option>
-                </Select>
-              </Form.Item>
-            </Col>
+                  <Select 
+                    style={{ width: '100%' }} 
+                    placeholder="Выберите тип борта"
+                    onChange={(value) => handleFormFieldChange('borderType', value)}
+                  >
+                    <Option value="with_border">С бортом</Option>
+                    <Option value="without_border">Без борта</Option>
+                  </Select>
+                </Form.Item>
+              </Col>
+            )}
             <Col span={8}>
               <Form.Item
                 name="weight"
@@ -1026,8 +1083,9 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
           </Row>
         </FormBlock>
 
-        {/* Блок 4: Край ковра */}
-        <FormBlock title="Край ковра" icon="✂️">
+        {/* Блок 4: Край ковра (только для ковров) */}
+        {productType === 'carpet' && (
+          <FormBlock title="Край ковра" icon="✂️">
           <Row gutter={16}>
             <Col span={8}>
             <Form.Item
@@ -1115,9 +1173,11 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
             </Col>
           </Row>
         </FormBlock>
+        )}
 
-        {/* Блок 5: Низ ковра */}
-        <FormBlock title="Низ ковра" icon="🔽">
+        {/* Блок 5: Низ ковра (только для ковров) */}
+        {productType === 'carpet' && (
+          <FormBlock title="Низ ковра" icon="🔽">
           <Row gutter={16}>
             <Col span={8}>
               <Form.Item
@@ -1143,8 +1203,9 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
             </Col>
           </Row>
         </FormBlock>
+        )}
 
-        {/* Блок 7: Запасы и цены */}
+        {/* Блок 7: Запасы и цены (для всех товаров) */}
         <FormBlock title="Запасы и цены" icon="💰">
           <Row gutter={16}>
           <Col span={8}>
