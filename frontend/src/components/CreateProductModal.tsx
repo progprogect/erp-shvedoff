@@ -790,7 +790,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                     : productType === 'pur'
                     ? 'Введите уникальный артикул вручную для ПУР товара'
                     : productType === 'roll_covering'
-                    ? (manualOverride ? 'Артикул редактируется вручную (автогенерация отключена)' : 'Артикул генерируется автоматически по формуле RLN-')
+                    ? (manualOverride ? 'Артикул редактируется вручную (автогенерация отключена)' : 'Артикул генерируется автоматически по формуле РУЛ-НАЗВАНИЕ-РАЗМЕРЫ-ПОВЕРХ-НИЗ-СОСТАВ')
                     : (autoGenerateArticle ? "Артикул генерируется автоматически при изменении характеристик" : "Введите артикул вручную")
                 }
               >
@@ -801,7 +801,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                       : productType === 'pur'
                       ? "Например: ПУР-001, ПУР-ИЗОЛЯЦИЯ"
                       : productType === 'roll_covering'
-                      ? (manualOverride ? "Введите артикул вручную" : (previewArticle || "RLN-0x0x0-NP-NB-C0-XXXX"))
+                      ? (manualOverride ? "Введите артикул вручную" : (previewArticle || "РУЛ-ПОКР-ЧЕШУЙ-ШИП0"))
                       : (autoGenerateArticle ? (previewArticle || "Артикул будет сгенерирован...") : "Введите артикул")
                   }
                   disabled={(productType === 'carpet' && autoGenerateArticle) || (productType === 'roll_covering' && !manualOverride)}

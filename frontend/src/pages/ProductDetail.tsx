@@ -621,7 +621,7 @@ const ProductDetail: React.FC = () => {
                         {surfaces.length > 0 ? (
                           <Space wrap>
                             {surfaces.map((surface, index) => (
-                              <Tag key={index} color="blue">🎨 {surface}</Tag>
+                              <Tag key={index} color="blue">{`🎨 ${surface}`}</Tag>
                             ))}
                           </Space>
                         ) : (
@@ -631,7 +631,7 @@ const ProductDetail: React.FC = () => {
                       
                       {/* Низ ковра */}
                       <Descriptions.Item label="Низ ковра">
-                        {product?.bottomTypeName || 'Не указан'}
+                        {(typeof product?.bottomType === 'string' ? product.bottomType : product?.bottomType?.name) || 'Не указан'}
                       </Descriptions.Item>
                     </>
                   )}

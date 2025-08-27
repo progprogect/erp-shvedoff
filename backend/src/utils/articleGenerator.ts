@@ -340,67 +340,117 @@ export function previewArticle(product: Partial<ProductData>): string {
 
 /**
  * Генерация артикула для рулонных покрытий
- * Формат: RLN-{ШИР}x{ДЛН}x{ВЫС}-{P}-{B}-{C}-{SEQ}
+ * Формат: РУЛ-{НАЗВАНИЕ}-{ШИР}x{ДЛН}x{ВЫС}-{ПОВЕРХ}-{НИЗ}-{СОСТАВ}
+ * Аналогично ковровым изделиям, но для рулонных покрытий
  */
 export function generateRollCoveringArticle(productData: RollCoveringData): string {
   const parts: string[] = [];
   
-  // 1. Префикс для рулонных покрытий
-  parts.push('RLN');
+  // 1. Префикс для рулонных покрытий (русскими буквами)
+  parts.push('РУЛ');
   
-  // 2. Размеры: {ШИР}x{ДЛН}x{ВЫС}
-  const width = productData.dimensions?.width || 0;
-  const length = productData.dimensions?.length || 0;
-  const thickness = productData.dimensions?.thickness || 0;
-  parts.push(`${width}x${length}x${thickness}`);
+  // 2. Название (сокращенно, как у ковров)
+  const namePart = formatRollName(productData.name);
+  if (namePart) parts.push(namePart);
   
-  // 3. Код поверхности: {P}
+  // 3. Размеры: {ШИР}x{ДЛН}x{ВЫС} (только если указаны)
+  const dimensionsPart = formatRollDimensions(productData.dimensions);
+  if (dimensionsPart) parts.push(dimensionsPart);
+  
+  // 4. Поверхность (русскими буквами, как у ковров)
   const surfaceCode = formatRollSurface(productData.surface);
-  parts.push(surfaceCode);
+  if (surfaceCode) parts.push(surfaceCode);
   
-  // 4. Код низа ковра: {B}
+  // 5. Низ ковра (используем коды из справочника)
   const bottomCode = formatRollBottom(productData.bottomType);
-  parts.push(bottomCode);
+  if (bottomCode) parts.push(bottomCode);
   
-  // 5. Состав: {C}
+  // 6. Состав (количество ковров)
   const compositionCode = formatRollComposition(productData.composition);
-  parts.push(compositionCode);
-  
-  // 6. Уникальный суффикс: {SEQ}
-  const sequence = generateSequence();
-  parts.push(sequence);
+  if (compositionCode) parts.push(compositionCode);
   
   return parts.join('-');
 }
 
 /**
- * Форматирует поверхность для рулонных покрытий
+ * Форматирует название для рулонных покрытий (аналогично ковровым)
+ */
+function formatRollName(name: string): string {
+  if (!name) return '';
+
+  // Специальные правила для "коровка" (аналогично ковровым изделиям)
+  const lowerName = name.toLowerCase();
+  
+  // "коровка" → "1КОР"
+  if (lowerName.includes('коровка') && !lowerName.match(/\d/)) {
+    return '1КОР';
+  }
+  
+  // "1 коровка" → "1КОР", "3 коровки" → "3КОР"
+  const match1 = lowerName.match(/(\d+)\s*коровк[а-я]*/);
+  if (match1) {
+    return `${match1[1]}КОР`;
+  }
+
+  // Для рулонных покрытий берем первое слово в сокращенном виде
+  const firstWord = name.split(' ')[0].toUpperCase();
+  
+  // Сокращения для типичных рулонных покрытий
+  const rollMappings: Record<string, string> = {
+    'РУЛОННОЕ': 'РУЛ',
+    'ПОКРЫТИЕ': 'ПОКР',
+    'ЛИНОЛЕУМ': 'ЛИН',
+    'КОВРОЛИН': 'КОВР',
+    'ПАРКЕТ': 'ПАРК',
+    'ЛАМИНАТ': 'ЛАМ'
+  };
+
+  return rollMappings[firstWord] || firstWord.substring(0, 4);
+}
+
+/**
+ * Форматирует размеры для рулонных покрытий (только если заполнены)
+ */
+function formatRollDimensions(dimensions?: { length?: number; width?: number; thickness?: number }): string {
+  if (!dimensions) return '';
+  
+  const { length = 0, width = 0, thickness = 0 } = dimensions;
+  
+  // Показываем размеры только если хотя бы один из них больше 0
+  if (length > 0 || width > 0 || thickness > 0) {
+    return `${width}x${length}x${thickness}`;
+  }
+  
+  return '';
+}
+
+/**
+ * Форматирует поверхность для рулонных покрытий (русскими буквами как у ковров)
  */
 function formatRollSurface(surface?: { name: string }): string {
-  if (!surface?.name) return 'NP'; // No Pattern
+  if (!surface?.name) return '';
   
-  // Используем существующие коды поверхностей
+  // Используем те же русские коды что и для ковровых изделий
   const surfaceMappings: { [key: string]: string } = {
-    'черточки': 'CHR',
-    'чешуйки': 'CHE', 
-    'чешуйка': 'CHE',
-    'гладкая': 'GLD',
-    '1 коровка': 'K1',
-    '3 коровки': 'K3',
-    'чешуйка с лого': 'CHL'
+    'чешуйки': 'ЧЕШУЙ',
+    'черточки': 'ЧЕРТ',
+    'гладкая': 'ГЛАД',
+    '1 коровка': '1КОР',
+    '3 коровки': '3КОР',
+    'чешуйка с лого': 'ЧЕШУЙ-ЛОГО'
   };
   
   const normalized = surface.name.toLowerCase().trim();
-  return surfaceMappings[normalized] || 'NP';
+  return surfaceMappings[normalized] || surface.name.toUpperCase().substring(0, 5);
 }
 
 /**
  * Форматирует низ ковра для рулонных покрытий
  */
 function formatRollBottom(bottomType?: { code?: string }): string {
-  if (!bottomType?.code) return 'NB'; // No Bottom
+  if (!bottomType?.code) return '';
   
-  // Используем коды из справочника низов
+  // Используем коды из справочника низов (как они есть)
   return bottomType.code.toUpperCase();
 }
 
@@ -408,26 +458,16 @@ function formatRollBottom(bottomType?: { code?: string }): string {
  * Форматирует состав рулонного покрытия
  */
 function formatRollComposition(composition?: Array<{ carpetId: number; quantity: number; sortOrder: number }>): string {
-  if (!composition || composition.length === 0) return 'C0';
+  if (!composition || composition.length === 0) return '';
   
   // Считаем общее количество ковров в составе
   const totalQuantity = composition.reduce((sum, item) => sum + item.quantity, 0);
-  return `C${totalQuantity}`;
+  
+  // Показываем состав только если есть ковры
+  return totalQuantity > 0 ? `СОСТАВ${totalQuantity}` : '';
 }
 
-/**
- * Генерирует уникальный последовательный суффикс
- */
-function generateSequence(): string {
-  // Для демонстрации используем простой счетчик на основе времени
-  // В реальном приложении это должно быть более надежное решение
-  const now = new Date();
-  const dayOfYear = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24));
-  const timeComponent = String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0');
-  const sequence = (dayOfYear * 10000 + parseInt(timeComponent)) % 9999;
-  
-  return String(sequence).padStart(4, '0');
-}
+
 
 /**
  * Предварительный просмотр артикула для рулонных покрытий
