@@ -713,8 +713,8 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
       form.setFieldsValue({ article });
     }
 
-    // Расчет площади мата (длина × ширина в м²)
-    if (length && width) {
+    // Расчет площади мата (длина × ширина в м²) - ТОЛЬКО ДЛЯ КОВРОВЫХ ИЗДЕЛИЙ
+    if (productType === 'carpet' && length && width) {
       const areaM2 = (length * width) / 1000000; // мм² в м²
       const roundedArea = Number(areaM2.toFixed(4));
       setCalculatedMatArea(roundedArea);
@@ -725,7 +725,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
       }
     } else {
       setCalculatedMatArea(null);
-      if (!matAreaOverride) {
+      if (!matAreaOverride && productType === 'carpet') {
         form.setFieldsValue({ matArea: undefined });
       }
     }
@@ -776,10 +776,10 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                   size="large"
                   style={{ width: '100%' }}
                 >
-                  <Option value="carpet">🪄 Ковровое изделие (с автогенерацией артикула)</Option>
-                  <Option value="other">📦 Другое (ручной артикул)</Option>
-                  <Option value="pur">🔧 ПУР (ручной артикул + размеры)</Option>
-                  <Option value="roll_covering">🏭 Рулонное покрытие (автогенерация + состав)</Option>
+                  <Option value="carpet">🪄 Ковровое изделие</Option>
+                  <Option value="other">📦 Другое</Option>
+                  <Option value="pur">🔧 ПУР</Option>
+                  <Option value="roll_covering">🏭 Рулонное покрытие</Option>
                 </Select>
               </Form.Item>
             </Col>
@@ -998,46 +998,49 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
             </Col>
           </Row>
 
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="matArea"
-                label={
-                  <span>
-                    Площадь (м²)
-                    {calculatedMatArea && (
-                      <span style={{ color: '#1890ff', fontWeight: 'normal', marginLeft: 8 }}>
-                        (автоматически: {calculatedMatArea} м²)
-                      </span>
-                    )}
-                  </span>
-                }
-              >
-                <InputNumber 
-                  placeholder="Рассчитается автоматически"
-                  style={{ width: '100%' }}
-                  min={0}
-                  precision={4}
-                  step={0.0001}
-                  onChange={(value: number | null) => {
-                    setMatAreaOverride(value ? value.toString() : '');
-                  }}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <div style={{ paddingTop: '30px', color: '#666', fontSize: '12px' }}>
-                {calculatedMatArea ? (
-                  <>
-                    📏 Расчет: {form.getFieldValue('length') || 0} × {form.getFieldValue('width') || 0} мм = {calculatedMatArea} м²<br/>
-                    💡 Можете скорректировать значение при необходимости
-                  </>
-                ) : (
-                  '📏 Введите длину и ширину для автоматического расчета площади'
-                )}
-              </div>
-            </Col>
-          </Row>
+          {/* Поле площади - только для ковровых изделий */}
+          {productType === 'carpet' && (
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item
+                  name="matArea"
+                  label={
+                    <span>
+                      Площадь (м²)
+                      {calculatedMatArea && (
+                        <span style={{ color: '#1890ff', fontWeight: 'normal', marginLeft: 8 }}>
+                          (автоматически: {calculatedMatArea} м²)
+                        </span>
+                      )}
+                    </span>
+                  }
+                >
+                  <InputNumber 
+                    placeholder="Рассчитается автоматически"
+                    style={{ width: '100%' }}
+                    min={0}
+                    precision={4}
+                    step={0.0001}
+                    onChange={(value: number | null) => {
+                      setMatAreaOverride(value ? value.toString() : '');
+                    }}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <div style={{ paddingTop: '30px', color: '#666', fontSize: '12px' }}>
+                  {calculatedMatArea ? (
+                    <>
+                      📏 Расчет: {form.getFieldValue('length') || 0} × {form.getFieldValue('width') || 0} мм = {calculatedMatArea} м²<br/>
+                      💡 Можете скорректировать значение при необходимости
+                    </>
+                  ) : (
+                    '📏 Введите длину и ширину для автоматического расчета площади'
+                  )}
+                </div>
+              </Col>
+            </Row>
+          )}
         </FormBlock>
         )}
 
