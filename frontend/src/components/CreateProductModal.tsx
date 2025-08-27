@@ -140,6 +140,29 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
   const [matAreaOverride, setMatAreaOverride] = useState<string>('');
   const { token } = useAuthStore();
 
+  // Автоматический расчет площади при изменении размеров
+  useEffect(() => {
+    const length = form.getFieldValue('length');
+    const width = form.getFieldValue('width');
+    
+    // Расчет площади мата (длина × ширина в м²) - ТОЛЬКО ДЛЯ КОВРОВЫХ ИЗДЕЛИЙ
+    if (productType === 'carpet' && length && width) {
+      const areaM2 = (length * width) / 1000000; // мм² в м²
+      const roundedArea = Number(areaM2.toFixed(4));
+      setCalculatedMatArea(roundedArea);
+      
+      // Если пользователь не переопределил площадь, используем расчетную
+      if (!matAreaOverride) {
+        form.setFieldsValue({ matArea: roundedArea });
+      }
+    } else {
+      setCalculatedMatArea(null);
+      if (!matAreaOverride && productType === 'carpet') {
+        form.setFieldsValue({ matArea: undefined });
+      }
+    }
+  }, [form, productType, matAreaOverride]); // Зависимости для пересчета
+
   // Элегантные handler функции для мгновенного обновления артикула
   const handlePressTypeChange = (value: string) => {
     setPressType(value);
@@ -719,23 +742,6 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
       
       form.setFieldsValue({ article });
     }
-
-    // Расчет площади мата (длина × ширина в м²) - ТОЛЬКО ДЛЯ КОВРОВЫХ ИЗДЕЛИЙ
-    if (productType === 'carpet' && length && width) {
-      const areaM2 = (length * width) / 1000000; // мм² в м²
-      const roundedArea = Number(areaM2.toFixed(4));
-      setCalculatedMatArea(roundedArea);
-      
-      // Если пользователь не переопределил площадь, используем расчетную
-      if (!matAreaOverride) {
-        form.setFieldsValue({ matArea: roundedArea });
-      }
-    } else {
-      setCalculatedMatArea(null);
-      if (!matAreaOverride && productType === 'carpet') {
-        form.setFieldsValue({ matArea: undefined });
-      }
-    }
   };
 
   const flatCategories = (categories: Category[]): Category[] => {
@@ -962,7 +968,21 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                   placeholder="1800"
                   style={{ width: '100%' }}
                   min={1}
-                  onChange={(value) => handleFormFieldChange('length', value)}
+                  onChange={(value) => {
+                    handleFormFieldChange('length', value);
+                    // Принудительно вызываем пересчет площади
+                    setTimeout(() => {
+                      const width = form.getFieldValue('width');
+                      if (productType === 'carpet' && value && width) {
+                        const areaM2 = (value * width) / 1000000;
+                        const roundedArea = Number(areaM2.toFixed(4));
+                        setCalculatedMatArea(roundedArea);
+                        if (!matAreaOverride) {
+                          form.setFieldsValue({ matArea: roundedArea });
+                        }
+                      }
+                    }, 0);
+                  }}
                 />
               </Form.Item>
             </Col>
@@ -979,7 +999,21 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                   placeholder="1200"
                   style={{ width: '100%' }}
                   min={1}
-                  onChange={(value) => handleFormFieldChange('width', value)}
+                  onChange={(value) => {
+                    handleFormFieldChange('width', value);
+                    // Принудительно вызываем пересчет площади
+                    setTimeout(() => {
+                      const length = form.getFieldValue('length');
+                      if (productType === 'carpet' && value && length) {
+                        const areaM2 = (length * value) / 1000000;
+                        const roundedArea = Number(areaM2.toFixed(4));
+                        setCalculatedMatArea(roundedArea);
+                        if (!matAreaOverride) {
+                          form.setFieldsValue({ matArea: roundedArea });
+                        }
+                      }
+                    }, 0);
+                  }}
                 />
               </Form.Item>
             </Col>
@@ -1029,7 +1063,8 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                     precision={4}
                     step={0.0001}
                     onChange={(value: number | null) => {
-                      setMatAreaOverride(value ? value.toString() : '');
+                      // Отмечаем что пользователь вручную изменил площадь
+                      setMatAreaOverride(value !== null && value !== calculatedMatArea ? 'manual' : '');
                     }}
                   />
                 </Form.Item>
