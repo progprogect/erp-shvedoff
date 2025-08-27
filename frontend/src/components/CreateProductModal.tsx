@@ -121,7 +121,6 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
         ...overrides
       };
 
-      console.log('🚀 Отправляем данные для preview:', previewData);
       const response = await catalogApi.previewArticle(previewData);
       if (response.success) {
         setPreviewArticle(response.data.article);
@@ -340,13 +339,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
         setCarpets(carpetsResponse.data);
       }
       
-      // Устанавливаем значение по умолчанию (шип-0)
-      if (bottomTypesResponse.success) {
-        const defaultBottomType = bottomTypesResponse.data.find(bt => bt.code === 'spike_0');
-        if (defaultBottomType) {
-          setSelectedBottomTypeId(defaultBottomType.id);
-        }
-      }
+      // По умолчанию низ ковра не выбран (можно оставить пустым)
     } catch (error) {
       console.error('Ошибка загрузки справочников:', error);
       message.error('Ошибка загрузки справочников');

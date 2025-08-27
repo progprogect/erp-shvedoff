@@ -820,6 +820,7 @@ router.post('/products/preview-article', authenticateToken, async (req: AuthRequ
       dimensions,
       materialId,
       pressType,
+      logoId,
       surfaceIds,
       borderType,
       carpetEdgeType,
@@ -832,8 +833,9 @@ router.post('/products/preview-article', authenticateToken, async (req: AuthRequ
     } = req.body;
 
     // Получаем связанные данные для генерации артикула
-    const [material, surfaces, bottomType, puzzleType] = await Promise.all([
+    const [material, logo, surfaces, bottomType, puzzleType] = await Promise.all([
       materialId ? db.query.productMaterials.findFirst({ where: eq(schema.productMaterials.id, materialId) }) : null,
+      logoId ? db.query.productLogos.findFirst({ where: eq(schema.productLogos.id, logoId) }) : null,
       surfaceIds && surfaceIds.length > 0 ? db.query.productSurfaces.findMany({ where: inArray(schema.productSurfaces.id, surfaceIds) }) : [],
       bottomTypeId ? db.query.bottomTypes.findFirst({ where: eq(schema.bottomTypes.id, bottomTypeId) }) : null,
       puzzleTypeId ? db.query.puzzleTypes.findFirst({ where: eq(schema.puzzleTypes.id, puzzleTypeId) }) : null
@@ -863,6 +865,7 @@ router.post('/products/preview-article', authenticateToken, async (req: AuthRequ
         dimensions: dimensions || {},
         material: material ? { name: material.name } : undefined,
         pressType: pressType || 'not_selected',
+        logo: logo ? { name: logo.name } : undefined,
         surfaces: surfaces ? surfaces.map(s => ({ name: s.name })) : [],
         borderType,
         carpetEdgeType: carpetEdgeType || 'straight_cut',
@@ -873,9 +876,7 @@ router.post('/products/preview-article', authenticateToken, async (req: AuthRequ
         grade: grade || 'usual'
       };
 
-      console.log('🔧 Данные для генерации артикула ковра:', productData);
       previewArticle = generateArticle(productData);
-      console.log('✅ Сгенерированный артикул:', previewArticle);
       validationData = productData;
     }
     

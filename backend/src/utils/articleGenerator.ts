@@ -14,6 +14,9 @@ export interface ProductData {
     name: string;
   };
   pressType?: 'not_selected' | 'ukrainian' | 'chinese';
+  logo?: {
+    name: string;
+  };
   surfaces?: Array<{
     name: string;
   }>;
@@ -76,11 +79,15 @@ export function generateArticle(product: ProductData): string {
   const surfacesPart = formatSurfaces(product.surfaces);
   if (surfacesPart) parts.push(surfacesPart);
 
-  // 6. БОРТ (только если "с бортом")
+  // 6. ЛОГОТИП (только если выбран)
+  const logoPart = formatLogo(product.logo?.name);
+  if (logoPart) parts.push(logoPart);
+
+  // 7. БОРТ (только если "с бортом")
   const borderPart = formatBorder(product.borderType);
   if (borderPart) parts.push(borderPart);
 
-  // 7. КРАЙ
+  // 8. КРАЙ
   const edgePart = formatEdge(
     product.carpetEdgeType,
     product.carpetEdgeSides,
@@ -89,11 +96,11 @@ export function generateArticle(product: ProductData): string {
   );
   if (edgePart) parts.push(edgePart);
 
-  // 8. НИЗ
+  // 9. НИЗ
   const bottomPart = formatBottom(product.bottomType?.code);
   if (bottomPart) parts.push(bottomPart);
 
-  // 9. СОРТ (кроме "usual")
+  // 10. СОРТ (кроме "usual")
   const gradePart = formatGrade(product.grade);
   if (gradePart) parts.push(gradePart);
 
@@ -194,6 +201,25 @@ function formatSurfaces(surfaces?: Array<{ name: string }>): string {
   });
 
   return formattedSurfaces.join('-');
+}
+
+/**
+ * Форматирует логотип
+ */
+function formatLogo(logoName?: string): string {
+  if (!logoName) return '';
+
+  const logoMap: Record<string, string> = {
+    'gea': 'GEA',
+    'maximilk': 'MAX',
+    'veles': 'VEL',
+    'агротек': 'АГР',
+    'арнтьен': 'АРН',
+    'shvedoff': 'ШВЕ'
+  };
+
+  const normalized = logoName.toLowerCase();
+  return logoMap[normalized] || logoName.toUpperCase().substring(0, 3);
 }
 
 /**
