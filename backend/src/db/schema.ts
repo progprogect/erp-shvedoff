@@ -458,7 +458,7 @@ export const bottomTypesRelations = relations(bottomTypes, ({ many }) => ({
 }));
 
 export const rollCoveringCompositionRelations = relations(rollCoveringComposition, ({ one }) => ({
-  rollCovering: one(products, { fields: [rollCoveringComposition.rollCoveringId], references: [products.id] }),
+  rollCovering: one(products, { fields: [rollCoveringComposition.rollCoveringId], references: [products.id], relationName: 'rollComposition' }),
   carpet: one(products, { fields: [rollCoveringComposition.carpetId], references: [products.id] })
 }));
 
@@ -479,8 +479,7 @@ export const productsRelations = relations(products, ({ one, many }) => ({
   productionTaskExtras: many(productionTaskExtras),
   sourceCuttingOperations: many(cuttingOperations, { relationName: 'sourceCuttingOperations' }),
   targetCuttingOperations: many(cuttingOperations, { relationName: 'targetCuttingOperations' }),
-  rollComposition: many(rollCoveringComposition, { relationName: 'rollComposition' }),
-  carpetInRolls: many(rollCoveringComposition, { relationName: 'carpetInRolls' })
+  rollComposition: many(rollCoveringComposition, { relationName: 'rollComposition' })
 }));
 
 export const ordersRelations = relations(orders, ({ one, many }) => ({
