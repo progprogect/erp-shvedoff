@@ -338,7 +338,9 @@ function formatBottom(bottomCode?: string): string {
     'spike_2': '2Шип',
     'spike_3': '3Шип',
     'spike_4': '4Шип',
-    'spike_5': '5Шип'
+    'spike_5': '5Шип',
+    'spike_7': '7Шип',
+    'spike_11': '11Шип'
   };
   
   const normalizedCode = bottomCode.toLowerCase().trim();
