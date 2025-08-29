@@ -333,7 +333,7 @@ function formatBottom(bottomCode?: string): string {
   
   // Преобразуем коды в краткие обозначения
   const codeMap: Record<string, string> = {
-    'spike_0': '0Шип',
+    'spike_0': '', // Без шипов - не отображаем в артикуле
     'spike_1': '1Шип',
     'spike_2': '2Шип',
     'spike_3': '3Шип',
