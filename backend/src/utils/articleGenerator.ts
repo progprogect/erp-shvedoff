@@ -329,19 +329,20 @@ function formatEdge(
  * Форматирует низ ковра
  */
 function formatBottom(bottomCode?: string): string {
-  if (!bottomCode) return '';
+  if (!bottomCode || bottomCode.trim() === '') return '';
   
   // Преобразуем коды в краткие обозначения
   const codeMap: Record<string, string> = {
-    'spike_0': '0Кор',
-    'spike_2': '2Кор', 
-    'spike_5': '5Кор',
-    'spike_7': '7Кор',
-    'spike_11': '11Кор'
+    'spike_0': '0Шип',
+    'spike_1': '1Шип',
+    'spike_2': '2Шип',
+    'spike_3': '3Шип',
+    'spike_4': '4Шип',
+    'spike_5': '5Шип'
   };
   
-  const normalizedCode = bottomCode.toLowerCase();
-  return codeMap[normalizedCode] || bottomCode;
+  const normalizedCode = bottomCode.toLowerCase().trim();
+  return codeMap[normalizedCode] || '';
 }
 
 /**
