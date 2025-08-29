@@ -1,6 +1,7 @@
 /**
  * Утилиты для автогенерации артикула товара
- * Формат: НАЗВАНИЕ-РАЗМЕРЫ-МАТЕРИАЛ-ПРЕСС-ПОВЕРХНОСТИ-БОРТ-КРАЙ-НИЗ-СОРТ
+ * Формат для ковровых изделий: [Название] - [Размеры] - [Поверхности] - [Лого] - [Низ] - [Края] - [Доп.характеристики] - [Сорт]
+ * Пример: "Лежак - 1200x800x12 - Чеш - GEA - 3Кор - Край4ст - СБорт,НеУсил - 1С"
  */
 
 export interface ProductData {
@@ -54,40 +55,33 @@ export interface RollCoveringData {
 }
 
 /**
- * Генерирует артикул на основе характеристик товара
+ * Генерирует артикул на основе характеристик товара для ковровых изделий
+ * Формат: [Название] - [Размеры] - [Поверхности] - [Лого] - [Низ] - [Края] - [Доп.характеристики] - [Сорт]
  */
 export function generateArticle(product: ProductData): string {
   const parts: string[] = [];
 
-  // 1. НАЗВАНИЕ - с особыми правилами для "коровка"
+  // 1. НАЗВАНИЕ (краткое)
   const namePart = formatName(product.name);
   if (namePart) parts.push(namePart);
 
-  // 2. РАЗМЕРЫ
+  // 2. РАЗМЕРЫ (длина x ширина x высота)
   const dimensionsPart = formatDimensions(product.dimensions);
   if (dimensionsPart) parts.push(dimensionsPart);
 
-  // 3. МАТЕРИАЛ
-  const materialPart = formatMaterial(product.material?.name);
-  if (materialPart) parts.push(materialPart);
-
-  // 4. ПРЕСС (только если выбран)
-  const pressPart = formatPress(product.pressType);
-  if (pressPart) parts.push(pressPart);
-
-  // 5. ПОВЕРХНОСТИ
+  // 3. ПОВЕРХНОСТИ (краткие коды через +)
   const surfacesPart = formatSurfaces(product.surfaces);
   if (surfacesPart) parts.push(surfacesPart);
 
-  // 6. ЛОГОТИП (только если выбран)
+  // 4. ЛОГОТИП (краткий код, только если выбран)
   const logoPart = formatLogo(product.logo?.name);
   if (logoPart) parts.push(logoPart);
 
-  // 7. БОРТ (только если "с бортом")
-  const borderPart = formatBorder(product.borderType);
-  if (borderPart) parts.push(borderPart);
+  // 5. НИЗ КОВРА (краткий код, только если выбран)
+  const bottomPart = formatBottom(product.bottomType?.code);
+  if (bottomPart) parts.push(bottomPart);
 
-  // 8. КРАЙ
+  // 6. КРАЯ (тип + стороны + пазл, только если не литой)
   const edgePart = formatEdge(
     product.carpetEdgeType,
     product.carpetEdgeSides,
@@ -96,15 +90,20 @@ export function generateArticle(product: ProductData): string {
   );
   if (edgePart) parts.push(edgePart);
 
-  // 9. НИЗ
-  const bottomPart = formatBottom(product.bottomType?.code);
-  if (bottomPart) parts.push(bottomPart);
+  // 7. ДОПОЛНИТЕЛЬНЫЕ ХАРАКТЕРИСТИКИ (борт, усиление, пресс, материал через запятую)
+  const additionalPart = formatAdditionalCharacteristics(
+    product.borderType,
+    product.carpetEdgeStrength,
+    product.pressType,
+    product.material?.name
+  );
+  if (additionalPart) parts.push(additionalPart);
 
-  // 10. СОРТ (кроме "usual")
+  // 8. СОРТ (только если не обычный)
   const gradePart = formatGrade(product.grade);
   if (gradePart) parts.push(gradePart);
 
-  return parts.join('-');
+  return parts.join(' - ');
 }
 
 /**
@@ -127,22 +126,25 @@ function formatName(name: string): string {
     return `${match1[1]}КОР`;
   }
 
-  // По умолчанию берем первое слово в верхнем регистре
-  return name.split(' ')[0].toUpperCase();
+  // По умолчанию берем первое слово с заглавной буквы
+  const firstWord = name.split(' ')[0];
+  return firstWord.charAt(0).toUpperCase() + firstWord.slice(1).toLowerCase();
 }
 
 /**
- * Форматирует размеры: LENGTH x WIDTH x THICKNESS
+ * Форматирует размеры: LENGTH x WIDTH x HEIGHT
  */
-function formatDimensions(dimensions: { length?: number; width?: number; thickness?: number }): string {
+function formatDimensions(dimensions: { length?: number; width?: number; thickness?: number; height?: number }): string {
   if (!dimensions) return '';
 
-  const { length, width, thickness } = dimensions;
+  const { length, width, thickness, height } = dimensions;
   const parts = [];
 
   if (length) parts.push(length.toString());
   if (width) parts.push(width.toString());
-  if (thickness) parts.push(thickness.toString());
+  // Используем height или thickness (для совместимости)
+  const heightValue = height || thickness;
+  if (heightValue) parts.push(heightValue.toString());
 
   return parts.length > 0 ? parts.join('x') : '';
 }
@@ -181,26 +183,26 @@ function formatPress(pressType?: string): string {
 }
 
 /**
- * Форматирует поверхности (множественный выбор через дефис)
+ * Форматирует поверхности (множественный выбор через +)
  */
 function formatSurfaces(surfaces?: Array<{ name: string }>): string {
   if (!surfaces || surfaces.length === 0) return '';
 
   const surfaceMap: Record<string, string> = {
-    'чешуйки': 'ЧЕШУЙ',
-    'черточки': 'ЧЕРТ',
-    'гладкая': 'ГЛАД',
-    '1 коровка': '1КОР',
-    '3 коровки': '3КОР',
-    'чешуйка с лого': 'ЧЕШУЙ-ЛОГО'
+    'чешуйки': 'Чеш',
+    'черточки': 'Черт',
+    'гладкая': 'Глад',
+    '1 коровка': '1Кор',
+    '3 коровки': '3Кор',
+    'чешуйка с лого': 'ЧешЛого'
   };
 
   const formattedSurfaces = surfaces.map(surface => {
     const normalized = surface.name.toLowerCase();
-    return surfaceMap[normalized] || surface.name.toUpperCase();
+    return surfaceMap[normalized] || surface.name;
   });
 
-  return formattedSurfaces.join('-');
+  return formattedSurfaces.join('+');
 }
 
 /**
@@ -211,22 +213,66 @@ function formatLogo(logoName?: string): string {
 
   const logoMap: Record<string, string> = {
     'gea': 'GEA',
-    'maximilk': 'MAX',
+    'maximilk': 'Max',
     'veles': 'VEL',
-    'агротек': 'АГР',
-    'арнтьен': 'АРН',
-    'shvedoff': 'ШВЕ'
+    'агротек': 'Агр',
+    'арнтьен': 'Арн'
   };
 
   const normalized = logoName.toLowerCase();
-  return logoMap[normalized] || logoName.toUpperCase().substring(0, 3);
+  return logoMap[normalized] || logoName;
 }
 
 /**
  * Форматирует борт
  */
 function formatBorder(borderType?: string): string {
-  return borderType === 'with_border' ? 'Б' : '';
+  return borderType === 'with_border' ? 'СБорт' : '';
+}
+
+/**
+ * Форматирует дополнительные характеристики (борт, усиление, пресс, материал)
+ */
+function formatAdditionalCharacteristics(
+  borderType?: string,
+  edgeStrength?: string,
+  pressType?: string,
+  material?: string
+): string {
+  const characteristics: string[] = [];
+
+  // Борт (только если с бортом)
+  if (borderType === 'with_border') {
+    characteristics.push('СБорт');
+  }
+
+  // Усиление (только если не усиленный)
+  if (edgeStrength === 'weak') {
+    characteristics.push('НеУсил');
+  }
+
+  // Пресс (только если выбран)
+  if (pressType && pressType !== 'not_selected') {
+    const pressMap: Record<string, string> = {
+      'ukrainian': 'УкрПресс',
+      'chinese': 'КитПресс'
+    };
+    const pressCode = pressMap[pressType];
+    if (pressCode) characteristics.push(pressCode);
+  }
+
+  // Материал (только если выбран)
+  if (material) {
+    const materialMap: Record<string, string> = {
+      'дробленка': 'Дроб',
+      'протектор': 'Прот'
+    };
+    const normalizedMaterial = material.toLowerCase();
+    const materialCode = materialMap[normalizedMaterial] || material;
+    characteristics.push(materialCode);
+  }
+
+  return characteristics.length > 0 ? characteristics.join(',') : '';
 }
 
 /**
@@ -248,7 +294,7 @@ function formatEdge(
   // Тип края
   const edgeMap: Record<string, string> = {
     'straight_cut': '', // Литой - не показываем
-    'direct_cut': 'ПрямРез',
+    'direct_cut': 'Край',
     'puzzle': 'Пазл',
     'sub_puzzle': 'Подпазл',
     'cast_puzzle': 'ЛитПазл',
@@ -257,7 +303,15 @@ function formatEdge(
     'litoy_puzzle': 'ЛитПазл'
   };
 
-  // Для типа "Пазл" сначала добавляем тип пазла
+  const edgePrefix = edgeMap[edgeType] || edgeType;
+  if (edgePrefix) parts.push(edgePrefix);
+
+  // Количество сторон (для краев которые требуют выбора сторон)
+  if (sides && (edgeType === 'direct_cut' || edgeType === 'puzzle')) {
+    parts.push(`${sides}ст`);
+  }
+
+  // Для типа "Пазл" добавляем тип пазла
   if (edgeType === 'puzzle' && puzzleType?.name) {
     const puzzleMap: Record<string, string> = {
       'старый': 'Стар',
@@ -268,22 +322,6 @@ function formatEdge(
     parts.push(puzzleSuffix);
   }
 
-  // Количество сторон (для краев которые требуют выбора сторон)
-  // Прямой рез применяется ко всем сторонам - стороны не указываем
-  if (sides && edgeType !== 'direct_cut' && edgeType !== 'straight') {
-    parts.push(`${sides}ст`);
-  }
-
-  // Тип края
-  const edgePrefix = edgeMap[edgeType] || edgeType.toUpperCase();
-  if (edgePrefix) parts.push(edgePrefix);
-
-  // Усиление (только если не усиленный)
-  if (strength === 'weak') {
-    parts.push('Н/У');
-  }
-  // Усиленный по умолчанию - не показываем
-
   return parts.join('');
 }
 
@@ -291,19 +329,22 @@ function formatEdge(
  * Форматирует низ ковра
  */
 function formatBottom(bottomCode?: string): string {
-  if (!bottomCode) return '';
+  if (!bottomCode || bottomCode.trim() === '') return '';
   
-  // Преобразуем английские коды в русские
+  // Преобразуем коды в краткие обозначения
   const codeMap: Record<string, string> = {
-    'spike_0': 'ШИП0',
-    'spike_2': 'ШИП2',
-    'spike_5': 'ШИП5',
-    'spike_7': 'ШИП7',
-    'spike_11': 'ШИП11'
+    'spike_0': '', // Без шипов - не отображаем в артикуле
+    'spike_1': '1Шип',
+    'spike_2': '2Шип',
+    'spike_3': '3Шип',
+    'spike_4': '4Шип',
+    'spike_5': '5Шип',
+    'spike_7': '7Шип',
+    'spike_11': '11Шип'
   };
   
-  const normalizedCode = bottomCode.toLowerCase();
-  return codeMap[normalizedCode] || bottomCode.toUpperCase();
+  const normalizedCode = bottomCode.toLowerCase().trim();
+  return codeMap[normalizedCode] || '';
 }
 
 /**
@@ -312,9 +353,9 @@ function formatBottom(bottomCode?: string): string {
 function formatGrade(grade?: string): string {
   const gradeMap: Record<string, string> = {
     'usual': '', // Обычный не указываем в артикуле
-    'grade_2': '2СОРТ',
-    'telyatnik': 'ТЕЛЯТ',
-    'liber': 'ЛИБЕР'
+    'grade_2': '2С',
+    'telyatnik': 'Телят',
+    'liber': 'Либер'
   };
 
   return gradeMap[grade || 'usual'] || '';
@@ -367,72 +408,58 @@ export function previewArticle(product: Partial<ProductData>): string {
 
 /**
  * Генерация артикула для рулонных покрытий
- * Формат: РУЛ-{НАЗВАНИЕ}-{ШИР}x{ДЛН}x{ВЫС}-{ПОВЕРХ}-{НИЗ}-{СОСТАВ}
- * Аналогично ковровым изделиям, но для рулонных покрытий
+ * Формат: [Название] - [Ширина]x[Длина]x[Толщина] - [Поверхности] - [Низ] - [Количество ковров]
+ * Пример: "Покрытие - 1500x10000x3 - Глад - 0Кор - 2Ковр"
  */
 export function generateRollCoveringArticle(productData: RollCoveringData): string {
   const parts: string[] = [];
   
-  // 1. Префикс для рулонных покрытий (русскими буквами)
-  parts.push('РУЛ');
-  
-  // 2. Название (сокращенно, как у ковров)
+  // 1. Название (краткое)
   const namePart = formatRollName(productData.name);
   if (namePart) parts.push(namePart);
   
-  // 3. Размеры: {ШИР}x{ДЛН}x{ВЫС} (только если указаны)
+  // 2. Размеры: {ширина}x{длина}x{толщина}
   const dimensionsPart = formatRollDimensions(productData.dimensions);
   if (dimensionsPart) parts.push(dimensionsPart);
   
-  // 4. Поверхности (русскими буквами, множественный выбор как у ковров)
+  // 3. Поверхности (краткие коды через +)
   const surfaceCode = formatRollSurfaces(productData.surfaces);
   if (surfaceCode) parts.push(surfaceCode);
   
-  // 5. Низ ковра (используем коды из справочника)
+  // 4. Низ ковра (краткие коды)
   const bottomCode = formatRollBottom(productData.bottomType);
   if (bottomCode) parts.push(bottomCode);
   
-  // 6. Состав (количество ковров)
+  // 5. Количество ковров в составе
   const compositionCode = formatRollComposition(productData.composition);
   if (compositionCode) parts.push(compositionCode);
   
-  return parts.join('-');
+  return parts.join(' - ');
 }
 
 /**
- * Форматирует название для рулонных покрытий (аналогично ковровым)
+ * Форматирует название для рулонных покрытий
  */
 function formatRollName(name: string): string {
   if (!name) return '';
 
-  // Специальные правила для "коровка" (аналогично ковровым изделиям)
-  const lowerName = name.toLowerCase();
-  
-  // "коровка" → "1КОР"
-  if (lowerName.includes('коровка') && !lowerName.match(/\d/)) {
-    return '1КОР';
-  }
-  
-  // "1 коровка" → "1КОР", "3 коровки" → "3КОР"
-  const match1 = lowerName.match(/(\d+)\s*коровк[а-я]*/);
-  if (match1) {
-    return `${match1[1]}КОР`;
-  }
-
-  // Для рулонных покрытий берем первое слово в сокращенном виде
-  const firstWord = name.split(' ')[0].toUpperCase();
+  // Для рулонных покрытий используем краткое название
+  const firstWord = name.split(' ')[0];
   
   // Сокращения для типичных рулонных покрытий
   const rollMappings: Record<string, string> = {
-    'РУЛОННОЕ': 'РУЛ',
-    'ПОКРЫТИЕ': 'ПОКР',
-    'ЛИНОЛЕУМ': 'ЛИН',
-    'КОВРОЛИН': 'КОВР',
-    'ПАРКЕТ': 'ПАРК',
-    'ЛАМИНАТ': 'ЛАМ'
+    'рулонное': 'Покрытие',
+    'покрытие': 'Покрытие',
+    'линолеум': 'Линолеум',
+    'ковролин': 'Ковролин',
+    'паркет': 'Паркет',
+    'ламинат': 'Ламинат',
+    'антискольз': 'Антискольз',
+    'резиновое': 'Резиновое'
   };
 
-  return rollMappings[firstWord] || firstWord.substring(0, 4);
+  const normalized = firstWord.toLowerCase();
+  return rollMappings[normalized] || firstWord.charAt(0).toUpperCase() + firstWord.slice(1).toLowerCase();
 }
 
 /**
@@ -452,28 +479,28 @@ function formatRollDimensions(dimensions?: { length?: number; width?: number; th
 }
 
 /**
- * Форматирует поверхности для рулонных покрытий (множественный выбор, русскими буквами как у ковров)
+ * Форматирует поверхности для рулонных покрытий (используем те же коды что и для ковров)
  */
 function formatRollSurfaces(surfaces?: Array<{ name: string }>): string {
   if (!surfaces || surfaces.length === 0) return '';
   
-  // Используем те же русские коды что и для ковровых изделий
+  // Используем те же краткие коды что и для ковровых изделий
   const surfaceMappings: { [key: string]: string } = {
-    'чешуйки': 'ЧЕШУЙ',
-    'черточки': 'ЧЕРТ',
-    'гладкая': 'ГЛАД',
-    '1 коровка': '1КОР',
-    '3 коровки': '3КОР',
-    'чешуйка с лого': 'ЧЕШУЙ-ЛОГО'
+    'чешуйки': 'Чеш',
+    'черточки': 'Черт',
+    'гладкая': 'Глад',
+    '1 коровка': '1Кор',
+    '3 коровки': '3Кор',
+    'чешуйка с лого': 'ЧешЛого'
   };
   
   const formattedSurfaces = surfaces.map(surface => {
     const normalized = surface.name.toLowerCase().trim();
-    return surfaceMappings[normalized] || surface.name.toUpperCase().substring(0, 5);
+    return surfaceMappings[normalized] || surface.name;
   });
   
-  // Объединяем поверхности через дефис (как у ковров)
-  return formattedSurfaces.join('-');
+  // Объединяем поверхности через + (как у ковров)
+  return formattedSurfaces.join('+');
 }
 
 /**
@@ -487,7 +514,7 @@ function formatRollBottom(bottomType?: { code?: string }): string {
 }
 
 /**
- * Форматирует состав рулонного покрытия
+ * Форматирует состав рулонного покрытия (количество ковров)
  */
 function formatRollComposition(composition?: Array<{ carpetId: number; quantity: number; sortOrder: number }>): string {
   if (!composition || composition.length === 0) return '';
@@ -495,8 +522,8 @@ function formatRollComposition(composition?: Array<{ carpetId: number; quantity:
   // Считаем общее количество ковров в составе
   const totalQuantity = composition.reduce((sum, item) => sum + item.quantity, 0);
   
-  // Показываем состав только если есть ковры
-  return totalQuantity > 0 ? `СОСТАВ${totalQuantity}` : '';
+  // Показываем количество ковров в формате "5Ковр"
+  return totalQuantity > 0 ? `${totalQuantity}Ковр` : '';
 }
 
 

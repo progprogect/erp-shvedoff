@@ -670,8 +670,9 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
     if (validProductType === 'carpet' && (autoGenerateArticle || !article)) {
       try {
         // Получаем связанные данные для генерации артикула
-        const [material, surfaces, bottomType, puzzleType] = await Promise.all([
+        const [material, logo, surfaces, bottomType, puzzleType] = await Promise.all([
           materialId ? db.query.productMaterials.findFirst({ where: eq(schema.productMaterials.id, materialId) }) : null,
+          logoId ? db.query.productLogos.findFirst({ where: eq(schema.productLogos.id, logoId) }) : null,
           finalSurfaceIds.length > 0 ? db.query.productSurfaces.findMany({ where: inArray(schema.productSurfaces.id, finalSurfaceIds) }) : [],
           bottomTypeId ? db.query.bottomTypes.findFirst({ where: eq(schema.bottomTypes.id, bottomTypeId) }) : null,
           puzzleTypeId ? db.query.puzzleTypes.findFirst({ where: eq(schema.puzzleTypes.id, puzzleTypeId) }) : null
@@ -682,6 +683,7 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
           dimensions,
           material: material ? { name: material.name } : undefined,
           pressType: pressType || 'not_selected',
+          logo: logo ? { name: logo.name } : undefined,
           surfaces: surfaces ? surfaces.map(s => ({ name: s.name })) : [],
           borderType,
           carpetEdgeType: carpetEdgeType || 'straight_cut',
