@@ -74,7 +74,7 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
     }
 
     // Получаем количество товаров в категории
-    const productsCount = await db.select().from(schema.products)
+    const productsCount = await db.select({ id: schema.products.id }).from(schema.products)
       .where(eq(schema.products.categoryId, category.id));
 
     res.json({
@@ -256,9 +256,10 @@ router.delete('/:id', authenticateToken, async (req: AuthRequest, res, next) => 
     }
 
     // Проверяем есть ли товары в категории
-    const products = await db.query.products.findMany({
-      where: eq(schema.products.categoryId, parseInt(id))
-    });
+    const products = await db.select({
+      id: schema.products.id
+    }).from(schema.products)
+      .where(eq(schema.products.categoryId, parseInt(id)));
 
     if (products.length > 0) {
       return next(createError('Нельзя удалить категорию, содержащую товары', 400));
@@ -314,9 +315,13 @@ router.post('/:id/delete-with-action', authenticateToken, async (req: AuthReques
     }
 
     // Получаем товары и дочерние категории
-    const products = await db.query.products.findMany({
-      where: eq(schema.products.categoryId, parseInt(id))
-    });
+    const products = await db.select({
+      id: schema.products.id,
+      name: schema.products.name,
+      categoryId: schema.products.categoryId,
+      isActive: schema.products.isActive
+    }).from(schema.products)
+      .where(eq(schema.products.categoryId, parseInt(id)));
 
     const childCategories = await db.query.categories.findMany({
       where: eq(schema.categories.parentId, parseInt(id))
