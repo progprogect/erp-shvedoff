@@ -405,72 +405,58 @@ export function previewArticle(product: Partial<ProductData>): string {
 
 /**
  * Генерация артикула для рулонных покрытий
- * Формат: РУЛ-{НАЗВАНИЕ}-{ШИР}x{ДЛН}x{ВЫС}-{ПОВЕРХ}-{НИЗ}-{СОСТАВ}
- * Аналогично ковровым изделиям, но для рулонных покрытий
+ * Формат: [Название] - [Ширина]x[Длина]x[Толщина] - [Поверхности] - [Низ] - [Количество ковров]
+ * Пример: "Покрытие - 1500x10000x3 - Глад - 0Кор - 2Ковр"
  */
 export function generateRollCoveringArticle(productData: RollCoveringData): string {
   const parts: string[] = [];
   
-  // 1. Префикс для рулонных покрытий (русскими буквами)
-  parts.push('РУЛ');
-  
-  // 2. Название (сокращенно, как у ковров)
+  // 1. Название (краткое)
   const namePart = formatRollName(productData.name);
   if (namePart) parts.push(namePart);
   
-  // 3. Размеры: {ШИР}x{ДЛН}x{ВЫС} (только если указаны)
+  // 2. Размеры: {ширина}x{длина}x{толщина}
   const dimensionsPart = formatRollDimensions(productData.dimensions);
   if (dimensionsPart) parts.push(dimensionsPart);
   
-  // 4. Поверхности (русскими буквами, множественный выбор как у ковров)
+  // 3. Поверхности (краткие коды через +)
   const surfaceCode = formatRollSurfaces(productData.surfaces);
   if (surfaceCode) parts.push(surfaceCode);
   
-  // 5. Низ ковра (используем коды из справочника)
+  // 4. Низ ковра (краткие коды)
   const bottomCode = formatRollBottom(productData.bottomType);
   if (bottomCode) parts.push(bottomCode);
   
-  // 6. Состав (количество ковров)
+  // 5. Количество ковров в составе
   const compositionCode = formatRollComposition(productData.composition);
   if (compositionCode) parts.push(compositionCode);
   
-  return parts.join('-');
+  return parts.join(' - ');
 }
 
 /**
- * Форматирует название для рулонных покрытий (аналогично ковровым)
+ * Форматирует название для рулонных покрытий
  */
 function formatRollName(name: string): string {
   if (!name) return '';
 
-  // Специальные правила для "коровка" (аналогично ковровым изделиям)
-  const lowerName = name.toLowerCase();
-  
-  // "коровка" → "1КОР"
-  if (lowerName.includes('коровка') && !lowerName.match(/\d/)) {
-    return '1КОР';
-  }
-  
-  // "1 коровка" → "1КОР", "3 коровки" → "3КОР"
-  const match1 = lowerName.match(/(\d+)\s*коровк[а-я]*/);
-  if (match1) {
-    return `${match1[1]}КОР`;
-  }
-
-  // Для рулонных покрытий берем первое слово в сокращенном виде
-  const firstWord = name.split(' ')[0].toUpperCase();
+  // Для рулонных покрытий используем краткое название
+  const firstWord = name.split(' ')[0];
   
   // Сокращения для типичных рулонных покрытий
   const rollMappings: Record<string, string> = {
-    'РУЛОННОЕ': 'РУЛ',
-    'ПОКРЫТИЕ': 'ПОКР',
-    'ЛИНОЛЕУМ': 'ЛИН',
-    'КОВРОЛИН': 'КОВР',
-    'ПАРКЕТ': 'ПАРК',
-    'ЛАМИНАТ': 'ЛАМ'
+    'рулонное': 'Покрытие',
+    'покрытие': 'Покрытие',
+    'линолеум': 'Линолеум',
+    'ковролин': 'Ковролин',
+    'паркет': 'Паркет',
+    'ламинат': 'Ламинат',
+    'антискольз': 'Антискольз',
+    'резиновое': 'Резиновое'
   };
 
-  return rollMappings[firstWord] || firstWord.substring(0, 4);
+  const normalized = firstWord.toLowerCase();
+  return rollMappings[normalized] || firstWord.charAt(0).toUpperCase() + firstWord.slice(1).toLowerCase();
 }
 
 /**
@@ -490,28 +476,28 @@ function formatRollDimensions(dimensions?: { length?: number; width?: number; th
 }
 
 /**
- * Форматирует поверхности для рулонных покрытий (множественный выбор, русскими буквами как у ковров)
+ * Форматирует поверхности для рулонных покрытий (используем те же коды что и для ковров)
  */
 function formatRollSurfaces(surfaces?: Array<{ name: string }>): string {
   if (!surfaces || surfaces.length === 0) return '';
   
-  // Используем те же русские коды что и для ковровых изделий
+  // Используем те же краткие коды что и для ковровых изделий
   const surfaceMappings: { [key: string]: string } = {
-    'чешуйки': 'ЧЕШУЙ',
-    'черточки': 'ЧЕРТ',
-    'гладкая': 'ГЛАД',
-    '1 коровка': '1КОР',
-    '3 коровки': '3КОР',
-    'чешуйка с лого': 'ЧЕШУЙ-ЛОГО'
+    'чешуйки': 'Чеш',
+    'черточки': 'Черт',
+    'гладкая': 'Глад',
+    '1 коровка': '1Кор',
+    '3 коровки': '3Кор',
+    'чешуйка с лого': 'ЧешЛого'
   };
   
   const formattedSurfaces = surfaces.map(surface => {
     const normalized = surface.name.toLowerCase().trim();
-    return surfaceMappings[normalized] || surface.name.toUpperCase().substring(0, 5);
+    return surfaceMappings[normalized] || surface.name;
   });
   
-  // Объединяем поверхности через дефис (как у ковров)
-  return formattedSurfaces.join('-');
+  // Объединяем поверхности через + (как у ковров)
+  return formattedSurfaces.join('+');
 }
 
 /**
@@ -525,7 +511,7 @@ function formatRollBottom(bottomType?: { code?: string }): string {
 }
 
 /**
- * Форматирует состав рулонного покрытия
+ * Форматирует состав рулонного покрытия (количество ковров)
  */
 function formatRollComposition(composition?: Array<{ carpetId: number; quantity: number; sortOrder: number }>): string {
   if (!composition || composition.length === 0) return '';
@@ -533,8 +519,8 @@ function formatRollComposition(composition?: Array<{ carpetId: number; quantity:
   // Считаем общее количество ковров в составе
   const totalQuantity = composition.reduce((sum, item) => sum + item.quantity, 0);
   
-  // Показываем состав только если есть ковры
-  return totalQuantity > 0 ? `СОСТАВ${totalQuantity}` : '';
+  // Показываем количество ковров в формате "5Ковр"
+  return totalQuantity > 0 ? `${totalQuantity}Ковр` : '';
 }
 
 
