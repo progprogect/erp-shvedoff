@@ -473,7 +473,7 @@ function formatRollDimensions(dimensions?: { length?: number; width?: number; th
   
   // Показываем размеры только если хотя бы один из них больше 0
   if (length > 0 || width > 0 || thickness > 0) {
-    return `${width}x${length}x${thickness}`;
+    return `${length}x${width}x${thickness}`;
   }
   
   return '';

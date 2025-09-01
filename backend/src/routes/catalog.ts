@@ -10,6 +10,28 @@ import { generateArticle, validateProductData } from '../utils/articleGenerator'
 
 const router = express.Router();
 
+// Helper function to calculate mat area (площадь мата)
+function calculateMatArea(matArea: string | undefined, dimensions: any, productType: string): string | null {
+  // Если площадь указана вручную, используем её
+  if (matArea) {
+    return parseFloat(matArea).toString();
+  }
+  
+  // Автоматический расчет для ковров и рулонных покрытий
+  if ((productType === 'carpet' || productType === 'roll_covering') && dimensions) {
+    const { length, width } = dimensions;
+    if (length && width && length > 0 && width > 0) {
+      // Переводим из мм в м и рассчитываем площадь
+      const lengthInMeters = length / 1000;
+      const widthInMeters = width / 1000;
+      const areaInSquareMeters = lengthInMeters * widthInMeters;
+      return areaInSquareMeters.toFixed(4);
+    }
+  }
+  
+  return null;
+}
+
 // Helper function to calculate reserved quantities from active orders
 async function getReservedQuantities(productIds?: number[]) {
   if (!productIds || productIds.length === 0) {
@@ -766,7 +788,7 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
       dimensions: (validProductType === 'carpet' || validProductType === 'pur' || validProductType === 'roll_covering') ? dimensions : null, // размеры для ковров, ПУР и рулонов
       characteristics: validProductType === 'carpet' ? characteristics : null,
       puzzleOptions: validProductType === 'carpet' ? (puzzleOptions || null) : null,
-      matArea: validProductType === 'carpet' && matArea ? parseFloat(matArea).toString() : null,
+      matArea: (validProductType === 'carpet' || validProductType === 'roll_covering') && calculateMatArea(matArea, dimensions, validProductType),
       weight: weight ? parseFloat(weight).toString() : null, // вес может быть у любого товара
       grade: validProductType === 'carpet' ? (grade || 'usual') : null,
       borderType: validProductType === 'carpet' ? (borderType || null) : null,
