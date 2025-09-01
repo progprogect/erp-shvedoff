@@ -213,14 +213,33 @@ function formatLogo(logoName?: string): string {
 
   const logoMap: Record<string, string> = {
     'gea': 'GEA',
-    'maximilk': 'Max',
+    'maximilk': 'Max', 
     'veles': 'VEL',
     'агротек': 'Агр',
     'арнтьен': 'Арн'
   };
 
-  const normalized = logoName.toLowerCase();
-  return logoMap[normalized] || logoName;
+  const normalized = logoName.toLowerCase().trim();
+  
+  // Сначала пытаемся найти точное совпадение
+  if (logoMap[normalized]) {
+    return logoMap[normalized];
+  }
+  
+  // Если не найдено, ищем частичное совпадение (содержит)
+  for (const [key, value] of Object.entries(logoMap)) {
+    if (normalized.includes(key) || key.includes(normalized)) {
+      return value;
+    }
+  }
+  
+  // Если ничего не найдено, возвращаем сокращенную версию оригинального названия
+  // Для русских названий берем первые 3 символа, для английских - как есть если короткие
+  if (/[а-яё]/i.test(logoName)) {
+    return logoName.slice(0, 3).toUpperCase();
+  } else {
+    return logoName.length <= 4 ? logoName.toUpperCase() : logoName.slice(0, 4).toUpperCase();
+  }
 }
 
 /**
