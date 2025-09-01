@@ -1051,7 +1051,9 @@ const Catalog: React.FC = () => {
                             placeholder="Выберите низ ковра"
                             style={{ width: '100%' }}
                           >
-                            {bottomTypes.map(type => (
+                            {bottomTypes
+                              .filter(type => type.code !== 'not_selected') // Исключаем служебную запись "Не выбрано"
+                              .map(type => (
                               <Option key={type.id} value={type.id}>
                                 🔽 {type.name}
                               </Option>

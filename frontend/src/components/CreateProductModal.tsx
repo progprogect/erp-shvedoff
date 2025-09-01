@@ -1371,7 +1371,9 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                   onChange={handleBottomTypeChange}
                 >
                   <Option value={null}>Не выбрано</Option>
-                  {bottomTypes.map(type => (
+                  {bottomTypes
+                    .filter(type => type.code !== 'not_selected') // Исключаем служебную запись "Не выбрано"
+                    .map(type => (
                     <Option key={type.id} value={type.id}>
                       🔽 {type.name}
                     </Option>
