@@ -313,7 +313,7 @@ function formatEdge(
   // Тип края
   const edgeMap: Record<string, string> = {
     'straight_cut': '', // Литой - не показываем
-    'direct_cut': 'Край',
+    'direct_cut': 'ПрямРез',
     'puzzle': 'Пазл',
     'sub_puzzle': 'Подпазл',
     'cast_puzzle': 'ЛитПазл',
@@ -325,8 +325,8 @@ function formatEdge(
   const edgePrefix = edgeMap[edgeType] || edgeType;
   if (edgePrefix) parts.push(edgePrefix);
 
-  // Количество сторон (для краев которые требуют выбора сторон)
-  if (sides && (edgeType === 'direct_cut' || edgeType === 'puzzle')) {
+  // Количество сторон (для всех краев кроме литого)
+  if (sides && edgeType !== 'straight_cut') {
     parts.push(`${sides}ст`);
   }
 

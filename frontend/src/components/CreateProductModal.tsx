@@ -76,7 +76,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
   
   // Функция для определения типов краев без выбора сторон
   const isEdgeTypeWithoutSidesSelection = (edgeType: string): boolean => {
-    return ['straight_cut', 'direct_cut', 'straight'].includes(edgeType);
+    return ['straight_cut', 'straight'].includes(edgeType); // Только Литой край без выбора сторон
   };
   
   // Состояние для новых полей края ковра
@@ -209,7 +209,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
     
     // Очищаем поля при смене типа края
     if (isEdgeTypeWithoutSidesSelection(value)) {
-      // Для Литого края и Прямого реза очищаем стороны и тип паззла
+      // Для Литого края очищаем стороны и тип паззла
       form.setFieldsValue({
         carpetEdgeSides: 1,
         puzzleTypeId: undefined
@@ -1286,7 +1286,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
             </Form.Item>
           </Col>
           
-          {/* Количество сторон - для всех типов кроме Литой и Прямого реза */}
+          {/* Количество сторон - для всех типов кроме Литой */}
           {!isEdgeTypeWithoutSidesSelection(selectedCarpetEdgeType) && (
             <Col span={8}>
               <Form.Item
