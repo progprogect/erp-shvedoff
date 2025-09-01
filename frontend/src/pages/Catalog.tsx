@@ -49,12 +49,14 @@ const formatCategoriesForTree = (categories: Category[], allProducts: Product[])
     categoryProducts.forEach(product => {
       const dimensions = product.dimensions ? 
         `${product.dimensions.length}×${product.dimensions.width}×${product.dimensions.thickness}` : 
-        'без размеров';
+        '';
       const available = (product.currentStock || 0) - (product.reservedStock || 0);
       const stockIcon = available > 0 ? '✅' : '❌';
       
+      const dimensionsDisplay = dimensions ? ` (${dimensions})` : '';
+      
       children.push({
-        title: `${stockIcon} ${product.name} (${dimensions})`,
+        title: `${stockIcon} ${product.name}${dimensionsDisplay}`,
         key: `product-${product.id}`,
         isLeaf: true,
         data: { type: 'product', product }
