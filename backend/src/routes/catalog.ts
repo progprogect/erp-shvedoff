@@ -774,7 +774,7 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
       );
 
       if (duplicateProduct) {
-        return next(createError(`Товар с таким артикулом уже существует. Выберите другой. (Существующий товар: "${duplicateProduct.name}")`, 400));
+        return next(createError(`Товар с таким артикулом уже существует. Выберите другой.`, 400));
       }
     }
 
