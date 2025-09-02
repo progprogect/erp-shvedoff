@@ -1903,6 +1903,7 @@ const Catalog: React.FC = () => {
         width={600}
         closable={!movingProducts}
         maskClosable={!movingProducts}
+        style={{ top: '60px' }}
       >
         {movingProducts ? (
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
