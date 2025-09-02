@@ -108,6 +108,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
           thickness: formValues.thickness
         },
         materialId: formValues.materialId,
+        logoId: formValues.logoId, // 🔥 ИСПРАВЛЕНИЕ: добавлен logoId для корректной генерации артикула
         pressType: pressType,
         surfaceIds: selectedSurfaceIds,
         borderType: formValues.borderType,
