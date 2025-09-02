@@ -10,7 +10,8 @@ import {
   FilterOutlined,
   ClearOutlined,
   ReloadOutlined,
-  DeleteOutlined
+  DeleteOutlined,
+  EditOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
@@ -21,9 +22,11 @@ import { logosApi } from '../services/logosApi';
 import carpetEdgeTypesApi from '../services/carpetEdgeTypesApi';
 import bottomTypesApi from '../services/bottomTypesApi';
 import { puzzleTypesApi } from '../services/puzzleTypesApi';
+import { stockApi, StockItem } from '../services/stockApi';
 import CreateProductModal from '../components/CreateProductModal';
 import CreateCategoryModal from '../components/CreateCategoryModal';
 import DeleteCategoryModal from '../components/DeleteCategoryModal';
+import StockAdjustmentModal from '../components/StockAdjustmentModal';
 import usePermissions from '../hooks/usePermissions';
 
 const { Title, Text } = Typography;
@@ -89,6 +92,10 @@ const Catalog: React.FC = () => {
   const [createCategoryModalVisible, setCreateCategoryModalVisible] = useState(false);
   const [deleteCategoryModalVisible, setDeleteCategoryModalVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  
+  // 🔥 НОВОЕ: Состояние для корректировки остатков
+  const [adjustmentModalVisible, setAdjustmentModalVisible] = useState(false);
+  const [selectedStockItem, setSelectedStockItem] = useState<StockItem | null>(null);
   
   // Новые фильтры для WBS 2 - Adjustments Задача 2.1
   const [selectedMaterials, setSelectedMaterials] = useState<number[]>([]);
@@ -689,6 +696,32 @@ const Catalog: React.FC = () => {
   const handleDeleteCategory = (category: Category) => {
     setSelectedCategory(category);
     setDeleteCategoryModalVisible(true);
+  };
+
+  // 🔥 НОВОЕ: Функции для корректировки остатков
+  const adaptProductToStockItem = (product: Product): StockItem => ({
+    id: 0, // Временное значение для совместимости
+    productId: product.id,
+    productName: product.name,
+    currentStock: product.currentStock || 0,
+    availableStock: product.availableStock || 0,
+    reservedStock: product.reservedStock || 0,
+    inProductionQuantity: product.inProductionQuantity || 0,
+    productArticle: product.article || '',
+    categoryName: product.categoryName || '',
+    normStock: 0,
+    price: product.price || 0,
+    updatedAt: product.updatedAt || new Date().toISOString()
+  });
+
+  const handleStockAdjustment = (product: Product) => {
+    const stockItem = adaptProductToStockItem(product);
+    setSelectedStockItem(stockItem);
+    setAdjustmentModalVisible(true);
+  };
+
+  const handleAdjustmentSuccess = () => {
+    loadProducts(); // Обновляем данные каталога после корректировки
   };
 
   // Получение плоского списка категорий
@@ -1439,6 +1472,17 @@ const Catalog: React.FC = () => {
                           Детали
                         </Button>
 
+                        {canEdit('stock') && (
+                          <Button 
+                            size="small"
+                            icon={<EditOutlined />}
+                            title="Корректировка остатка"
+                            onClick={() => handleStockAdjustment(product)}
+                          >
+                            +/-
+                          </Button>
+                        )}
+
                         {canEditCatalog && (
                           <Button 
                             size="small" 
@@ -1644,6 +1688,14 @@ const Catalog: React.FC = () => {
           </>
         )}
       </Modal>
+
+      {/* 🔥 НОВОЕ: Модальное окно корректировки остатков */}
+      <StockAdjustmentModal
+        visible={adjustmentModalVisible}
+        stockItem={selectedStockItem}
+        onClose={() => setAdjustmentModalVisible(false)}
+        onSuccess={handleAdjustmentSuccess}
+      />
     </div>
   );
 };
