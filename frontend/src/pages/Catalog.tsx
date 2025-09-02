@@ -103,9 +103,13 @@ const Catalog: React.FC = () => {
   });
   const [onlyInStock, setOnlyInStock] = useState(false);
   
-  // Сортировка (Задача 7.2)
-  const [sortBy, setSortBy] = useState<string>('name');
-  const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('ASC');
+  // 🔥 НОВОЕ: Сортировка по дате изменения по умолчанию (свежие товары сверху)
+  const [sortBy, setSortBy] = useState<string>(() => {
+    return localStorage.getItem('catalog-sortBy') || 'updatedAt';
+  });
+  const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>(() => {
+    return (localStorage.getItem('catalog-sortOrder') as 'ASC' | 'DESC') || 'DESC';
+  });
   
   // Расширенные фильтры для системного архитектора
   const [selectedLogos, setSelectedLogos] = useState<number[]>([]);
@@ -1237,10 +1241,14 @@ const Catalog: React.FC = () => {
                       <Text strong>Сортировка:</Text>
                       <Select
                         value={sortBy}
-                        onChange={setSortBy}
+                        onChange={(value) => {
+                          setSortBy(value);
+                          localStorage.setItem('catalog-sortBy', value);
+                        }}
                         style={{ width: 180 }}
                         size="small"
                       >
+                        <Option value="updatedAt">🔄 По дате изменения</Option>
                         <Option value="name">📝 По названию</Option>
                         <Option value="matArea">📏 По площади (размеру)</Option>
                         <Option value="price">💰 По цене</Option>
@@ -1248,7 +1256,10 @@ const Catalog: React.FC = () => {
                       </Select>
                       <Select
                         value={sortOrder}
-                        onChange={setSortOrder}
+                        onChange={(value) => {
+                          setSortOrder(value);
+                          localStorage.setItem('catalog-sortOrder', value);
+                        }}
                         style={{ width: 120 }}
                         size="small"
                       >

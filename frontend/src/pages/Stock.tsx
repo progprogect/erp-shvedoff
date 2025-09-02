@@ -611,6 +611,7 @@ const Stock: React.FC = () => {
                 style={{ width: 180 }}
                 size="small"
               >
+                <Option value="updatedAt">🔄 По дате изменения</Option>
                 <Option value="name">📝 По названию</Option>
                 <Option value="matArea">📏 По площади (размеру)</Option>
                 <Option value="availableStock">📦 По доступному остатку</Option>

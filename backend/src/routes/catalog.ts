@@ -372,12 +372,15 @@ router.get('/products', authenticateToken, async (req, res, next) => {
                         sortBy === 'weight' ? schema.products.weight :
                         sortBy === 'name' ? schema.products.name :
                         sortBy === 'price' ? schema.products.price :
-                        schema.products.name;
+                        sortBy === 'updatedAt' ? schema.products.updatedAt :
+                        sortBy === 'createdAt' ? schema.products.createdAt :
+                        schema.products.updatedAt; // 🔥 НОВОЕ: дефолт по дате изменения
       
       const direction = sortOrder === 'DESC' ? sql`${sortColumn} DESC` : sql`${sortColumn} ASC`;
       orderBy = direction;
     } else {
-      orderBy = schema.products.name;
+      // 🔥 НОВОЕ: дефолтная сортировка по дате изменения (новые товары/изменения сверху)
+      orderBy = sql`${schema.products.updatedAt} DESC`;
     }
 
     const products = await db.query.products.findMany({
