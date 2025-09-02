@@ -147,7 +147,7 @@ export interface ApiResponse<T> {
 }
 
 export interface CategoryDeleteOptions {
-  productAction: 'delete' | 'move';
+  productAction?: 'delete' | 'move';
   targetCategoryId?: number;
   childAction?: 'delete' | 'move' | 'promote';
   targetParentId?: number;

@@ -617,23 +617,43 @@ const ProductDetail: React.FC = () => {
                   {/* Общие характеристики для ковров и рулонных покрытий */}
                   {(product?.productType === 'carpet' || product?.productType === 'roll_covering') && (
                     <>
-                      {/* Поверхность */}
-                      <Descriptions.Item label="Поверхность">
-                        {product?.surfaces && product.surfaces.length > 0 ? (
-                          <Space wrap>
-                            {product.surfaces.map((surface, index) => (
-                              <Tag key={index} color="blue">{`🎨 ${surface.name || surface}`}</Tag>
-                            ))}
-                          </Space>
-                        ) : (
-                          'Не указана'
-                        )}
-                      </Descriptions.Item>
+                      {/* 🔥 ИСПРАВЛЕНИЕ: Убираем дублирование поверхностей - они теперь только в блоке для ковров */}
                       
                       {/* Низ ковра */}
                       <Descriptions.Item label="Низ ковра">
                         {(typeof product?.bottomType === 'string' ? product.bottomType : product?.bottomType?.name) || 'Не указан'}
                       </Descriptions.Item>
+                      
+                      {/* 🔥 ИСПРАВЛЕНИЕ: Добавляем материал, пресс, логотип для рулонных покрытий */}
+                      {product?.productType === 'roll_covering' && (
+                        <>
+                          <Descriptions.Item label="Поверхности">
+                            {product?.surfaces && product.surfaces.length > 0 ? (
+                              <Space wrap>
+                                {product.surfaces.map((surface, index) => (
+                                  <Tag key={index} color="blue">{`🎨 ${surface.name || surface}`}</Tag>
+                                ))}
+                              </Space>
+                            ) : (
+                              'Не указана'
+                            )}
+                          </Descriptions.Item>
+                          
+                          <Descriptions.Item label="Логотип">
+                            {product?.logo?.name || 'Не указан'}
+                          </Descriptions.Item>
+                          
+                          <Descriptions.Item label="Материал">
+                            {product?.material?.name || 'Не указан'}
+                          </Descriptions.Item>
+
+                          <Descriptions.Item label="Пресс">
+                            {product?.pressType === 'ukrainian' ? '🇺🇦 Украинский' : 
+                             product?.pressType === 'chinese' ? '🇨🇳 Китайский' : 
+                             '➖ Не выбрано'}
+                          </Descriptions.Item>
+                        </>
+                      )}
                       
                       {/* Состав рулонного покрытия - только для рулонных покрытий */}
                       {product?.productType === 'roll_covering' && (
@@ -1242,23 +1262,63 @@ const ProductDetail: React.FC = () => {
 
           {/* Размеры - для ковров, ПУР и рулонных покрытий */}
           {(product?.productType === 'carpet' || product?.productType === 'pur' || product?.productType === 'roll_covering') && (
-            <Row gutter={16}>
-              <Col span={8}>
-                <Form.Item name="length" label="Длина (мм)">
-                  <InputNumber style={{ width: '100%' }} min={1} />
-                </Form.Item>
-              </Col>
-              <Col span={8}>
-                <Form.Item name="width" label="Ширина (мм)">
-                  <InputNumber style={{ width: '100%' }} min={1} />
-                </Form.Item>
-              </Col>
-              <Col span={8}>
-                <Form.Item name="thickness" label="Высота (мм)">
-                  <InputNumber style={{ width: '100%' }} min={1} />
-                </Form.Item>
-              </Col>
-            </Row>
+            <>
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Form.Item name="length" label="Длина (мм)">
+                    <InputNumber style={{ width: '100%' }} min={1} />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item name="width" label="Ширина (мм)">
+                    <InputNumber style={{ width: '100%' }} min={1} />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item name="thickness" label="Высота (мм)">
+                    <InputNumber style={{ width: '100%' }} min={1} />
+                  </Form.Item>
+                </Col>
+              </Row>
+              
+              {/* 🔥 ИСПРАВЛЕНИЕ: Добавлено поле площади в редактирование */}
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item 
+                    name="matArea" 
+                    label="Площадь (м²)"
+                    help={
+                      product?.productType === 'carpet' ? 'Площадь ковра в м²' :
+                      product?.productType === 'pur' ? 'Площадь ПУР изделия в м²' :
+                      'Площадь рулонного покрытия в м²'
+                    }
+                  >
+                    <InputNumber 
+                      placeholder={
+                        product?.productType === 'carpet' ? "Площадь ковра" :
+                        product?.productType === 'pur' ? "Площадь ПУР" :
+                        "Площадь покрытия"
+                      }
+                      style={{ width: '100%' }}
+                      min={0}
+                      precision={4}
+                      step={0.0001}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <div style={{ paddingTop: '30px', color: '#666', fontSize: '12px' }}>
+                    {product?.productType === 'carpet' ? (
+                      '📏 Площадь ковра для расчета материалов'
+                    ) : product?.productType === 'pur' ? (
+                      '📏 Площадь ПУР изделия'
+                    ) : (
+                      '📏 Площадь рулонного покрытия'
+                    )}
+                  </div>
+                </Col>
+              </Row>
+            </>
           )}
 
           {/* Номер ПУР - только для товаров типа ПУР */}
@@ -1443,7 +1503,7 @@ const ProductDetail: React.FC = () => {
           {product?.productType === 'roll_covering' && (
             <>
               <Row gutter={16}>
-                <Col span={12}>
+                <Col span={8}>
                   <Form.Item name="surfaceIds" label="Поверхности">
                     <Select 
                       mode="multiple"
@@ -1459,7 +1519,43 @@ const ProductDetail: React.FC = () => {
                     </Select>
                   </Form.Item>
                 </Col>
-                <Col span={12}>
+                <Col span={8}>
+                  <Form.Item name="logoId" label="Логотип">
+                    <Select 
+                      placeholder="Выберите логотип"
+                      allowClear
+                    >
+                      {logos.map(logo => (
+                        <Option key={logo.id} value={logo.id}>
+                          📝 {logo.name}
+                        </Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item name="materialId" label="Материал">
+                    <Select placeholder="Выберите материал" allowClear>
+                      {materials.map(material => (
+                        <Option key={material.id} value={material.id}>
+                          🛠️ {material.name}
+                        </Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Form.Item name="pressType" label="Пресс">
+                    <Select placeholder="Выберите тип пресса" allowClear>
+                      <Option value="not_selected">➖ Не выбрано</Option>
+                      <Option value="ukrainian">🇺🇦 Украинский</Option>
+                      <Option value="chinese">🇨🇳 Китайский</Option>
+                    </Select>
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
                   <Form.Item name="bottomTypeId" label="Низ ковра">
                     <Select placeholder="Выберите тип низа" allowClear>
                       {bottomTypes.map(type => (

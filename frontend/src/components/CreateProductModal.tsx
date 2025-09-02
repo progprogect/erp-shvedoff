@@ -1040,8 +1040,8 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
             </Col>
           </Row>
 
-          {/* Поле площади - только для ковровых изделий */}
-          {productType === 'carpet' && (
+          {/* 🔥 ИСПРАВЛЕНИЕ: Поле площади для ковровых изделий, ПУР и рулонных покрытий */}
+          {(productType === 'carpet' || productType === 'pur' || productType === 'roll_covering') && (
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Item
@@ -1049,36 +1049,57 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                   label={
                     <span>
                       Площадь (м²)
-                      {calculatedMatArea && (
+                      {productType === 'carpet' && calculatedMatArea && (
                         <span style={{ color: '#1890ff', fontWeight: 'normal', marginLeft: 8 }}>
                           (автоматически: {calculatedMatArea} м²)
                         </span>
                       )}
                     </span>
                   }
+                  help={
+                    productType === 'carpet' ? 'Для ковров рассчитывается автоматически из размеров' :
+                    productType === 'pur' ? 'Площадь ПУР изделия в м²' :
+                    'Площадь рулонного покрытия в м²'
+                  }
                 >
                   <InputNumber 
-                    placeholder="Рассчитается автоматически"
+                    placeholder={
+                      productType === 'carpet' ? "Рассчитается автоматически" :
+                      productType === 'pur' ? "Введите площадь ПУР" :
+                      "Введите площадь покрытия"
+                    }
                     style={{ width: '100%' }}
                     min={0}
                     precision={4}
                     step={0.0001}
                     onChange={(value: number | null) => {
-                      // Отмечаем что пользователь вручную изменил площадь
-                      setMatAreaOverride(value !== null && value !== calculatedMatArea ? 'manual' : '');
+                      // Для ковров отмечаем что пользователь вручную изменил площадь
+                      if (productType === 'carpet') {
+                        setMatAreaOverride(value !== null && value !== calculatedMatArea ? 'manual' : '');
+                      }
                     }}
                   />
                 </Form.Item>
               </Col>
               <Col span={12}>
                 <div style={{ paddingTop: '30px', color: '#666', fontSize: '12px' }}>
-                  {calculatedMatArea ? (
+                  {productType === 'carpet' && calculatedMatArea ? (
                     <>
                       📏 Расчет: {form.getFieldValue('length') || 0} × {form.getFieldValue('width') || 0} мм = {calculatedMatArea} м²<br/>
                       💡 Можете скорректировать значение при необходимости
                     </>
-                  ) : (
+                  ) : productType === 'carpet' ? (
                     '📏 Введите длину и ширину для автоматического расчета площади'
+                  ) : productType === 'pur' ? (
+                    <>
+                      📏 Площадь ПУР изделия для расчета материалов<br/>
+                      💡 Введите точную площадь в м²
+                    </>
+                  ) : (
+                    <>
+                      📏 Площадь рулонного покрытия для учета<br/>
+                      💡 Введите общую площадь в м²
+                    </>
                   )}
                 </div>
               </Col>
