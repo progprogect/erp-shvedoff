@@ -420,9 +420,11 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
         purNumber: productType === 'pur' ? purNumber : undefined, // номер ПУР только для ПУР товаров
         composition: productType === 'roll_covering' ? rollComposition : undefined, // состав только для рулонных покрытий
         categoryId: values.categoryId,
-        surfaceId: values.surfaceId || null,
+        surfaceId: values.surfaceId || null, // DEPRECATED: для обратной совместимости
+        surfaceIds: selectedSurfaceIds, // 🔥 ИСПРАВЛЕНИЕ: новое поле множественных поверхностей
         logoId: values.logoId || null,
         materialId: values.materialId || null,
+        pressType: pressType as 'not_selected' | 'ukrainian' | 'chinese', // 🔥 ИСПРАВЛЕНИЕ: добавлено поле типа пресса
         dimensions: values.length && values.width && values.thickness ? {
           length: Number(values.length),
           width: Number(values.width),
