@@ -1559,17 +1559,17 @@ const Catalog: React.FC = () => {
                       </Select>
                     </Space>
                   </Col>
-                  <Col flex="auto">
-                    <div style={{ 
-                      display: 'flex', 
-                      flexWrap: 'wrap', 
-                      gap: '8px', 
-                      alignItems: 'center',
-                      justifyContent: 'flex-end'
-                    }}>
-                      {/* Группа кнопок для выбранных товаров */}
-                      {selectedProducts.length > 0 && (
-                        <Space size="small" style={{ marginRight: '12px' }}>
+                  <Col span={24}>
+                    {/* Кнопки для выбранных товаров - отображаются отдельным блоком сверху */}
+                    {selectedProducts.length > 0 && (
+                      <div style={{ 
+                        marginBottom: '12px',
+                        padding: '8px 12px',
+                        backgroundColor: '#f0f8ff',
+                        borderRadius: '6px',
+                        border: '1px solid #d6e4ff'
+                      }}>
+                        <Space size="small">
                           <Button
                             type="primary"
                             size="small"
@@ -1592,25 +1592,33 @@ const Catalog: React.FC = () => {
                           >
                             Экспорт выбранных ({selectedProducts.length})
                           </Button>
+                          <Text type="secondary" style={{ fontSize: '12px' }}>
+                            Выбрано товаров: <Text strong>{selectedProducts.length}</Text>
+                          </Text>
                         </Space>
-                      )}
+                      </div>
+                    )}
+                    
+                    {/* Основные действия - всегда видимы */}
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center',
+                      justifyContent: 'flex-end',
+                      gap: '12px'
+                    }}>
+                      <Button
+                        size="small"
+                        icon={<InboxOutlined />}
+                        onClick={() => handleExportCatalog(false)}
+                        loading={exportingCatalog}
+                        title="Экспорт текущего списка товаров с примененными фильтрами"
+                      >
+                        📊 Экспорт каталога
+                      </Button>
                       
-                      {/* Группа общих действий */}
-                      <Space size="small">
-                        <Button
-                          size="small"
-                          icon={<InboxOutlined />}
-                          onClick={() => handleExportCatalog(false)}
-                          loading={exportingCatalog}
-                          title="Экспорт текущего списка товаров с примененными фильтрами"
-                        >
-                          📊 Экспорт каталога
-                        </Button>
-                        
-                        <Text type="secondary" style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
-                          📊 Найдено: <Text strong>{totalProducts}</Text> товаров
-                        </Text>
-                      </Space>
+                      <Text type="secondary" style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
+                        📊 Найдено: <Text strong>{totalProducts}</Text> товаров
+                      </Text>
                     </div>
                   </Col>
                 </Row>
