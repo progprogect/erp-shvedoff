@@ -133,18 +133,17 @@ const DeleteCategoryModal: React.FC<DeleteCategoryModalProps> = ({
       setLoading(true);
 
       const values = form.getFieldsValue();
-      const options: CategoryDeleteOptions = {
-        productAction: productAction
-      };
+      const options: CategoryDeleteOptions = {};
 
-      // Добавляем параметры для товаров
+      // 🔥 ИСПРАВЛЕНИЕ: Добавляем параметры для товаров только если они есть
       if (categoryDetails.productsCount > 0) {
+        options.productAction = productAction;
         if (productAction === 'move') {
           options.targetCategoryId = values.targetCategoryId;
         }
       }
 
-      // Добавляем параметры для дочерних категорий
+      // 🔥 ИСПРАВЛЕНИЕ: Добавляем параметры для дочерних категорий только если они есть
       if (categoryDetails.childCategories.length > 0) {
         options.childAction = childAction;
         if (childAction === 'move') {

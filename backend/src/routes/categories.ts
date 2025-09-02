@@ -332,7 +332,8 @@ router.post('/:id/delete-with-action', authenticateToken, async (req: AuthReques
       return next(createError('Необходимо указать действие для товаров (delete или move)', 400));
     }
 
-    if (productAction === 'move' && !targetCategoryId) {
+    // 🔥 ИСПРАВЛЕНИЕ: Проверяем targetCategoryId только если есть товары И выбрано действие move
+    if (products.length > 0 && productAction === 'move' && !targetCategoryId) {
       return next(createError('Необходимо указать целевую категорию для переноса товаров', 400));
     }
 
@@ -340,12 +341,13 @@ router.post('/:id/delete-with-action', authenticateToken, async (req: AuthReques
       return next(createError('Необходимо указать действие для дочерних категорий (delete, move или promote)', 400));
     }
 
-    if (childAction === 'move' && !targetParentId) {
+    // 🔥 ИСПРАВЛЕНИЕ: Проверяем targetParentId только если есть дочерние категории И выбрано действие move
+    if (childCategories.length > 0 && childAction === 'move' && !targetParentId) {
       return next(createError('Необходимо указать родительскую категорию для переноса дочерних категорий', 400));
     }
 
-    // Проверяем существование целевых категорий
-    if (targetCategoryId) {
+    // 🔥 ИСПРАВЛЕНИЕ: Проверяем существование целевых категорий только если они действительно нужны
+    if (products.length > 0 && productAction === 'move' && targetCategoryId) {
       const targetCategory = await db.query.categories.findFirst({
         where: eq(schema.categories.id, targetCategoryId)
       });
@@ -354,7 +356,7 @@ router.post('/:id/delete-with-action', authenticateToken, async (req: AuthReques
       }
     }
 
-    if (targetParentId) {
+    if (childCategories.length > 0 && childAction === 'move' && targetParentId) {
       const targetParent = await db.query.categories.findFirst({
         where: eq(schema.categories.id, targetParentId)
       });
