@@ -28,6 +28,7 @@ import CreateCategoryModal from '../components/CreateCategoryModal';
 import DeleteCategoryModal from '../components/DeleteCategoryModal';
 import StockAdjustmentModal from '../components/StockAdjustmentModal';
 import usePermissions from '../hooks/usePermissions';
+import { handleFormError } from '../utils/errorUtils';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -631,11 +632,46 @@ const Catalog: React.FC = () => {
         message.error(response.message || 'Ошибка при перемещении товаров');
       }
     } catch (error: any) {
-      console.error('Error moving products:', error);
-      message.error('Ошибка при перемещении товаров');
+      handleFormError(error, undefined, {
+        key: 'move-products-error',
+        duration: 6
+      });
     } finally {
       setMovingProducts(false);
     }
+  };
+
+  // Функция подтверждения переноса товаров в едином стиле
+  const confirmMoveProducts = (targetCategoryId: number) => {
+    const targetCategory = getFlatCategories(categories).find(c => c.id === targetCategoryId);
+    if (!targetCategory) {
+      message.error('Категория назначения не найдена');
+      return;
+    }
+
+    Modal.confirm({
+      title: 'Подтверждение перемещения',
+      content: (
+        <div>
+          <p>Вы действительно хотите переместить выбранные товары?</p>
+          <div style={{ background: '#f5f5f5', padding: '12px', borderRadius: '6px', marginTop: '12px' }}>
+            <Text strong>Количество товаров: {selectedProducts.length}</Text>
+            <br />
+            <Text type="secondary">Целевая категория: {targetCategory.name}</Text>
+          </div>
+          <div style={{ marginTop: '12px', color: '#1890ff' }}>
+            <Text>
+              ℹ️ Товары будут перемещены в выбранную категорию. 
+              Все изменения будут зафиксированы в истории аудита.
+            </Text>
+          </div>
+        </div>
+      ),
+      okText: 'Переместить',
+      cancelText: 'Отмена',
+      okType: 'primary',
+      onOk: () => handleMoveProducts(targetCategoryId)
+    });
   };
 
   // Функция экспорта каталога в Excel (Задача 9.2)
@@ -1666,7 +1702,7 @@ const Catalog: React.FC = () => {
                 onSelect={(selectedKeys) => {
                   if (selectedKeys.length > 0) {
                     const categoryId = parseInt(selectedKeys[0] as string);
-                    handleMoveProducts(categoryId);
+                    confirmMoveProducts(categoryId);
                   }
                 }}
                 treeData={categories.map(category => ({
