@@ -257,7 +257,10 @@ export function handleFormError(
     
     // Автоматическое определение поля, если не указано
     if (!fieldName) {
-      fieldName = getFieldNameFromError(errorMessage);
+      const autoDetectedField = getFieldNameFromError(errorMessage);
+      if (autoDetectedField) {
+        fieldName = autoDetectedField;
+      }
     }
     
     if (fieldName) {
