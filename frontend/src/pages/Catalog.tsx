@@ -120,6 +120,7 @@ const Catalog: React.FC = () => {
   const [selectedProducts, setSelectedProducts] = useState<number[]>([]);
   const [moveModalVisible, setMoveModalVisible] = useState(false);
   const [movingProducts, setMovingProducts] = useState(false);
+  const [selectedTargetCategory, setSelectedTargetCategory] = useState<number | null>(null);
 
   // Состояния для экспорта каталога (Задача 9.2)
   const [exportingCatalog, setExportingCatalog] = useState(false);
@@ -599,6 +600,7 @@ const Catalog: React.FC = () => {
       if (response.success) {
         message.success(response.message || `Успешно перемещено ${selectedProducts.length} товаров`);
         setSelectedProducts([]); // Очищаем выбор
+        setSelectedTargetCategory(null); // Очищаем выбранную категорию
         setMoveModalVisible(false); // Закрываем модальное окно
         loadProducts(); // Перезагружаем товары
       } else {
@@ -614,38 +616,7 @@ const Catalog: React.FC = () => {
     }
   };
 
-  // Функция подтверждения переноса товаров в едином стиле
-  const confirmMoveProducts = (targetCategoryId: number) => {
-    const targetCategory = getFlatCategories(categories).find(c => c.id === targetCategoryId);
-    if (!targetCategory) {
-      message.error('Категория назначения не найдена');
-      return;
-    }
 
-    Modal.confirm({
-      title: 'Подтверждение перемещения',
-      content: (
-        <div>
-          <p>Вы действительно хотите переместить выбранные товары?</p>
-          <div style={{ background: '#f5f5f5', padding: '12px', borderRadius: '6px', marginTop: '12px' }}>
-            <Text strong>Количество товаров: {selectedProducts.length}</Text>
-            <br />
-            <Text type="secondary">Целевая категория: {targetCategory.name}</Text>
-          </div>
-          <div style={{ marginTop: '12px', color: '#1890ff' }}>
-            <Text>
-              ℹ️ Товары будут перемещены в выбранную категорию. 
-              Все изменения будут зафиксированы в истории аудита.
-            </Text>
-          </div>
-        </div>
-      ),
-      okText: 'Переместить',
-      cancelText: 'Отмена',
-      okType: 'primary',
-      onOk: () => handleMoveProducts(targetCategoryId)
-    });
-  };
 
   // Функция экспорта каталога в Excel (Задача 9.2)
   const handleExportCatalog = async (selectedOnly: boolean = false) => {
@@ -851,8 +822,13 @@ const Catalog: React.FC = () => {
         <div style={{ 
           display: 'flex', 
           alignItems: 'center', 
-          gap: '4px',
-          padding: '2px 0',
+          gap: '6px',
+          padding: '4px',
+          marginLeft: '8px',
+          marginRight: '8px',
+          backgroundColor: '#f8f9fa',
+          borderRadius: '4px',
+          border: '1px solid #e9ecef',
           animation: 'fadeIn 0.3s ease-in-out'
         }}>
           <Input
@@ -876,10 +852,13 @@ const Catalog: React.FC = () => {
             onClick={saveEditingCategory}
             loading={savingCategory}
             style={{ 
-              minWidth: '24px', 
-              height: '24px', 
-              padding: '0',
-              color: '#52c41a'
+              minWidth: '28px', 
+              height: '28px', 
+              padding: '2px',
+              color: '#52c41a',
+              backgroundColor: '#f6ffed',
+              border: '1px solid #b7eb8f',
+              borderRadius: '4px'
             }}
             title="Сохранить (Enter)"
           />
@@ -889,10 +868,13 @@ const Catalog: React.FC = () => {
             icon={<CloseOutlined />}
             onClick={cancelEditingCategory}
             style={{ 
-              minWidth: '24px', 
-              height: '24px', 
-              padding: '0',
-              color: '#ff4d4f'
+              minWidth: '28px', 
+              height: '28px', 
+              padding: '2px',
+              color: '#ff4d4f',
+              backgroundColor: '#fff2f0',
+              border: '1px solid #ffccc7',
+              borderRadius: '4px'
             }}
             title="Отмена (Esc)"
           />
@@ -1584,7 +1566,10 @@ const Catalog: React.FC = () => {
                             type="primary"
                             size="small"
                             icon={<AppstoreOutlined />}
-                            onClick={() => setMoveModalVisible(true)}
+                            onClick={() => {
+                              setSelectedTargetCategory(null);
+                              setMoveModalVisible(true);
+                            }}
                             disabled={selectedProducts.length === 0}
                             loading={movingProducts}
                           >
@@ -1904,7 +1889,17 @@ const Catalog: React.FC = () => {
         title="Переместить товары в категорию"
         open={moveModalVisible}
         onCancel={() => !movingProducts && setMoveModalVisible(false)}
-        footer={null}
+        onOk={() => {
+          if (selectedTargetCategory) {
+            handleMoveProducts(selectedTargetCategory);
+          }
+        }}
+        okText="Переместить"
+        cancelText="Отмена"
+        okButtonProps={{ 
+          disabled: !selectedTargetCategory || movingProducts,
+          loading: movingProducts
+        }}
         width={600}
         closable={!movingProducts}
         maskClosable={!movingProducts}
@@ -1918,13 +1913,26 @@ const Catalog: React.FC = () => {
           </div>
         ) : (
           <>
-            <div style={{ marginBottom: 16 }}>
-              <Text>
-                Выбрано товаров: <Text strong>{selectedProducts.length}</Text>
+            {/* Информация о выбранных товарах */}
+            <div style={{ 
+              background: '#f5f5f5', 
+              padding: '16px', 
+              borderRadius: '6px', 
+              marginBottom: '20px' 
+            }}>
+              <Text strong style={{ fontSize: '16px' }}>
+                📦 Количество товаров: {selectedProducts.length}
               </Text>
+              {selectedTargetCategory && (
+                <div style={{ marginTop: '8px' }}>
+                  <Text type="secondary">
+                    📁 Целевая категория: {getFlatCategories(categories).find(c => c.id === selectedTargetCategory)?.name}
+                  </Text>
+                </div>
+              )}
             </div>
             
-            <Text strong style={{ display: 'block', marginBottom: 8 }}>
+            <Text strong style={{ display: 'block', marginBottom: 12, fontSize: '16px' }}>
               Выберите категорию назначения:
             </Text>
             
@@ -1933,15 +1941,19 @@ const Catalog: React.FC = () => {
               borderRadius: '6px', 
               padding: '12px',
               maxHeight: '300px',
-              overflowY: 'auto'
+              overflowY: 'auto',
+              backgroundColor: '#fafafa'
             }}>
               <Tree
                 showLine
                 defaultExpandedKeys={categories.map(c => c.id.toString())}
+                selectedKeys={selectedTargetCategory ? [selectedTargetCategory.toString()] : []}
                 onSelect={(selectedKeys) => {
                   if (selectedKeys.length > 0) {
                     const categoryId = parseInt(selectedKeys[0] as string);
-                    confirmMoveProducts(categoryId);
+                    setSelectedTargetCategory(categoryId);
+                  } else {
+                    setSelectedTargetCategory(null);
                   }
                 }}
                 treeData={categories.map(category => ({
@@ -1955,11 +1967,20 @@ const Catalog: React.FC = () => {
               />
             </div>
             
-            <div style={{ marginTop: 16, textAlign: 'center' }}>
-              <Button onClick={() => setMoveModalVisible(false)}>
-                Отмена
-              </Button>
-            </div>
+            {selectedTargetCategory && (
+              <div style={{ 
+                marginTop: '16px', 
+                padding: '12px', 
+                backgroundColor: '#e6f7ff', 
+                borderRadius: '6px',
+                border: '1px solid #91d5ff'
+              }}>
+                <Text style={{ color: '#1890ff' }}>
+                  ℹ️ Товары будут перемещены в выбранную категорию. 
+                  Все изменения будут зафиксированы в истории аудита.
+                </Text>
+              </div>
+            )}
           </>
         )}
       </Modal>
