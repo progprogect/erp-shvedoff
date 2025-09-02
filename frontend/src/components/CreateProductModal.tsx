@@ -146,8 +146,8 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
     const length = form.getFieldValue('length');
     const width = form.getFieldValue('width');
     
-    // Расчет площади мата (длина × ширина в м²) - ТОЛЬКО ДЛЯ КОВРОВЫХ ИЗДЕЛИЙ
-    if (productType === 'carpet' && length && width) {
+    // Расчет площади мата (длина × ширина в м²) - ДЛЯ КОВРОВ, ПУР И РУЛОННЫХ ПОКРЫТИЙ
+    if ((productType === 'carpet' || productType === 'pur' || productType === 'roll_covering') && length && width) {
       const areaM2 = (length * width) / 1000000; // мм² в м²
       const roundedArea = Number(areaM2.toFixed(4));
       setCalculatedMatArea(roundedArea);
@@ -158,7 +158,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
       }
     } else {
       setCalculatedMatArea(null);
-      if (!matAreaOverride && productType === 'carpet') {
+      if (!matAreaOverride && (productType === 'carpet' || productType === 'pur' || productType === 'roll_covering')) {
         form.setFieldsValue({ matArea: undefined });
       }
     }
@@ -999,10 +999,10 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                   min={1}
                   onChange={(value) => {
                     handleFormFieldChange('length', value);
-                    // Принудительно вызываем пересчет площади
+                    // Принудительно вызываем пересчет площади для ковров, ПУР и рулонных покрытий
                     setTimeout(() => {
                       const width = form.getFieldValue('width');
-                      if (productType === 'carpet' && value && width) {
+                      if ((productType === 'carpet' || productType === 'pur' || productType === 'roll_covering') && value && width) {
                         const areaM2 = (value * width) / 1000000;
                         const roundedArea = Number(areaM2.toFixed(4));
                         setCalculatedMatArea(roundedArea);
@@ -1030,10 +1030,10 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                   min={1}
                   onChange={(value) => {
                     handleFormFieldChange('width', value);
-                    // Принудительно вызываем пересчет площади
+                    // Принудительно вызываем пересчет площади для ковров, ПУР и рулонных покрытий
                     setTimeout(() => {
                       const length = form.getFieldValue('length');
-                      if (productType === 'carpet' && value && length) {
+                      if ((productType === 'carpet' || productType === 'pur' || productType === 'roll_covering') && value && length) {
                         const areaM2 = (length * value) / 1000000;
                         const roundedArea = Number(areaM2.toFixed(4));
                         setCalculatedMatArea(roundedArea);
@@ -1077,7 +1077,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                   label={
                     <span>
                       Площадь (м²)
-                      {productType === 'carpet' && calculatedMatArea && (
+                      {(productType === 'carpet' || productType === 'pur' || productType === 'roll_covering') && calculatedMatArea && (
                         <span style={{ color: '#1890ff', fontWeight: 'normal', marginLeft: 8 }}>
                           (автоматически: {calculatedMatArea} м²)
                         </span>
@@ -1085,24 +1085,24 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                     </span>
                   }
                   help={
-                    productType === 'carpet' ? 'Для ковров рассчитывается автоматически из размеров' :
-                    productType === 'pur' ? 'Площадь ПУР изделия в м²' :
-                    'Площадь рулонного покрытия в м²'
+                    productType === 'carpet' ? 'Рассчитывается автоматически из размеров (длина × ширина)' :
+                    productType === 'pur' ? 'Рассчитывается автоматически из размеров (длина × ширина)' :
+                    'Рассчитывается автоматически из размеров (длина × ширина)'
                   }
                 >
                   <InputNumber 
                     placeholder={
                       productType === 'carpet' ? "Рассчитается автоматически" :
-                      productType === 'pur' ? "Введите площадь ПУР" :
-                      "Введите площадь покрытия"
+                      productType === 'pur' ? "Рассчитается автоматически" :
+                      "Рассчитается автоматически"
                     }
                     style={{ width: '100%' }}
                     min={0}
                     precision={4}
                     step={0.0001}
                     onChange={(value: number | null) => {
-                      // Для ковров отмечаем что пользователь вручную изменил площадь
-                      if (productType === 'carpet') {
+                      // Отмечаем что пользователь вручную изменил площадь для всех типов товаров
+                      if (productType === 'carpet' || productType === 'pur' || productType === 'roll_covering') {
                         setMatAreaOverride(value !== null && value !== calculatedMatArea ? 'manual' : '');
                       }
                     }}
