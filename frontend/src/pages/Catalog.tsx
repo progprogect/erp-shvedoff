@@ -126,6 +126,12 @@ const Catalog: React.FC = () => {
   const [editingCategoryName, setEditingCategoryName] = useState<string>('');
   const [savingCategory, setSavingCategory] = useState(false);
 
+  // Состояние для сворачивания блока категорий
+  const [categoriesCollapsed, setCategoriesCollapsed] = useState<boolean>(() => {
+    const saved = localStorage.getItem('catalog-categories-collapsed');
+    return saved ? JSON.parse(saved) : false; // По умолчанию развернуто
+  });
+
   const { user, token } = useAuthStore();
   const { canCreate, canEdit, canDelete, canManage } = usePermissions();
   const navigate = useNavigate();
@@ -778,6 +784,12 @@ const Catalog: React.FC = () => {
     }
   };
 
+  // Функция для управления сворачиванием категорий
+  const handleCategoriesCollapseChange = (collapsed: boolean) => {
+    setCategoriesCollapsed(collapsed);
+    localStorage.setItem('catalog-categories-collapsed', JSON.stringify(collapsed));
+  };
+
   // Получение плоского списка категорий
   const getFlatCategories = (cats: Category[]): Category[] => {
     let result: Category[] = [];
@@ -1400,7 +1412,16 @@ const Catalog: React.FC = () => {
           <Row gutter={16}>
             {/* Категории с множественным выбором */}
             <Col xs={24} lg={6}>
-              <Card title="📂 Категории" size="small">
+              <Collapse 
+                size="small"
+                activeKey={categoriesCollapsed ? [] : ['categories']}
+                onChange={(keys) => handleCategoriesCollapseChange(keys.length === 0)}
+                items={[
+                  {
+                    key: 'categories',
+                    label: '📂 Категории',
+                    children: (
+                      <>
                 <Tree
                   checkable
                   showLine
@@ -1442,7 +1463,11 @@ const Catalog: React.FC = () => {
                     </Space>
                   </div>
                 )}
-              </Card>
+                      </>
+                    )
+                  }
+                ]}
+              />
 
 
             </Col>
