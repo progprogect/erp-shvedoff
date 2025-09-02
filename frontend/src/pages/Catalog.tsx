@@ -823,12 +823,12 @@ const Catalog: React.FC = () => {
           display: 'flex', 
           alignItems: 'center', 
           gap: '6px',
-          padding: '4px',
-          marginLeft: '8px',
-          marginRight: '8px',
+          padding: '8px',
+          margin: '12px 8px',
           backgroundColor: '#f8f9fa',
-          borderRadius: '4px',
+          borderRadius: '6px',
           border: '1px solid #e9ecef',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
           animation: 'fadeIn 0.3s ease-in-out'
         }}>
           <Input
@@ -838,9 +838,10 @@ const Catalog: React.FC = () => {
             onBlur={saveEditingCategory}
             style={{ 
               flex: 1, 
-              height: '24px',
+              height: '28px',
               border: '1px solid #1890ff',
-              borderRadius: '4px'
+              borderRadius: '4px',
+              fontSize: '14px'
             }}
             autoFocus
             maxLength={100}
@@ -1903,7 +1904,7 @@ const Catalog: React.FC = () => {
         width={600}
         closable={!movingProducts}
         maskClosable={!movingProducts}
-        style={{ top: '60px' }}
+
       >
         {movingProducts ? (
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
