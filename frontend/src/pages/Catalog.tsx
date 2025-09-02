@@ -13,7 +13,10 @@ import {
   DeleteOutlined,
   EditOutlined,
   CheckOutlined,
-  CloseOutlined
+  CloseOutlined,
+  DoubleRightOutlined,
+  DoubleLeftOutlined,
+  FolderOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
@@ -1424,30 +1427,29 @@ const Catalog: React.FC = () => {
               }}
             >
                             {categoriesMinimized ? (
-                // Минимизированный вид - компактная кнопка
+                // Минимизированный вид - только иконка папки и стрелка
                 <Card 
                   size="small" 
                   style={{ 
                     textAlign: 'center',
                     cursor: 'pointer',
-                    height: 'fit-content'
+                    height: 'fit-content',
+                    padding: '4px'
                   }}
                   onClick={handleCategoriesMinimizeToggle}
                   hoverable
+                  title="Развернуть категории"
                 >
-                  <div style={{ padding: '8px 4px' }}>
-                    <div style={{ fontSize: '16px', marginBottom: '4px' }}>📂</div>
-                    <div style={{ fontSize: '11px', lineHeight: '1.2' }}>
-                      <Text type="secondary">Категории</Text>
-                    </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                    <FolderOutlined style={{ fontSize: '18px', color: '#1890ff' }} />
+                    <DoubleRightOutlined style={{ fontSize: '12px', color: '#666' }} />
                     {checkedCategories.length > 0 && (
                       <Badge 
                         count={checkedCategories.length} 
                         size="small"
                         style={{ 
                           backgroundColor: '#1890ff',
-                          fontSize: '10px',
-                          marginTop: '4px'
+                          fontSize: '10px'
                         }}
                       />
                     )}
@@ -1458,16 +1460,17 @@ const Catalog: React.FC = () => {
                 <Collapse 
                   size="small"
                   activeKey={['categories']}
+                  expandIcon={() => null}
                   items={[
                     {
                       key: 'categories',
                       label: (
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span>📂 Категории</span>
+                          <span><FolderOutlined style={{ marginRight: '8px', color: '#1890ff' }} />Категории</span>
                           <Button 
                             type="text" 
                             size="small"
-                            icon={<BorderOutlined />}
+                            icon={<DoubleLeftOutlined />}
                             onClick={(e) => {
                               e.stopPropagation();
                               handleCategoriesMinimizeToggle();
