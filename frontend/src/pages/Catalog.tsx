@@ -126,9 +126,9 @@ const Catalog: React.FC = () => {
   const [editingCategoryName, setEditingCategoryName] = useState<string>('');
   const [savingCategory, setSavingCategory] = useState(false);
 
-  // Состояние для сворачивания блока категорий
-  const [categoriesCollapsed, setCategoriesCollapsed] = useState<boolean>(() => {
-    const saved = localStorage.getItem('catalog-categories-collapsed');
+  // Состояние для минимизации блока категорий (горизонтальное сворачивание)
+  const [categoriesMinimized, setCategoriesMinimized] = useState<boolean>(() => {
+    const saved = localStorage.getItem('catalog-categories-minimized');
     return saved ? JSON.parse(saved) : false; // По умолчанию развернуто
   });
 
@@ -784,11 +784,16 @@ const Catalog: React.FC = () => {
     }
   };
 
-  // Функция для управления сворачиванием категорий
-  const handleCategoriesCollapseChange = (collapsed: boolean) => {
-    setCategoriesCollapsed(collapsed);
-    localStorage.setItem('catalog-categories-collapsed', JSON.stringify(collapsed));
+  // Функция для управления минимизацией категорий
+  const handleCategoriesMinimizeToggle = () => {
+    const newMinimized = !categoriesMinimized;
+    setCategoriesMinimized(newMinimized);
+    localStorage.setItem('catalog-categories-minimized', JSON.stringify(newMinimized));
   };
+
+  // Вычисляем размеры колонок в зависимости от состояния категорий
+  const categoriesColSize = categoriesMinimized ? 2 : 6;
+  const productsColSize = categoriesMinimized ? 22 : 18;
 
   // Получение плоского списка категорий
   const getFlatCategories = (cats: Category[]): Category[] => {
@@ -1411,69 +1416,128 @@ const Catalog: React.FC = () => {
         <Col span={24}>
           <Row gutter={16}>
             {/* Категории с множественным выбором */}
-            <Col xs={24} lg={6}>
-              <Collapse 
-                size="small"
-                activeKey={categoriesCollapsed ? [] : ['categories']}
-                onChange={(keys) => handleCategoriesCollapseChange(keys.length === 0)}
-                items={[
-                  {
-                    key: 'categories',
-                    label: '📂 Категории',
-                    children: (
-                      <>
-                <Tree
-                  checkable
-                  showLine
-                  defaultExpandedKeys={['lejaki', 'kovriki']}
-                  checkedKeys={checkedCategories}
-                  onCheck={handleCategoryCheck}
-                  onSelect={handleTreeSelect}
-                  treeData={formatCategoriesForTree(categories, products)}
-                />
-                {checkedCategories.length > 0 && (
-                  <div style={{ marginTop: 12, padding: '8px', backgroundColor: '#f0f0f0', borderRadius: '4px' }}>
-                    <Text type="secondary" style={{ fontSize: '12px' }}>
-                      Выбрано категорий: {checkedCategories.length}
-                    </Text>
-                    <br />
-                    <Space style={{ marginTop: 4 }}>
-                      <Button 
-                        size="small" 
-                        onClick={() => setCheckedCategories([])}
-                      >
-                        Сбросить выбор
-                      </Button>
-                                              {canDelete('catalog') && checkedCategories.length === 1 && (
-                        <Button
-                          size="small"
-                          danger
-                          icon={<DeleteOutlined />}
-                          onClick={() => {
-                            const categoryToDelete = getFlatCategories(categories).find(cat => cat.id === checkedCategories[0]);
-                            if (categoryToDelete) {
-                              handleDeleteCategory(categoryToDelete);
-                            }
-                          }}
-                          title="Удалить выбранную категорию"
-                        >
-                          Удалить
-                        </Button>
-                      )}
-                    </Space>
+            <Col 
+              xs={24} 
+              lg={categoriesColSize}
+              style={{ 
+                transition: 'all 0.3s ease-in-out'
+              }}
+            >
+                            {categoriesMinimized ? (
+                // Минимизированный вид - компактная кнопка
+                <Card 
+                  size="small" 
+                  style={{ 
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    height: 'fit-content'
+                  }}
+                  onClick={handleCategoriesMinimizeToggle}
+                  hoverable
+                >
+                  <div style={{ padding: '8px 4px' }}>
+                    <div style={{ fontSize: '16px', marginBottom: '4px' }}>📂</div>
+                    <div style={{ fontSize: '11px', lineHeight: '1.2' }}>
+                      <Text type="secondary">Категории</Text>
+                    </div>
+                    {checkedCategories.length > 0 && (
+                      <Badge 
+                        count={checkedCategories.length} 
+                        size="small"
+                        style={{ 
+                          backgroundColor: '#1890ff',
+                          fontSize: '10px',
+                          marginTop: '4px'
+                        }}
+                      />
+                    )}
                   </div>
-                )}
-                      </>
-                    )
-                  }
-                ]}
-              />
+                </Card>
+              ) : (
+                // Развернутый вид - полный функционал
+                <Collapse 
+                  size="small"
+                  activeKey={['categories']}
+                  items={[
+                    {
+                      key: 'categories',
+                      label: (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span>📂 Категории</span>
+                          <Button 
+                            type="text" 
+                            size="small"
+                            icon={<BorderOutlined />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCategoriesMinimizeToggle();
+                            }}
+                            title="Минимизировать категории"
+                            style={{ marginLeft: '8px' }}
+                          />
+                        </div>
+                      ),
+                      children: (
+                        <>
+                          <Tree
+                            checkable
+                            showLine
+                            defaultExpandedKeys={['lejaki', 'kovriki']}
+                            checkedKeys={checkedCategories}
+                            onCheck={handleCategoryCheck}
+                            onSelect={handleTreeSelect}
+                            treeData={formatCategoriesForTree(categories, products)}
+                          />
+                          {checkedCategories.length > 0 && (
+                            <div style={{ marginTop: 12, padding: '8px', backgroundColor: '#f0f0f0', borderRadius: '4px' }}>
+                              <Text type="secondary" style={{ fontSize: '12px' }}>
+                                Выбрано категорий: {checkedCategories.length}
+                              </Text>
+                              <br />
+                              <Space style={{ marginTop: 4 }}>
+                                <Button 
+                                  size="small" 
+                                  onClick={() => setCheckedCategories([])}
+                                >
+                                  Сбросить выбор
+                                </Button>
+                                {canDelete('catalog') && checkedCategories.length === 1 && (
+                                  <Button
+                                    size="small"
+                                    danger
+                                    icon={<DeleteOutlined />}
+                                    onClick={() => {
+                                      const categoryToDelete = getFlatCategories(categories).find(cat => cat.id === checkedCategories[0]);
+                                      if (categoryToDelete) {
+                                        handleDeleteCategory(categoryToDelete);
+                                      }
+                                    }}
+                                    title="Удалить выбранную категорию"
+                                  >
+                                    Удалить
+                                  </Button>
+                                )}
+                              </Space>
+                            </div>
+                          )}
+                        </>
+                      )
+                    }
+                  ]}
+                />
+              )}
 
 
             </Col>
 
             {/* Список товаров */}
-            <Col xs={24} lg={18}>
+            <Col 
+              xs={24} 
+              lg={productsColSize}
+              style={{ 
+                transition: 'all 0.3s ease-in-out'
+              }}
+            >
               {/* Элементы управления сортировкой (Задача 7.2) */}
               <Card size="small" style={{ marginBottom: 16 }}>
                 <Row justify="space-between" align="middle">
