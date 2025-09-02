@@ -26,6 +26,7 @@ import {
   CategoryDeleteResult 
 } from '../services/catalogApi';
 import { useAuthStore } from '../stores/authStore';
+import { handleFormError } from '../utils/errorUtils';
 
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -168,7 +169,10 @@ const DeleteCategoryModal: React.FC<DeleteCategoryModalProps> = ({
       if (error.response?.data?.message) {
         message.error(error.response.data.message);
       } else {
-        message.error('Ошибка связи с сервером');
+        handleFormError({ message: 'Неизвестная ошибка удаления категории' } as any, form, {
+          key: 'delete-category-unknown-error',
+          duration: 4
+        });
       }
     } finally {
       setLoading(false);

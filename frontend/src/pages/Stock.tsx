@@ -3,6 +3,7 @@ import { Table, Card, Typography, Button, Space, Tag, Input, Select, Row, Col, S
 import { SearchOutlined, InboxOutlined, EditOutlined, HistoryOutlined, ReloadOutlined, FilterOutlined, SettingOutlined, SyncOutlined, ToolOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
+import { handleFormError } from '../utils/errorUtils';
 import usePermissions from '../hooks/usePermissions';
 import { stockApi, StockItem, StockFilters } from '../services/stockApi';
 import StockAdjustmentModal from '../components/StockAdjustmentModal';
@@ -91,9 +92,12 @@ const Stock: React.FC = () => {
       } else {
         message.error('Ошибка загрузки остатков');
       }
-    } catch (error) {
-      console.error('Ошибка загрузки остатков:', error);
-      message.error('Ошибка связи с сервером');
+    } catch (error: any) {
+      console.error('🚨 Ошибка загрузки остатков:', error);
+      handleFormError(error, undefined, {
+        key: 'load-stock-error',
+        duration: 4
+      });
     } finally {
       setLoading(false);
     }

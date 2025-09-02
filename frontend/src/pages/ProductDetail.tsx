@@ -6,6 +6,7 @@ import {
 } from 'antd';
 import { formatPriceWithCurrency } from '../utils/priceUtils';
 import PriceInput from '../components/PriceInput';
+import { handleFormError } from '../utils/errorUtils';
 import {
   ArrowLeftOutlined, EditOutlined, SaveOutlined, CloseOutlined,
   ShoppingCartOutlined, HistoryOutlined, InboxOutlined, FileTextOutlined,
@@ -197,9 +198,12 @@ const ProductDetail: React.FC = () => {
         );
         setProductionTasks(activeTasks);
       }
-    } catch (error) {
-      console.error('Ошибка загрузки данных товара:', error);
-      message.error('Ошибка загрузки данных товара');
+    } catch (error: any) {
+      console.error('🚨 Ошибка загрузки данных товара:', error);
+      handleFormError(error, undefined, {
+        key: 'product-detail-load-error',
+        duration: 6
+      });
       navigate('/catalog');
     } finally {
       setLoading(false);
@@ -229,8 +233,11 @@ const ProductDetail: React.FC = () => {
         message.success('Логотип успешно создан');
       }
     } catch (error: any) {
-      console.error('Ошибка создания логотипа:', error);
-      message.error(error.response?.data?.error?.message || 'Ошибка создания логотипа');
+      console.error('🚨 Ошибка создания логотипа:', error);
+      handleFormError(error, undefined, {
+        key: 'create-logo-error',
+        duration: 6
+      });
     } finally {
       setCreatingLogo(false);
     }
@@ -312,9 +319,12 @@ const ProductDetail: React.FC = () => {
       } else {
         message.error('Ошибка обновления товара');
       }
-    } catch (error) {
-      console.error('Ошибка обновления товара:', error);
-      message.error('Ошибка связи с сервером');
+    } catch (error: any) {
+      console.error('🚨 Ошибка обновления товара:', error);
+      handleFormError(error, editForm, {
+        key: 'product-update-error',
+        duration: 6
+      });
     }
   };
 
@@ -455,8 +465,11 @@ const ProductDetail: React.FC = () => {
         setEditStockValue(null);
       }
     } catch (error: any) {
-      console.error('Ошибка сохранения остатка:', error);
-      message.error(error.response?.data?.message || 'Ошибка сохранения остатка');
+      console.error('🚨 Ошибка сохранения остатка:', error);
+      handleFormError(error, undefined, {
+        key: 'stock-save-error',
+        duration: 6
+      });
     } finally {
       setStockEditLoading(false);
     }

@@ -15,6 +15,7 @@ import {
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import usePermissions from '../hooks/usePermissions';
+import { handleFormError } from '../utils/errorUtils';
 import { ordersApi, Order, OrderItem, OrderMessage } from '../services/ordersApi';
 import { catalogApi, Product } from '../services/catalogApi';
 import dayjs from 'dayjs';
@@ -87,9 +88,9 @@ const OrderDetail: React.FC = () => {
         message.error('Ошибка загрузки заказа');
         navigate('/orders');
       }
-    } catch (error) {
-      console.error('Ошибка загрузки заказа:', error);
-      message.error('Ошибка связи с сервером');
+    } catch (error: any) {
+      console.error('🚨 Ошибка загрузки заказа:', error);
+      handleFormError(error, undefined, { key: 'load-order-error', duration: 4 });
       navigate('/orders');
     } finally {
       setLoading(false);
@@ -146,9 +147,9 @@ const OrderDetail: React.FC = () => {
       } else {
         message.error('Ошибка изменения статуса');
       }
-    } catch (error) {
-      console.error('Ошибка изменения статуса:', error);
-      message.error('Ошибка связи с сервером');
+    } catch (error: any) {
+      console.error('🚨 Ошибка изменения статуса:', error);
+      handleFormError(error, undefined, { key: 'change-status-error', duration: 4 });
     }
   };
 
@@ -167,9 +168,9 @@ const OrderDetail: React.FC = () => {
       } else {
         message.error('Ошибка добавления сообщения');
       }
-    } catch (error) {
-      console.error('Ошибка добавления сообщения:', error);
-      message.error('Ошибка связи с сервером');
+    } catch (error: any) {
+      console.error('🚨 Ошибка добавления сообщения:', error);
+      handleFormError(error, messageForm, { key: 'add-message-error', duration: 4 });
     }
   };
 
@@ -203,9 +204,9 @@ const OrderDetail: React.FC = () => {
       } else {
         message.error('Ошибка обновления заказа');
       }
-    } catch (error) {
-      console.error('Ошибка обновления заказа:', error);
-      message.error('Ошибка связи с сервером');
+    } catch (error: any) {
+      console.error('🚨 Ошибка обновления заказа:', error);
+      handleFormError(error, editForm, { key: 'update-order-error', duration: 4 });
     }
   };
 
@@ -309,9 +310,9 @@ const OrderDetail: React.FC = () => {
           } else {
             message.error(response.message || 'Ошибка удаления заказа');
           }
-        } catch (error) {
-          console.error('Ошибка удаления заказа:', error);
-          message.error('Ошибка связи с сервером');
+        } catch (error: any) {
+          console.error('🚨 Ошибка удаления заказа:', error);
+          handleFormError(error, undefined, { key: 'delete-order-error', duration: 4 });
         }
       }
     });

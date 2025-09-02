@@ -11,6 +11,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import usePermissions from '../hooks/usePermissions';
+import { handleFormError } from '../utils/errorUtils';
 import { ordersApi, Order, OrderFilters, exportOrders } from '../services/ordersApi';
 
 const { Title, Text } = Typography;
@@ -63,9 +64,12 @@ const Orders: React.FC = () => {
       } else {
         message.error('Ошибка загрузки заказов');
       }
-    } catch (error) {
-      console.error('Ошибка загрузки заказов:', error);
-      message.error('Ошибка связи с сервером');
+    } catch (error: any) {
+      console.error('🚨 Ошибка загрузки заказов:', error);
+      handleFormError(error, undefined, {
+        key: 'load-orders-error',
+        duration: 4
+      });
     } finally {
       setLoading(false);
     }
@@ -136,9 +140,12 @@ const Orders: React.FC = () => {
       } else {
         message.error('Ошибка изменения статуса');
       }
-    } catch (error) {
-      console.error('Ошибка изменения статуса:', error);
-      message.error('Ошибка связи с сервером');
+    } catch (error: any) {
+      console.error('🚨 Ошибка изменения статуса:', error);
+      handleFormError(error, undefined, {
+        key: 'change-status-error',
+        duration: 4
+      });
     }
   };
 
@@ -159,8 +166,11 @@ const Orders: React.FC = () => {
       message.success('Экспорт заказов завершен');
       
     } catch (error: any) {
-      console.error('Error exporting orders:', error);
-      message.error('Ошибка при экспорте заказов');
+      console.error('🚨 Ошибка экспорта заказов:', error);
+      handleFormError(error, undefined, {
+        key: 'export-orders-error',
+        duration: 4
+      });
     } finally {
       setExportingOrders(false);
     }
@@ -195,9 +205,12 @@ const Orders: React.FC = () => {
           } else {
             message.error(response.message || 'Ошибка удаления заказа');
           }
-        } catch (error) {
-          console.error('Ошибка удаления заказа:', error);
-          message.error('Ошибка связи с сервером');
+        } catch (error: any) {
+          console.error('🚨 Ошибка удаления заказа:', error);
+          handleFormError(error, undefined, {
+            key: 'delete-order-error',
+            duration: 4
+          });
         }
       }
     });

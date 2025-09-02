@@ -4,6 +4,7 @@ import { HistoryOutlined, LinkOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { StockItem, StockMovement, stockApi } from '../services/stockApi';
 import { useAuthStore } from '../stores/authStore';
+import { handleFormError } from '../utils/errorUtils';
 
 const { Text, Title } = Typography;
 
@@ -41,9 +42,12 @@ const StockHistoryModal: React.FC<StockHistoryModalProps> = ({
       } else {
         message.error('Ошибка загрузки истории движения');
       }
-    } catch (error) {
-      console.error('Ошибка загрузки истории:', error);
-      message.error('Ошибка связи с сервером');
+    } catch (error: any) {
+      console.error('🚨 Ошибка загрузки истории:', error);
+      handleFormError(error, undefined, {
+        key: 'load-stock-history-error',
+        duration: 4
+      });
     } finally {
       setLoading(false);
     }

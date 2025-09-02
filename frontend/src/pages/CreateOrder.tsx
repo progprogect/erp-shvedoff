@@ -5,6 +5,7 @@ import {
 } from 'antd';
 import PriceInput from '../components/PriceInput';
 import { formatPriceWithCurrency, calculateLineTotal, calculateOrderTotal } from '../utils/priceUtils';
+import { handleFormError } from '../utils/errorUtils';
 import {
   ShoppingCartOutlined, PlusOutlined, DeleteOutlined, CheckOutlined,
   ExclamationCircleOutlined, SearchOutlined, ArrowLeftOutlined, FilterOutlined,
@@ -108,8 +109,12 @@ const CreateOrder: React.FC = () => {
         setProducts(response.data);
         setFilteredProducts(response.data); // Инициализация отфильтрованного списка
       }
-    } catch (error) {
-      console.error('Ошибка загрузки товаров:', error);
+    } catch (error: any) {
+      console.error('🚨 Ошибка загрузки товаров:', error);
+      handleFormError(error, undefined, {
+        key: 'load-products-error',
+        duration: 4
+      });
     }
   };
 
@@ -137,9 +142,12 @@ const CreateOrder: React.FC = () => {
       } else {
         message.error('Ошибка поиска товаров');
       }
-    } catch (error) {
-      console.error('Ошибка поиска товаров:', error);
-      message.error('Ошибка поиска товаров');
+    } catch (error: any) {
+      console.error('🚨 Ошибка поиска товаров:', error);
+      handleFormError(error, undefined, {
+        key: 'search-products-error',
+        duration: 4
+      });
     } finally {
       setProductsLoading(false);
     }
@@ -158,8 +166,12 @@ const CreateOrder: React.FC = () => {
         );
         setUsers(availableUsers);
       }
-    } catch (error) {
-      console.error('Ошибка загрузки пользователей:', error);
+    } catch (error: any) {
+      console.error('🚨 Ошибка загрузки пользователей:', error);
+      handleFormError(error, undefined, {
+        key: 'load-users-error',
+        duration: 4
+      });
     }
   };
 
@@ -313,9 +325,12 @@ const CreateOrder: React.FC = () => {
       } else {
         message.error('Ошибка создания заказа');
       }
-    } catch (error) {
-      console.error('Ошибка создания заказа:', error);
-      message.error('Ошибка связи с сервером');
+    } catch (error: any) {
+      console.error('🚨 Ошибка создания заказа:', error);
+      handleFormError(error, form, {
+        key: 'create-order-error',
+        duration: 6
+      });
     } finally {
       setLoading(false);
       setConfirmModalVisible(false);

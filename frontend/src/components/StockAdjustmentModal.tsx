@@ -3,6 +3,7 @@ import { Modal, Form, InputNumber, Input, Button, Space, Typography, Row, Col, S
 import { ExclamationCircleOutlined, PlusOutlined, MinusOutlined, AppstoreAddOutlined } from '@ant-design/icons';
 import { StockItem, stockApi } from '../services/stockApi';
 import { useAuthStore } from '../stores/authStore';
+import { handleFormError } from '../utils/errorUtils';
 
 const { Text, Title } = Typography;
 const { TextArea } = Input;
@@ -121,9 +122,12 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
       } else {
         message.error('Ошибка корректировки остатка');
       }
-    } catch (error) {
-      console.error('Ошибка корректировки:', error);
-      message.error('Ошибка связи с сервером');
+    } catch (error: any) {
+      console.error('🚨 Ошибка корректировки остатков:', error);
+      handleFormError(error, form, {
+        key: 'stock-adjustment-error',
+        duration: 6
+      });
     } finally {
       setLoading(false);
     }

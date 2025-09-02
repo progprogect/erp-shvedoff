@@ -3,6 +3,7 @@ import { Modal, Form, Input, Select, Button, Space, message } from 'antd';
 import { FolderAddOutlined } from '@ant-design/icons';
 import { catalogApi, Category } from '../services/catalogApi';
 import { useAuthStore } from '../stores/authStore';
+import { handleFormError } from '../utils/errorUtils';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -45,9 +46,12 @@ const CreateCategoryModal: React.FC<CreateCategoryModalProps> = ({
       } else {
         message.error('Ошибка создания категории');
       }
-    } catch (error) {
-      console.error('Ошибка создания категории:', error);
-      message.error('Ошибка связи с сервером');
+    } catch (error: any) {
+      console.error('🚨 Ошибка создания категории:', error);
+      handleFormError(error, form, {
+        key: 'create-category-error',
+        duration: 6
+      });
     } finally {
       setLoading(false);
     }
