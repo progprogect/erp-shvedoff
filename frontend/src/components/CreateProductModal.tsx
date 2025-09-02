@@ -3,6 +3,7 @@ import { Modal, Form, Input, Select, InputNumber, Row, Col, Button, Space, Typog
 import { PlusOutlined } from '@ant-design/icons';
 import PriceInput from './PriceInput';
 import { catalogApi, Category, RollCompositionItem } from '../services/catalogApi';
+import { normalizeDecimalInput, formatQuantityDisplay, validateQuantity } from '../utils/decimalUtils';
 import { surfacesApi, Surface } from '../services/surfacesApi';
 import { logosApi, Logo } from '../services/logosApi';
 import { materialsApi, Material } from '../services/materialsApi';
@@ -177,7 +178,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
   const addCompositionItem = () => {
     const newItem: RollCompositionItem = {
       carpetId: 0,
-      quantity: 1,
+      quantity: 1, // 🔥 ОБНОВЛЕНО: по умолчанию 1, но поддерживает дробные значения
       sortOrder: rollComposition.length
     };
     setRollComposition([...rollComposition, newItem]);
@@ -195,8 +196,22 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
   };
 
   const updateCompositionItem = (index: number, field: 'carpetId' | 'quantity', value: number) => {
+    let processedValue = value;
+    
+    // 🔥 ОБНОВЛЕНО: обработка дробных значений для quantity
+    if (field === 'quantity') {
+      processedValue = normalizeDecimalInput(value);
+      
+      // Валидация
+      const validation = validateQuantity(processedValue);
+      if (!validation.isValid) {
+        message.error(validation.error);
+        return;
+      }
+    }
+    
     const newComposition = rollComposition.map((item, i) => 
-      i === index ? { ...item, [field]: value } : item
+      i === index ? { ...item, [field]: processedValue } : item
     );
     setRollComposition(newComposition);
     generateArticlePreview({ composition: newComposition });
@@ -1469,10 +1484,14 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                     <Col span={6}>
                       <InputNumber
                         placeholder="Количество"
-                        min={1}
+                        min={0.01} // 🔥 ОБНОВЛЕНО: минимум 0.01
+                        step={0.01} // 🔥 ОБНОВЛЕНО: шаг 0.01 для дробных значений
+                        precision={2} // 🔥 ОБНОВЛЕНО: точность до 2 знаков после запятой
                         value={item.quantity}
-                        onChange={(value) => updateCompositionItem(index, 'quantity', value || 1)}
+                        onChange={(value) => updateCompositionItem(index, 'quantity', value || 0.01)}
                         style={{ width: '100%' }}
+                        formatter={(value) => value ? formatQuantityDisplay(parseFloat(value.toString())) : ''}
+                        parser={(value) => normalizeDecimalInput(value)}
                       />
                     </Col>
                     <Col span={6}>

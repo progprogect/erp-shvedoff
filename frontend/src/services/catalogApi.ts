@@ -459,7 +459,7 @@ export interface RollCompositionItem {
   id?: number;
   carpetId: number;
   carpetName?: string;
-  quantity: number;
+  quantity: number; // 🔥 ОБНОВЛЕНО: теперь поддерживает дробные значения до 2 знаков после запятой
   sortOrder: number;
   // Связанный ковер
   carpet?: {

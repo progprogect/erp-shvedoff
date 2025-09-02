@@ -541,7 +541,27 @@ function formatRollBottom(bottomType?: { code?: string }): string {
 }
 
 /**
+ * Форматирует количество для отображения в артикуле
+ * Целые числа без .00, дробные с нужной точностью
+ */
+function formatQuantityForArticle(value: number): string {
+  if (value === 0) return '0';
+  
+  // Округляем до 2 знаков после запятой
+  const rounded = Math.round(value * 100) / 100;
+  
+  // Если целое число, показываем без десятичных знаков
+  if (rounded % 1 === 0) {
+    return rounded.toString();
+  }
+  
+  // Иначе показываем с нужной точностью (убираем лишние нули)
+  return rounded.toFixed(2).replace(/\.?0+$/, '');
+}
+
+/**
  * Форматирует состав рулонного покрытия (количество ковров)
+ * 🔥 ОБНОВЛЕНО: поддержка дробных значений
  */
 function formatRollComposition(composition?: Array<{ carpetId: number; quantity: number; sortOrder: number }>): string {
   if (!composition || composition.length === 0) return '';
@@ -549,8 +569,8 @@ function formatRollComposition(composition?: Array<{ carpetId: number; quantity:
   // Считаем общее количество ковров в составе
   const totalQuantity = composition.reduce((sum, item) => sum + item.quantity, 0);
   
-  // Показываем количество ковров в формате "5Ковр"
-  return totalQuantity > 0 ? `${totalQuantity}Ковр` : '';
+  // Показываем количество ковров в формате "5Ковр" или "1.5Ковр"
+  return totalQuantity > 0 ? `${formatQuantityForArticle(totalQuantity)}Ковр` : '';
 }
 
 

@@ -15,6 +15,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { catalogApi, Product, Category } from '../services/catalogApi';
 import usePermissions from '../hooks/usePermissions';
+import { formatQuantityDisplay } from '../utils/decimalUtils';
 import { surfacesApi, Surface } from '../services/surfacesApi';
 import { logosApi, Logo } from '../services/logosApi';
 import { materialsApi, Material } from '../services/materialsApi';
@@ -685,7 +686,7 @@ const ProductDetail: React.FC = () => {
                                     borderRadius: '4px',
                                     border: '1px solid #b7eb8f'
                                   }}>
-                                    ×{item.quantity}
+                                    ×{formatQuantityDisplay(item.quantity)} {/* 🔥 ОБНОВЛЕНО: красивое отображение дробных */}
                                   </span>
                                 </div>
                               ))}

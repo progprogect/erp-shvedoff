@@ -402,7 +402,7 @@ export const rollCoveringComposition = pgTable('roll_covering_composition', {
   id: serial('id').primaryKey(),
   rollCoveringId: integer('roll_covering_id').references(() => products.id, { onDelete: 'cascade' }).notNull(),
   carpetId: integer('carpet_id').references(() => products.id, { onDelete: 'cascade' }).notNull(),
-  quantity: integer('quantity').notNull(),
+  quantity: decimal('quantity', { precision: 10, scale: 2 }).notNull(), // 🔥 ОБНОВЛЕНО: поддержка дробных значений
   sortOrder: integer('sort_order').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
