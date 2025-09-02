@@ -9,7 +9,7 @@ import catalogRoutes from './routes/catalog';
 import stockRoutes from './routes/stock';
 import orderRoutes from './routes/orders';
 import categoriesRoutes from './routes/categories';
-import productsRoutes from './routes/products';
+// import productsRoutes from './routes/products'; // УСТАРЕВШИЙ РОУТ - удален в пользу /api/catalog
 import auditRoutes from './routes/audit';
 import dashboardRoutes from './routes/dashboard';
 import productionRoutes from './routes/production';
@@ -72,7 +72,7 @@ app.use('/api/catalog', catalogRoutes);
 app.use('/api/stock', stockRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/categories', categoriesRoutes);
-app.use('/api/products', productsRoutes);
+// app.use('/api/products', productsRoutes); // УСТАРЕВШИЙ РОУТ - заменен на /api/catalog/products
 app.use('/api/audit', auditRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/production', productionRoutes);
