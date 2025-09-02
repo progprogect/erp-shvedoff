@@ -28,6 +28,7 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
   const [showProductionOptions, setShowProductionOptions] = useState(false);
   const [productionAction, setProductionAction] = useState<'none' | 'add' | 'remove'>('none');
   const [productionQuantity, setProductionQuantity] = useState<number>(0);
+  const [commentValue, setCommentValue] = useState<string>(''); // 🔥 Для отслеживания значения комментария
   const { token } = useAuthStore();
   const { message } = App.useApp();
 
@@ -39,6 +40,7 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
       setShowProductionOptions(false);
       setProductionAction('none');
       setProductionQuantity(0);
+      setCommentValue(''); // 🔥 Сброс комментария
     }
   }, [visible, stockItem, form]);
 
@@ -70,6 +72,13 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
       default:
         return 0;
     }
+  };
+
+  // 🔥 Функция для установки быстрого комментария
+  const setQuickComment = (comment: string) => {
+    setCommentValue(comment);
+    form.setFieldsValue({ comment });
+    form.validateFields(['comment']);
   };
 
   const handleSubmit = async (values: any) => {
@@ -360,28 +369,19 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
                     <>
                       <Button
                         size="small"
-                        onClick={() => {
-                          form.setFieldsValue({ comment: 'Изготовлены' });
-                          form.validateFields(['comment']);
-                        }}
+                        onClick={() => setQuickComment('Изготовлены')}
                       >
                         Изготовлены
                       </Button>
                       <Button
                         size="small"
-                        onClick={() => {
-                          form.setFieldsValue({ comment: 'Из резки' });
-                          form.validateFields(['comment']);
-                        }}
+                        onClick={() => setQuickComment('Из резки')}
                       >
                         Из резки
                       </Button>
                       <Button
                         size="small"
-                        onClick={() => {
-                          form.setFieldsValue({ comment: 'Возврат товара' });
-                          form.validateFields(['comment']);
-                        }}
+                        onClick={() => setQuickComment('Возврат товара')}
                       >
                         Возврат товара
                       </Button>
@@ -391,37 +391,25 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
                     <>
                       <Button
                         size="small"
-                        onClick={() => {
-                          form.setFieldsValue({ comment: 'В резку' });
-                          form.validateFields(['comment']);
-                        }}
+                        onClick={() => setQuickComment('В резку')}
                       >
                         В резку
                       </Button>
                       <Button
                         size="small"
-                        onClick={() => {
-                          form.setFieldsValue({ comment: 'Продажа' });
-                          form.validateFields(['comment']);
-                        }}
+                        onClick={() => setQuickComment('Продажа')}
                       >
                         Продажа
                       </Button>
                       <Button
                         size="small"
-                        onClick={() => {
-                          form.setFieldsValue({ comment: 'Образцы' });
-                          form.validateFields(['comment']);
-                        }}
+                        onClick={() => setQuickComment('Образцы')}
                       >
                         Образцы
                       </Button>
                       <Button
                         size="small"
-                        onClick={() => {
-                          form.setFieldsValue({ comment: 'Замена по гарантии' });
-                          form.validateFields(['comment']);
-                        }}
+                        onClick={() => setQuickComment('Замена по гарантии')}
                       >
                         Замена по гарантии
                       </Button>
@@ -437,6 +425,11 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
             placeholder="Укажите причину корректировки остатка..."
             maxLength={500}
             showCount
+            value={commentValue}
+            onChange={(e) => {
+              setCommentValue(e.target.value);
+              form.setFieldsValue({ comment: e.target.value });
+            }}
           />
         </Form.Item>
 
