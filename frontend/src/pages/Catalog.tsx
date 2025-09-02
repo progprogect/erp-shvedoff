@@ -11,7 +11,9 @@ import {
   ClearOutlined,
   ReloadOutlined,
   DeleteOutlined,
-  EditOutlined
+  EditOutlined,
+  CheckOutlined,
+  CloseOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
@@ -34,49 +36,6 @@ const { Title, Text } = Typography;
 const { Search } = Input;
 const { Option } = Select;
 const { Panel } = Collapse;
-
-// Функция форматирования категорий для Tree компонента с товарами
-const formatCategoriesForTree = (categories: Category[], allProducts: Product[]): any[] => {
-  return categories.map(category => {
-    // Найдем товары этой категории
-    const categoryProducts = allProducts.filter(product => product.categoryId === category.id);
-    
-    // Создаем дочерние элементы: сначала подкатегории, затем товары
-    const children = [];
-    
-    // Добавляем подкатегории
-    if (category.children && category.children.length > 0) {
-      children.push(...formatCategoriesForTree(category.children, allProducts));
-    }
-    
-    // Добавляем товары
-    categoryProducts.forEach(product => {
-      const dimensions = product.dimensions ? 
-        `${product.dimensions.length}×${product.dimensions.width}×${product.dimensions.thickness}` : 
-        '';
-      const available = (product.currentStock || 0) - (product.reservedStock || 0);
-      const stockIcon = available > 0 ? '✅' : '❌';
-      
-      const dimensionsDisplay = dimensions ? ` (${dimensions})` : '';
-      
-      children.push({
-        title: `${stockIcon} ${product.name}${dimensionsDisplay}`,
-        key: `product-${product.id}`,
-        isLeaf: true,
-        data: { type: 'product', product }
-      });
-    });
-
-    return {
-      title: `📁 ${category.name} (${categoryProducts.length})`,
-      key: category.id,
-      data: { type: 'category', category },
-      children: children.length > 0 ? children : undefined
-    };
-  });
-};
-
-
 
 const Catalog: React.FC = () => {
   const [searchText, setSearchText] = useState('');
@@ -161,6 +120,11 @@ const Catalog: React.FC = () => {
 
   // Состояния для экспорта каталога (Задача 9.2)
   const [exportingCatalog, setExportingCatalog] = useState(false);
+
+  // Состояния для inline редактирования категорий
+  const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
+  const [editingCategoryName, setEditingCategoryName] = useState<string>('');
+  const [savingCategory, setSavingCategory] = useState(false);
 
   const { user, token } = useAuthStore();
   const { canCreate, canEdit, canDelete, canManage } = usePermissions();
@@ -760,6 +724,60 @@ const Catalog: React.FC = () => {
     loadProducts(); // Обновляем данные каталога после корректировки
   };
 
+  // Функции для inline редактирования категорий
+  const startEditingCategory = (categoryId: number, currentName: string) => {
+    setEditingCategoryId(categoryId);
+    setEditingCategoryName(currentName);
+  };
+
+  const cancelEditingCategory = () => {
+    setEditingCategoryId(null);
+    setEditingCategoryName('');
+  };
+
+  const saveEditingCategory = async () => {
+    if (!editingCategoryId || !editingCategoryName.trim()) {
+      message.warning('Название категории не может быть пустым');
+      return;
+    }
+
+    if (editingCategoryName.trim().length < 2) {
+      message.warning('Название категории должно содержать минимум 2 символа');
+      return;
+    }
+
+    setSavingCategory(true);
+    try {
+      const response = await catalogApi.updateCategory(editingCategoryId, {
+        name: editingCategoryName.trim()
+      });
+
+      if (response.success) {
+        message.success('Категория успешно переименована');
+        setEditingCategoryId(null);
+        setEditingCategoryName('');
+        loadData(); // Перезагружаем категории
+      } else {
+        message.error(response.message || 'Ошибка при переименовании категории');
+      }
+    } catch (error: any) {
+      handleFormError(error, undefined, {
+        key: 'edit-category-error',
+        duration: 6
+      });
+    } finally {
+      setSavingCategory(false);
+    }
+  };
+
+  const handleCategoryNameKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      saveEditingCategory();
+    } else if (e.key === 'Escape') {
+      cancelEditingCategory();
+    }
+  };
+
   // Получение плоского списка категорий
   const getFlatCategories = (cats: Category[]): Category[] => {
     let result: Category[] = [];
@@ -770,6 +788,135 @@ const Catalog: React.FC = () => {
       }
     });
     return result;
+  };
+
+  // Функция форматирования категорий для Tree компонента с товарами
+  const formatCategoriesForTree = (categories: Category[], allProducts: Product[]): any[] => {
+    return categories.map(category => {
+      // Найдем товары этой категории
+      const categoryProducts = allProducts.filter(product => product.categoryId === category.id);
+      
+      // Создаем дочерние элементы: сначала подкатегории, затем товары
+      const children = [];
+      
+      // Добавляем подкатегории
+      if (category.children && category.children.length > 0) {
+        children.push(...formatCategoriesForTree(category.children, allProducts));
+      }
+      
+      // Добавляем товары
+      categoryProducts.forEach(product => {
+        const dimensions = product.dimensions ? 
+          `${product.dimensions.length}×${product.dimensions.width}×${product.dimensions.thickness}` : 
+          '';
+        const available = (product.currentStock || 0) - (product.reservedStock || 0);
+        const stockIcon = available > 0 ? '✅' : '❌';
+        
+        const dimensionsDisplay = dimensions ? ` (${dimensions})` : '';
+        
+        children.push({
+          title: `${stockIcon} ${product.name}${dimensionsDisplay}`,
+          key: `product-${product.id}`,
+          isLeaf: true,
+          data: { type: 'product', product }
+        });
+      });
+
+      // Проверяем, редактируется ли эта категория
+      const isEditing = editingCategoryId === category.id;
+      const canEditCatalog = canEdit('catalog');
+
+      // Создаем title с inline редактированием
+      const categoryTitle = isEditing ? (
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '4px',
+          padding: '2px 0',
+          animation: 'fadeIn 0.3s ease-in-out'
+        }}>
+          <Input
+            value={editingCategoryName}
+            onChange={(e) => setEditingCategoryName(e.target.value)}
+            onKeyDown={handleCategoryNameKeyPress}
+            onBlur={saveEditingCategory}
+            style={{ 
+              flex: 1, 
+              height: '24px',
+              border: '1px solid #1890ff',
+              borderRadius: '4px'
+            }}
+            autoFocus
+            maxLength={100}
+          />
+          <Button
+            type="text"
+            size="small"
+            icon={<CheckOutlined />}
+            onClick={saveEditingCategory}
+            loading={savingCategory}
+            style={{ 
+              minWidth: '24px', 
+              height: '24px', 
+              padding: '0',
+              color: '#52c41a'
+            }}
+            title="Сохранить (Enter)"
+          />
+          <Button
+            type="text"
+            size="small"
+            icon={<CloseOutlined />}
+            onClick={cancelEditingCategory}
+            style={{ 
+              minWidth: '24px', 
+              height: '24px', 
+              padding: '0',
+              color: '#ff4d4f'
+            }}
+            title="Отмена (Esc)"
+          />
+        </div>
+      ) : (
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between',
+          width: '100%',
+          animation: isEditing ? 'fadeOut 0.3s ease-in-out' : 'none'
+        }}>
+          <span>📁 {category.name} ({categoryProducts.length})</span>
+          {canEditCatalog && (
+            <Button
+              type="text"
+              size="small"
+              icon={<EditOutlined />}
+              onClick={(e) => {
+                e.stopPropagation();
+                startEditingCategory(category.id, category.name);
+              }}
+              style={{ 
+                opacity: 0,
+                transition: 'opacity 0.2s ease-in-out',
+                minWidth: '24px',
+                height: '24px',
+                padding: '0',
+                color: '#1890ff'
+              }}
+              className="category-edit-btn"
+              title="Переименовать категорию"
+            />
+          )}
+        </div>
+      );
+
+      return {
+        title: categoryTitle,
+        key: category.id,
+        data: { type: 'category', category },
+        children: children.length > 0 ? children : undefined
+      };
+    });
   };
 
   return (
@@ -1732,6 +1879,27 @@ const Catalog: React.FC = () => {
         onClose={() => setAdjustmentModalVisible(false)}
         onSuccess={handleAdjustmentSuccess}
       />
+
+      {/* CSS стили для анимации и hover эффектов */}
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateX(-10px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+        
+        @keyframes fadeOut {
+          from { opacity: 1; transform: translateX(0); }
+          to { opacity: 0; transform: translateX(-10px); }
+        }
+        
+        .ant-tree-node-content-wrapper:hover .category-edit-btn {
+          opacity: 1 !important;
+        }
+        
+        .category-edit-btn:hover {
+          background-color: rgba(24, 144, 255, 0.1) !important;
+        }
+      `}</style>
     </div>
   );
 };

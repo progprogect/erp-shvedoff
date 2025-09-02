@@ -349,6 +349,15 @@ class CatalogApi {
     return response.data;
   }
 
+  async updateCategory(id: number, categoryData: { name: string; parentId?: number; description?: string }): Promise<ApiResponse<Category>> {
+    const response = await axios.put(
+      `${API_BASE_URL}/categories/${id}`,
+      categoryData,
+      this.getAuthHeaders()
+    );
+    return response.data;
+  }
+
   async deleteCategory(id: number): Promise<ApiResponse<void>> {
     const response = await axios.delete(
       `${API_BASE_URL}/categories/${id}`,
