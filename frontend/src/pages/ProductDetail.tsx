@@ -668,47 +668,7 @@ const ProductDetail: React.FC = () => {
                           </Descriptions.Item>
                         </>
                       )}
-                      
-                      {/* Состав рулонного покрытия - только для рулонных покрытий */}
-                      {product?.productType === 'roll_covering' && (
-                        <Descriptions.Item label="Состав рулонного покрытия">
-                          {product?.rollComposition && product.rollComposition.length > 0 ? (
-                            <div style={{ width: '100%' }}>
-                              {product.rollComposition.map((item, index) => (
-                                <div key={index} style={{ 
-                                  display: 'flex', 
-                                  alignItems: 'center', 
-                                  marginBottom: index < (product.rollComposition?.length || 0) - 1 ? 8 : 0,
-                                  padding: '6px 12px',
-                                  backgroundColor: '#f8f9fa',
-                                  borderRadius: '6px',
-                                  border: '1px solid #e9ecef'
-                                }}>
-                                  <span style={{ fontWeight: 'bold', color: '#1890ff', marginRight: 8 }}>
-                                    🪄 {item.carpet?.article || `ID: ${item.carpetId}`}
-                                  </span>
-                                  <span style={{ flex: 1, color: '#666' }}>
-                                    {item.carpet?.name || 'Название не найдено'}
-                                  </span>
-                                  <span style={{ 
-                                    fontWeight: 'bold', 
-                                    color: '#52c41a',
-                                    marginLeft: 'auto',
-                                    backgroundColor: '#f6ffed',
-                                    padding: '2px 8px',
-                                    borderRadius: '4px',
-                                    border: '1px solid #b7eb8f'
-                                  }}>
-                                    ×{formatQuantityDisplay(item.quantity)} {/* 🔥 ОБНОВЛЕНО: красивое отображение дробных */}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <span style={{ color: '#999' }}>Состав не указан</span>
-                          )}
-                        </Descriptions.Item>
-                      )}
+
                     </>
                   )}
                   
@@ -1111,6 +1071,55 @@ const ProductDetail: React.FC = () => {
             </Col>
           </Row>
         </Col>
+
+        {/* 🏭 Отдельный блок для состава рулонного покрытия */}
+        {product?.productType === 'roll_covering' && product?.rollComposition && product.rollComposition.length > 0 && (
+          <Col span={24}>
+            <Card 
+              title="🏭 Состав рулонного покрытия" 
+              style={{ marginTop: 16 }}
+              size="small"
+            >
+              <Row gutter={[16, 12]}>
+                {product.rollComposition.map((item, index) => (
+                  <Col key={index} xs={24} sm={12} md={8} lg={6}>
+                    <div style={{ 
+                      padding: '12px 16px',
+                      backgroundColor: '#f8f9fa',
+                      borderRadius: '8px',
+                      border: '1px solid #e9ecef',
+                      textAlign: 'center',
+                      height: '100%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'center'
+                    }}>
+                      <div style={{ 
+                        fontWeight: 'bold', 
+                        color: '#1890ff', 
+                        fontSize: '16px',
+                        marginBottom: '8px'
+                      }}>
+                        🪄 {item.carpet?.article || `ID: ${item.carpetId}`}
+                      </div>
+                      <div style={{ 
+                        fontWeight: 'bold', 
+                        color: '#52c41a',
+                        fontSize: '18px',
+                        backgroundColor: '#f6ffed',
+                        padding: '4px 12px',
+                        borderRadius: '6px',
+                        border: '1px solid #b7eb8f'
+                      }}>
+                        ×{formatQuantityDisplay(item.quantity)}
+                      </div>
+                    </div>
+                  </Col>
+                ))}
+              </Row>
+            </Card>
+          </Col>
+        )}
 
         {/* История движений */}
         <Col span={24}>
