@@ -14,8 +14,9 @@ interface AuthState {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
+  isLoggingOut: boolean; // 🔥 НОВОЕ: защита от race conditions
   login: (user: User, token: string) => void;
-  logout: () => void;
+  logout: () => Promise<void>; // 🔥 НОВОЕ: Promise-based logout
   updateUser: (user: Partial<User>) => void;
 }
 
@@ -25,6 +26,7 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       token: null,
       isAuthenticated: false,
+      isLoggingOut: false, // 🔥 НОВОЕ: начальное состояние
 
       login: (user: User, token: string) => {
         // Сохраняем токен в localStorage для совместимости с API сервисами
@@ -34,18 +36,58 @@ export const useAuthStore = create<AuthState>()(
           user,
           token,
           isAuthenticated: true,
+          isLoggingOut: false, // 🔥 НОВОЕ: сбрасываем флаг при входе
         });
       },
 
-      logout: () => {
-        // Удаляем токен из localStorage
-        localStorage.removeItem('token');
+      logout: async () => {
+        const state = get();
         
-        set({
-          user: null,
-          token: null,
-          isAuthenticated: false,
+        // 🔥 НОВОЕ: защита от множественных вызовов
+        if (state.isLoggingOut) {
+          console.log('🔒 Logout уже в процессе, пропускаем...');
+          return;
+        }
+
+        console.log('🚪 Начинаем logout процесс:', {
+          user: state.user?.username,
+          timestamp: new Date().toISOString()
         });
+
+        set({ isLoggingOut: true });
+        
+        try {
+          // 🔥 НОВОЕ: сохраняем контекст для debugging
+          const logoutContext = {
+            reason: 'Manual logout or session expired',
+            user: state.user?.username,
+            timestamp: new Date().toISOString()
+          };
+          sessionStorage.setItem('lastLogoutContext', JSON.stringify(logoutContext));
+
+          // Удаляем токен из localStorage
+          localStorage.removeItem('token');
+          
+          console.log('✅ Logout завершен успешно');
+          
+          set({
+            user: null,
+            token: null,
+            isAuthenticated: false,
+            isLoggingOut: false,
+          });
+        } catch (error) {
+          console.error('❌ Ошибка во время logout:', error);
+          
+          // В любом случае очищаем состояние
+          localStorage.removeItem('token');
+          set({
+            user: null,
+            token: null,
+            isAuthenticated: false,
+            isLoggingOut: false,
+          });
+        }
       },
 
       updateUser: (userData: Partial<User>) => {
@@ -63,6 +105,7 @@ export const useAuthStore = create<AuthState>()(
         user: state.user,
         token: state.token,
         isAuthenticated: state.isAuthenticated,
+        // 🔥 ВАЖНО: НЕ сохраняем isLoggingOut в localStorage
       }),
       onRehydrateStorage: () => (state) => {
         // При восстановлении состояния также восстанавливаем токен в localStorage

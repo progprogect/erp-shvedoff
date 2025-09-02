@@ -42,8 +42,9 @@ interface PermissionsContextType {
 const PermissionsContext = createContext<PermissionsContextType | null>(null);
 
 export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuthStore();
+  const { user, logout, isLoggingOut } = useAuthStore(); // 🔥 НОВОЕ: получаем logout и isLoggingOut
   const callbacksRef = useRef<Set<() => void>>(new Set());
+  const logoutInProgressRef = useRef(false); // 🔥 НОВОЕ: дополнительная защита
   
   // Глобальное состояние разрешений
   const [permissions, setPermissions] = useState<MenuPermissions | null>(null);
@@ -52,6 +53,57 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
   
   // Флаг для предотвращения множественных запросов
   const isLoadingRef = useRef(false);
+
+  // 🔥 НОВОЕ: Надежная обработка auth ошибок
+  const handleAuthError = useCallback(async (error: any, context: string = 'unknown') => {
+    // Защита от race conditions
+    if (logoutInProgressRef.current || isLoggingOut) {
+      console.log('🔒 Auth error handler: logout уже в процессе, пропускаем...', { context });
+      return false; // Не auth ошибка для дальнейшей обработки
+    }
+
+    const isAuthError = error?.response?.status === 401 || error?.response?.status === 403;
+    
+    if (isAuthError) {
+      logoutInProgressRef.current = true;
+      
+      // 🔥 РАСШИРЕННОЕ ЛОГИРОВАНИЕ
+      console.warn('🚪 Автоматический logout из-за auth ошибки:', {
+        context,
+        status: error.response?.status,
+        url: error.config?.url || error.request?.responseURL,
+        message: error.response?.data?.message,
+        user: user?.username,
+        timestamp: new Date().toISOString(),
+        headers: error.response?.headers
+      });
+
+      // 🔥 СОХРАНЯЕМ КОНТЕКСТ ДЛЯ DEBUGGING
+      const errorContext = {
+        reason: `Session expired in ${context}`,
+        status: error.response?.status,
+        url: error.config?.url || error.request?.responseURL,
+        message: error.response?.data?.message,
+        user: user?.username,
+        timestamp: new Date().toISOString(),
+        component: 'PermissionsProvider'
+      };
+      sessionStorage.setItem('lastAuthError', JSON.stringify(errorContext));
+
+      try {
+        await logout();
+        console.log('✅ Auth error handler: logout завершен успешно');
+      } catch (logoutError) {
+        console.error('❌ Auth error handler: ошибка во время logout:', logoutError);
+      } finally {
+        logoutInProgressRef.current = false;
+      }
+      
+      return true; // Была auth ошибка
+    }
+    
+    return false; // Не auth ошибка
+  }, [logout, user, isLoggingOut]);
 
   // Функция для генерации fallback разрешений
   const getLegacyPermissions = useCallback((role: string): MenuPermissions => {
@@ -91,10 +143,15 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   // Загрузка разрешений (ТОЛЬКО ОДИН РАЗ ГЛОБАЛЬНО)
   const loadPermissions = useCallback(async () => {
-    console.log('🌍 ГЛОБАЛЬНАЯ загрузка разрешений:', { user: user?.username, alreadyLoading: isLoadingRef.current });
+    console.log('🌍 ГЛОБАЛЬНАЯ загрузка разрешений:', { 
+      user: user?.username, 
+      alreadyLoading: isLoadingRef.current,
+      isLoggingOut,
+      logoutInProgress: logoutInProgressRef.current
+    });
     
-    if (isLoadingRef.current) {
-      console.log('⚠️ Глобальный запрос уже выполняется');
+    if (isLoadingRef.current || logoutInProgressRef.current || isLoggingOut) {
+      console.log('⚠️ Глобальный запрос уже выполняется или logout в процессе');
       return;
     }
     
@@ -109,7 +166,15 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       setLoading(true);
       setError(null);
       
+      console.log('📡 Запрашиваем разрешения с сервера...');
       const userPermissions = await permissionsApi.getMenuPermissions();
+      
+      // Проверяем, что logout не произошел во время запроса
+      if (logoutInProgressRef.current || isLoggingOut) {
+        console.log('🔄 Logout произошел во время загрузки разрешений, отменяем результат');
+        return;
+      }
+      
       console.log('✅ ГЛОБАЛЬНО получены разрешения:', userPermissions);
       console.log('🔍 ДЕТАЛИЗАЦИЯ разрешений:', {
         orders: userPermissions.orders,           // ← ЭТО orders+view
@@ -125,15 +190,31 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         }
       });
       setPermissions(userPermissions);
-    } catch (err) {
-      console.error('❌ ГЛОБАЛЬНАЯ ошибка:', err);
-      setError(err instanceof Error ? err.message : 'Ошибка загрузки');
-      setPermissions(getLegacyPermissions(user.role));
+    } catch (err: any) {
+      console.error('❌ ГЛОБАЛЬНАЯ ошибка загрузки разрешений:', {
+        error: err,
+        status: err?.response?.status,
+        message: err?.response?.data?.message,
+        url: err?.config?.url,
+        user: user?.username
+      });
+      
+      // 🔥 НОВОЕ: используем надежный обработчик auth ошибок
+      const wasAuthError = await handleAuthError(err, 'loadPermissions');
+      
+      // Если не auth ошибка - обрабатываем как обычно
+      if (!wasAuthError && !logoutInProgressRef.current) {
+        setError(err instanceof Error ? err.message : 'Ошибка загрузки разрешений');
+        console.log('🔄 Используем fallback разрешения для роли:', user.role);
+        setPermissions(getLegacyPermissions(user.role));
+      }
     } finally {
-      setLoading(false);
-      isLoadingRef.current = false;
+      if (!logoutInProgressRef.current) {
+        setLoading(false);
+        isLoadingRef.current = false;
+      }
     }
-  }, [user, getLegacyPermissions]);
+  }, [user, getLegacyPermissions, handleAuthError, isLoggingOut]);
   
   // Загружаем разрешения при изменении пользователя
   useEffect(() => {

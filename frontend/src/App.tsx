@@ -154,7 +154,7 @@ const App: React.FC = () => {
             <Route 
               path="/catalog" 
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredPermission={{ resource: 'catalog', action: 'view' }}>
                   <Catalog />
                 </ProtectedRoute>
               } 
@@ -162,7 +162,7 @@ const App: React.FC = () => {
             <Route 
               path="/catalog/products/:id" 
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredPermission={{ resource: 'catalog', action: 'view' }}>
                   <ProductDetail />
                 </ProtectedRoute>
               } 
@@ -172,7 +172,7 @@ const App: React.FC = () => {
             <Route 
               path="/stock" 
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredPermission={{ resource: 'stock', action: 'view' }}>
                   <Stock />
                 </ProtectedRoute>
               } 
