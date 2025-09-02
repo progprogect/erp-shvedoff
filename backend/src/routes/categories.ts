@@ -3,6 +3,7 @@ import { db, schema } from '../db';
 import { eq, like, isNull, and, desc } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { requirePermission } from '../middleware/permissions';
 
 const router = express.Router();
 
@@ -90,15 +91,10 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
 });
 
 // POST /api/categories - создать новую категорию
-router.post('/', authenticateToken, async (req: AuthRequest, res, next) => {
+router.post('/', authenticateToken, requirePermission('catalog', 'create'), async (req: AuthRequest, res, next) => {
   try {
     const { name, parentId, description, sortOrder } = req.body;
     const userId = req.user!.id;
-
-    // Проверка прав доступа
-    if (req.user!.role !== 'director' && req.user!.role !== 'manager') {
-      return next(createError('Недостаточно прав для создания категории', 403));
-    }
 
     // Валидация
     if (!name || name.trim().length < 2) {
@@ -163,16 +159,11 @@ router.post('/', authenticateToken, async (req: AuthRequest, res, next) => {
 });
 
 // PUT /api/categories/:id - обновить категорию
-router.put('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
+router.put('/:id', authenticateToken, requirePermission('catalog', 'edit'), async (req: AuthRequest, res, next) => {
   try {
     const { id } = req.params;
     const { name, parentId, description, sortOrder } = req.body;
     const userId = req.user!.id;
-
-    // Проверка прав доступа
-    if (req.user!.role !== 'director' && req.user!.role !== 'manager') {
-      return next(createError('Недостаточно прав для редактирования категории', 403));
-    }
 
     // Получаем текущую категорию
     const currentCategory = await db.query.categories.findFirst({
