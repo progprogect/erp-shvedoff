@@ -673,7 +673,7 @@ const ProductDetail: React.FC = () => {
                       {product?.productType === 'roll_covering' && (
                         <Descriptions.Item label="Состав рулонного покрытия">
                           {product?.rollComposition && product.rollComposition.length > 0 ? (
-                            <div style={{ maxWidth: '100%' }}>
+                            <div style={{ width: '100%' }}>
                               {product.rollComposition.map((item, index) => (
                                 <div key={index} style={{ 
                                   display: 'flex', 

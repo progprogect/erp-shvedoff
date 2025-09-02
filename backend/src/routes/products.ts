@@ -269,6 +269,7 @@ router.post('/', authenticateToken, async (req: AuthRequest, res, next) => {
       surfaceId,
       logoId,
       materialId,
+      pressType,  // 🔥 ДОБАВЛЕНО: поле пресса
       dimensions,
       characteristics,
       puzzleOptions,
@@ -281,7 +282,8 @@ router.post('/', authenticateToken, async (req: AuthRequest, res, next) => {
       normStock,
       initialStock,
       notes,
-      photos
+      photos,
+      bottomTypeId  // 🔥 ДОБАВЛЕНО: поле низа ковра
     } = req.body;
     const userId = req.user!.id;
 
@@ -371,6 +373,7 @@ router.post('/', authenticateToken, async (req: AuthRequest, res, next) => {
       surfaceId: surfaceId || null,
       logoId: logoId || null,
       materialId: materialId || null,
+      pressType: pressType || 'not_selected',  // 🔥 ДОБАВЛЕНО: поле пресса
       dimensions: dimensions || null,
       characteristics: characteristics || null,
       puzzleOptions: puzzleOptions || null,
@@ -383,6 +386,7 @@ router.post('/', authenticateToken, async (req: AuthRequest, res, next) => {
       normStock: normStock ? parseInt(normStock) : 0,
       notes: notes?.trim() || null,
       photos: photos || null,
+      bottomTypeId: bottomTypeId || null,  // 🔥 ДОБАВЛЕНО: поле низа ковра
       isActive: true,
       createdAt: new Date(),
       updatedAt: new Date()
@@ -441,6 +445,7 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
       surfaceId,
       logoId,
       materialId,
+      pressType,  // 🔥 ДОБАВЛЕНО: поле пресса
       dimensions,
       characteristics,
       puzzleOptions,
@@ -453,7 +458,8 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
       normStock,
       notes,
       photos,
-      isActive
+      isActive,
+      bottomTypeId  // 🔥 ДОБАВЛЕНО: поле низа ковра
     } = req.body;
     const userId = req.user!.id;
 
@@ -518,6 +524,7 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
         surfaceId: surfaceId !== undefined ? surfaceId : currentProduct.surfaceId,
         logoId: logoId !== undefined ? logoId : currentProduct.logoId,
         materialId: materialId !== undefined ? materialId : currentProduct.materialId,
+        pressType: pressType !== undefined ? pressType : currentProduct.pressType,  // 🔥 ДОБАВЛЕНО: поле пресса
         dimensions: dimensions || null,
         characteristics: characteristics || null,
         puzzleOptions: puzzleOptions || null,
@@ -530,6 +537,7 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
         normStock: normStock ? parseInt(normStock) : 0,
         notes: notes?.trim() || null,
         photos: photos || null,
+        bottomTypeId: bottomTypeId !== undefined ? bottomTypeId : currentProduct.bottomTypeId,  // 🔥 ДОБАВЛЕНО: поле низа ковра
         isActive: isActive !== undefined ? isActive : true,
         updatedAt: new Date()
       })

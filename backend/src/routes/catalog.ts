@@ -787,9 +787,9 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
       // Ковровые поля (для товаров типа 'carpet' и 'roll_covering')
       surfaceId: (validProductType === 'carpet' || validProductType === 'roll_covering') ? (surfaceId || null) : null, // DEPRECATED: для обратной совместимости
       surfaceIds: (validProductType === 'carpet' || validProductType === 'roll_covering') && finalSurfaceIds.length > 0 ? finalSurfaceIds : null, // множественный выбор для ковров и рулонов
-      logoId: validProductType === 'carpet' ? (logoId || null) : null, // логотип только для ковров
-      materialId: validProductType === 'carpet' ? (materialId || null) : null, // материал только для ковров
-      pressType: validProductType === 'carpet' ? (pressType || 'not_selected') : null, // пресс только для ковров
+      logoId: (validProductType === 'carpet' || validProductType === 'roll_covering') ? (logoId || null) : null, // логотип для ковров и рулонных покрытий
+      materialId: (validProductType === 'carpet' || validProductType === 'roll_covering') ? (materialId || null) : null, // материал для ковров и рулонных покрытий
+      pressType: (validProductType === 'carpet' || validProductType === 'roll_covering') ? (pressType || 'not_selected') : null, // пресс для ковров и рулонных покрытий
       dimensions: (validProductType === 'carpet' || validProductType === 'pur' || validProductType === 'roll_covering') ? dimensions : null, // размеры для ковров, ПУР и рулонов
       characteristics: validProductType === 'carpet' ? characteristics : null,
       puzzleOptions: validProductType === 'carpet' ? (puzzleOptions || null) : null,
