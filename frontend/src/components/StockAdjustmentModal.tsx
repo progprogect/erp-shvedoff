@@ -344,6 +344,69 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
             { required: true, message: 'Укажите причину корректировки' }
           ]}
         >
+          {/* 🔥 НОВОЕ: Быстрые варианты примечаний */}
+          {(adjustmentType === 'add' || adjustmentType === 'subtract') && (
+            <div style={{ marginBottom: 8 }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                Быстрые варианты:
+              </Text>
+              <div style={{ marginTop: 4 }}>
+                <Space size="small" wrap>
+                  {adjustmentType === 'add' && (
+                    <>
+                      <Button
+                        size="small"
+                        onClick={() => form.setFieldsValue({ comment: 'Изготовлены' })}
+                      >
+                        Изготовлены
+                      </Button>
+                      <Button
+                        size="small"
+                        onClick={() => form.setFieldsValue({ comment: 'Из резки' })}
+                      >
+                        Из резки
+                      </Button>
+                      <Button
+                        size="small"
+                        onClick={() => form.setFieldsValue({ comment: 'Возврат товара' })}
+                      >
+                        Возврат товара
+                      </Button>
+                    </>
+                  )}
+                  {adjustmentType === 'subtract' && (
+                    <>
+                      <Button
+                        size="small"
+                        onClick={() => form.setFieldsValue({ comment: 'В резку' })}
+                      >
+                        В резку
+                      </Button>
+                      <Button
+                        size="small"
+                        onClick={() => form.setFieldsValue({ comment: 'Продажа' })}
+                      >
+                        Продажа
+                      </Button>
+                      <Button
+                        size="small"
+                        onClick={() => form.setFieldsValue({ comment: 'Образцы' })}
+                      >
+                        Образцы
+                      </Button>
+                      <Button
+                        size="small"
+                        onClick={() => form.setFieldsValue({ comment: 'Замена по гарантии' })}
+                      >
+                        Замена по гарантии
+                      </Button>
+                    </>
+                  )}
+                </Space>
+              </div>
+            </div>
+          )}
+          
           <TextArea
             rows={3}
             placeholder="Укажите причину корректировки остатка..."
