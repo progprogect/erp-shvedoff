@@ -793,7 +793,7 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
       dimensions: (validProductType === 'carpet' || validProductType === 'pur' || validProductType === 'roll_covering') ? dimensions : null, // размеры для ковров, ПУР и рулонов
       characteristics: validProductType === 'carpet' ? characteristics : null,
       puzzleOptions: validProductType === 'carpet' ? (puzzleOptions || null) : null,
-      matArea: (validProductType === 'carpet' || validProductType === 'roll_covering') ? calculateMatArea(matArea, dimensions, validProductType) : null,
+      matArea: (validProductType === 'carpet' || validProductType === 'roll_covering' || validProductType === 'pur') ? calculateMatArea(matArea, dimensions, validProductType) : null,
       weight: weight ? parseFloat(weight).toString() : null, // вес может быть у любого товара
       grade: validProductType === 'carpet' ? (grade || 'usual') : null,
       borderType: validProductType === 'carpet' ? (borderType || null) : null,

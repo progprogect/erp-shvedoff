@@ -283,7 +283,16 @@ router.post('/', authenticateToken, async (req: AuthRequest, res, next) => {
       initialStock,
       notes,
       photos,
-      bottomTypeId  // 🔥 ДОБАВЛЕНО: поле низа ковра
+      bottomTypeId,  // 🔥 ДОБАВЛЕНО: поле низа ковра
+      // Новые поля для полной совместимости
+      borderType,
+      carpetEdgeType,
+      carpetEdgeSides,
+      carpetEdgeStrength,
+      puzzleTypeId,
+      puzzleSides,
+      purNumber,
+      surfaceIds  // множественные поверхности
     } = req.body;
     const userId = req.user!.id;
 
@@ -387,6 +396,15 @@ router.post('/', authenticateToken, async (req: AuthRequest, res, next) => {
       notes: notes?.trim() || null,
       photos: photos || null,
       bottomTypeId: bottomTypeId || null,  // 🔥 ДОБАВЛЕНО: поле низа ковра
+      // Новые поля для полной совместимости
+      borderType: borderType || null,
+      carpetEdgeType: carpetEdgeType || 'straight_cut',
+      carpetEdgeSides: carpetEdgeSides || 1,
+      carpetEdgeStrength: carpetEdgeStrength || 'normal',
+      puzzleTypeId: puzzleTypeId || null,
+      puzzleSides: puzzleSides || null,
+      purNumber: purNumber || null,
+      surfaceIds: surfaceIds || null,  // множественные поверхности
       isActive: true,
       createdAt: new Date(),
       updatedAt: new Date()
@@ -459,7 +477,16 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
       notes,
       photos,
       isActive,
-      bottomTypeId  // 🔥 ДОБАВЛЕНО: поле низа ковра
+      bottomTypeId,  // 🔥 ДОБАВЛЕНО: поле низа ковра
+      // Новые поля для полной совместимости
+      borderType,
+      carpetEdgeType,
+      carpetEdgeSides,
+      carpetEdgeStrength,
+      puzzleTypeId,
+      puzzleSides,
+      purNumber,
+      surfaceIds  // множественные поверхности
     } = req.body;
     const userId = req.user!.id;
 
@@ -538,6 +565,15 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
         notes: notes?.trim() || null,
         photos: photos || null,
         bottomTypeId: bottomTypeId !== undefined ? bottomTypeId : currentProduct.bottomTypeId,  // 🔥 ДОБАВЛЕНО: поле низа ковра
+        // Новые поля для полной совместимости
+        borderType: borderType !== undefined ? borderType : currentProduct.borderType,
+        carpetEdgeType: carpetEdgeType !== undefined ? carpetEdgeType : currentProduct.carpetEdgeType,
+        carpetEdgeSides: carpetEdgeSides !== undefined ? carpetEdgeSides : currentProduct.carpetEdgeSides,
+        carpetEdgeStrength: carpetEdgeStrength !== undefined ? carpetEdgeStrength : currentProduct.carpetEdgeStrength,
+        puzzleTypeId: puzzleTypeId !== undefined ? puzzleTypeId : currentProduct.puzzleTypeId,
+        puzzleSides: puzzleSides !== undefined ? puzzleSides : currentProduct.puzzleSides,
+        purNumber: purNumber !== undefined ? purNumber : currentProduct.purNumber,
+        surfaceIds: surfaceIds !== undefined ? surfaceIds : currentProduct.surfaceIds,
         isActive: isActive !== undefined ? isActive : true,
         updatedAt: new Date()
       })
