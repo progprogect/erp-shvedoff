@@ -4,6 +4,7 @@ import { PlusOutlined } from '@ant-design/icons';
 import PriceInput from './PriceInput';
 import { catalogApi, Category, RollCompositionItem } from '../services/catalogApi';
 import { normalizeDecimalInput, formatQuantityDisplay, validateQuantity } from '../utils/decimalUtils';
+import { handleFormError, getErrorType, extractErrorMessage } from '../utils/errorUtils';
 import { surfacesApi, Surface } from '../services/surfacesApi';
 import { logosApi, Logo } from '../services/logosApi';
 import { materialsApi, Material } from '../services/materialsApi';
@@ -489,18 +490,30 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
         message.error('Ошибка создания товара');
       }
     } catch (error: any) {
-      console.error('Ошибка создания товара:', error);
+      // 🔥 НОВОЕ: Унифицированная обработка ошибок
+      const errorType = getErrorType(error);
+      const errorMessage = extractErrorMessage(error);
       
-      // Специальная обработка ошибки дублирования артикула
-      if (error.response?.data?.message?.includes('Товар с таким артикулом уже существует')) {
-        message.error(error.response.data.message);
-        // Подсвечиваем поле артикула с ошибкой
-        form.setFields([{
-          name: 'article',
-          errors: [error.response.data.message]
-        }]);
+      console.error('🚨 Ошибка создания товара:', {
+        type: errorType,
+        message: errorMessage,
+        status: error.response?.status,
+        fullError: error
+      });
+      
+      // Специальная обработка для дублирования артикула
+      if (errorType === 'duplicate' && errorMessage.includes('артикул')) {
+        handleFormError(error, form, {
+          fieldName: 'article',
+          key: 'create-product-duplicate-article',
+          duration: 8 // Дольше показываем для важной ошибки
+        });
       } else {
-        message.error(error.response?.data?.message || 'Ошибка связи с сервером');
+        // Общая обработка для всех других ошибок
+        handleFormError(error, form, {
+          key: 'create-product-error',
+          duration: 6
+        });
       }
     } finally {
       setLoading(false);
