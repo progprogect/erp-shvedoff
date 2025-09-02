@@ -1559,10 +1559,17 @@ const Catalog: React.FC = () => {
                       </Select>
                     </Space>
                   </Col>
-                  <Col>
-                    <Space>
+                  <Col flex="auto">
+                    <div style={{ 
+                      display: 'flex', 
+                      flexWrap: 'wrap', 
+                      gap: '8px', 
+                      alignItems: 'center',
+                      justifyContent: 'flex-end'
+                    }}>
+                      {/* Группа кнопок для выбранных товаров */}
                       {selectedProducts.length > 0 && (
-                        <>
+                        <Space size="small" style={{ marginRight: '12px' }}>
                           <Button
                             type="primary"
                             size="small"
@@ -1585,24 +1592,26 @@ const Catalog: React.FC = () => {
                           >
                             Экспорт выбранных ({selectedProducts.length})
                           </Button>
-                        </>
+                        </Space>
                       )}
                       
-                      {/* Кнопка экспорта всего каталога с фильтрами (Задача 9.2) */}
-                      <Button
-                        size="small"
-                        icon={<InboxOutlined />}
-                        onClick={() => handleExportCatalog(false)}
-                        loading={exportingCatalog}
-                        title="Экспорт текущего списка товаров с примененными фильтрами"
-                      >
-                        📊 Экспорт каталога
-                      </Button>
-                      
-                      <Text type="secondary" style={{ fontSize: '12px' }}>
-                        📊 Найдено: <Text strong>{totalProducts}</Text> товаров
-                      </Text>
-                    </Space>
+                      {/* Группа общих действий */}
+                      <Space size="small">
+                        <Button
+                          size="small"
+                          icon={<InboxOutlined />}
+                          onClick={() => handleExportCatalog(false)}
+                          loading={exportingCatalog}
+                          title="Экспорт текущего списка товаров с примененными фильтрами"
+                        >
+                          📊 Экспорт каталога
+                        </Button>
+                        
+                        <Text type="secondary" style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
+                          📊 Найдено: <Text strong>{totalProducts}</Text> товаров
+                        </Text>
+                      </Space>
+                    </div>
                   </Col>
                 </Row>
               </Card>
