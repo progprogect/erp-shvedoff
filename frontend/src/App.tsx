@@ -1,6 +1,6 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { Layout, App as AntdApp } from 'antd';
+import { Layout, App as AntdApp, message } from 'antd';
 import { useAuthStore } from './stores/authStore';
 import LoginPage from './pages/LoginPage';
 import DashboardLayout from './components/Layout/DashboardLayout';
@@ -64,6 +64,22 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   return <>{children}</>;
 };
 
+// Функция для получения читаемого названия ресурса
+const getResourceDisplayName = (resource: string): string => {
+  const resourceNames: { [key: string]: string } = {
+    'catalog': 'Каталог товаров',
+    'stock': 'Остатки на складе',
+    'orders': 'Заказы',
+    'production': 'Производство',
+    'cutting': 'Операции резки',
+    'shipments': 'Отгрузки',
+    'users': 'Управление пользователями',
+    'permissions': 'Управление правами',
+    'audit': 'Аудит и история'
+  };
+  return resourceNames[resource] || resource;
+};
+
 // Компонент для проверки разрешений внутри PermissionsProvider
 const PermissionProtectedContent: React.FC<{
   children: React.ReactNode;
@@ -123,7 +139,20 @@ const PermissionProtectedContent: React.FC<{
   });
 
   if (!hasAccess) {
+    const resourceName = getResourceDisplayName(requiredPermission.resource);
+    const actionText = requiredPermission.action === 'create' ? 'создания' : 
+                      requiredPermission.action === 'edit' ? 'редактирования' : 
+                      requiredPermission.action === 'delete' ? 'удаления' : 'просмотра';
+    
     console.log('🚫 Доступ запрещён, перенаправляем на:', fallbackPath);
+    
+    // 🔥 НОВОЕ: показываем уведомление пользователю
+    message.warning({
+      content: `У вас недостаточно прав для ${actionText} раздела "${resourceName}"`,
+      duration: 4,
+      key: 'access-denied' // предотвращаем дублирование уведомлений
+    });
+    
     return <Navigate to={fallbackPath} replace />;
   }
 
