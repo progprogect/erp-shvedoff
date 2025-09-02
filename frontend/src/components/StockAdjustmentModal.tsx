@@ -360,19 +360,28 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
                     <>
                       <Button
                         size="small"
-                        onClick={() => form.setFieldsValue({ comment: 'Изготовлены' })}
+                        onClick={() => {
+                          form.setFieldsValue({ comment: 'Изготовлены' });
+                          form.validateFields(['comment']);
+                        }}
                       >
                         Изготовлены
                       </Button>
                       <Button
                         size="small"
-                        onClick={() => form.setFieldsValue({ comment: 'Из резки' })}
+                        onClick={() => {
+                          form.setFieldsValue({ comment: 'Из резки' });
+                          form.validateFields(['comment']);
+                        }}
                       >
                         Из резки
                       </Button>
                       <Button
                         size="small"
-                        onClick={() => form.setFieldsValue({ comment: 'Возврат товара' })}
+                        onClick={() => {
+                          form.setFieldsValue({ comment: 'Возврат товара' });
+                          form.validateFields(['comment']);
+                        }}
                       >
                         Возврат товара
                       </Button>
@@ -382,25 +391,37 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
                     <>
                       <Button
                         size="small"
-                        onClick={() => form.setFieldsValue({ comment: 'В резку' })}
+                        onClick={() => {
+                          form.setFieldsValue({ comment: 'В резку' });
+                          form.validateFields(['comment']);
+                        }}
                       >
                         В резку
                       </Button>
                       <Button
                         size="small"
-                        onClick={() => form.setFieldsValue({ comment: 'Продажа' })}
+                        onClick={() => {
+                          form.setFieldsValue({ comment: 'Продажа' });
+                          form.validateFields(['comment']);
+                        }}
                       >
                         Продажа
                       </Button>
                       <Button
                         size="small"
-                        onClick={() => form.setFieldsValue({ comment: 'Образцы' })}
+                        onClick={() => {
+                          form.setFieldsValue({ comment: 'Образцы' });
+                          form.validateFields(['comment']);
+                        }}
                       >
                         Образцы
                       </Button>
                       <Button
                         size="small"
-                        onClick={() => form.setFieldsValue({ comment: 'Замена по гарантии' })}
+                        onClick={() => {
+                          form.setFieldsValue({ comment: 'Замена по гарантии' });
+                          form.validateFields(['comment']);
+                        }}
                       >
                         Замена по гарантии
                       </Button>
