@@ -734,8 +734,9 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
         const { generateRollCoveringArticle } = await import('../utils/articleGenerator');
         
         // Получаем связанные данные для генерации артикула
-        const [surfaces, bottomType] = await Promise.all([
+        const [surfaces, logo, bottomType] = await Promise.all([
           finalSurfaceIds.length > 0 ? db.query.productSurfaces.findMany({ where: inArray(schema.productSurfaces.id, finalSurfaceIds) }) : [],
+          logoId ? db.query.productLogos.findFirst({ where: eq(schema.productLogos.id, logoId) }) : null,
           bottomTypeId ? db.query.bottomTypes.findFirst({ where: eq(schema.bottomTypes.id, bottomTypeId) }) : null
         ]);
         
@@ -743,6 +744,7 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
           name,
           dimensions,
           surfaces: surfaces.length > 0 ? surfaces.map(s => ({ name: s.name })) : undefined,
+          logo: logo ? { name: logo.name } : undefined, // 🔥 НОВОЕ: добавляем логотип
           bottomType: bottomType ? { code: bottomType.code } : undefined,
           composition: composition || []
         };
@@ -900,6 +902,7 @@ router.post('/products/preview-article', authenticateToken, async (req: AuthRequ
         name: name || 'ТОВАР',
         dimensions: dimensions || {},
         surfaces: surfaces ? surfaces.map(s => ({ name: s.name })) : undefined,
+        logo: logo ? { name: logo.name } : undefined, // 🔥 НОВОЕ: добавляем логотип
         bottomType: bottomType ? { code: bottomType.code } : undefined,
         composition: composition || []
       };

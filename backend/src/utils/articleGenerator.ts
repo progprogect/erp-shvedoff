@@ -44,6 +44,9 @@ export interface RollCoveringData {
   surfaces?: Array<{
     name: string;
   }>;
+  logo?: {
+    name: string;
+  };
   bottomType?: {
     code?: string;
   };
@@ -428,8 +431,8 @@ export function previewArticle(product: Partial<ProductData>): string {
 
 /**
  * Генерация артикула для рулонных покрытий
- * Формат: [Название] - [Ширина]x[Длина]x[Толщина] - [Поверхности] - [Низ] - [Количество ковров]
- * Пример: "Покрытие - 1500x10000x3 - Глад - 0Кор - 2Ковр"
+ * Формат: [Название] - [Размеры] - [Поверхности] - [Логотип] - [Низ] - [Количество ковров]
+ * Пример: "Покрытие - 1500x10000x3 - Глад - GEA - 0Шип - 2Ковр"
  */
 export function generateRollCoveringArticle(productData: RollCoveringData): string {
   const parts: string[] = [];
@@ -446,11 +449,15 @@ export function generateRollCoveringArticle(productData: RollCoveringData): stri
   const surfaceCode = formatRollSurfaces(productData.surfaces);
   if (surfaceCode) parts.push(surfaceCode);
   
-  // 4. Низ ковра (краткие коды)
+  // 4. ЛОГОТИП (краткий код, только если выбран) - 🔥 НОВОЕ
+  const logoPart = formatLogo(productData.logo?.name);
+  if (logoPart) parts.push(logoPart);
+  
+  // 5. Низ ковра (краткие коды)
   const bottomCode = formatRollBottom(productData.bottomType);
   if (bottomCode) parts.push(bottomCode);
   
-  // 5. Количество ковров в составе
+  // 6. Количество ковров в составе
   const compositionCode = formatRollComposition(productData.composition);
   if (compositionCode) parts.push(compositionCode);
   
@@ -560,6 +567,7 @@ export function previewRollCoveringArticle(productData: Partial<RollCoveringData
       thickness: productData.dimensions?.thickness || 0
     },
     surfaces: productData.surfaces,
+    logo: productData.logo, // 🔥 НОВОЕ: добавляем логотип
     bottomType: productData.bottomType,
     composition: productData.composition || []
   };
