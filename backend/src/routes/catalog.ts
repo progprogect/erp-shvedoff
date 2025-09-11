@@ -1208,7 +1208,7 @@ router.post('/export', authenticateToken, requireExportPermission('catalog'), as
 });
 
 // 🔥 НОВОЕ: Dry-run для массового обновления артикулов
-router.post('/regenerate/dry-run', authenticateToken, authorizeRoles('owner'), async (req: AuthRequest, res, next) => {
+router.post('/regenerate/dry-run', authenticateToken, requirePermission('catalog', 'edit'), async (req: AuthRequest, res, next) => {
   try {
     const { productIds } = req.body;
     
@@ -1326,7 +1326,7 @@ router.post('/regenerate/dry-run', authenticateToken, authorizeRoles('owner'), a
 });
 
 // 🔥 НОВОЕ: Apply для массового обновления артикулов
-router.post('/regenerate/apply', authenticateToken, authorizeRoles('owner'), async (req: AuthRequest, res, next) => {
+router.post('/regenerate/apply', authenticateToken, requirePermission('catalog', 'edit'), async (req: AuthRequest, res, next) => {
   try {
     const { items } = req.body;
     

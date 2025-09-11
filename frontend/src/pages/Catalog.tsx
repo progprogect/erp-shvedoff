@@ -1589,14 +1589,16 @@ const Catalog: React.FC = () => {
                           >
                             Переместить в категорию ({selectedProducts.length})
                           </Button>
-                          <Button
-                            size="small"
-                            icon={<SyncOutlined />}
-                            onClick={() => setUpdateArticlesModalVisible(true)}
-                            disabled={selectedProducts.length === 0}
-                          >
-                            Обновить артикулы ({selectedProducts.length})
-                          </Button>
+                          {canEditCatalog && (
+                            <Button
+                              size="small"
+                              icon={<SyncOutlined />}
+                              onClick={() => setUpdateArticlesModalVisible(true)}
+                              disabled={selectedProducts.length === 0}
+                            >
+                              Обновить артикулы ({selectedProducts.length})
+                            </Button>
+                          )}
                           <Button
                             size="small"
                             icon={<InboxOutlined />}
