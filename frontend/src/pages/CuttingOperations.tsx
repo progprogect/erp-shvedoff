@@ -594,7 +594,7 @@ export const CuttingOperations: React.FC = () => {
               {products.map(product => {
                 const available = getAvailableStock(product);
                 const isDisabled = available <= 0;
-                const label = `${product.name}${product.article ? ` (${product.article})` : ''}`;
+                const label = product.article || product.name;
                 
                 return (
                   <Option 
@@ -612,21 +612,14 @@ export const CuttingOperations: React.FC = () => {
                         flexDirection: 'column',
                         gap: '2px'
                       }}>
-                        <div style={{ 
-                          fontWeight: '500',
-                          fontSize: '14px',
-                          lineHeight: '1.2',
-                          wordBreak: 'break-word'
-                        }}>
-                          {product.name}
-                        </div>
                         {product.article && (
                           <div style={{
-                            fontSize: '12px',
-                            color: '#666',
-                            fontFamily: 'monospace'
+                            fontSize: '14px',
+                            color: '#1890ff',
+                            fontFamily: 'monospace',
+                            fontWeight: '500'
                           }}>
-                            Арт: {product.article}
+                            {product.article}
                           </div>
                         )}
                         <div style={{ 
@@ -666,7 +659,7 @@ export const CuttingOperations: React.FC = () => {
               dropdownStyle={{ maxHeight: 400, overflowY: 'auto' }}
             >
               {getAvailableTargetProducts(createForm.getFieldValue('sourceProductId')).map(product => {
-                const label = `${product.name}${product.article ? ` (${product.article})` : ''}`;
+                const label = product.article || product.name;
                 
                 return (
                   <Option 
@@ -680,21 +673,14 @@ export const CuttingOperations: React.FC = () => {
                         flexDirection: 'column',
                         gap: '2px'
                       }}>
-                        <div style={{ 
-                          fontWeight: '500',
-                          fontSize: '14px',
-                          lineHeight: '1.2',
-                          wordBreak: 'break-word'
-                        }}>
-                          {product.name}
-                        </div>
                         {product.article && (
                           <div style={{
-                            fontSize: '12px',
-                            color: '#666',
-                            fontFamily: 'monospace'
+                            fontSize: '14px',
+                            color: '#1890ff',
+                            fontFamily: 'monospace',
+                            fontWeight: '500'
                           }}>
-                            Арт: {product.article}
+                            {product.article}
                           </div>
                         )}
                       </div>
