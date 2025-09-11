@@ -440,22 +440,40 @@ router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edi
           secondGradeProductId = secondGradeProduct.id;
         } else {
           // Создаем новый товар 2-го сорта
+          // Получаем связанные данные для генерации артикула
+          const [surfaces, logo, material, bottomType, puzzleType] = await Promise.all([
+            operation.targetProduct.surfaceIds && operation.targetProduct.surfaceIds.length > 0 
+              ? tx.query.productSurfaces.findMany({ where: inArray(schema.productSurfaces.id, operation.targetProduct.surfaceIds) })
+              : [],
+            operation.targetProduct.logoId 
+              ? tx.query.productLogos.findFirst({ where: eq(schema.productLogos.id, operation.targetProduct.logoId) })
+              : null,
+            operation.targetProduct.materialId 
+              ? tx.query.productMaterials.findFirst({ where: eq(schema.productMaterials.id, operation.targetProduct.materialId) })
+              : null,
+            operation.targetProduct.bottomTypeId 
+              ? tx.query.bottomTypes.findFirst({ where: eq(schema.bottomTypes.id, operation.targetProduct.bottomTypeId) })
+              : null,
+            operation.targetProduct.puzzleTypeId 
+              ? tx.query.puzzleTypes.findFirst({ where: eq(schema.puzzleTypes.id, operation.targetProduct.puzzleTypeId) })
+              : null
+          ]);
+
           // Генерируем артикул для товара 2-го сорта
           const { generateArticle } = await import('../utils/articleGenerator');
           const secondGradeProductData = {
             name: operation.targetProduct.name,
-            productType: operation.targetProduct.productType,
             dimensions: operation.targetProduct.dimensions as { length?: number; width?: number; thickness?: number },
-            surfaceIds: operation.targetProduct.surfaceIds,
-            logo: operation.targetProduct.logo ? { name: operation.targetProduct.logo.name } : undefined,
-            material: operation.targetProduct.material ? { name: operation.targetProduct.material.name } : undefined,
-            bottomType: operation.targetProduct.bottomType ? { code: operation.targetProduct.bottomType.code } : undefined,
-            puzzleType: operation.targetProduct.puzzleType ? { name: operation.targetProduct.puzzleType.name } : undefined,
-            puzzleSides: operation.targetProduct.puzzleSides,
-            pressType: operation.targetProduct.pressType || undefined,
+            surfaces: surfaces.length > 0 ? surfaces.map(s => ({ name: s.name })) : undefined,
+            logo: logo ? { name: logo.name } : undefined,
+            material: material ? { name: material.name } : undefined,
+            bottomType: bottomType ? { code: bottomType.code } : undefined,
+            puzzleType: puzzleType ? { name: puzzleType.name } : undefined,
             carpetEdgeType: operation.targetProduct.carpetEdgeType || undefined,
             carpetEdgeSides: operation.targetProduct.carpetEdgeSides || undefined,
             carpetEdgeStrength: operation.targetProduct.carpetEdgeStrength || undefined,
+            pressType: operation.targetProduct.pressType || undefined,
+            borderType: operation.targetProduct.borderType || undefined,
             grade: 'grade_2' as const
           };
           
