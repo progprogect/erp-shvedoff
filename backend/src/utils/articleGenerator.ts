@@ -375,13 +375,13 @@ function formatBottom(bottomCode?: string): string {
  */
 function formatGrade(grade?: string): string {
   const gradeMap: Record<string, string> = {
-    'usual': '1СОРТ', // Обычный сорт указываем как 1СОРТ
+    'usual': '', // Обычный не указываем в артикуле
     'grade_2': '2СОРТ',
     'telyatnik': 'Телят',
     'liber': 'Либер'
   };
 
-  return gradeMap[grade || 'usual'] || '1СОРТ';
+  return gradeMap[grade || 'usual'] || '';
 }
 
 /**
