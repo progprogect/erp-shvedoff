@@ -8,6 +8,9 @@ export interface CuttingOperation {
   sourceQuantity: number;
   targetQuantity: number;
   wasteQuantity: number;
+  actualTargetQuantity?: number;
+  actualSecondGradeQuantity?: number;
+  actualDefectQuantity?: number;
   status: 'in_progress' | 'paused' | 'completed' | 'cancelled'; // Добавлен статус paused
   operatorId?: number;
   plannedDate?: string;
