@@ -197,7 +197,7 @@ const ProductionTasks: React.FC = () => {
         setBulkRegisterProducts(response.data.map(p => ({
           id: p.id,
           name: p.name,
-          article: p.article || p.sku || ''
+          article: p.article || ''
         })));
       }
     } catch (error) {
