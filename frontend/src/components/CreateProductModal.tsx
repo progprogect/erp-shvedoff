@@ -304,6 +304,39 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
     }
   }, [visible, token]);
 
+  // 🔥 НОВОЕ: Сброс состояния при открытии модала для создания нового товара
+  useEffect(() => {
+    if (visible) {
+      // Сбрасываем все состояния к значениям по умолчанию
+      setSelectedBottomTypeId(null);
+      setSelectedCarpetEdgeType('straight_cut');
+      setCarpetEdgeSides(1);
+      setCarpetEdgeStrength('normal');
+      setPressType('not_selected');
+      setSelectedSurfaceIds([]);
+      setProductType('carpet');
+      setAutoGenerateArticle(true);
+      setManualOverride(false);
+      setRollComposition([]);
+      setPurNumber(undefined);
+      setCalculatedMatArea(null);
+      setMatAreaOverride('');
+      setPreviewArticle('');
+      setSelectedSurfaceId(null);
+      
+      // Сбрасываем форму
+      form.resetFields();
+      
+      // Устанавливаем значения по умолчанию в форме
+      form.setFieldsValue({
+        grade: 'usual',
+        carpetEdgeType: 'straight_cut',
+        carpetEdgeStrength: 'normal',
+        borderType: 'without_border'
+      });
+    }
+  }, [visible, form]);
+
   // В useEffect загружаем типы края ковра
   useEffect(() => {
     const loadCarpetEdgeTypes = async () => {
