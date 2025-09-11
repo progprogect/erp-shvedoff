@@ -2548,38 +2548,6 @@ const ProductionTasks: React.FC = () => {
                       style={{ width: '100%' }}
                       size="large"
                       dropdownStyle={{ maxHeight: 400, overflowY: 'auto' }}
-                      optionRender={(option) => (
-                        <div style={{ 
-                          padding: '6px 8px',
-                          minHeight: '50px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          justifyContent: 'center'
-                        }}>
-                          <div style={{ 
-                            fontSize: '11px',
-                            color: '#1890ff',
-                            fontFamily: 'monospace',
-                            fontWeight: '500',
-                            wordWrap: 'break-word',
-                            overflowWrap: 'break-word',
-                            whiteSpace: 'normal',
-                            lineHeight: '1.2'
-                          }}>
-                            {option.data.article}
-                          </div>
-                          <div style={{ 
-                            fontSize: '10px',
-                            color: '#666',
-                            marginTop: '2px',
-                            wordWrap: 'break-word',
-                            overflowWrap: 'break-word',
-                            whiteSpace: 'normal'
-                          }}>
-                            {option.data.name}
-                          </div>
-                        </div>
-                      )}
                       className="bulk-register-select"
                       optionLabelProp="label"
                       labelInValue={false}
@@ -2614,16 +2582,45 @@ const ProductionTasks: React.FC = () => {
                       {bulkRegisterProducts.map(product => {
                         const label = product.article || product.name;
                         return (
-                          <Option key={product.id} value={product.id} label={label} data={product}>
-                            {product.article}
+                          <Option key={product.id} value={product.id} label={label}>
+                            <div style={{ 
+                              padding: '4px 0',
+                              minHeight: '40px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              justifyContent: 'center'
+                            }}>
+                              <div style={{ 
+                                fontSize: '11px',
+                                color: '#1890ff',
+                                fontFamily: 'monospace',
+                                fontWeight: '500',
+                                wordWrap: 'break-word',
+                                overflowWrap: 'break-word',
+                                whiteSpace: 'normal',
+                                lineHeight: '1.2'
+                              }}>
+                                {product.article}
+                              </div>
+                              <div style={{ 
+                                fontSize: '10px',
+                                color: '#666',
+                                marginTop: '2px',
+                                wordWrap: 'break-word',
+                                overflowWrap: 'break-word',
+                                whiteSpace: 'normal'
+                              }}>
+                                {product.name}
+                              </div>
+                            </div>
                           </Option>
                         );
                       })}
                     </Select>
                   </div>
-                  <div style={{ flex: 2, paddingRight: 8 }}>
+                  <div style={{ flex: 2, paddingRight: 8, display: 'flex', alignItems: 'center' }}>
                     <InputNumber
-                      style={{ width: '100%' }}
+                      style={{ width: '100%', height: '50px' }}
                       min={1}
                       value={item.producedQuantity}
                       onChange={(value) => {
@@ -2639,9 +2636,9 @@ const ProductionTasks: React.FC = () => {
                       }}
                     />
                   </div>
-                  <div style={{ flex: 2, paddingRight: 8 }}>
+                  <div style={{ flex: 2, paddingRight: 8, display: 'flex', alignItems: 'center' }}>
                     <InputNumber
-                      style={{ width: '100%' }}
+                      style={{ width: '100%', height: '50px' }}
                       min={0}
                       max={item.producedQuantity}
                       value={item.qualityQuantity}
@@ -2658,9 +2655,9 @@ const ProductionTasks: React.FC = () => {
                       }}
                     />
                   </div>
-                  <div style={{ flex: 2, paddingRight: 8 }}>
+                  <div style={{ flex: 2, paddingRight: 8, display: 'flex', alignItems: 'center' }}>
                     <InputNumber
-                      style={{ width: '100%' }}
+                      style={{ width: '100%', height: '50px' }}
                       min={0}
                       max={item.producedQuantity}
                       value={item.defectQuantity}
@@ -2677,7 +2674,7 @@ const ProductionTasks: React.FC = () => {
                       }}
                     />
                   </div>
-                  <div style={{ flex: 1, textAlign: 'center' }}>
+                  <div style={{ flex: 1, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {bulkRegisterItems.length > 1 && (
                       <Button
                         type="text"
