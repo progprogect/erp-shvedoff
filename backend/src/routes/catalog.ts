@@ -1249,16 +1249,16 @@ router.post('/regenerate/dry-run', authenticateToken, requirePermission('catalog
           name: product.name,
           dimensions: product.dimensions as { length?: number; width?: number; thickness?: number },
           material: product.material ? { name: product.material.name } : undefined,
-          pressType: (product.pressType as 'not_selected' | 'ukrainian' | 'chinese') || 'not_selected',
+          pressType: product.pressType || 'not_selected',
           logo: product.logo ? { name: product.logo.name } : undefined,
           surfaces: surfaces ? surfaces.map(s => ({ name: s.name })) : [],
-          borderType: product.borderType as 'with_border' | 'without_border',
+          borderType: product.borderType || undefined,
           carpetEdgeType: product.carpetEdgeType || 'straight_cut',
           carpetEdgeSides: product.carpetEdgeSides || 1,
           carpetEdgeStrength: product.carpetEdgeStrength || 'normal',
           puzzleType: product.puzzleType ? { name: product.puzzleType.name } : undefined,
           bottomType: product.bottomType ? { code: product.bottomType.code } : undefined,
-          grade: (product.grade as 'usual' | 'grade_2' | 'telyatnik' | 'liber') || 'usual'
+          grade: product.grade || 'usual'
         };
 
         // Генерируем новый артикул
