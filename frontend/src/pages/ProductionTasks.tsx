@@ -82,6 +82,7 @@ interface Product {
   id: number;
   name: string;
   sku?: string;
+  article?: string;
 }
 
 interface TasksByProduct {
@@ -196,7 +197,7 @@ const ProductionTasks: React.FC = () => {
         setBulkRegisterProducts(response.data.map(p => ({
           id: p.id,
           name: p.name,
-          article: p.article
+          article: p.article || p.sku || ''
         })));
       }
     } catch (error) {
