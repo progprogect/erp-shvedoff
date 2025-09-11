@@ -1264,6 +1264,20 @@ router.post('/regenerate/dry-run', authenticateToken, requirePermission('catalog
         // Генерируем новый артикул в зависимости от типа товара (как в создании)
         let newArticle = '';
         
+        // Для ПУРов и "Другое" просто возвращаем исходный артикул (нет автогенерации)
+        if (product.productType === 'pur' || product.productType === 'other') {
+          results.push({
+            productId: product.id,
+            currentSku: product.article,
+            newSku: product.article, // тот же артикул
+            canApply: false,
+            reason: 'NO_AUTO_GENERATION',
+            details: ['Для данного типа товара автогенерация артикулов не предусмотрена']
+          });
+          cannotApplyCount++;
+          continue;
+        }
+        
         if (product.productType === 'roll_covering') {
           // Для рулонных покрытий используем специальный генератор
           const { generateRollCoveringArticle } = await import('../utils/articleGenerator');
@@ -1283,7 +1297,7 @@ router.post('/regenerate/dry-run', authenticateToken, requirePermission('catalog
           
           newArticle = generateRollCoveringArticle(rollData);
         } else {
-          // Для ковровых изделий, ПУРов и "другое" используем обычный генератор
+          // Для ковровых изделий используем обычный генератор
           const productData = {
             name: product.name,
             dimensions: product.dimensions as { length?: number; width?: number; thickness?: number },
