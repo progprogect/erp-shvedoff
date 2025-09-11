@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Row, Col, Card, Tree, Input, Button, Space, Typography, Tag, Badge, Select, InputNumber, Collapse, Spin, Table, Modal, Checkbox, App } from 'antd';
 import { formatPriceWithCurrency } from '../utils/priceUtils';
@@ -16,7 +17,8 @@ import {
   CloseOutlined,
   DoubleRightOutlined,
   DoubleLeftOutlined,
-  FolderOutlined
+  FolderOutlined,
+  SyncOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
@@ -32,6 +34,7 @@ import CreateProductModal from '../components/CreateProductModal';
 import CreateCategoryModal from '../components/CreateCategoryModal';
 import DeleteCategoryModal from '../components/DeleteCategoryModal';
 import StockAdjustmentModal from '../components/StockAdjustmentModal';
+import UpdateArticlesModal from '../components/UpdateArticlesModal';
 import usePermissions from '../hooks/usePermissions';
 import { handleFormError } from '../utils/errorUtils';
 
@@ -59,6 +62,9 @@ const Catalog: React.FC = () => {
   // 🔥 НОВОЕ: Состояние для корректировки остатков
   const [adjustmentModalVisible, setAdjustmentModalVisible] = useState(false);
   const [selectedStockItem, setSelectedStockItem] = useState<StockItem | null>(null);
+  
+  // 🔥 НОВОЕ: Состояние для обновления артикулов
+  const [updateArticlesModalVisible, setUpdateArticlesModalVisible] = useState(false);
   
   // Новые фильтры для WBS 2 - Adjustments Задача 2.1
   const [selectedMaterials, setSelectedMaterials] = useState<number[]>([]);
@@ -1585,6 +1591,14 @@ const Catalog: React.FC = () => {
                           </Button>
                           <Button
                             size="small"
+                            icon={<SyncOutlined />}
+                            onClick={() => setUpdateArticlesModalVisible(true)}
+                            disabled={selectedProducts.length === 0}
+                          >
+                            Обновить артикулы ({selectedProducts.length})
+                          </Button>
+                          <Button
+                            size="small"
                             icon={<InboxOutlined />}
                             onClick={() => handleExportCatalog(true)}
                             loading={exportingCatalog}
@@ -2010,6 +2024,17 @@ const Catalog: React.FC = () => {
         stockItem={selectedStockItem}
         onClose={() => setAdjustmentModalVisible(false)}
         onSuccess={handleAdjustmentSuccess}
+      />
+
+      {/* 🔥 НОВОЕ: Модальное окно обновления артикулов */}
+      <UpdateArticlesModal
+        visible={updateArticlesModalVisible}
+        selectedProductIds={selectedProducts}
+        onClose={() => setUpdateArticlesModalVisible(false)}
+        onSuccess={() => {
+          setSelectedProducts([]); // Очищаем выбор после успешного обновления
+          loadData(); // Перезагружаем данные
+        }}
       />
 
       {/* CSS стили для анимации и hover эффектов */}

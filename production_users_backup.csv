@@ -1,0 +1,4 @@
+id,username,password_hash,role,telegram_id,full_name,phone,email,is_active,created_at,updated_at
+1,director,$2a$10$mDHu3LVsKxXvTWs1Q4fLveRcbnTpxa7qBA4JdK8Tm1373G/EaGwQm,director,,Директор по продажам,+7-999-123-45-67,director@shvedoff.ru,t,2025-07-22 06:51:12.290174,2025-07-22 06:51:12.290174
+7,tremolo,$2a$10$TTVtyxTY2dRdOKFy0DGVL.j3ghWDF2zDQBXMw4QsfEDxhhNpvslKa,manager,,Сергей Сакович,,,t,2025-08-28 08:39:40.676819,2025-08-28 08:39:40.676819
+6,Sergey,$2a$10$roLOaZLzGif1hV52bJ69gOjSA/9dldHl.7oki.i6BM86K6z1.Wq.u,warehouse,,Сергей,,,t,2025-07-31 08:37:10.228818,2025-07-31 08:37:10.228818

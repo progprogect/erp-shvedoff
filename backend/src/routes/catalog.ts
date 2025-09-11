@@ -1207,4 +1207,196 @@ router.post('/export', authenticateToken, requireExportPermission('catalog'), as
   }
 });
 
+// 🔥 НОВОЕ: Dry-run для массового обновления артикулов
+router.post('/regenerate/dry-run', authenticateToken, authorizeRoles('owner'), async (req: AuthRequest, res, next) => {
+  try {
+    const { productIds } = req.body;
+    
+    if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Необходимо указать список ID товаров'
+      });
+    }
+
+    // Получаем товары с полными данными для генерации артикула
+    const products = await db.query.products.findMany({
+      where: inArray(schema.products.id, productIds),
+      with: {
+        logo: true,
+        material: true,
+        bottomType: true,
+        puzzleType: true
+      }
+    });
+
+    const results = [];
+    let canApplyCount = 0;
+    let cannotApplyCount = 0;
+
+    for (const product of products) {
+      try {
+        // Подготавливаем данные для генерации артикула
+        const productData = {
+          name: product.name,
+          dimensions: product.dimensions as { length?: number; width?: number; thickness?: number },
+          material: product.material ? { name: product.material.name } : undefined,
+          pressType: product.pressType as 'not_selected' | 'ukrainian' | 'chinese',
+          logo: product.logo ? { name: product.logo.name } : undefined,
+          surfaces: [], // TODO: Добавить поддержку множественных поверхностей
+          borderType: product.borderType as 'with_border' | 'without_border',
+          carpetEdgeType: product.carpetEdgeType || undefined,
+          carpetEdgeSides: product.carpetEdgeSides || undefined,
+          carpetEdgeStrength: product.carpetEdgeStrength || undefined,
+          puzzleType: product.puzzleType ? { name: product.puzzleType.name } : undefined,
+          bottomType: product.bottomType ? { code: product.bottomType.code } : undefined,
+          grade: product.grade as 'usual' | 'grade_2' | 'telyatnik' | 'liber'
+        };
+
+        // Генерируем новый артикул
+        const newArticle = generateArticle(productData);
+        
+        if (!newArticle || newArticle.trim() === '') {
+          results.push({
+            productId: product.id,
+            currentSku: product.article,
+            newSku: null,
+            canApply: false,
+            reason: 'MISSING_PARAMS',
+            details: ['Не удалось сгенерировать артикул - недостаточно параметров']
+          });
+          cannotApplyCount++;
+          continue;
+        }
+
+        // Проверяем конфликт с существующими артикулами (исключая текущий товар)
+        const existingProduct = await db.query.products.findFirst({
+          where: and(
+            eq(schema.products.article, newArticle),
+            sql`${schema.products.id} != ${product.id}`
+          )
+        });
+
+        if (existingProduct) {
+          results.push({
+            productId: product.id,
+            currentSku: product.article,
+            newSku: newArticle,
+            canApply: false,
+            reason: 'SKU_CONFLICT',
+            details: [`Артикул "${newArticle}" уже существует у товара "${existingProduct.name}"`]
+          });
+          cannotApplyCount++;
+          continue;
+        }
+
+        results.push({
+          productId: product.id,
+          currentSku: product.article,
+          newSku: newArticle,
+          canApply: true
+        });
+        canApplyCount++;
+
+      } catch (error) {
+        results.push({
+          productId: product.id,
+          currentSku: product.article,
+          newSku: null,
+          canApply: false,
+          reason: 'UNKNOWN',
+          details: [`Ошибка генерации: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`]
+        });
+        cannotApplyCount++;
+      }
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        results,
+        canApplyCount,
+        cannotApplyCount
+      }
+    });
+
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// 🔥 НОВОЕ: Apply для массового обновления артикулов
+router.post('/regenerate/apply', authenticateToken, authorizeRoles('owner'), async (req: AuthRequest, res, next) => {
+  try {
+    const { items } = req.body;
+    
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Необходимо указать список товаров для обновления'
+      });
+    }
+
+    const updated = [];
+    const failed = [];
+
+    // Обрабатываем каждый товар в транзакции
+    for (const item of items) {
+      try {
+        const { productId, newSku } = item;
+        
+        if (!productId || !newSku) {
+          failed.push({
+            productId,
+            error: 'Отсутствуют обязательные параметры'
+          });
+          continue;
+        }
+
+        // Обновляем артикул товара
+        await db.update(schema.products)
+          .set({ 
+            article: newSku,
+            updatedAt: new Date()
+          })
+          .where(eq(schema.products.id, productId));
+
+        updated.push({
+          productId,
+          newSku
+        });
+
+        // Логируем изменение в аудит
+        await db.insert(schema.auditLog).values({
+          tableName: 'products',
+          recordId: productId,
+          operation: 'UPDATE',
+          oldValues: { article: item.currentSku },
+          newValues: { article: newSku },
+          userId: req.user?.id || null
+        });
+
+      } catch (error) {
+        failed.push({
+          productId: item.productId,
+          error: error instanceof Error ? error.message : 'Неизвестная ошибка'
+        });
+      }
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        updated: updated.length,
+        failed: failed.length,
+        updatedItems: updated,
+        failedItems: failed
+      }
+    });
+
+  } catch (error) {
+    return next(error);
+  }
+});
+
 export default router; 

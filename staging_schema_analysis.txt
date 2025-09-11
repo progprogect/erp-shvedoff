@@ -1,0 +1,479 @@
+=== ТАБЛИЦЫ ===
+ schemaname |         tablename         | tableowner | hasindexes | hasrules | hastriggers 
+------------+---------------------------+------------+------------+----------+-------------
+ public     | audit_log                 | postgres   | t          | f        | t
+ public     | bottom_types              | postgres   | t          | f        | t
+ public     | carpet_edge_types         | postgres   | t          | f        | f
+ public     | categories                | postgres   | t          | f        | t
+ public     | cutting_operations        | postgres   | t          | f        | t
+ public     | defect_products           | postgres   | t          | f        | t
+ public     | operation_reversals       | postgres   | t          | f        | t
+ public     | order_items               | postgres   | t          | f        | t
+ public     | order_messages            | postgres   | t          | f        | t
+ public     | orders                    | postgres   | t          | f        | t
+ public     | permissions               | postgres   | t          | f        | t
+ public     | product_logos             | postgres   | t          | f        | t
+ public     | product_materials         | postgres   | t          | f        | t
+ public     | product_relations         | postgres   | t          | f        | t
+ public     | product_surfaces          | postgres   | t          | f        | t
+ public     | production_queue          | postgres   | t          | f        | t
+ public     | production_task_extras    | postgres   | t          | f        | t
+ public     | production_tasks          | postgres   | t          | f        | t
+ public     | products                  | postgres   | t          | f        | t
+ public     | puzzle_types              | postgres   | t          | f        | t
+ public     | role_permissions          | postgres   | t          | f        | t
+ public     | roll_covering_composition | postgres   | t          | f        | t
+ public     | shipment_items            | postgres   | t          | f        | t
+ public     | shipments                 | postgres   | t          | f        | t
+ public     | stock                     | postgres   | t          | f        | t
+ public     | stock_movements           | postgres   | t          | f        | t
+ public     | telegram_notifications    | postgres   | t          | f        | t
+ public     | user_permissions          | postgres   | t          | f        | t
+ public     | users                     | postgres   | t          | f        | t
+(29 rows)
+
+=== СТРУКТУРА ТАБЛИЦ ===
+        table_name         |        column_name        |          data_type          | is_nullable |                    column_default                     | character_maximum_length | numeric_precision | numeric_scale 
+---------------------------+---------------------------+-----------------------------+-------------+-------------------------------------------------------+--------------------------+-------------------+---------------
+ audit_log                 | id                        | integer                     | NO          | nextval('audit_log_id_seq'::regclass)                 |                          |                32 |             0
+ audit_log                 | table_name                | character varying           | NO          |                                                       |                      100 |                   |              
+ audit_log                 | record_id                 | integer                     | NO          |                                                       |                          |                32 |             0
+ audit_log                 | operation                 | USER-DEFINED                | NO          |                                                       |                          |                   |              
+ audit_log                 | old_values                | jsonb                       | YES         |                                                       |                          |                   |              
+ audit_log                 | new_values                | jsonb                       | YES         |                                                       |                          |                   |              
+ audit_log                 | user_id                   | integer                     | YES         |                                                       |                          |                32 |             0
+ audit_log                 | created_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ bottom_types              | id                        | integer                     | NO          | nextval('bottom_types_id_seq'::regclass)              |                          |                32 |             0
+ bottom_types              | code                      | character varying           | NO          |                                                       |                       50 |                   |              
+ bottom_types              | name                      | character varying           | NO          |                                                       |                      100 |                   |              
+ bottom_types              | description               | text                        | YES         |                                                       |                          |                   |              
+ bottom_types              | is_system                 | boolean                     | NO          | false                                                 |                          |                   |              
+ bottom_types              | created_at                | timestamp without time zone | NO          | now()                                                 |                          |                   |              
+ carpet_edge_types         | id                        | integer                     | NO          | nextval('carpet_edge_types_id_seq'::regclass)         |                          |                32 |             0
+ carpet_edge_types         | name                      | character varying           | NO          |                                                       |                      100 |                   |              
+ carpet_edge_types         | code                      | character varying           | NO          |                                                       |                       50 |                   |              
+ carpet_edge_types         | description               | text                        | YES         |                                                       |                          |                   |              
+ carpet_edge_types         | is_system                 | boolean                     | YES         | false                                                 |                          |                   |              
+ carpet_edge_types         | created_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ categories                | id                        | integer                     | NO          | nextval('categories_id_seq'::regclass)                |                          |                32 |             0
+ categories                | name                      | character varying           | NO          |                                                       |                      255 |                   |              
+ categories                | parent_id                 | integer                     | YES         |                                                       |                          |                32 |             0
+ categories                | path                      | text                        | YES         |                                                       |                          |                   |              
+ categories                | description               | text                        | YES         |                                                       |                          |                   |              
+ categories                | sort_order                | integer                     | YES         | 0                                                     |                          |                32 |             0
+ categories                | created_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ categories                | updated_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ cutting_operations        | id                        | integer                     | NO          | nextval('cutting_operations_id_seq'::regclass)        |                          |                32 |             0
+ cutting_operations        | source_product_id         | integer                     | NO          |                                                       |                          |                32 |             0
+ cutting_operations        | target_product_id         | integer                     | NO          |                                                       |                          |                32 |             0
+ cutting_operations        | source_quantity           | integer                     | NO          |                                                       |                          |                32 |             0
+ cutting_operations        | target_quantity           | integer                     | NO          |                                                       |                          |                32 |             0
+ cutting_operations        | waste_quantity            | integer                     | YES         | 0                                                     |                          |                32 |             0
+ cutting_operations        | status                    | USER-DEFINED                | YES         | 'in_progress'::cutting_status                         |                          |                   |              
+ cutting_operations        | operator_id               | integer                     | YES         |                                                       |                          |                32 |             0
+ cutting_operations        | assigned_to               | integer                     | YES         |                                                       |                          |                32 |             0
+ cutting_operations        | planned_date              | timestamp without time zone | YES         |                                                       |                          |                   |              
+ cutting_operations        | completed_at              | timestamp without time zone | YES         |                                                       |                          |                   |              
+ cutting_operations        | created_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ defect_products           | id                        | integer                     | NO          | nextval('defect_products_id_seq'::regclass)           |                          |                32 |             0
+ defect_products           | product_id                | integer                     | NO          |                                                       |                          |                32 |             0
+ defect_products           | quantity                  | integer                     | NO          |                                                       |                          |                32 |             0
+ defect_products           | defect_type               | character varying           | YES         |                                                       |                      100 |                   |              
+ defect_products           | defect_reason             | text                        | YES         |                                                       |                          |                   |              
+ defect_products           | status                    | USER-DEFINED                | YES         | 'identified'::defect_status                           |                          |                   |              
+ defect_products           | decision                  | text                        | YES         |                                                       |                          |                   |              
+ defect_products           | processed_at              | timestamp without time zone | YES         |                                                       |                          |                   |              
+ defect_products           | created_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ operation_reversals       | id                        | integer                     | NO          | nextval('operation_reversals_id_seq'::regclass)       |                          |                32 |             0
+ operation_reversals       | audit_log_id              | integer                     | NO          |                                                       |                          |                32 |             0
+ operation_reversals       | reversal_reason           | text                        | YES         |                                                       |                          |                   |              
+ operation_reversals       | reversed_by               | integer                     | YES         |                                                       |                          |                32 |             0
+ operation_reversals       | reversed_at               | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ order_items               | id                        | integer                     | NO          | nextval('order_items_id_seq'::regclass)               |                          |                32 |             0
+ order_items               | order_id                  | integer                     | NO          |                                                       |                          |                32 |             0
+ order_items               | product_id                | integer                     | NO          |                                                       |                          |                32 |             0
+ order_items               | quantity                  | integer                     | NO          |                                                       |                          |                32 |             0
+ order_items               | reserved_quantity         | integer                     | YES         | 0                                                     |                          |                32 |             0
+ order_items               | price                     | numeric                     | YES         |                                                       |                          |                10 |             2
+ order_items               | created_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ order_messages            | id                        | integer                     | NO          | nextval('order_messages_id_seq'::regclass)            |                          |                32 |             0
+ order_messages            | order_id                  | integer                     | NO          |                                                       |                          |                32 |             0
+ order_messages            | user_id                   | integer                     | NO          |                                                       |                          |                32 |             0
+ order_messages            | message                   | text                        | NO          |                                                       |                          |                   |              
+ order_messages            | created_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ orders                    | id                        | integer                     | NO          | nextval('orders_id_seq'::regclass)                    |                          |                32 |             0
+ orders                    | order_number              | character varying           | NO          |                                                       |                       50 |                   |              
+ orders                    | customer_name             | character varying           | NO          |                                                       |                      255 |                   |              
+ orders                    | customer_contact          | character varying           | YES         |                                                       |                      255 |                   |              
+ orders                    | status                    | USER-DEFINED                | YES         | 'new'::order_status                                   |                          |                   |              
+ orders                    | priority                  | USER-DEFINED                | YES         | 'normal'::priority_level                              |                          |                   |              
+ orders                    | delivery_date             | timestamp without time zone | YES         |                                                       |                          |                   |              
+ orders                    | manager_id                | integer                     | YES         |                                                       |                          |                32 |             0
+ orders                    | total_amount              | numeric                     | YES         |                                                       |                          |                12 |             2
+ orders                    | notes                     | text                        | YES         |                                                       |                          |                   |              
+ orders                    | created_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ orders                    | updated_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ orders                    | source                    | USER-DEFINED                | YES         | 'database'::order_source                              |                          |                   |              
+ orders                    | custom_source             | character varying           | YES         |                                                       |                      255 |                   |              
+ permissions               | id                        | integer                     | NO          | nextval('permissions_id_seq'::regclass)               |                          |                32 |             0
+ permissions               | name                      | character varying           | NO          |                                                       |                      100 |                   |              
+ permissions               | resource                  | character varying           | NO          |                                                       |                       50 |                   |              
+ permissions               | action                    | character varying           | NO          |                                                       |                       50 |                   |              
+ permissions               | description               | text                        | YES         |                                                       |                          |                   |              
+ permissions               | created_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ product_logos             | id                        | integer                     | NO          | nextval('product_logos_id_seq'::regclass)             |                          |                32 |             0
+ product_logos             | name                      | character varying           | NO          |                                                       |                      100 |                   |              
+ product_logos             | description               | text                        | YES         |                                                       |                          |                   |              
+ product_logos             | is_system                 | boolean                     | YES         | false                                                 |                          |                   |              
+ product_logos             | created_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ product_materials         | id                        | integer                     | NO          | nextval('product_materials_id_seq'::regclass)         |                          |                32 |             0
+ product_materials         | name                      | character varying           | NO          |                                                       |                      100 |                   |              
+ product_materials         | description               | text                        | YES         |                                                       |                          |                   |              
+ product_materials         | is_system                 | boolean                     | YES         | false                                                 |                          |                   |              
+ product_materials         | created_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ product_relations         | id                        | integer                     | NO          | nextval('product_relations_id_seq'::regclass)         |                          |                32 |             0
+ product_relations         | product_id                | integer                     | NO          |                                                       |                          |                32 |             0
+ product_relations         | related_product_id        | integer                     | NO          |                                                       |                          |                32 |             0
+ product_relations         | relation_type             | character varying           | NO          |                                                       |                       50 |                   |              
+ product_relations         | created_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ product_surfaces          | id                        | integer                     | NO          | nextval('product_surfaces_id_seq'::regclass)          |                          |                32 |             0
+ product_surfaces          | name                      | character varying           | NO          |                                                       |                      100 |                   |              
+ product_surfaces          | description               | text                        | YES         |                                                       |                          |                   |              
+ product_surfaces          | is_system                 | boolean                     | YES         | false                                                 |                          |                   |              
+ product_surfaces          | created_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ production_queue          | id                        | integer                     | NO          | nextval('production_queue_id_seq'::regclass)          |                          |                32 |             0
+ production_queue          | order_id                  | integer                     | YES         |                                                       |                          |                32 |             0
+ production_queue          | product_id                | integer                     | NO          |                                                       |                          |                32 |             0
+ production_queue          | quantity                  | integer                     | NO          |                                                       |                          |                32 |             0
+ production_queue          | priority                  | integer                     | YES         | 1                                                     |                          |                32 |             0
+ production_queue          | estimated_start_date      | timestamp without time zone | YES         |                                                       |                          |                   |              
+ production_queue          | estimated_completion_date | timestamp without time zone | YES         |                                                       |                          |                   |              
+ production_queue          | actual_start_date         | timestamp without time zone | YES         |                                                       |                          |                   |              
+ production_queue          | actual_completion_date    | timestamp without time zone | YES         |                                                       |                          |                   |              
+ production_queue          | status                    | USER-DEFINED                | YES         | 'queued'::production_status                           |                          |                   |              
+ production_queue          | notes                     | text                        | YES         |                                                       |                          |                   |              
+ production_queue          | created_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ production_task_extras    | id                        | integer                     | NO          | nextval('production_task_extras_id_seq'::regclass)    |                          |                32 |             0
+ production_task_extras    | task_id                   | integer                     | NO          |                                                       |                          |                32 |             0
+ production_task_extras    | product_id                | integer                     | NO          |                                                       |                          |                32 |             0
+ production_task_extras    | quantity                  | integer                     | NO          |                                                       |                          |                32 |             0
+ production_task_extras    | notes                     | text                        | YES         |                                                       |                          |                   |              
+ production_task_extras    | created_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ production_tasks          | id                        | integer                     | NO          | nextval('production_tasks_id_seq'::regclass)          |                          |                32 |             0
+ production_tasks          | order_id                  | integer                     | YES         |                                                       |                          |                32 |             0
+ production_tasks          | product_id                | integer                     | NO          |                                                       |                          |                32 |             0
+ production_tasks          | requested_quantity        | integer                     | NO          |                                                       |                          |                32 |             0
+ production_tasks          | status                    | USER-DEFINED                | YES         | 'pending'::production_task_status                     |                          |                   |              
+ production_tasks          | priority                  | integer                     | YES         | 1                                                     |                          |                32 |             0
+ production_tasks          | sort_order                | integer                     | YES         | 0                                                     |                          |                32 |             0
+ production_tasks          | created_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ production_tasks          | started_at                | timestamp without time zone | YES         |                                                       |                          |                   |              
+ production_tasks          | completed_at              | timestamp without time zone | YES         |                                                       |                          |                   |              
+ production_tasks          | produced_quantity         | integer                     | YES         | 0                                                     |                          |                32 |             0
+ production_tasks          | quality_quantity          | integer                     | YES         | 0                                                     |                          |                32 |             0
+ production_tasks          | defect_quantity           | integer                     | YES         | 0                                                     |                          |                32 |             0
+ production_tasks          | created_by                | integer                     | YES         |                                                       |                          |                32 |             0
+ production_tasks          | assigned_to               | integer                     | YES         |                                                       |                          |                32 |             0
+ production_tasks          | started_by                | integer                     | YES         |                                                       |                          |                32 |             0
+ production_tasks          | completed_by              | integer                     | YES         |                                                       |                          |                32 |             0
+ production_tasks          | notes                     | text                        | YES         |                                                       |                          |                   |              
+ production_tasks          | updated_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ production_tasks          | planned_date              | timestamp without time zone | YES         |                                                       |                          |                   |              
+ production_tasks          | planned_start_time        | character varying           | YES         | NULL::character varying                               |                        8 |                   |              
+ production_tasks          | estimated_duration        | integer                     | YES         |                                                       |                          |                32 |             0
+ products                  | id                        | integer                     | NO          | nextval('products_id_seq'::regclass)                  |                          |                32 |             0
+ products                  | name                      | character varying           | NO          |                                                       |                      500 |                   |              
+ products                  | article                   | character varying           | YES         |                                                       |                      100 |                   |              
+ products                  | category_id               | integer                     | YES         |                                                       |                          |                32 |             0
+ products                  | manager_id                | integer                     | YES         |                                                       |                          |                32 |             0
+ products                  | surface_id                | integer                     | YES         |                                                       |                          |                32 |             0
+ products                  | logo_id                   | integer                     | YES         |                                                       |                          |                32 |             0
+ products                  | material_id               | integer                     | YES         |                                                       |                          |                32 |             0
+ products                  | dimensions                | jsonb                       | YES         |                                                       |                          |                   |              
+ products                  | characteristics           | jsonb                       | YES         |                                                       |                          |                   |              
+ products                  | tags                      | ARRAY                       | YES         |                                                       |                          |                   |              
+ products                  | price                     | numeric                     | YES         |                                                       |                          |                10 |             2
+ products                  | cost_price                | numeric                     | YES         |                                                       |                          |                10 |             2
+ products                  | norm_stock                | integer                     | YES         | 0                                                     |                          |                32 |             0
+ products                  | notes                     | text                        | YES         |                                                       |                          |                   |              
+ products                  | photos                    | ARRAY                       | YES         |                                                       |                          |                   |              
+ products                  | is_active                 | boolean                     | YES         | true                                                  |                          |                   |              
+ products                  | created_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ products                  | updated_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ products                  | weight                    | numeric                     | YES         |                                                       |                          |                 8 |             3
+ products                  | puzzle_options            | jsonb                       | YES         |                                                       |                          |                   |              
+ products                  | mat_area                  | numeric                     | YES         |                                                       |                          |                   |              
+ products                  | border_type               | USER-DEFINED                | YES         |                                                       |                          |                   |              
+ products                  | carpet_edge_sides         | integer                     | YES         | 1                                                     |                          |                32 |             0
+ products                  | carpet_edge_strength      | character varying           | YES         | 'normal'::character varying                           |                       50 |                   |              
+ products                  | bottom_type_id            | integer                     | YES         |                                                       |                          |                32 |             0
+ products                  | puzzle_type_id            | integer                     | YES         |                                                       |                          |                32 |             0
+ products                  | puzzle_sides              | integer                     | YES         | 1                                                     |                          |                32 |             0
+ products                  | grade                     | USER-DEFINED                | YES         | 'usual'::product_grade                                |                          |                   |              
+ products                  | carpet_edge_type          | USER-DEFINED                | YES         | 'straight_cut'::carpet_edge_type                      |                          |                   |              
+ products                  | surface_ids               | ARRAY                       | YES         |                                                       |                          |                   |              
+ products                  | press_type                | USER-DEFINED                | YES         | 'not_selected'::press_type                            |                          |                   |              
+ products                  | product_type              | USER-DEFINED                | NO          | 'carpet'::product_type                                |                          |                   |              
+ products                  | pur_number                | integer                     | YES         |                                                       |                          |                32 |             0
+ puzzle_types              | id                        | integer                     | NO          | nextval('puzzle_types_id_seq'::regclass)              |                          |                32 |             0
+ puzzle_types              | name                      | character varying           | NO          |                                                       |                      100 |                   |              
+ puzzle_types              | code                      | character varying           | NO          |                                                       |                       50 |                   |              
+ puzzle_types              | description               | text                        | YES         |                                                       |                          |                   |              
+ puzzle_types              | is_system                 | boolean                     | YES         | false                                                 |                          |                   |              
+ puzzle_types              | created_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ role_permissions          | id                        | integer                     | NO          | nextval('role_permissions_id_seq'::regclass)          |                          |                32 |             0
+ role_permissions          | role                      | USER-DEFINED                | NO          |                                                       |                          |                   |              
+ role_permissions          | permission_id             | integer                     | NO          |                                                       |                          |                32 |             0
+ role_permissions          | created_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ roll_covering_composition | id                        | integer                     | NO          | nextval('roll_covering_composition_id_seq'::regclass) |                          |                32 |             0
+ roll_covering_composition | roll_covering_id          | integer                     | NO          |                                                       |                          |                32 |             0
+ roll_covering_composition | carpet_id                 | integer                     | NO          |                                                       |                          |                32 |             0
+ roll_covering_composition | quantity                  | numeric                     | NO          |                                                       |                          |                10 |             2
+ roll_covering_composition | sort_order                | integer                     | NO          |                                                       |                          |                32 |             0
+ roll_covering_composition | created_at                | timestamp without time zone | YES         | CURRENT_TIMESTAMP                                     |                          |                   |              
+ roll_covering_composition | updated_at                | timestamp without time zone | YES         | CURRENT_TIMESTAMP                                     |                          |                   |              
+ shipment_items            | id                        | integer                     | NO          | nextval('shipment_items_id_seq'::regclass)            |                          |                32 |             0
+ shipment_items            | shipment_id               | integer                     | NO          |                                                       |                          |                32 |             0
+ shipment_items            | product_id                | integer                     | NO          |                                                       |                          |                32 |             0
+ shipment_items            | planned_quantity          | integer                     | NO          |                                                       |                          |                32 |             0
+ shipment_items            | actual_quantity           | integer                     | YES         |                                                       |                          |                32 |             0
+ shipment_items            | created_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ shipments                 | id                        | integer                     | NO          | nextval('shipments_id_seq'::regclass)                 |                          |                32 |             0
+ shipments                 | shipment_number           | character varying           | NO          |                                                       |                       50 |                   |              
+ shipments                 | order_id                  | integer                     | YES         |                                                       |                          |                32 |             0
+ shipments                 | planned_date              | timestamp without time zone | YES         |                                                       |                          |                   |              
+ shipments                 | actual_date               | timestamp without time zone | YES         |                                                       |                          |                   |              
+ shipments                 | transport_info            | text                        | YES         |                                                       |                          |                   |              
+ shipments                 | status                    | USER-DEFINED                | YES         | 'pending'::shipment_status                            |                          |                   |              
+ shipments                 | documents_photos          | ARRAY                       | YES         |                                                       |                          |                   |              
+ shipments                 | created_by                | integer                     | YES         |                                                       |                          |                32 |             0
+ shipments                 | created_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ shipments                 | updated_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ stock                     | id                        | integer                     | NO          | nextval('stock_id_seq'::regclass)                     |                          |                32 |             0
+ stock                     | product_id                | integer                     | NO          |                                                       |                          |                32 |             0
+ stock                     | current_stock             | integer                     | NO          | 0                                                     |                          |                32 |             0
+ stock                     | reserved_stock            | integer                     | NO          | 0                                                     |                          |                32 |             0
+ stock                     | updated_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ stock_movements           | id                        | integer                     | NO          | nextval('stock_movements_id_seq'::regclass)           |                          |                32 |             0
+ stock_movements           | product_id                | integer                     | NO          |                                                       |                          |                32 |             0
+ stock_movements           | movement_type             | USER-DEFINED                | NO          |                                                       |                          |                   |              
+ stock_movements           | quantity                  | integer                     | NO          |                                                       |                          |                32 |             0
+ stock_movements           | reference_id              | integer                     | YES         |                                                       |                          |                32 |             0
+ stock_movements           | reference_type            | character varying           | YES         |                                                       |                       50 |                   |              
+ stock_movements           | comment                   | text                        | YES         |                                                       |                          |                   |              
+ stock_movements           | user_id                   | integer                     | YES         |                                                       |                          |                32 |             0
+ stock_movements           | created_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ telegram_notifications    | id                        | integer                     | NO          | nextval('telegram_notifications_id_seq'::regclass)    |                          |                32 |             0
+ telegram_notifications    | user_id                   | integer                     | YES         |                                                       |                          |                32 |             0
+ telegram_notifications    | message_type              | character varying           | YES         |                                                       |                       50 |                   |              
+ telegram_notifications    | message_text              | text                        | YES         |                                                       |                          |                   |              
+ telegram_notifications    | sent_at                   | timestamp without time zone | YES         |                                                       |                          |                   |              
+ telegram_notifications    | status                    | USER-DEFINED                | YES         | 'pending'::notification_status                        |                          |                   |              
+ user_permissions          | id                        | integer                     | NO          | nextval('user_permissions_id_seq'::regclass)          |                          |                32 |             0
+ user_permissions          | user_id                   | integer                     | NO          |                                                       |                          |                32 |             0
+ user_permissions          | permission_id             | integer                     | NO          |                                                       |                          |                32 |             0
+ user_permissions          | granted                   | boolean                     | NO          | true                                                  |                          |                   |              
+ user_permissions          | created_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ users                     | id                        | integer                     | NO          | nextval('users_id_seq'::regclass)                     |                          |                32 |             0
+ users                     | username                  | character varying           | NO          |                                                       |                       50 |                   |              
+ users                     | password_hash             | character varying           | NO          |                                                       |                      255 |                   |              
+ users                     | role                      | USER-DEFINED                | NO          |                                                       |                          |                   |              
+ users                     | telegram_id               | character varying           | YES         |                                                       |                       50 |                   |              
+ users                     | full_name                 | character varying           | YES         |                                                       |                      255 |                   |              
+ users                     | phone                     | character varying           | YES         |                                                       |                       20 |                   |              
+ users                     | email                     | character varying           | YES         |                                                       |                      255 |                   |              
+ users                     | is_active                 | boolean                     | YES         | true                                                  |                          |                   |              
+ users                     | created_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+ users                     | updated_at                | timestamp without time zone | YES         | now()                                                 |                          |                   |              
+(250 rows)
+
+=== ПЕРВИЧНЫЕ КЛЮЧИ ===
+        table_name         | column_name |        constraint_name         
+---------------------------+-------------+--------------------------------
+ audit_log                 | id          | audit_log_pkey
+ bottom_types              | id          | bottom_types_pkey
+ carpet_edge_types         | id          | carpet_edge_types_pkey
+ categories                | id          | categories_pkey
+ cutting_operations        | id          | cutting_operations_pkey
+ defect_products           | id          | defect_products_pkey
+ operation_reversals       | id          | operation_reversals_pkey
+ order_items               | id          | order_items_pkey
+ order_messages            | id          | order_messages_pkey
+ orders                    | id          | orders_pkey
+ permissions               | id          | permissions_pkey
+ product_logos             | id          | product_logos_pkey
+ product_materials         | id          | product_materials_pkey
+ product_relations         | id          | product_relations_pkey
+ product_surfaces          | id          | product_surfaces_pkey
+ production_queue          | id          | production_queue_pkey
+ production_task_extras    | id          | production_task_extras_pkey
+ production_tasks          | id          | production_tasks_pkey
+ products                  | id          | products_pkey
+ puzzle_types              | id          | puzzle_types_pkey
+ role_permissions          | id          | role_permissions_pkey
+ roll_covering_composition | id          | roll_covering_composition_pkey
+ shipment_items            | id          | shipment_items_pkey
+ shipments                 | id          | shipments_pkey
+ stock                     | id          | stock_pkey
+ stock_movements           | id          | stock_movements_pkey
+ telegram_notifications    | id          | telegram_notifications_pkey
+ user_permissions          | id          | user_permissions_pkey
+ users                     | id          | users_pkey
+(29 rows)
+
+=== ВНЕШНИЕ КЛЮЧИ ===
+        table_name         |    column_name     |                    constraint_name                    | unique_constraint_name | match_option | update_rule | delete_rule 
+---------------------------+--------------------+-------------------------------------------------------+------------------------+--------------+-------------+-------------
+ audit_log                 | user_id            | audit_log_user_id_users_id_fk                         | users_pkey             | NONE         | NO ACTION   | NO ACTION
+ cutting_operations        | source_product_id  | cutting_operations_source_product_id_products_id_fk   | products_pkey          | NONE         | NO ACTION   | NO ACTION
+ cutting_operations        | target_product_id  | cutting_operations_target_product_id_products_id_fk   | products_pkey          | NONE         | NO ACTION   | NO ACTION
+ cutting_operations        | assigned_to        | cutting_operations_assigned_to_users_id_fk            | users_pkey             | NONE         | NO ACTION   | NO ACTION
+ cutting_operations        | operator_id        | cutting_operations_operator_id_users_id_fk            | users_pkey             | NONE         | NO ACTION   | NO ACTION
+ defect_products           | product_id         | defect_products_product_id_products_id_fk             | products_pkey          | NONE         | NO ACTION   | NO ACTION
+ operation_reversals       | reversed_by        | operation_reversals_reversed_by_users_id_fk           | users_pkey             | NONE         | NO ACTION   | NO ACTION
+ operation_reversals       | audit_log_id       | operation_reversals_audit_log_id_audit_log_id_fk      | audit_log_pkey         | NONE         | NO ACTION   | NO ACTION
+ order_items               | product_id         | order_items_product_id_products_id_fk                 | products_pkey          | NONE         | NO ACTION   | NO ACTION
+ order_items               | order_id           | order_items_order_id_orders_id_fk                     | orders_pkey            | NONE         | NO ACTION   | NO ACTION
+ order_messages            | order_id           | order_messages_order_id_orders_id_fk                  | orders_pkey            | NONE         | NO ACTION   | NO ACTION
+ order_messages            | user_id            | order_messages_user_id_users_id_fk                    | users_pkey             | NONE         | NO ACTION   | NO ACTION
+ orders                    | manager_id         | orders_manager_id_users_id_fk                         | users_pkey             | NONE         | NO ACTION   | NO ACTION
+ product_relations         | related_product_id | product_relations_related_product_id_products_id_fk   | products_pkey          | NONE         | NO ACTION   | NO ACTION
+ product_relations         | product_id         | product_relations_product_id_products_id_fk           | products_pkey          | NONE         | NO ACTION   | NO ACTION
+ production_queue          | product_id         | production_queue_product_id_products_id_fk            | products_pkey          | NONE         | NO ACTION   | NO ACTION
+ production_queue          | order_id           | production_queue_order_id_orders_id_fk                | orders_pkey            | NONE         | NO ACTION   | NO ACTION
+ production_task_extras    | product_id         | production_task_extras_product_id_products_id_fk      | products_pkey          | NONE         | NO ACTION   | NO ACTION
+ production_task_extras    | task_id            | production_task_extras_task_id_production_tasks_id_fk | production_tasks_pkey  | NONE         | NO ACTION   | NO ACTION
+ production_tasks          | completed_by       | production_tasks_completed_by_users_id_fk             | users_pkey             | NONE         | NO ACTION   | NO ACTION
+ production_tasks          | assigned_to        | production_tasks_assigned_to_users_id_fk              | users_pkey             | NONE         | NO ACTION   | NO ACTION
+ production_tasks          | created_by         | production_tasks_created_by_users_id_fk               | users_pkey             | NONE         | NO ACTION   | NO ACTION
+ production_tasks          | order_id           | production_tasks_order_id_orders_id_fk                | orders_pkey            | NONE         | NO ACTION   | NO ACTION
+ production_tasks          | product_id         | production_tasks_product_id_products_id_fk            | products_pkey          | NONE         | NO ACTION   | NO ACTION
+ production_tasks          | started_by         | production_tasks_started_by_users_id_fk               | users_pkey             | NONE         | NO ACTION   | NO ACTION
+ products                  | puzzle_type_id     | products_puzzle_type_id_fkey                          | puzzle_types_pkey      | NONE         | NO ACTION   | NO ACTION
+ products                  | surface_id         | products_surface_id_product_surfaces_id_fk            | product_surfaces_pkey  | NONE         | NO ACTION   | NO ACTION
+ products                  | bottom_type_id     | products_bottom_type_id_fkey                          | bottom_types_pkey      | NONE         | NO ACTION   | NO ACTION
+ products                  | category_id        | products_category_id_categories_id_fk                 | categories_pkey        | NONE         | NO ACTION   | NO ACTION
+ products                  | logo_id            | products_logo_id_product_logos_id_fk                  | product_logos_pkey     | NONE         | NO ACTION   | NO ACTION
+ products                  | manager_id         | products_manager_id_users_id_fk                       | users_pkey             | NONE         | NO ACTION   | NO ACTION
+ products                  | material_id        | products_material_id_product_materials_id_fk          | product_materials_pkey | NONE         | NO ACTION   | NO ACTION
+ role_permissions          | permission_id      | role_permissions_permission_id_permissions_id_fk      | permissions_pkey       | NONE         | NO ACTION   | NO ACTION
+ roll_covering_composition | roll_covering_id   | roll_covering_composition_roll_covering_id_fkey       | products_pkey          | NONE         | NO ACTION   | CASCADE
+ roll_covering_composition | carpet_id          | roll_covering_composition_carpet_id_fkey              | products_pkey          | NONE         | NO ACTION   | CASCADE
+ shipment_items            | shipment_id        | shipment_items_shipment_id_shipments_id_fk            | shipments_pkey         | NONE         | NO ACTION   | NO ACTION
+ shipment_items            | product_id         | shipment_items_product_id_products_id_fk              | products_pkey          | NONE         | NO ACTION   | NO ACTION
+ shipments                 | order_id           | shipments_order_id_orders_id_fk                       | orders_pkey            | NONE         | NO ACTION   | NO ACTION
+ shipments                 | created_by         | shipments_created_by_users_id_fk                      | users_pkey             | NONE         | NO ACTION   | NO ACTION
+ stock                     | product_id         | stock_product_id_products_id_fk                       | products_pkey          | NONE         | NO ACTION   | NO ACTION
+ stock_movements           | product_id         | stock_movements_product_id_products_id_fk             | products_pkey          | NONE         | NO ACTION   | NO ACTION
+ stock_movements           | user_id            | stock_movements_user_id_users_id_fk                   | users_pkey             | NONE         | NO ACTION   | NO ACTION
+ telegram_notifications    | user_id            | telegram_notifications_user_id_users_id_fk            | users_pkey             | NONE         | NO ACTION   | NO ACTION
+ user_permissions          | user_id            | user_permissions_user_id_users_id_fk                  | users_pkey             | NONE         | NO ACTION   | NO ACTION
+ user_permissions          | permission_id      | user_permissions_permission_id_permissions_id_fk      | permissions_pkey       | NONE         | NO ACTION   | NO ACTION
+(45 rows)
+
+=== ИНДЕКСЫ ===
+ schemaname |         tablename         |                   indexname                    |                                                                       indexdef                                                                       
+------------+---------------------------+------------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------
+ public     | audit_log                 | audit_log_pkey                                 | CREATE UNIQUE INDEX audit_log_pkey ON public.audit_log USING btree (id)
+ public     | bottom_types              | bottom_types_code_key                          | CREATE UNIQUE INDEX bottom_types_code_key ON public.bottom_types USING btree (code)
+ public     | bottom_types              | bottom_types_pkey                              | CREATE UNIQUE INDEX bottom_types_pkey ON public.bottom_types USING btree (id)
+ public     | carpet_edge_types         | carpet_edge_types_code_key                     | CREATE UNIQUE INDEX carpet_edge_types_code_key ON public.carpet_edge_types USING btree (code)
+ public     | carpet_edge_types         | carpet_edge_types_name_key                     | CREATE UNIQUE INDEX carpet_edge_types_name_key ON public.carpet_edge_types USING btree (name)
+ public     | carpet_edge_types         | carpet_edge_types_pkey                         | CREATE UNIQUE INDEX carpet_edge_types_pkey ON public.carpet_edge_types USING btree (id)
+ public     | categories                | categories_pkey                                | CREATE UNIQUE INDEX categories_pkey ON public.categories USING btree (id)
+ public     | cutting_operations        | cutting_operations_pkey                        | CREATE UNIQUE INDEX cutting_operations_pkey ON public.cutting_operations USING btree (id)
+ public     | defect_products           | defect_products_pkey                           | CREATE UNIQUE INDEX defect_products_pkey ON public.defect_products USING btree (id)
+ public     | operation_reversals       | operation_reversals_pkey                       | CREATE UNIQUE INDEX operation_reversals_pkey ON public.operation_reversals USING btree (id)
+ public     | order_items               | order_items_pkey                               | CREATE UNIQUE INDEX order_items_pkey ON public.order_items USING btree (id)
+ public     | order_messages            | order_messages_pkey                            | CREATE UNIQUE INDEX order_messages_pkey ON public.order_messages USING btree (id)
+ public     | orders                    | orders_order_number_unique                     | CREATE UNIQUE INDEX orders_order_number_unique ON public.orders USING btree (order_number)
+ public     | orders                    | orders_pkey                                    | CREATE UNIQUE INDEX orders_pkey ON public.orders USING btree (id)
+ public     | permissions               | permissions_name_unique                        | CREATE UNIQUE INDEX permissions_name_unique ON public.permissions USING btree (name)
+ public     | permissions               | permissions_pkey                               | CREATE UNIQUE INDEX permissions_pkey ON public.permissions USING btree (id)
+ public     | product_logos             | product_logos_name_unique                      | CREATE UNIQUE INDEX product_logos_name_unique ON public.product_logos USING btree (name)
+ public     | product_logos             | product_logos_pkey                             | CREATE UNIQUE INDEX product_logos_pkey ON public.product_logos USING btree (id)
+ public     | product_materials         | product_materials_name_unique                  | CREATE UNIQUE INDEX product_materials_name_unique ON public.product_materials USING btree (name)
+ public     | product_materials         | product_materials_pkey                         | CREATE UNIQUE INDEX product_materials_pkey ON public.product_materials USING btree (id)
+ public     | product_relations         | product_relations_pkey                         | CREATE UNIQUE INDEX product_relations_pkey ON public.product_relations USING btree (id)
+ public     | product_surfaces          | product_surfaces_name_unique                   | CREATE UNIQUE INDEX product_surfaces_name_unique ON public.product_surfaces USING btree (name)
+ public     | product_surfaces          | product_surfaces_pkey                          | CREATE UNIQUE INDEX product_surfaces_pkey ON public.product_surfaces USING btree (id)
+ public     | production_queue          | production_queue_pkey                          | CREATE UNIQUE INDEX production_queue_pkey ON public.production_queue USING btree (id)
+ public     | production_task_extras    | production_task_extras_pkey                    | CREATE UNIQUE INDEX production_task_extras_pkey ON public.production_task_extras USING btree (id)
+ public     | production_tasks          | idx_production_tasks_planned_date              | CREATE INDEX idx_production_tasks_planned_date ON public.production_tasks USING btree (planned_date) WHERE (planned_date IS NOT NULL)
+ public     | production_tasks          | idx_production_tasks_planned_date_status       | CREATE INDEX idx_production_tasks_planned_date_status ON public.production_tasks USING btree (planned_date, status) WHERE (planned_date IS NOT NULL)
+ public     | production_tasks          | production_tasks_pkey                          | CREATE UNIQUE INDEX production_tasks_pkey ON public.production_tasks USING btree (id)
+ public     | products                  | idx_products_border_type                       | CREATE INDEX idx_products_border_type ON public.products USING btree (border_type)
+ public     | products                  | idx_products_bottom_type_id                    | CREATE INDEX idx_products_bottom_type_id ON public.products USING btree (bottom_type_id)
+ public     | products                  | idx_products_carpet_edge_sides                 | CREATE INDEX idx_products_carpet_edge_sides ON public.products USING btree (carpet_edge_sides)
+ public     | products                  | idx_products_carpet_edge_strength              | CREATE INDEX idx_products_carpet_edge_strength ON public.products USING btree (carpet_edge_strength)
+ public     | products                  | idx_products_carpet_edge_type                  | CREATE INDEX idx_products_carpet_edge_type ON public.products USING btree (carpet_edge_type)
+ public     | products                  | idx_products_mat_area                          | CREATE INDEX idx_products_mat_area ON public.products USING btree (mat_area)
+ public     | products                  | idx_products_press_type                        | CREATE INDEX idx_products_press_type ON public.products USING btree (press_type)
+ public     | products                  | idx_products_product_type                      | CREATE INDEX idx_products_product_type ON public.products USING btree (product_type)
+ public     | products                  | idx_products_pur_number                        | CREATE INDEX idx_products_pur_number ON public.products USING btree (pur_number) WHERE (pur_number IS NOT NULL)
+ public     | products                  | idx_products_puzzle_options                    | CREATE INDEX idx_products_puzzle_options ON public.products USING gin (puzzle_options)
+ public     | products                  | idx_products_puzzle_type_id                    | CREATE INDEX idx_products_puzzle_type_id ON public.products USING btree (puzzle_type_id)
+ public     | products                  | idx_products_surface_ids                       | CREATE INDEX idx_products_surface_ids ON public.products USING gin (surface_ids)
+ public     | products                  | idx_products_weight                            | CREATE INDEX idx_products_weight ON public.products USING btree (weight)
+ public     | products                  | products_article_unique                        | CREATE UNIQUE INDEX products_article_unique ON public.products USING btree (article)
+ public     | products                  | products_pkey                                  | CREATE UNIQUE INDEX products_pkey ON public.products USING btree (id)
+ public     | puzzle_types              | idx_puzzle_types_code                          | CREATE INDEX idx_puzzle_types_code ON public.puzzle_types USING btree (code)
+ public     | puzzle_types              | idx_puzzle_types_system                        | CREATE INDEX idx_puzzle_types_system ON public.puzzle_types USING btree (is_system)
+ public     | puzzle_types              | puzzle_types_code_key                          | CREATE UNIQUE INDEX puzzle_types_code_key ON public.puzzle_types USING btree (code)
+ public     | puzzle_types              | puzzle_types_code_unique                       | CREATE UNIQUE INDEX puzzle_types_code_unique ON public.puzzle_types USING btree (code)
+ public     | puzzle_types              | puzzle_types_name_key                          | CREATE UNIQUE INDEX puzzle_types_name_key ON public.puzzle_types USING btree (name)
+ public     | puzzle_types              | puzzle_types_name_unique                       | CREATE UNIQUE INDEX puzzle_types_name_unique ON public.puzzle_types USING btree (name)
+ public     | puzzle_types              | puzzle_types_pkey                              | CREATE UNIQUE INDEX puzzle_types_pkey ON public.puzzle_types USING btree (id)
+ public     | role_permissions          | role_permissions_pkey                          | CREATE UNIQUE INDEX role_permissions_pkey ON public.role_permissions USING btree (id)
+ public     | roll_covering_composition | idx_roll_covering_composition_carpet_id        | CREATE INDEX idx_roll_covering_composition_carpet_id ON public.roll_covering_composition USING btree (carpet_id)
+ public     | roll_covering_composition | idx_roll_covering_composition_roll_covering_id | CREATE INDEX idx_roll_covering_composition_roll_covering_id ON public.roll_covering_composition USING btree (roll_covering_id)
+ public     | roll_covering_composition | idx_roll_covering_composition_sort_order       | CREATE INDEX idx_roll_covering_composition_sort_order ON public.roll_covering_composition USING btree (roll_covering_id, sort_order)
+ public     | roll_covering_composition | roll_covering_composition_pkey                 | CREATE UNIQUE INDEX roll_covering_composition_pkey ON public.roll_covering_composition USING btree (id)
+ public     | roll_covering_composition | unique_roll_covering_sort_order                | CREATE UNIQUE INDEX unique_roll_covering_sort_order ON public.roll_covering_composition USING btree (roll_covering_id, sort_order)
+ public     | shipment_items            | shipment_items_pkey                            | CREATE UNIQUE INDEX shipment_items_pkey ON public.shipment_items USING btree (id)
+ public     | shipments                 | shipments_pkey                                 | CREATE UNIQUE INDEX shipments_pkey ON public.shipments USING btree (id)
+ public     | shipments                 | shipments_shipment_number_unique               | CREATE UNIQUE INDEX shipments_shipment_number_unique ON public.shipments USING btree (shipment_number)
+ public     | stock                     | stock_pkey                                     | CREATE UNIQUE INDEX stock_pkey ON public.stock USING btree (id)
+ public     | stock                     | stock_product_id_unique                        | CREATE UNIQUE INDEX stock_product_id_unique ON public.stock USING btree (product_id)
+ public     | stock_movements           | stock_movements_pkey                           | CREATE UNIQUE INDEX stock_movements_pkey ON public.stock_movements USING btree (id)
+ public     | telegram_notifications    | telegram_notifications_pkey                    | CREATE UNIQUE INDEX telegram_notifications_pkey ON public.telegram_notifications USING btree (id)
+ public     | user_permissions          | user_permissions_pkey                          | CREATE UNIQUE INDEX user_permissions_pkey ON public.user_permissions USING btree (id)
+ public     | users                     | users_pkey                                     | CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)
+ public     | users                     | users_telegram_id_unique                       | CREATE UNIQUE INDEX users_telegram_id_unique ON public.users USING btree (telegram_id)
+ public     | users                     | users_username_unique                          | CREATE UNIQUE INDEX users_username_unique ON public.users USING btree (username)
+(67 rows)
+
+=== КОЛИЧЕСТВО ЗАПИСЕЙ ===
+ schemaname |         tablename         | total_inserts | total_updates | total_deletes | live_rows | dead_rows 
+------------+---------------------------+---------------+---------------+---------------+-----------+-----------
+ public     | role_permissions          |          5812 |             0 |             0 |      5812 |         0
+ public     | stock                     |           158 |             7 |             0 |       158 |         0
+ public     | products                  |           158 |           214 |             0 |       158 |         9
+ public     | stock_movements           |           126 |             0 |             0 |       126 |         0
+ public     | permissions               |            29 |             0 |             0 |        29 |         0
+ public     | audit_log                 |            19 |             0 |             0 |        19 |         0
+ public     | roll_covering_composition |            11 |             0 |             0 |        11 |         0
+ public     | bottom_types              |             6 |             2 |             0 |         6 |         2
+ public     | product_surfaces          |             7 |             0 |             1 |         6 |         1
+ public     | puzzle_types              |            10 |             0 |             0 |         5 |         5
+ public     | product_logos             |             5 |             0 |             0 |         5 |         0
+ public     | carpet_edge_types         |             5 |             3 |             0 |         5 |         3
+ public     | categories                |             6 |             7 |             4 |         4 |         9
+ public     | product_materials         |             2 |             0 |             0 |         2 |         0
+ public     | user_permissions          |             2 |             0 |             0 |         2 |         0
+ public     | users                     |             2 |             0 |             0 |         2 |         0
+ public     | orders                    |             1 |             0 |             0 |         1 |         0
+ public     | order_items               |             1 |             0 |             0 |         1 |         0
+ public     | production_queue          |             0 |             0 |             0 |         0 |         0
+ public     | defect_products           |             0 |             0 |             0 |         0 |         0
+ public     | production_tasks          |             0 |             0 |             0 |         0 |         0
+ public     | shipments                 |             0 |             0 |             0 |         0 |         0
+ public     | shipment_items            |             0 |             0 |             0 |         0 |         0
+ public     | telegram_notifications    |             0 |             0 |             0 |         0 |         0
+ public     | order_messages            |             0 |             0 |             0 |         0 |         0
+ public     | cutting_operations        |             0 |             0 |             0 |         0 |         0
+ public     | production_task_extras    |             0 |             0 |             0 |         0 |         0
+ public     | operation_reversals       |             0 |             0 |             0 |         0 |         0
+ public     | product_relations         |             0 |             0 |             0 |         0 |         0
+(29 rows)
+

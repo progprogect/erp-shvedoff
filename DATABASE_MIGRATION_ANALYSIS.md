@@ -236,3 +236,4 @@ GROUP BY p.product_type;
 
 *Анализ выполнен автоматически*  
 *Инструкция по доступу: `RAILWAY_DB_ACCESS_GUIDE.md`*
+
