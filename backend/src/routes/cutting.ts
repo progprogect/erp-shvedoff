@@ -2,7 +2,7 @@ import express from 'express';
 import { db, schema } from '../db';
 import { eq, and, sql, desc, asc, inArray } from 'drizzle-orm';
 import { authenticateToken, authorizeRoles, AuthRequest } from '../middleware/auth';
-import { requireExportPermission } from '../middleware/permissions';
+import { requireExportPermission, requirePermission } from '../middleware/permissions';
 import { createError } from '../middleware/errorHandler';
 import { performStockOperation } from '../utils/stockManager';
 import { ExcelExporter } from '../utils/excelExporter';
@@ -67,7 +67,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
 });
 
 // POST /api/cutting - Create new cutting operation request
-router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async (req: AuthRequest, res, next) => {
+router.post('/', authenticateToken, requirePermission('cutting', 'create'), async (req: AuthRequest, res, next) => {
   try {
     const { 
       sourceProductId, 
@@ -298,7 +298,7 @@ router.put('/:id/start', authenticateToken, authorizeRoles('production', 'direct
 */
 
 // PUT /api/cutting/:id/complete - Complete cutting operation with results
-router.put('/:id/complete', authenticateToken, authorizeRoles('production', 'director'), async (req: AuthRequest, res, next) => {
+router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edit'), async (req: AuthRequest, res, next) => {
   try {
     const operationId = Number(req.params.id);
     const { actualTargetQuantity, actualDefectQuantity, notes } = req.body;
@@ -429,7 +429,7 @@ router.put('/:id/complete', authenticateToken, authorizeRoles('production', 'dir
 });
 
 // PUT /api/cutting/:id/status - Change operation status
-router.put('/:id/status', authenticateToken, authorizeRoles('production', 'director'), async (req: AuthRequest, res, next) => {
+router.put('/:id/status', authenticateToken, requirePermission('cutting', 'edit'), async (req: AuthRequest, res, next) => {
   try {
     const operationId = Number(req.params.id);
     const { status } = req.body;
@@ -537,7 +537,7 @@ router.put('/:id/status', authenticateToken, authorizeRoles('production', 'direc
 });
 
 // DELETE /api/cutting/:id - Cancel cutting operation
-router.delete('/:id', authenticateToken, authorizeRoles('manager', 'director'), async (req: AuthRequest, res, next) => {
+router.delete('/:id', authenticateToken, requirePermission('cutting', 'delete'), async (req: AuthRequest, res, next) => {
   try {
     const operationId = Number(req.params.id);
     const userId = req.user!.id;
@@ -668,7 +668,7 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
 });
 
 // PUT /api/cutting/:id - Update cutting operation details (only before approval)
-router.put('/:id', authenticateToken, authorizeRoles('manager', 'director'), async (req: AuthRequest, res, next) => {
+router.put('/:id', authenticateToken, requirePermission('cutting', 'edit'), async (req: AuthRequest, res, next) => {
   try {
     const operationId = Number(req.params.id);
     const { 
