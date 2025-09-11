@@ -58,3 +58,4 @@ SELECT id, name, code, description, is_system FROM carpet_edge_types ORDER BY id
 
 COMMIT;
 
+

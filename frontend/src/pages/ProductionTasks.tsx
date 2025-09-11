@@ -20,7 +20,6 @@ import {
   Tooltip,
   Divider,
   Alert,
-  AutoComplete,
   DatePicker
 } from 'antd';
 import {
@@ -64,8 +63,6 @@ import {
   ProductionTask,
   ProductionTaskExtra,
   UpdateProductionTaskRequest,
-  searchProducts,
-  ProductSearchResult,
   PartialCompleteTaskResponse,
   exportProductionTasks
 } from '../services/productionApi';
@@ -98,6 +95,30 @@ const ProductionTasks: React.FC = () => {
   const { canManage } = usePermissions();
   const { message } = App.useApp();
   const [activeTab, setActiveTab] = useState<string>('list');
+
+  // Добавляем стили для переноса текста в Select
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      .bulk-register-select .ant-select-selection-item {
+        word-wrap: break-word !important;
+        overflow-wrap: break-word !important;
+        white-space: normal !important;
+        line-height: 1.2 !important;
+        padding: 4px 8px !important;
+      }
+      .bulk-register-select .ant-select-selection-placeholder {
+        word-wrap: break-word !important;
+        overflow-wrap: break-word !important;
+        white-space: normal !important;
+        line-height: 1.2 !important;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
   
   // Состояние для списка заданий
   const [tasks, setTasks] = useState<ProductionTask[]>([]);
@@ -165,32 +186,21 @@ const ProductionTasks: React.FC = () => {
   }>>([{ id: 1, article: '', producedQuantity: 10, qualityQuantity: 10, defectQuantity: 0 }]);
 
   // Состояние для поиска товаров в массовой регистрации
-  const [productSearchOptions, setProductSearchOptions] = useState<Array<{
-    value: string;
-    label: string;
-    product: ProductSearchResult;
-  }>>([]);
+  const [bulkRegisterProducts, setBulkRegisterProducts] = useState<Product[]>([]);
 
-  // Функция поиска товаров для автокомплита
-  const handleProductSearch = async (searchText: string) => {
-    if (!searchText || searchText.length < 3) {
-      setProductSearchOptions([]);
-      return;
-    }
-
+  // Загрузка товаров для массовой регистрации
+  const loadBulkRegisterProducts = async () => {
     try {
-      const response = await searchProducts(searchText);
+      const response = await catalogApi.getProducts({ page: 1, limit: 1000 });
       if (response.success) {
-        const options = response.data.map(product => ({
-          value: product.article,
-          label: `${product.article} - ${product.name} (остаток: ${product.availableStock})`,
-          product
-        }));
-        setProductSearchOptions(options);
+        setBulkRegisterProducts(response.data.map(p => ({
+          id: p.id,
+          name: p.name,
+          article: p.article
+        })));
       }
     } catch (error) {
-      console.error('Ошибка поиска товаров:', error);
-      setProductSearchOptions([]);
+      console.error('Ошибка загрузки товаров:', error);
     }
   };
 
@@ -1480,6 +1490,7 @@ const ProductionTasks: React.FC = () => {
               bulkRegisterForm.setFieldsValue({
                 productionDate: new Date()
               });
+              loadBulkRegisterProducts(); // Загружаем товары при открытии модального окна
             }}
           >
             Зарегистрировать выпуск продукции
@@ -2495,47 +2506,90 @@ const ProductionTasks: React.FC = () => {
 
             <div style={{ border: '1px solid #d9d9d9', borderRadius: 6 }}>
               <div style={{ display: 'flex', backgroundColor: '#fafafa', padding: '8px 12px', fontWeight: 'bold', borderBottom: '1px solid #d9d9d9' }}>
-                <div style={{ flex: 3 }}>Артикул</div>
-                <div style={{ flex: 2, textAlign: 'center' }}>Произведено</div>
-                <div style={{ flex: 2, textAlign: 'center' }}>Годных</div>
-                <div style={{ flex: 2, textAlign: 'center' }}>Брак</div>
+                <div style={{ flex: 3, paddingRight: 8 }}>Артикул</div>
+                <div style={{ flex: 2, textAlign: 'center', paddingRight: 8 }}>Произведено</div>
+                <div style={{ flex: 2, textAlign: 'center', paddingRight: 8 }}>Годных</div>
+                <div style={{ flex: 2, textAlign: 'center', paddingRight: 8 }}>Брак</div>
                 <div style={{ flex: 1, textAlign: 'center' }}>Действия</div>
               </div>
 
               {bulkRegisterItems.map((item, index) => (
                 <div key={item.id} style={{ display: 'flex', padding: '8px 12px', borderBottom: index < bulkRegisterItems.length - 1 ? '1px solid #f0f0f0' : 'none', alignItems: 'center' }}>
-                  <div style={{ flex: 3, paddingRight: 8 }}>
-                    <AutoComplete
+                  <div style={{ flex: 3, paddingRight: 8, wordWrap: 'break-word', overflowWrap: 'break-word' }}>
+                    <Select
+                      showSearch
+                      placeholder="Выберите товар по артикулу"
+                      value={item.productId ? item.article : undefined}
+                      optionFilterProp="label"
+                      filterOption={(input, option) =>
+                        (option?.label?.toString().toLowerCase().includes(input.toLowerCase())) ?? false
+                      }
                       style={{ width: '100%' }}
-                      placeholder="Введите артикул или название товара (мин. 3 символа)"
-                      value={item.article}
-                      options={productSearchOptions}
-                      onSearch={handleProductSearch}
-                      onSelect={(value, option) => {
-                        const newItems = [...bulkRegisterItems];
-                        newItems[index] = { 
-                          ...item, 
-                          productId: option?.product?.id,
-                          article: option?.product?.article || value,
-                          productName: option?.product?.name
-                        };
-                        setBulkRegisterItems(newItems);
-                        setProductSearchOptions([]);
+                      size="large"
+                      dropdownStyle={{ maxHeight: 400, overflowY: 'auto' }}
+                      className="bulk-register-select"
+                      optionLabelProp="label"
+                      labelInValue={false}
+                      getPopupContainer={(trigger) => trigger.parentElement}
+                      allowClear
+                      onSelect={(productId) => {
+                        const product = bulkRegisterProducts.find(p => p.id === productId);
+                        if (product) {
+                          const newItems = [...bulkRegisterItems];
+                          newItems[index] = { 
+                            ...item, 
+                            productId: product.id,
+                            article: product.article || '',
+                            productName: product.name
+                          };
+                          setBulkRegisterItems(newItems);
+                        }
                       }}
                       onChange={(value) => {
-                        // Если пользователь стирает значение или вводит вручную
-                        const newItems = [...bulkRegisterItems];
-                        newItems[index] = { 
-                          ...item, 
-                          article: value || '', 
-                          productId: undefined,
-                          productName: undefined 
-                        };
-                        setBulkRegisterItems(newItems);
+                        if (!value) {
+                          const newItems = [...bulkRegisterItems];
+                          newItems[index] = { 
+                            ...item, 
+                            article: '', 
+                            productId: undefined,
+                            productName: undefined 
+                          };
+                          setBulkRegisterItems(newItems);
+                        }
                       }}
-                      filterOption={false}
-                      allowClear
-                    />
+                    >
+                      {bulkRegisterProducts.map(product => {
+                        const label = product.article || product.name;
+                        return (
+                          <Option key={product.id} value={product.id} label={label}>
+                            <div style={{ padding: '4px 0' }}>
+                              <div style={{ 
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '2px'
+                              }}>
+                                {product.article && (
+                                  <div style={{
+                                    fontSize: '14px',
+                                    color: '#1890ff',
+                                    fontFamily: 'monospace',
+                                    fontWeight: '500'
+                                  }}>
+                                    {product.article}
+                                  </div>
+                                )}
+                                <div style={{ 
+                                  fontSize: '12px',
+                                  color: '#666'
+                                }}>
+                                  {product.name}
+                                </div>
+                              </div>
+                            </div>
+                          </Option>
+                        );
+                      })}
+                    </Select>
                   </div>
                   <div style={{ flex: 2, paddingRight: 8 }}>
                     <InputNumber
