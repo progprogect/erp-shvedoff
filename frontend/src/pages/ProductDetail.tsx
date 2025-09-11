@@ -376,7 +376,9 @@ const ProductDetail: React.FC = () => {
           'outgoing': { text: 'Отгрузка', color: 'red' },
           'reservation': { text: 'Резерв', color: 'purple' },
           'release_reservation': { text: 'Снятие резерва', color: 'cyan' },
-          'adjustment': { text: 'Корректировка', color: 'gold' }
+          'adjustment': { text: 'Корректировка', color: 'gold' },
+          'cutting_in': { text: 'Резка (поступление)', color: 'blue' },
+          'cutting_out': { text: 'Резка (списание)', color: 'orange' }
         };
         const typeInfo = types[type] || { text: type, color: 'default' };
         return <Tag color={typeInfo.color}>{typeInfo.text}</Tag>;
