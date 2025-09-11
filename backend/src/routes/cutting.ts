@@ -344,6 +344,7 @@ router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edi
           status: 'completed',
           targetQuantity: Number(actualTargetQuantity), // Update with actual quantity
           wasteQuantity: Math.max(0, actualDefect), // Используем старое поле для совместимости, но теперь это "брак"
+          actualSecondGradeQuantity: Number(actualSecondGradeQuantity) || 0, // Сохраняем количество товара 2-го сорта
           completedAt: new Date()
         })
         .where(eq(schema.cuttingOperations.id, operationId))

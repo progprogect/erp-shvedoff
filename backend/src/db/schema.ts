@@ -301,6 +301,7 @@ export const cuttingOperations = pgTable('cutting_operations', {
   sourceQuantity: integer('source_quantity').notNull(),
   targetQuantity: integer('target_quantity').notNull(),
   wasteQuantity: integer('waste_quantity').default(0),
+  actualSecondGradeQuantity: integer('actual_second_grade_quantity').default(0), // Фактическое количество товара 2-го сорта
   status: cuttingStatusEnum('status').default('in_progress'),
   operatorId: integer('operator_id').references(() => users.id),
   assignedTo: integer('assigned_to').references(() => users.id), // на кого назначена операция
