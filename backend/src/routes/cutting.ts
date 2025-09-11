@@ -349,33 +349,25 @@ router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edi
         .where(eq(schema.cuttingOperations.id, operationId))
         .returning();
 
-      // 1. Снимаем резерв товара
-      await performStockOperation({
-        productId: operation.sourceProductId,
-        type: 'release',
-        quantity: operation.sourceQuantity,
-        userId,
-        comment: `Снятие резерва при завершении резки #${operationId}`
-      });
+      // Обновляем остатки напрямую (движения будут созданы в массиве stockMovements ниже)
+      
+      // 1. Снимаем резерв и списываем исходный товар
+      await tx.update(schema.stock)
+        .set({
+          currentStock: sql`current_stock - ${operation.sourceQuantity}`,
+          reservedStock: sql`reserved_stock - ${operation.sourceQuantity}`,
+          updatedAt: new Date()
+        })
+        .where(eq(schema.stock.productId, operation.sourceProductId));
 
-      // 2. Списываем исходный товар (без проверки резерва)
-      await performStockOperation({
-        productId: operation.sourceProductId,
-        type: 'adjustment',
-        quantity: -operation.sourceQuantity,
-        userId,
-        comment: `Списание при резке #${operationId}: ${operation.sourceProduct.name} → ${operation.targetProduct.name}`
-      });
-
-      // 3. Добавляем целевой товар на склад
+      // 2. Добавляем целевой товар на склад
       if (actualTargetQuantity > 0) {
-        await performStockOperation({
-          productId: operation.targetProductId,
-          type: 'incoming',
-          quantity: Number(actualTargetQuantity),
-          userId,
-          comment: `Поступление от резки #${operationId}: ${operation.sourceProduct.name} → ${operation.targetProduct.name}`
-        });
+        await tx.update(schema.stock)
+          .set({
+            currentStock: sql`current_stock + ${Number(actualTargetQuantity)}`,
+            updatedAt: new Date()
+          })
+          .where(eq(schema.stock.productId, operation.targetProductId));
       }
 
       // 4. Обрабатываем товар 2-го сорта (если указан)
@@ -507,14 +499,13 @@ router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edi
           });
         }
 
-        // Добавляем товар 2-го сорта на склад
-        await performStockOperation({
-          productId: secondGradeProductId,
-          type: 'incoming',
-          quantity: Number(actualSecondGradeQuantity),
-          userId,
-          comment: `Поступление 2-го сорта от резки #${operationId}: ${operation.sourceProduct.name} → ${operation.targetProduct.name} (2 сорт)`
-        });
+        // Добавляем товар 2-го сорта на склад (движение будет создано в массиве stockMovements ниже)
+        await tx.update(schema.stock)
+          .set({
+            currentStock: sql`current_stock + ${Number(actualSecondGradeQuantity)}`,
+            updatedAt: new Date()
+          })
+          .where(eq(schema.stock.productId, secondGradeProductId));
       }
 
       // Log completion
@@ -545,7 +536,7 @@ router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edi
           quantity: -operation.sourceQuantity,
           referenceId: operationId,
           referenceType: 'cutting',
-          comment: `Резка: ${operation.sourceProduct.name} → ${operation.targetProduct.name}`,
+          comment: `Списание при резке #${operationId}: ${operation.sourceProduct.name} → ${operation.targetProduct.name}`,
           userId
         }
       ];
@@ -558,7 +549,7 @@ router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edi
           quantity: Number(actualTargetQuantity),
           referenceId: operationId,
           referenceType: 'cutting',
-          comment: `Резка: ${operation.sourceProduct.name} → ${operation.targetProduct.name}`,
+          comment: `Поступление от резки #${operationId}: ${operation.sourceProduct.name} → ${operation.targetProduct.name}`,
           userId
         });
       }
@@ -571,7 +562,7 @@ router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edi
           quantity: Number(actualSecondGradeQuantity),
           referenceId: operationId,
           referenceType: 'cutting',
-          comment: `Резка: ${operation.sourceProduct.name} → ${operation.targetProduct.name} (2 сорт)`,
+          comment: `Поступление 2-го сорта от резки #${operationId}: ${operation.sourceProduct.name} → ${operation.targetProduct.name} (2 сорт)`,
           userId
         });
       }
