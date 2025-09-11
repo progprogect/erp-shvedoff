@@ -356,14 +356,14 @@ function formatBottom(bottomCode?: string): string {
   // Преобразуем коды в краткие обозначения
   const codeMap: Record<string, string> = {
     'not_selected': '', // Не выбрано - не отображаем в артикуле
-    'spike_0': '0Шип', // Шио0 - отображаем в артикуле
-    'spike_1': '1Шип',
-    'spike_2': '2Шип',
-    'spike_3': '3Шип',
-    'spike_4': '4Шип',
-    'spike_5': '5Шип',
-    'spike_7': '7Шип',
-    'spike_11': '11Шип'
+    'spike_0': 'Шип0', // Шип-0 - отображаем как Шип0
+    'spike_1': 'Шип1',
+    'spike_2': 'Шип2',
+    'spike_3': 'Шип3',
+    'spike_4': 'Шип4',
+    'spike_5': 'Шип5',
+    'spike_7': 'Шип7',
+    'spike_11': 'Шип11'
   };
   
   const normalizedCode = bottomCode.toLowerCase().trim();
