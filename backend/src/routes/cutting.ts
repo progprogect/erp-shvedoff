@@ -312,7 +312,14 @@ router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edi
       where: eq(schema.cuttingOperations.id, operationId),
       with: {
         sourceProduct: true,
-        targetProduct: true
+        targetProduct: {
+          with: {
+            logo: true,
+            material: true,
+            bottomType: true,
+            puzzleType: true
+          }
+        }
       }
     });
 
@@ -391,9 +398,30 @@ router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edi
           secondGradeProductId = secondGradeProduct.id;
         } else {
           // Создаем новый товар 2-го сорта
+          // Генерируем артикул для товара 2-го сорта
+          const { generateArticle } = await import('../utils/articleGenerator');
+          const secondGradeProductData = {
+            name: operation.targetProduct.name,
+            productType: operation.targetProduct.productType,
+            dimensions: operation.targetProduct.dimensions as { length?: number; width?: number; thickness?: number },
+            surfaceIds: operation.targetProduct.surfaceIds,
+            logo: operation.targetProduct.logo ? { name: operation.targetProduct.logo.name } : undefined,
+            material: operation.targetProduct.material ? { name: operation.targetProduct.material.name } : undefined,
+            bottomType: operation.targetProduct.bottomType ? { code: operation.targetProduct.bottomType.code } : undefined,
+            puzzleType: operation.targetProduct.puzzleType ? { name: operation.targetProduct.puzzleType.name } : undefined,
+            puzzleSides: operation.targetProduct.puzzleSides,
+            pressType: operation.targetProduct.pressType || undefined,
+            carpetEdgeType: operation.targetProduct.carpetEdgeType || undefined,
+            carpetEdgeSides: operation.targetProduct.carpetEdgeSides || undefined,
+            carpetEdgeStrength: operation.targetProduct.carpetEdgeStrength || undefined,
+            grade: 'grade_2' as const
+          };
+          
+          const secondGradeArticle = generateArticle(secondGradeProductData);
+          
           const newSecondGradeProduct = await tx.insert(schema.products).values({
             name: operation.targetProduct.name,
-            article: `${operation.targetProduct.article}-2С`,
+            article: secondGradeArticle,
             categoryId: operation.targetProduct.categoryId,
             productType: operation.targetProduct.productType,
             dimensions: operation.targetProduct.dimensions,
