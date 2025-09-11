@@ -75,6 +75,11 @@ const ProductDetail: React.FC = () => {
   const [creatingLogo, setCreatingLogo] = useState(false);
   const [editForm] = Form.useForm();
 
+  // Фильтруем движения, исключая резервы (чтобы не путать пользователей)
+  const filteredStockMovements = stockMovements.filter(movement => 
+    movement.movementType !== 'reservation' && movement.movementType !== 'release_reservation'
+  );
+
   // Функции для перевода статусов
   const getOrderStatusText = (status: string) => {
     const statusMap: { [key: string]: string } = {
@@ -1136,7 +1141,7 @@ const ProductDetail: React.FC = () => {
           <Card title="📈 Последние движения остатков" size="small">
             <Table
               columns={movementColumns}
-              dataSource={showAllMovements ? stockMovements : stockMovements.slice(0, 10)}
+              dataSource={showAllMovements ? filteredStockMovements : filteredStockMovements.slice(0, 10)}
               rowKey="id"
               size="small"
               pagination={false}
@@ -1144,23 +1149,23 @@ const ProductDetail: React.FC = () => {
                 emptyText: 'Нет движений по товару'
               }}
             />
-            {stockMovements.length > 10 && !showAllMovements && (
+            {filteredStockMovements.length > 10 && !showAllMovements && (
               <div style={{ textAlign: 'center', marginTop: 16 }}>
                 <Button 
                   size="small"
                   onClick={() => setShowAllMovements(true)}
                 >
-                  Показать все {stockMovements.length} записей
+                  Показать все {filteredStockMovements.length} записей
                 </Button>
               </div>
             )}
-            {showAllMovements && stockMovements.length > 10 && (
+            {showAllMovements && filteredStockMovements.length > 10 && (
               <div style={{ textAlign: 'center', marginTop: 16 }}>
                 <Button 
                   size="small"
                   onClick={() => setShowAllMovements(false)}
                 >
-                  Скрыть ({stockMovements.length - 10} записей)
+                  Скрыть ({filteredStockMovements.length - 10} записей)
                 </Button>
               </div>
             )}

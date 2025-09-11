@@ -2533,7 +2533,7 @@ const ProductionTasks: React.FC = () => {
                       getPopupContainer={(trigger) => trigger.parentElement}
                       allowClear
                       onSelect={(productId) => {
-                        const product = bulkRegisterProducts.find(p => p.id === productId);
+                        const product = bulkRegisterProducts.find(p => p.id === Number(productId));
                         if (product) {
                           const newItems = [...bulkRegisterItems];
                           newItems[index] = { 
