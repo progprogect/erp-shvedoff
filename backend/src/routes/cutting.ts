@@ -301,7 +301,7 @@ router.put('/:id/start', authenticateToken, authorizeRoles('production', 'direct
 router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edit'), async (req: AuthRequest, res, next) => {
   try {
     const operationId = Number(req.params.id);
-    const { actualTargetQuantity, actualDefectQuantity, notes } = req.body;
+    const { actualTargetQuantity, actualSecondGradeQuantity, actualDefectQuantity, notes } = req.body;
     const userId = req.user!.id;
 
     if (actualTargetQuantity === undefined || actualTargetQuantity < 0) {
@@ -371,6 +371,73 @@ router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edi
         });
       }
 
+      // 4. Обрабатываем товар 2-го сорта (если указан)
+      let secondGradeProductId = null;
+      if (actualSecondGradeQuantity && actualSecondGradeQuantity > 0) {
+        // Ищем товар 2-го сорта с теми же параметрами
+        const secondGradeProduct = await tx.query.products.findFirst({
+          where: and(
+            operation.targetProduct.categoryId ? eq(schema.products.categoryId, operation.targetProduct.categoryId) : undefined,
+            eq(schema.products.name, operation.targetProduct.name),
+            eq(schema.products.productType, operation.targetProduct.productType),
+            eq(schema.products.grade, 'grade_2'),
+            eq(schema.products.isActive, true)
+          )
+        });
+
+        if (secondGradeProduct) {
+          // Товар 2-го сорта уже существует
+          secondGradeProductId = secondGradeProduct.id;
+        } else {
+          // Создаем новый товар 2-го сорта
+          const newSecondGradeProduct = await tx.insert(schema.products).values({
+            name: operation.targetProduct.name,
+            article: `${operation.targetProduct.article}-2С`,
+            categoryId: operation.targetProduct.categoryId,
+            productType: operation.targetProduct.productType,
+            dimensions: operation.targetProduct.dimensions,
+            surfaceIds: operation.targetProduct.surfaceIds,
+            logoId: operation.targetProduct.logoId,
+            materialId: operation.targetProduct.materialId,
+            bottomTypeId: operation.targetProduct.bottomTypeId,
+            puzzleTypeId: operation.targetProduct.puzzleTypeId,
+            puzzleSides: operation.targetProduct.puzzleSides,
+            pressType: operation.targetProduct.pressType,
+            carpetEdgeType: operation.targetProduct.carpetEdgeType,
+            carpetEdgeSides: operation.targetProduct.carpetEdgeSides,
+            carpetEdgeStrength: operation.targetProduct.carpetEdgeStrength,
+            matArea: operation.targetProduct.matArea,
+            weight: operation.targetProduct.weight,
+            grade: 'grade_2',
+            borderType: operation.targetProduct.borderType,
+            tags: operation.targetProduct.tags,
+            price: operation.targetProduct.price,
+            normStock: 0,
+            isActive: true,
+            notes: `Автоматически создан при завершении операции резки #${operationId}`
+          }).returning();
+
+          secondGradeProductId = newSecondGradeProduct[0].id;
+
+          // Создаем запись остатков для нового товара
+          await tx.insert(schema.stock).values({
+            productId: secondGradeProductId,
+            currentStock: 0,
+            reservedStock: 0,
+            updatedAt: new Date()
+          });
+        }
+
+        // Добавляем товар 2-го сорта на склад
+        await performStockOperation({
+          productId: secondGradeProductId,
+          type: 'incoming',
+          quantity: Number(actualSecondGradeQuantity),
+          userId,
+          comment: `Поступление 2-го сорта от резки #${operationId}: ${operation.sourceProduct.name} → ${operation.targetProduct.name} (2 сорт)`
+        });
+      }
+
       // Log completion
       await tx.insert(schema.auditLog).values({
         tableName: 'cutting_operations',
@@ -392,7 +459,7 @@ router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edi
       });
 
       // Log stock movements
-      await tx.insert(schema.stockMovements).values([
+      const stockMovements: any[] = [
         {
           productId: operation.sourceProductId,
           movementType: 'cutting_out',
@@ -401,8 +468,12 @@ router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edi
           referenceType: 'cutting',
           comment: `Резка: ${operation.sourceProduct.name} → ${operation.targetProduct.name}`,
           userId
-        },
-        {
+        }
+      ];
+
+      // Добавляем движение для целевого товара
+      if (actualTargetQuantity > 0) {
+        stockMovements.push({
           productId: operation.targetProductId,
           movementType: 'cutting_in',
           quantity: Number(actualTargetQuantity),
@@ -410,18 +481,34 @@ router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edi
           referenceType: 'cutting',
           comment: `Резка: ${operation.sourceProduct.name} → ${operation.targetProduct.name}`,
           userId
-        }
-      ]);
+        });
+      }
+
+      // Добавляем движение для товара 2-го сорта (если есть)
+      if (secondGradeProductId && actualSecondGradeQuantity > 0) {
+        stockMovements.push({
+          productId: secondGradeProductId,
+          movementType: 'cutting_in',
+          quantity: Number(actualSecondGradeQuantity),
+          referenceId: operationId,
+          referenceType: 'cutting',
+          comment: `Резка: ${operation.sourceProduct.name} → ${operation.targetProduct.name} (2 сорт)`,
+          userId
+        });
+      }
+
+      await tx.insert(schema.stockMovements).values(stockMovements);
 
       return updatedOperation;
     });
 
     const defectMessage = actualDefect > 0 ? ` Брак: ${actualDefect} шт.` : '';
+    const secondGradeMessage = actualSecondGradeQuantity > 0 ? ` 2 сорт: ${actualSecondGradeQuantity} шт.` : '';
     
     res.json({
       success: true,
       data: result,
-      message: `Операция резки завершена. Получено: ${actualTargetQuantity} шт.${defectMessage}`
+      message: `Операция резки завершена. Готово: ${actualTargetQuantity} шт.${secondGradeMessage}${defectMessage}`
     });
   } catch (error) {
     next(error);

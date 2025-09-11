@@ -854,20 +854,32 @@ export const CuttingOperations: React.FC = () => {
             >
               <Form.Item
                 name="actualTargetQuantity"
-                label="Фактически получено готового товара"
+                label="Готово (идёт в остатки целевого товара)"
                 rules={[{ required: true, message: 'Укажите фактическое количество' }]}
               >
                 <InputNumber
                   min={0}
                   style={{ width: '100%' }}
-                  placeholder="Фактический выход"
+                  placeholder="Количество готового товара"
+                  size="large"
+                />
+              </Form.Item>
+
+              <Form.Item
+                name="actualSecondGradeQuantity"
+                label="2 сорт (идёт в остатки товара 2-го сорта)"
+              >
+                <InputNumber
+                  min={0}
+                  style={{ width: '100%' }}
+                  placeholder="Количество товара 2-го сорта"
                   size="large"
                 />
               </Form.Item>
 
               <Form.Item
                 name="actualDefectQuantity"
-                label="Фактический брак"
+                label="Брак (списывается)"
               >
                 <InputNumber
                   min={0}

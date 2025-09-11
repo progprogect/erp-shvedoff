@@ -58,6 +58,7 @@ export interface CreateCuttingOperationRequest {
 
 export interface CompleteCuttingOperationRequest {
   actualTargetQuantity: number;
+  actualSecondGradeQuantity?: number;
   actualDefectQuantity?: number;
   notes?: string;
 }
