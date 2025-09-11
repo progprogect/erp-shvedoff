@@ -279,6 +279,7 @@ export const CuttingOperations: React.FC = () => {
       
       const request: CompleteCuttingOperationRequest = {
         actualTargetQuantity: values.actualTargetQuantity,
+        actualSecondGradeQuantity: values.actualSecondGradeQuantity,
         actualDefectQuantity: values.actualDefectQuantity,
         notes: values.notes
       };

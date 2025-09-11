@@ -373,6 +373,7 @@ router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edi
 
       // 4. Обрабатываем товар 2-го сорта (если указан)
       let secondGradeProductId = null;
+      console.log('🔍 Debug: actualSecondGradeQuantity =', actualSecondGradeQuantity);
       if (actualSecondGradeQuantity && actualSecondGradeQuantity > 0) {
         // Ищем товар 2-го сорта с теми же параметрами
         const secondGradeProduct = await tx.query.products.findFirst({
