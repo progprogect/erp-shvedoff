@@ -941,11 +941,7 @@ export const CuttingOperations: React.FC = () => {
               <Descriptions.Item label="Расход материала">{operationDetails.sourceQuantity} шт.</Descriptions.Item>
               <Descriptions.Item label="Выход продукции">{operationDetails.targetQuantity} шт.</Descriptions.Item>
               {operationDetails.actualSecondGradeQuantity && operationDetails.actualSecondGradeQuantity > 0 && (
-                <Descriptions.Item label="Товар 2-го сорта">
-                  <span style={{ color: '#fa8c16', fontWeight: 500 }}>
-                    {operationDetails.actualSecondGradeQuantity} шт.
-                  </span>
-                </Descriptions.Item>
+                <Descriptions.Item label="Товар 2-го сорта">{operationDetails.actualSecondGradeQuantity} шт.</Descriptions.Item>
               )}
               <Descriptions.Item label="Отходы">{operationDetails.wasteQuantity} шт.</Descriptions.Item>
               <Descriptions.Item label="Оператор">
