@@ -1,6 +1,6 @@
 import express from 'express';
 import { db, schema } from '../db';
-import { eq, and, sql, desc, asc, inArray } from 'drizzle-orm';
+import { eq, and, sql, desc, asc, inArray, isNull } from 'drizzle-orm';
 import { authenticateToken, authorizeRoles, AuthRequest } from '../middleware/auth';
 import { requireExportPermission, requirePermission } from '../middleware/permissions';
 import { createError } from '../middleware/errorHandler';
@@ -385,11 +385,61 @@ router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edi
         // Ищем товар 2-го сорта с теми же параметрами
         const secondGradeProduct = await tx.query.products.findFirst({
           where: and(
+            // Основные параметры
             operation.targetProduct.categoryId ? eq(schema.products.categoryId, operation.targetProduct.categoryId) : undefined,
             eq(schema.products.name, operation.targetProduct.name),
             eq(schema.products.productType, operation.targetProduct.productType),
             eq(schema.products.grade, 'grade_2'),
-            eq(schema.products.isActive, true)
+            eq(schema.products.isActive, true),
+            
+            // Размеры (для ковров и рулонных покрытий)
+            operation.targetProduct.dimensions ? eq(schema.products.dimensions, operation.targetProduct.dimensions) : undefined,
+            
+            // Поверхности (массив ID поверхностей)
+            operation.targetProduct.surfaceIds ? eq(schema.products.surfaceIds, operation.targetProduct.surfaceIds) : undefined,
+            
+            // Логотип
+            operation.targetProduct.logoId ? eq(schema.products.logoId, operation.targetProduct.logoId) : 
+            (!operation.targetProduct.logoId ? isNull(schema.products.logoId) : undefined),
+            
+            // Материал
+            operation.targetProduct.materialId ? eq(schema.products.materialId, operation.targetProduct.materialId) : 
+            (!operation.targetProduct.materialId ? isNull(schema.products.materialId) : undefined),
+            
+            // Низ ковра
+            operation.targetProduct.bottomTypeId ? eq(schema.products.bottomTypeId, operation.targetProduct.bottomTypeId) : 
+            (!operation.targetProduct.bottomTypeId ? isNull(schema.products.bottomTypeId) : undefined),
+            
+            // Паззл
+            operation.targetProduct.puzzleTypeId ? eq(schema.products.puzzleTypeId, operation.targetProduct.puzzleTypeId) : 
+            (!operation.targetProduct.puzzleTypeId ? isNull(schema.products.puzzleTypeId) : undefined),
+            
+            operation.targetProduct.puzzleSides ? eq(schema.products.puzzleSides, operation.targetProduct.puzzleSides) : undefined,
+            
+            // Пресс
+            operation.targetProduct.pressType ? eq(schema.products.pressType, operation.targetProduct.pressType) : 
+            (!operation.targetProduct.pressType ? isNull(schema.products.pressType) : undefined),
+            
+            // Края ковра
+            operation.targetProduct.carpetEdgeType ? eq(schema.products.carpetEdgeType, operation.targetProduct.carpetEdgeType) : 
+            (!operation.targetProduct.carpetEdgeType ? isNull(schema.products.carpetEdgeType) : undefined),
+            
+            operation.targetProduct.carpetEdgeSides ? eq(schema.products.carpetEdgeSides, operation.targetProduct.carpetEdgeSides) : undefined,
+            
+            operation.targetProduct.carpetEdgeStrength ? eq(schema.products.carpetEdgeStrength, operation.targetProduct.carpetEdgeStrength) : 
+            (!operation.targetProduct.carpetEdgeStrength ? isNull(schema.products.carpetEdgeStrength) : undefined),
+            
+            // Площадь мата (для рулонных покрытий)
+            operation.targetProduct.matArea ? eq(schema.products.matArea, operation.targetProduct.matArea) : 
+            (!operation.targetProduct.matArea ? isNull(schema.products.matArea) : undefined),
+            
+            // Вес
+            operation.targetProduct.weight ? eq(schema.products.weight, operation.targetProduct.weight) : 
+            (!operation.targetProduct.weight ? isNull(schema.products.weight) : undefined),
+            
+            // Борт
+            operation.targetProduct.borderType ? eq(schema.products.borderType, operation.targetProduct.borderType) : 
+            (!operation.targetProduct.borderType ? isNull(schema.products.borderType) : undefined)
           )
         });
 
