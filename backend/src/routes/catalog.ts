@@ -1244,25 +1244,64 @@ router.post('/regenerate/dry-run', authenticateToken, requirePermission('catalog
           });
         }
 
-        // Подготавливаем данные для генерации артикула (используем ту же логику что и при создании)
-        const productData = {
-          name: product.name,
-          dimensions: product.dimensions as { length?: number; width?: number; thickness?: number },
-          material: product.material ? { name: product.material.name } : undefined,
-          pressType: product.pressType || 'not_selected',
-          logo: product.logo ? { name: product.logo.name } : undefined,
-          surfaces: surfaces ? surfaces.map(s => ({ name: s.name })) : [],
-          borderType: product.borderType || undefined,
-          carpetEdgeType: product.carpetEdgeType || 'straight_cut',
-          carpetEdgeSides: product.carpetEdgeSides || 1,
-          carpetEdgeStrength: product.carpetEdgeStrength || 'normal',
-          puzzleType: product.puzzleType ? { name: product.puzzleType.name } : undefined,
-          bottomType: product.bottomType ? { code: product.bottomType.code } : undefined,
-          grade: product.grade || 'usual'
-        };
+        // Получаем состав рулонного покрытия (только для рулонных покрытий)
+        let composition: any[] = [];
+        if (product.productType === 'roll_covering') {
+          composition = await db.query.rollCoveringComposition.findMany({
+            where: eq(schema.rollCoveringComposition.rollCoveringId, product.id),
+            with: {
+              carpet: {
+                columns: {
+                  id: true,
+                  name: true
+                }
+              }
+            },
+            orderBy: schema.rollCoveringComposition.sortOrder
+          });
+        }
 
-        // Генерируем новый артикул
-        const newArticle = generateArticle(productData);
+        // Генерируем новый артикул в зависимости от типа товара (как в создании)
+        let newArticle = '';
+        
+        if (product.productType === 'roll_covering') {
+          // Для рулонных покрытий используем специальный генератор
+          const { generateRollCoveringArticle } = await import('../utils/articleGenerator');
+          
+          const rollData = {
+            name: product.name,
+            dimensions: product.dimensions as { length?: number; width?: number; thickness?: number },
+            surfaces: surfaces ? surfaces.map(s => ({ name: s.name })) : undefined,
+            logo: product.logo ? { name: product.logo.name } : undefined,
+            bottomType: product.bottomType ? { code: product.bottomType.code } : undefined,
+            composition: composition.map(item => ({
+              carpetId: item.carpetId,
+              quantity: parseFloat(item.quantity.toString()),
+              sortOrder: item.sortOrder
+            }))
+          };
+          
+          newArticle = generateRollCoveringArticle(rollData);
+        } else {
+          // Для ковровых изделий, ПУРов и "другое" используем обычный генератор
+          const productData = {
+            name: product.name,
+            dimensions: product.dimensions as { length?: number; width?: number; thickness?: number },
+            material: product.material ? { name: product.material.name } : undefined,
+            pressType: product.pressType || 'not_selected',
+            logo: product.logo ? { name: product.logo.name } : undefined,
+            surfaces: surfaces ? surfaces.map(s => ({ name: s.name })) : [],
+            borderType: product.borderType || undefined,
+            carpetEdgeType: product.carpetEdgeType || 'straight_cut',
+            carpetEdgeSides: product.carpetEdgeSides || 1,
+            carpetEdgeStrength: product.carpetEdgeStrength || 'normal',
+            puzzleType: product.puzzleType ? { name: product.puzzleType.name } : undefined,
+            bottomType: product.bottomType ? { code: product.bottomType.code } : undefined,
+            grade: product.grade || 'usual'
+          };
+
+          newArticle = generateArticle(productData);
+        }
         
         if (!newArticle || newArticle.trim() === '') {
           results.push({
