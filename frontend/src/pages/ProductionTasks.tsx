@@ -105,29 +105,34 @@ const ProductionTasks: React.FC = () => {
         word-wrap: break-word !important;
         overflow-wrap: break-word !important;
         white-space: normal !important;
-        line-height: 1.3 !important;
-        padding: 8px 12px !important;
-        min-height: 40px !important;
+        line-height: 1.2 !important;
+        padding: 6px 8px !important;
+        min-height: 50px !important;
         display: flex !important;
-        align-items: center !important;
+        align-items: flex-start !important;
         font-family: monospace !important;
-        font-size: 14px !important;
+        font-size: 11px !important;
         font-weight: 500 !important;
         color: #1890ff !important;
+        max-height: 60px !important;
+        overflow: hidden !important;
       }
       .bulk-register-select .ant-select-selection-placeholder {
         word-wrap: break-word !important;
         overflow-wrap: break-word !important;
         white-space: normal !important;
-        line-height: 1.3 !important;
-        padding: 8px 12px !important;
-        min-height: 40px !important;
+        line-height: 1.2 !important;
+        padding: 6px 8px !important;
+        min-height: 50px !important;
         display: flex !important;
-        align-items: center !important;
+        align-items: flex-start !important;
+        font-size: 11px !important;
       }
       .bulk-register-select .ant-select-selector {
-        min-height: 40px !important;
+        min-height: 50px !important;
         padding: 0 !important;
+        max-height: 60px !important;
+        overflow: hidden !important;
       }
     `;
     document.head.appendChild(style);
@@ -2530,7 +2535,7 @@ const ProductionTasks: React.FC = () => {
               </div>
 
               {bulkRegisterItems.map((item, index) => (
-                <div key={item.id} style={{ display: 'flex', padding: '12px', borderBottom: index < bulkRegisterItems.length - 1 ? '1px solid #f0f0f0' : 'none', alignItems: 'flex-start', minHeight: '60px' }}>
+                <div key={item.id} style={{ display: 'flex', padding: '12px', borderBottom: index < bulkRegisterItems.length - 1 ? '1px solid #f0f0f0' : 'none', alignItems: 'flex-start', minHeight: '80px' }}>
                   <div style={{ flex: 3, paddingRight: 8, wordWrap: 'break-word', overflowWrap: 'break-word' }}>
                     <Select
                       showSearch
@@ -2545,28 +2550,28 @@ const ProductionTasks: React.FC = () => {
                       dropdownStyle={{ maxHeight: 400, overflowY: 'auto' }}
                       optionRender={(option) => (
                         <div style={{ 
-                          padding: '8px 12px',
-                          minHeight: '60px',
+                          padding: '6px 8px',
+                          minHeight: '50px',
                           display: 'flex',
                           flexDirection: 'column',
                           justifyContent: 'center'
                         }}>
                           <div style={{ 
-                            fontSize: '14px',
+                            fontSize: '11px',
                             color: '#1890ff',
                             fontFamily: 'monospace',
                             fontWeight: '500',
                             wordWrap: 'break-word',
                             overflowWrap: 'break-word',
                             whiteSpace: 'normal',
-                            lineHeight: '1.3'
+                            lineHeight: '1.2'
                           }}>
                             {option.data.article}
                           </div>
                           <div style={{ 
-                            fontSize: '12px',
+                            fontSize: '10px',
                             color: '#666',
-                            marginTop: '4px',
+                            marginTop: '2px',
                             wordWrap: 'break-word',
                             overflowWrap: 'break-word',
                             whiteSpace: 'normal'
