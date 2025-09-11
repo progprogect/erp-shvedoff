@@ -351,6 +351,7 @@ export class ExcelExporter {
       sourceQuantity: operation.sourceQuantity || 0,
       targetQuantity: operation.targetQuantity || 0,
       wasteQuantity: operation.wasteQuantity || 0,
+      actualSecondGradeQuantity: operation.actualSecondGradeQuantity || 0,
       efficiency: operation.sourceQuantity > 0 ? 
         Math.round((operation.targetQuantity / operation.sourceQuantity) * 100) + '%' : '0%',
       status: this.getCuttingOperationStatusText(operation.status),
@@ -375,6 +376,7 @@ export class ExcelExporter {
       { header: 'Исх. кол-во', key: 'sourceQuantity', width: 12 },
       { header: 'Цел. кол-во', key: 'targetQuantity', width: 12 },
       { header: 'Брак', key: 'wasteQuantity', width: 10 },
+      { header: 'Товар 2-го сорта', key: 'actualSecondGradeQuantity', width: 18 },
       { header: 'Эффективность', key: 'efficiency', width: 15 },
       { header: 'Статус', key: 'status', width: 15 },
       { header: 'Оператор', key: 'operator', width: 20 },
