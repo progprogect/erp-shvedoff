@@ -1236,21 +1236,29 @@ router.post('/regenerate/dry-run', authenticateToken, requirePermission('catalog
 
     for (const product of products) {
       try {
-        // Подготавливаем данные для генерации артикула
+        // Получаем поверхности по surfaceIds (как в создании товара)
+        let surfaces: any[] = [];
+        if (product.surfaceIds && product.surfaceIds.length > 0) {
+          surfaces = await db.query.productSurfaces.findMany({
+            where: inArray(schema.productSurfaces.id, product.surfaceIds)
+          });
+        }
+
+        // Подготавливаем данные для генерации артикула (используем ту же логику что и при создании)
         const productData = {
           name: product.name,
           dimensions: product.dimensions as { length?: number; width?: number; thickness?: number },
           material: product.material ? { name: product.material.name } : undefined,
-          pressType: product.pressType as 'not_selected' | 'ukrainian' | 'chinese',
+          pressType: (product.pressType as 'not_selected' | 'ukrainian' | 'chinese') || 'not_selected',
           logo: product.logo ? { name: product.logo.name } : undefined,
-          surfaces: [], // TODO: Добавить поддержку множественных поверхностей
+          surfaces: surfaces ? surfaces.map(s => ({ name: s.name })) : [],
           borderType: product.borderType as 'with_border' | 'without_border',
-          carpetEdgeType: product.carpetEdgeType || undefined,
-          carpetEdgeSides: product.carpetEdgeSides || undefined,
-          carpetEdgeStrength: product.carpetEdgeStrength || undefined,
+          carpetEdgeType: product.carpetEdgeType || 'straight_cut',
+          carpetEdgeSides: product.carpetEdgeSides || 1,
+          carpetEdgeStrength: product.carpetEdgeStrength || 'normal',
           puzzleType: product.puzzleType ? { name: product.puzzleType.name } : undefined,
           bottomType: product.bottomType ? { code: product.bottomType.code } : undefined,
-          grade: product.grade as 'usual' | 'grade_2' | 'telyatnik' | 'liber'
+          grade: (product.grade as 'usual' | 'grade_2' | 'telyatnik' | 'liber') || 'usual'
         };
 
         // Генерируем новый артикул
