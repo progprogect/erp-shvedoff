@@ -1448,6 +1448,17 @@ const ProductDetail: React.FC = () => {
                 </Select>
               </Form.Item>
             </Col>
+            <Col span={8}>
+              <Form.Item name="bottomTypeId" label="Низ ковра">
+                <Select placeholder="Выберите тип низа" allowClear>
+                  {bottomTypes.map(type => (
+                    <Option key={type.id} value={type.id}>
+                      🔽 {type.name}
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
           </Row>
 
           {/* Поля края ковра */}
