@@ -105,14 +105,29 @@ const ProductionTasks: React.FC = () => {
         word-wrap: break-word !important;
         overflow-wrap: break-word !important;
         white-space: normal !important;
-        line-height: 1.2 !important;
-        padding: 4px 8px !important;
+        line-height: 1.3 !important;
+        padding: 8px 12px !important;
+        min-height: 40px !important;
+        display: flex !important;
+        align-items: center !important;
+        font-family: monospace !important;
+        font-size: 14px !important;
+        font-weight: 500 !important;
+        color: #1890ff !important;
       }
       .bulk-register-select .ant-select-selection-placeholder {
         word-wrap: break-word !important;
         overflow-wrap: break-word !important;
         white-space: normal !important;
-        line-height: 1.2 !important;
+        line-height: 1.3 !important;
+        padding: 8px 12px !important;
+        min-height: 40px !important;
+        display: flex !important;
+        align-items: center !important;
+      }
+      .bulk-register-select .ant-select-selector {
+        min-height: 40px !important;
+        padding: 0 !important;
       }
     `;
     document.head.appendChild(style);
@@ -2515,7 +2530,7 @@ const ProductionTasks: React.FC = () => {
               </div>
 
               {bulkRegisterItems.map((item, index) => (
-                <div key={item.id} style={{ display: 'flex', padding: '8px 12px', borderBottom: index < bulkRegisterItems.length - 1 ? '1px solid #f0f0f0' : 'none', alignItems: 'center' }}>
+                <div key={item.id} style={{ display: 'flex', padding: '12px', borderBottom: index < bulkRegisterItems.length - 1 ? '1px solid #f0f0f0' : 'none', alignItems: 'flex-start', minHeight: '60px' }}>
                   <div style={{ flex: 3, paddingRight: 8, wordWrap: 'break-word', overflowWrap: 'break-word' }}>
                     <Select
                       showSearch
@@ -2528,6 +2543,38 @@ const ProductionTasks: React.FC = () => {
                       style={{ width: '100%' }}
                       size="large"
                       dropdownStyle={{ maxHeight: 400, overflowY: 'auto' }}
+                      optionRender={(option) => (
+                        <div style={{ 
+                          padding: '8px 12px',
+                          minHeight: '60px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'center'
+                        }}>
+                          <div style={{ 
+                            fontSize: '14px',
+                            color: '#1890ff',
+                            fontFamily: 'monospace',
+                            fontWeight: '500',
+                            wordWrap: 'break-word',
+                            overflowWrap: 'break-word',
+                            whiteSpace: 'normal',
+                            lineHeight: '1.3'
+                          }}>
+                            {option.data.article}
+                          </div>
+                          <div style={{ 
+                            fontSize: '12px',
+                            color: '#666',
+                            marginTop: '4px',
+                            wordWrap: 'break-word',
+                            overflowWrap: 'break-word',
+                            whiteSpace: 'normal'
+                          }}>
+                            {option.data.name}
+                          </div>
+                        </div>
+                      )}
                       className="bulk-register-select"
                       optionLabelProp="label"
                       labelInValue={false}
@@ -2562,31 +2609,8 @@ const ProductionTasks: React.FC = () => {
                       {bulkRegisterProducts.map(product => {
                         const label = product.article || product.name;
                         return (
-                          <Option key={product.id} value={product.id} label={label}>
-                            <div style={{ padding: '4px 0' }}>
-                              <div style={{ 
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '2px'
-                              }}>
-                                {product.article && (
-                                  <div style={{
-                                    fontSize: '14px',
-                                    color: '#1890ff',
-                                    fontFamily: 'monospace',
-                                    fontWeight: '500'
-                                  }}>
-                                    {product.article}
-                                  </div>
-                                )}
-                                <div style={{ 
-                                  fontSize: '12px',
-                                  color: '#666'
-                                }}>
-                                  {product.name}
-                                </div>
-                              </div>
-                            </div>
+                          <Option key={product.id} value={product.id} label={label} data={product}>
+                            {product.article}
                           </Option>
                         );
                       })}
