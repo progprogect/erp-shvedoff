@@ -58,6 +58,29 @@ interface Product {
 export const CuttingOperations: React.FC = () => {
   const { user } = useAuthStore();
   const { canCreate } = usePermissions();
+
+  // Добавляем стили для центрирования селектов
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      .centered-select .ant-select-selector {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+      }
+      .centered-select .ant-select-selection-item {
+        text-align: center !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 100% !important;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
   const [operations, setOperations] = useState<CuttingOperation[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -590,6 +613,10 @@ export const CuttingOperations: React.FC = () => {
               style={{ width: '100%' }}
               size="large"
               dropdownStyle={{ maxHeight: 400, overflowY: 'auto' }}
+              optionLabelProp="label"
+              labelInValue={false}
+              getPopupContainer={(trigger) => trigger.parentElement}
+              className="centered-select"
             >
               {products.map(product => {
                 const available = getAvailableStock(product);
@@ -657,6 +684,10 @@ export const CuttingOperations: React.FC = () => {
               style={{ width: '100%' }}
               size="large"
               dropdownStyle={{ maxHeight: 400, overflowY: 'auto' }}
+              optionLabelProp="label"
+              labelInValue={false}
+              getPopupContainer={(trigger) => trigger.parentElement}
+              className="centered-select"
             >
               {getAvailableTargetProducts(createForm.getFieldValue('sourceProductId')).map(product => {
                 const label = product.article || product.name;
