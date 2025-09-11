@@ -1274,11 +1274,11 @@ router.post('/regenerate/dry-run', authenticateToken, requirePermission('catalog
             surfaces: surfaces ? surfaces.map(s => ({ name: s.name })) : undefined,
             logo: product.logo ? { name: product.logo.name } : undefined,
             bottomType: product.bottomType ? { code: product.bottomType.code } : undefined,
-            composition: composition.map(item => ({
+            composition: composition.length > 0 ? composition.map(item => ({
               carpetId: item.carpetId,
               quantity: parseFloat(item.quantity.toString()),
               sortOrder: item.sortOrder
-            }))
+            })) : []
           };
           
           newArticle = generateRollCoveringArticle(rollData);
