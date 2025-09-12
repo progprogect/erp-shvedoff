@@ -101,26 +101,39 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
     const totalReserved = stockInfo?.reservedStock || 0;
     const reservedForThisOrder = orderItem.reserved_quantity || 0;
     const totalInProduction = productionTasksMap.get(orderItem.product_id) || 0;
+    const needed = orderItem.quantity;
     
-    // ИСПРАВЛЕННАЯ ЛОГИКА: доступно для этого заказа = общий остаток - (общий резерв - резерв для этого заказа)
-    const availableForThisOrder = currentStock - (totalReserved - reservedForThisOrder);
+    // Валидация данных: резерв не может превышать потребность
+    if (reservedForThisOrder > needed) {
+      console.warn(`⚠️ Валидация: резерв (${reservedForThisOrder}) превышает потребность (${needed}) для товара ${orderItem.product_id} в заказе ${orderId}`);
+    }
     
-    const shortage = Math.max(0, orderItem.quantity - availableForThisOrder);
-    
+    // КАРДИНАЛЬНО ИСПРАВЛЕННАЯ ЛОГИКА: сравниваем резерв для этого заказа с потребностью
     let itemStatus: 'available' | 'partially_available' | 'needs_production';
+    let shortage: number;
+    let available_quantity: number;
     
-    if (availableForThisOrder >= orderItem.quantity) {
+    if (reservedForThisOrder >= needed) {
+      // Полностью зарезервировано или избыточный резерв
       itemStatus = 'available';
-    } else if (availableForThisOrder > 0) {
-      itemStatus = 'partially_available';
-    } else {
+      shortage = 0;
+      available_quantity = needed; // Показываем только нужное количество
+    } else if (reservedForThisOrder > 0) {
+      // Частично зарезервировано
       itemStatus = 'needs_production';
+      shortage = needed - reservedForThisOrder;
+      available_quantity = reservedForThisOrder;
+    } else {
+      // Не зарезервировано
+      itemStatus = 'needs_production';
+      shortage = needed;
+      available_quantity = 0;
     }
 
     return {
       product_id: orderItem.product_id,
-      required_quantity: orderItem.quantity,
-      available_quantity: Math.max(0, availableForThisOrder),
+      required_quantity: needed,
+      available_quantity,
       in_production_quantity: totalInProduction,
       shortage,
       status: itemStatus
@@ -191,7 +204,29 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
  * Обновляет статус заказа на основе анализа доступности
  */
 export async function updateOrderStatus(orderId: number): Promise<OrderStatus> {
+  // Получаем текущий статус для сравнения
+  const currentOrder = await db.query.orders.findFirst({
+    where: eq(orders.id, orderId),
+    columns: { status: true, orderNumber: true }
+  });
+  
+  const currentStatus = currentOrder?.status || 'new';
+  const orderNumber = currentOrder?.orderNumber || `#${orderId}`;
+  
   const analysis = await analyzeOrderAvailability(orderId);
+  
+  // Логируем изменение статуса
+  if (currentStatus !== analysis.status) {
+    console.log(`📊 Статус заказа ${orderNumber} изменен: ${getStatusLabel(currentStatus)} → ${getStatusLabel(analysis.status)}`);
+    console.log(`   📦 Товары: ${analysis.available_items} доступны, ${analysis.needs_production_items} требуют производства`);
+    
+    // Детальное логирование по товарам
+    analysis.items.forEach(item => {
+      const statusText = item.status === 'available' ? 'доступен' : 
+                       item.status === 'needs_production' ? 'требует производства' : 'частично доступен';
+      console.log(`   🎯 Товар ${item.product_id}: ${item.required_quantity} нужно, ${item.available_quantity} доступно, ${item.shortage} дефицит - ${statusText}`);
+    });
+  }
   
   // Обновляем статус в базе данных используя правильный синтаксис Drizzle ORM
   await db
@@ -200,6 +235,21 @@ export async function updateOrderStatus(orderId: number): Promise<OrderStatus> {
     .where(eq(orders.id, orderId));
 
   return analysis.status;
+}
+
+/**
+ * Получить русское название статуса для логирования
+ */
+function getStatusLabel(status: OrderStatus): string {
+  const labels: Record<OrderStatus, string> = {
+    'new': 'Новый',
+    'confirmed': 'Подтвержден',
+    'in_production': 'В производстве',
+    'ready': 'Готов к отгрузке',
+    'completed': 'Выполнен',
+    'cancelled': 'Отменен'
+  };
+  return labels[status] || status;
 }
 
 /**
