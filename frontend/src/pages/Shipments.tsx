@@ -827,17 +827,6 @@ export const Shipments: React.FC = () => {
               <Descriptions.Item label="Дата создания">
                 {shipmentsApi.formatDateTime(selectedShipment.createdAt)}
               </Descriptions.Item>
-              <Descriptions.Item label="Фото документов">
-                {selectedShipment.documentsPhotos && selectedShipment.documentsPhotos.length > 0 ? (
-                  <div>
-                    {selectedShipment.documentsPhotos.map((photo, index) => (
-                      <Image key={index} src={photo} width={60} height={60} style={{ marginRight: '8px' }} />
-                    ))}
-                  </div>
-                ) : (
-                  'Нет фото'
-                )}
-              </Descriptions.Item>
             </Descriptions>
 
             {/* Связанные заказы */}
@@ -895,27 +884,40 @@ export const Shipments: React.FC = () => {
                   size="small"
                   columns={[
                     {
-                      title: 'Товар',
+                      title: 'Артикул',
+                      key: 'article',
+                      width: 120,
+                      render: (record: any) => {
+                        if (record.product.article) {
+                          return (
+                            <a 
+                              href={`/catalog/products/${record.product.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ color: '#1890ff', textDecoration: 'underline' }}
+                            >
+                              {record.product.article}
+                            </a>
+                          );
+                        }
+                        return <span style={{ color: '#999' }}>—</span>;
+                      },
+                    },
+                    {
+                      title: 'Название',
                       key: 'product',
                       render: (record: any) => (
                         <div>
                           <div>{record.product.name}</div>
-                          {record.product.article && <div style={{ fontSize: '12px', color: '#666' }}>
-                            {record.product.article}
-                          </div>}
                         </div>
                       ),
                     },
                     {
-                      title: 'Планируемое кол-во',
+                      title: 'Количество',
                       dataIndex: 'plannedQuantity',
                       key: 'plannedQuantity',
-                    },
-                    {
-                      title: 'Фактическое кол-во',
-                      dataIndex: 'actualQuantity',
-                      key: 'actualQuantity',
-                      render: (quantity: number) => quantity !== null && quantity !== undefined ? quantity : '-'
+                      width: 100,
+                      render: (quantity: number) => `${quantity} шт.`
                     }
                   ]}
                 />
