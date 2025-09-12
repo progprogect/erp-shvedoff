@@ -54,7 +54,6 @@ export interface ShipmentItem {
 export interface Shipment {
   id: number;
   shipmentNumber: string;
-  orderId?: number;
   plannedDate?: string;
   actualDate?: string;
   transportInfo?: string;
@@ -62,13 +61,19 @@ export interface Shipment {
   documentsPhotos?: string[];
   createdBy: number;
   createdAt: string;
-  order?: Order;
   createdByUser?: {
     id: number;
     username: string;
     fullName?: string;
   };
   items?: ShipmentItem[];
+  orders?: Array<{
+    id: number;
+    shipmentId: number;
+    orderId: number;
+    createdAt: string;
+    order: Order;
+  }>;
   relatedOrders?: Order[];
 }
 

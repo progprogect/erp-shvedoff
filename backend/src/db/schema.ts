@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, text, integer, decimal, timestamp, boolean, jsonb, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, text, integer, decimal, timestamp, boolean, jsonb, pgEnum, unique, index } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // Enums
@@ -314,7 +314,6 @@ export const cuttingOperations = pgTable('cutting_operations', {
 export const shipments = pgTable('shipments', {
   id: serial('id').primaryKey(),
   shipmentNumber: varchar('shipment_number', { length: 50 }).notNull().unique(),
-  orderId: integer('order_id').references(() => orders.id),
   plannedDate: timestamp('planned_date'),
   actualDate: timestamp('actual_date'),
   transportInfo: text('transport_info'),
@@ -334,6 +333,21 @@ export const shipmentItems = pgTable('shipment_items', {
   actualQuantity: integer('actual_quantity'),
   createdAt: timestamp('created_at').defaultNow()
 });
+
+// Shipment orders - many-to-many связь между отгрузками и заказами
+export const shipmentOrders = pgTable('shipment_orders', {
+  id: serial('id').primaryKey(),
+  shipmentId: integer('shipment_id').notNull().references(() => shipments.id, { onDelete: 'cascade' }),
+  orderId: integer('order_id').notNull().references(() => orders.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow()
+}, (table) => ({
+  // Уникальная комбинация shipment_id + order_id
+  uniqueShipmentOrder: unique('unique_shipment_order').on(table.shipmentId, table.orderId),
+  // Индексы для производительности
+  shipmentIdIdx: index('idx_shipment_orders_shipment_id').on(table.shipmentId),
+  orderIdIdx: index('idx_shipment_orders_order_id').on(table.orderId),
+  compositeIdx: index('idx_shipment_orders_composite').on(table.shipmentId, table.orderId)
+}));
 
 // Defect products - FR-007
 export const defectProducts = pgTable('defect_products', {
@@ -487,7 +501,7 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
   manager: one(users, { fields: [orders.managerId], references: [users.id] }),
   items: many(orderItems, { relationName: 'orderItems' }),
   messages: many(orderMessages, { relationName: 'orderMessages' }),
-  shipments: many(shipments),
+  shipments: many(shipmentOrders),
   productionQueue: many(productionQueue),
   productionTasks: many(productionTasks)
 }));
@@ -542,14 +556,20 @@ export const cuttingOperationsRelations = relations(cuttingOperations, ({ one })
 
 // Relations для отгрузок
 export const shipmentsRelations = relations(shipments, ({ one, many }) => ({
-  order: one(orders, { fields: [shipments.orderId], references: [orders.id] }),
   createdByUser: one(users, { fields: [shipments.createdBy], references: [users.id] }),
-  items: many(shipmentItems)
+  items: many(shipmentItems),
+  orders: many(shipmentOrders)
 }));
 
 export const shipmentItemsRelations = relations(shipmentItems, ({ one }) => ({
   shipment: one(shipments, { fields: [shipmentItems.shipmentId], references: [shipments.id] }),
   product: one(products, { fields: [shipmentItems.productId], references: [products.id] })
+}));
+
+// Relations для связи отгрузок и заказов
+export const shipmentOrdersRelations = relations(shipmentOrders, ({ one }) => ({
+  shipment: one(shipments, { fields: [shipmentOrders.shipmentId], references: [shipments.id] }),
+  order: one(orders, { fields: [shipmentOrders.orderId], references: [orders.id] })
 }));
 
 // Relations для системы разрешений

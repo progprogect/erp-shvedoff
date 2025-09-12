@@ -28,11 +28,15 @@ async function checkAndArchiveOrder(tx: any, orderId: number, userId: number) {
       return; // Заказ уже завершен или не найден
     }
 
-    // Получаем все завершенные отгрузки для этого заказа
+    // Получаем все завершенные отгрузки для этого заказа через shipment_orders
     const completedShipments = await tx.query.shipments.findMany({
       where: and(
-        eq(schema.shipments.orderId, orderId),
-        eq(schema.shipments.status, 'completed')
+        eq(schema.shipments.status, 'completed'),
+        sql`EXISTS (
+          SELECT 1 FROM shipment_orders so 
+          WHERE so.shipment_id = ${schema.shipments.id} 
+          AND so.order_id = ${orderId}
+        )`
       ),
       with: {
         items: {
@@ -115,22 +119,6 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
     const shipments = await db.query.shipments.findMany({
       where: whereConditions.length > 0 ? and(...whereConditions) : undefined,
       with: {
-        order: {
-          with: {
-            manager: {
-              columns: {
-                id: true,
-                username: true,
-                fullName: true
-              }
-            },
-            items: {
-              with: {
-                product: true
-              }
-            }
-          }
-        },
         createdByUser: {
           columns: {
             id: true,
@@ -141,6 +129,26 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
         items: {
           with: {
             product: true
+          }
+        },
+        orders: {
+          with: {
+            order: {
+              with: {
+                manager: {
+                  columns: {
+                    id: true,
+                    username: true,
+                    fullName: true
+                  }
+                },
+                items: {
+                  with: {
+                    product: true
+                  }
+                }
+              }
+            }
           }
         }
       },
@@ -188,18 +196,15 @@ router.get('/ready-orders', authenticateToken, authorizeRoles('manager', 'direct
 
     // Проверяем, какие заказы уже включены в активные отгрузки
     const activeShipmentOrders = await db
-      .select({ orderId: schema.shipments.orderId })
-      .from(schema.shipments)
+      .select({ orderId: schema.shipmentOrders.orderId })
+      .from(schema.shipmentOrders)
+      .innerJoin(schema.shipments, eq(schema.shipmentOrders.shipmentId, schema.shipments.id))
       .where(
-        and(
-          inArray(schema.shipments.status, ['pending', 'paused']),
-          sql`${schema.shipments.orderId} IS NOT NULL`
-        )
+        inArray(schema.shipments.status, ['pending', 'paused'])
       );
 
     const excludeOrderIds = activeShipmentOrders
-      .map(item => item.orderId)
-      .filter(id => id !== null) as number[];
+      .map(item => item.orderId);
 
     // Фильтруем заказы, исключая уже включенные в активные отгрузки
     const availableOrders = readyOrders.filter(order => 
@@ -263,6 +268,30 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director', 'wareh
       ));
     }
 
+    // Проверяем, что заказы не привязаны к другим активным отгрузкам
+    const activeShipmentOrders = await db
+      .select({ 
+        orderId: schema.shipmentOrders.orderId,
+        shipmentNumber: schema.shipments.shipmentNumber
+      })
+      .from(schema.shipmentOrders)
+      .innerJoin(schema.shipments, eq(schema.shipmentOrders.shipmentId, schema.shipments.id))
+      .where(
+        and(
+          inArray(schema.shipmentOrders.orderId, validOrderIds),
+          inArray(schema.shipments.status, ['pending', 'paused'])
+        )
+      );
+
+    if (activeShipmentOrders.length > 0) {
+      const conflictingOrders = activeShipmentOrders.map(so => so.orderId);
+      const conflictingShipments = activeShipmentOrders.map(so => so.shipmentNumber);
+      return next(createError(
+        `Заказы уже привязаны к активным отгрузкам: ${conflictingOrders.join(', ')}. Отгрузки: ${conflictingShipments.join(', ')}`, 
+        400
+      ));
+    }
+
     // Генерируем номер отгрузки
     const shipmentCountResult = await db.select({ count: sql`count(*)` }).from(schema.shipments);
     const shipmentCount = Number(shipmentCountResult[0]?.count || 0);
@@ -271,15 +300,24 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director', 'wareh
 
     // Создаем отгрузку в транзакции
     const result = await db.transaction(async (tx) => {
-      // Для множественных заказов создаем одну отгрузку
+      // Создаем отгрузку
       const [newShipment] = await tx.insert(schema.shipments).values({
         shipmentNumber,
-        orderId: validOrderIds.length === 1 ? validOrderIds[0] : null, // Для одного заказа указываем orderId
         plannedDate: plannedDate ? new Date(plannedDate) : null,
         transportInfo,
         status: 'pending',
         createdBy: userId
       }).returning();
+
+      // Создаем связи между отгрузкой и заказами
+      const shipmentOrderLinks = validOrderIds.map(orderId => ({
+        shipmentId: newShipment.id,
+        orderId: orderId
+      }));
+      
+      if (shipmentOrderLinks.length > 0) {
+        await tx.insert(schema.shipmentOrders).values(shipmentOrderLinks);
+      }
 
       // Создаем элементы отгрузки для всех товаров из всех заказов
       const shipmentItems = [];
@@ -310,12 +348,10 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director', 'wareh
         await tx.insert(schema.shipmentItems).values(shipmentItems);
       }
 
-      // Если это одиночная отгрузка, обновляем статус заказа
-      if (validOrderIds.length === 1) {
-        const orderId = validOrderIds[0]; // уже валидирован выше
-        
+      // Обновляем статус заказов - они остаются ready до фактической отгрузки
+      for (const orderId of validOrderIds) {
         await tx.update(schema.orders)
-          .set({ status: 'ready' }) // Остается ready до фактической отгрузки
+          .set({ status: 'ready' })
           .where(eq(schema.orders.id, orderId));
       }
 
@@ -429,22 +465,6 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
     const shipment = await db.query.shipments.findFirst({
       where: eq(schema.shipments.id, shipmentId),
       with: {
-        order: {
-          with: {
-            manager: {
-              columns: {
-                id: true,
-                username: true,
-                fullName: true
-              }
-            },
-            items: {
-              with: {
-                product: true
-              }
-            }
-          }
-        },
         createdByUser: {
           columns: {
             id: true,
@@ -456,6 +476,26 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
           with: {
             product: true
           }
+        },
+        orders: {
+          with: {
+            order: {
+              with: {
+                manager: {
+                  columns: {
+                    id: true,
+                    username: true,
+                    fullName: true
+                  }
+                },
+                items: {
+                  with: {
+                    product: true
+                  }
+                }
+              }
+            }
+          }
         }
       }
     });
@@ -464,37 +504,8 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
       return next(createError('Отгрузка не найдена', 404));
     }
 
-    // Если отгрузка связана с одним заказом, получаем заказы по другому принципу
-    let relatedOrders: any[] = [];
-    if (shipment.order) {
-      relatedOrders = [shipment.order];
-    } else {
-      // Для множественных отгрузок получаем все связанные заказы через shipment items
-      const productIds = shipment.items?.map(item => item.productId) || [];
-      if (productIds.length > 0) {
-        relatedOrders = await db.query.orders.findMany({
-          where: sql`${schema.orders.status} = 'ready' AND ${schema.orders.id} IN (
-            SELECT DISTINCT oi.order_id 
-            FROM order_items oi 
-            WHERE oi.product_id IN (${productIds.join(',')})
-          )`,
-          with: {
-            manager: {
-              columns: {
-                id: true,
-                username: true,
-                fullName: true
-              }
-            },
-            items: {
-              with: {
-                product: true
-              }
-            }
-          }
-        });
-      }
-    }
+    // Получаем связанные заказы через shipment_orders
+    const relatedOrders = shipment.orders?.map(so => so.order) || [];
 
     res.json({
       success: true,
@@ -605,8 +616,13 @@ router.put('/:id/status', authenticateToken, async (req: AuthRequest, res, next)
          }
 
         // Умная логика архивации заказов (WBS 2 - Adjustments Задача 5.1)
-        if (shipment.orderId) {
-          await checkAndArchiveOrder(tx, shipment.orderId, userId);
+        // Получаем все заказы, связанные с этой отгрузкой
+        const shipmentOrderLinks = await tx.query.shipmentOrders.findMany({
+          where: eq(schema.shipmentOrders.shipmentId, shipmentId)
+        });
+        
+        for (const link of shipmentOrderLinks) {
+          await checkAndArchiveOrder(tx, link.orderId, userId);
         }
       }
 
@@ -707,10 +723,7 @@ router.delete('/:id', authenticateToken, authorizeRoles('manager', 'director', '
     const userId = req.user!.id;
 
     const shipment = await db.query.shipments.findFirst({
-      where: eq(schema.shipments.id, shipmentId),
-      with: {
-        order: true
-      }
+      where: eq(schema.shipments.id, shipmentId)
     });
 
     if (!shipment) {
@@ -731,14 +744,18 @@ router.delete('/:id', authenticateToken, authorizeRoles('manager', 'director', '
         .where(eq(schema.shipments.id, shipmentId))
         .returning();
 
-             // Если отгрузка была связана с заказом, возвращаем заказ в статус ready
-       if (shipment.orderId && shipment.order && shipment.order.status === 'ready') {
+             // Возвращаем все связанные заказы в статус ready
+       const shipmentOrderLinks = await tx.query.shipmentOrders.findMany({
+         where: eq(schema.shipmentOrders.shipmentId, shipmentId)
+       });
+       
+       for (const link of shipmentOrderLinks) {
          await tx.update(schema.orders)
            .set({
              status: 'ready',
              updatedAt: new Date()
            })
-           .where(eq(schema.orders.id, shipment.orderId));
+           .where(eq(schema.orders.id, link.orderId));
        }
 
       // Логируем отмену

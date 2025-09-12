@@ -334,23 +334,40 @@ export const Shipments: React.FC = () => {
       title: 'Заказ/Клиент',
       key: 'order',
       width: 200,
-      render: (record: Shipment) => (
-        <div>
-          {record.order ? (
-            <>
-              <div style={{ fontWeight: 'bold' }}>{record.order.orderNumber}</div>
-              <div style={{ fontSize: '12px', color: '#666' }}>{record.order.customerName}</div>
-            </>
-          ) : (
-            <>
-              <div style={{ fontStyle: 'italic' }}>Сборная отгрузка</div>
-              <div style={{ fontSize: '12px', color: '#666' }}>
-                {record.relatedOrders?.length || 0} заказов
-              </div>
-            </>
-          )}
-        </div>
-      )
+      render: (record: Shipment) => {
+        const orders = record.orders?.map(so => so.order) || record.relatedOrders || [];
+        
+        if (orders.length === 0) {
+          return (
+            <div>
+              <div style={{ fontStyle: 'italic', color: '#999' }}>Нет заказов</div>
+            </div>
+          );
+        }
+        
+        if (orders.length === 1) {
+          const order = orders[0];
+          return (
+            <div>
+              <div style={{ fontWeight: 'bold' }}>{order.orderNumber}</div>
+              <div style={{ fontSize: '12px', color: '#666' }}>{order.customerName}</div>
+            </div>
+          );
+        }
+        
+        return (
+          <div>
+            <div style={{ fontStyle: 'italic' }}>Сборная отгрузка</div>
+            <div style={{ fontSize: '12px', color: '#666' }}>
+              {orders.length} заказов
+            </div>
+            <div style={{ fontSize: '11px', color: '#999' }}>
+              {orders.slice(0, 2).map(o => o.orderNumber).join(', ')}
+              {orders.length > 2 && ` +${orders.length - 2}`}
+            </div>
+          </div>
+        );
+      }
     },
     {
       title: 'Товары',
@@ -824,14 +841,16 @@ export const Shipments: React.FC = () => {
             </Descriptions>
 
             {/* Связанные заказы */}
-            {(selectedShipment.order || (selectedShipment.relatedOrders && selectedShipment.relatedOrders.length > 0)) && (
-              <>
-                <Divider>Связанные заказы</Divider>
-                <Table
-                  dataSource={selectedShipment.order ? [selectedShipment.order] : selectedShipment.relatedOrders}
-                  rowKey="id"
-                  pagination={false}
-                  size="small"
+            {(() => {
+              const orders = selectedShipment.orders?.map(so => so.order) || selectedShipment.relatedOrders || [];
+              return orders.length > 0 && (
+                <>
+                  <Divider>Связанные заказы</Divider>
+                  <Table
+                    dataSource={orders}
+                    rowKey="id"
+                    pagination={false}
+                    size="small"
                   columns={[
                     {
                       title: 'Номер заказа',
@@ -861,8 +880,9 @@ export const Shipments: React.FC = () => {
                     }
                   ]}
                 />
-              </>
-            )}
+                </>
+              );
+            })()}
 
             {/* Товары в отгрузке */}
             {selectedShipment.items && selectedShipment.items.length > 0 && (
