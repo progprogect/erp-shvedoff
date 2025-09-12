@@ -278,6 +278,11 @@ class ShipmentsApiService {
     return validStatuses.includes(newStatus);
   }
 
+  // Получить русское название статуса
+  getStatusLabel(status: string): string {
+    return SHIPMENT_STATUS_LABELS[status as keyof typeof SHIPMENT_STATUS_LABELS] || status;
+  }
+
   // Расчет общего веса/объема отгрузки
   calculateShipmentSummary(shipment: Shipment): {
     totalItems: number;
