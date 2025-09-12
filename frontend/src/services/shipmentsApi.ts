@@ -12,6 +12,7 @@ export interface Order {
   orderNumber: string;
   customerName: string;
   customerContact?: string;
+  contractNumber?: string; // Номер договора
   status: string;
   priority: string;
   deliveryDate?: string;
