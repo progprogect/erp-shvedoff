@@ -21,3 +21,4 @@ ORDER BY e.enumsortorder;
 \echo '=== ENUM ОБНОВЛЕН ==='
 
 
+

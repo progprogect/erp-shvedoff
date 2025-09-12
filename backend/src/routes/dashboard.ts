@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db';
-import { orders, orderItems, stock, products, shipments, users } from '../db/schema';
+import { orders, orderItems, stock, products, shipments, users, shipmentOrders } from '../db/schema';
 import { eq, desc, gte, sql, and } from 'drizzle-orm';
 import { authenticateToken } from '../middleware/auth';
 import { createError } from '../middleware/errorHandler';
@@ -92,7 +92,8 @@ router.get('/', authenticateToken, async (req, res, next) => {
         customerName: orders.customerName
       })
       .from(shipments)
-      .leftJoin(orders, eq(shipments.orderId, orders.id))
+      .leftJoin(shipmentOrders, eq(shipments.id, shipmentOrders.shipmentId))
+      .leftJoin(orders, eq(shipmentOrders.orderId, orders.id))
       .where(
         gte(shipments.createdAt, today)
       )

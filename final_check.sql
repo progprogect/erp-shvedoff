@@ -22,3 +22,4 @@ WHERE tablename = 'roll_covering_composition';
 \echo '=== ПРОВЕРКА ЗАВЕРШЕНА ==='
 
 
+

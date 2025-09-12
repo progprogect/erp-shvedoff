@@ -238,3 +238,4 @@ GROUP BY p.product_type;
 *Инструкция по доступу: `RAILWAY_DB_ACCESS_GUIDE.md`*
 
 
+

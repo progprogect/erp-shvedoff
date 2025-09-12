@@ -533,7 +533,26 @@ router.put('/:id/status', authenticateToken, async (req: AuthRequest, res, next)
     const shipment = await db.query.shipments.findFirst({
       where: eq(schema.shipments.id, shipmentId),
       with: {
-        order: true,
+        orders: {
+          with: {
+            order: {
+              with: {
+                manager: {
+                  columns: {
+                    id: true,
+                    username: true,
+                    fullName: true
+                  }
+                },
+                items: {
+                  with: {
+                    product: true
+                  }
+                }
+              }
+            }
+          }
+        },
         items: {
           with: {
             product: true
@@ -816,7 +835,26 @@ router.post('/export', authenticateToken, requireExportPermission('shipments'), 
     const shipments = await db.query.shipments.findMany({
       where: whereConditions.length > 0 ? and(...whereConditions) : undefined,
       with: {
-        order: true,
+        orders: {
+          with: {
+            order: {
+              with: {
+                manager: {
+                  columns: {
+                    id: true,
+                    username: true,
+                    fullName: true
+                  }
+                },
+                items: {
+                  with: {
+                    product: true
+                  }
+                }
+              }
+            }
+          }
+        },
         createdByUser: true,
         items: {
           with: {
