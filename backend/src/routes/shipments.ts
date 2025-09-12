@@ -168,6 +168,47 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
   }
 });
 
+// GET /api/shipments/open - Get open shipments (pending, paused)
+router.get('/open', authenticateToken, authorizeRoles('manager', 'director', 'warehouse'), async (req: AuthRequest, res, next) => {
+  try {
+    const openShipments = await db.query.shipments.findMany({
+      where: inArray(schema.shipments.status, ['pending', 'paused']),
+      with: {
+        orders: {
+          with: {
+            order: {
+              with: {
+                manager: {
+                  columns: {
+                    id: true,
+                    username: true,
+                    fullName: true
+                  }
+                }
+              }
+            }
+          }
+        },
+        createdByUser: {
+          columns: {
+            id: true,
+            username: true,
+            fullName: true
+          }
+        }
+      },
+      orderBy: sql`${schema.shipments.createdAt} DESC`
+    });
+
+    res.json({
+      success: true,
+      data: openShipments
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/shipments/ready-orders - Get orders ready for shipment
 router.get('/ready-orders', authenticateToken, authorizeRoles('manager', 'director', 'warehouse'), async (req: AuthRequest, res, next) => {
   try {

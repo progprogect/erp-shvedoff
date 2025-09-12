@@ -10,7 +10,7 @@ import {
   ArrowLeftOutlined, EditOutlined, MessageOutlined, UserOutlined,
   ShoppingCartOutlined, CalendarOutlined, PhoneOutlined, DollarOutlined,
   CheckCircleOutlined, ExclamationCircleOutlined, ClockCircleOutlined,
-  DeleteOutlined, PlusOutlined, SettingOutlined
+  DeleteOutlined, PlusOutlined, SettingOutlined, TruckOutlined
 } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
@@ -18,6 +18,7 @@ import usePermissions from '../hooks/usePermissions';
 import { handleFormError } from '../utils/errorUtils';
 import { ordersApi, Order, OrderItem, OrderMessage } from '../services/ordersApi';
 import { catalogApi, Product } from '../services/catalogApi';
+import shipmentsApi from '../services/shipmentsApi';
 import dayjs from 'dayjs';
 
 const { Title, Text, Paragraph } = Typography;
@@ -55,6 +56,9 @@ const OrderDetail: React.FC = () => {
   const [messageModalVisible, setMessageModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [productModalVisible, setProductModalVisible] = useState(false);
+  const [planShipmentModalVisible, setPlanShipmentModalVisible] = useState(false);
+  const [openShipments, setOpenShipments] = useState<any[]>([]);
+  const [loadingOpenShipments, setLoadingOpenShipments] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   
   const [statusForm] = Form.useForm();
@@ -126,6 +130,87 @@ const OrderDetail: React.FC = () => {
     } catch (error) {
       console.error('Ошибка загрузки пользователей:', error);
     }
+  };
+
+  const loadOpenShipments = async () => {
+    if (!token) return;
+    
+    setLoadingOpenShipments(true);
+    try {
+      const shipments = await shipmentsApi.getOpenShipments();
+      setOpenShipments(shipments);
+    } catch (error) {
+      console.error('Ошибка загрузки открытых отгрузок:', error);
+      message.error('Ошибка загрузки открытых отгрузок');
+    } finally {
+      setLoadingOpenShipments(false);
+    }
+  };
+
+  const addOrderToShipment = async (shipmentId: number) => {
+    if (!order || !token) return;
+    
+    try {
+      // Получаем текущую отгрузку
+      const shipment = await shipmentsApi.getShipment(shipmentId);
+      
+      // Добавляем заказ к существующим заказам
+      const updatedOrderIds = [
+        ...(shipment.orders?.map(so => so.orderId) || []),
+        order.id
+      ];
+      
+      // Обновляем отгрузку
+      await shipmentsApi.updateShipment(shipmentId, {
+        orderIds: updatedOrderIds
+      });
+      
+      message.success(`Заказ ${order.orderNumber} добавлен в отгрузку ${shipment.shipmentNumber}`);
+      setPlanShipmentModalVisible(false);
+      
+      // Переходим к редактированию отгрузки
+      navigate(`/shipments/${shipmentId}`);
+      
+    } catch (error) {
+      console.error('Ошибка добавления заказа в отгрузку:', error);
+      message.error('Ошибка добавления заказа в отгрузку');
+    }
+  };
+
+  const showShipmentSelectionModal = () => {
+    modal.confirm({
+      title: 'Выберите отгрузку',
+      content: (
+        <div>
+          <p>Выберите отгрузку, в которую добавить заказ <strong>{order?.orderNumber}</strong>:</p>
+          <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+            {openShipments.map(shipment => (
+              <Card 
+                key={shipment.id} 
+                size="small" 
+                style={{ marginBottom: '8px', cursor: 'pointer' }}
+                onClick={() => addOrderToShipment(shipment.id)}
+              >
+                <div>
+                  <Text strong>{shipment.shipmentNumber}</Text>
+                  <br />
+                  <Text type="secondary">
+                    Статус: {shipmentsApi.getStatusLabel(shipment.status)} | 
+                    Заказов: {shipment.orders?.length || 0} | 
+                    Создана: {dayjs(shipment.createdAt).format('DD.MM.YYYY')}
+                  </Text>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      ),
+      onOk: () => {},
+      onCancel: () => {},
+      okText: 'Отмена',
+      cancelText: 'Закрыть',
+      width: 500
+    });
   };
 
   // Handle status change
@@ -653,6 +738,15 @@ const OrderDetail: React.FC = () => {
                     Удалить заказ
                   </Button>
                 )}
+                {order?.status === 'ready' && shipmentsApi.canCreate(user?.role || '') && (
+                  <Button 
+                    type="primary"
+                    icon={<TruckOutlined />}
+                    onClick={() => setPlanShipmentModalVisible(true)}
+                  >
+                    Запланировать отгрузку
+                  </Button>
+                )}
               </Space>
             </Col>
           </Row>
@@ -1066,6 +1160,56 @@ const OrderDetail: React.FC = () => {
               </Row>
             </Card>
           ))}
+        </div>
+      </Modal>
+
+      {/* Модальное окно планирования отгрузки */}
+      <Modal
+        title="Запланировать отгрузку"
+        open={planShipmentModalVisible}
+        onCancel={() => setPlanShipmentModalVisible(false)}
+        footer={null}
+        width={500}
+      >
+        <div style={{ textAlign: 'center', padding: '20px 0' }}>
+          <TruckOutlined style={{ fontSize: '48px', color: '#1890ff', marginBottom: '16px' }} />
+          <Title level={4}>Выберите способ планирования отгрузки</Title>
+          <Paragraph type="secondary">
+            Заказ <Text strong>{order?.orderNumber}</Text> будет добавлен в отгрузку
+          </Paragraph>
+          
+          <Space direction="vertical" size="large" style={{ width: '100%', marginTop: '24px' }}>
+            <Button 
+              type="primary" 
+              size="large"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setPlanShipmentModalVisible(false);
+                // Переходим на страницу создания отгрузки с предвыбранным заказом
+                navigate(`/shipments?create=true&orderId=${order?.id}`);
+              }}
+              style={{ width: '100%', height: '50px' }}
+            >
+              Создать новую отгрузку
+            </Button>
+            
+            <Button 
+              size="large"
+              icon={<EditOutlined />}
+              onClick={async () => {
+                await loadOpenShipments();
+                if (openShipments.length === 0) {
+                  message.info('Нет открытых отгрузок для добавления заказа');
+                  return;
+                }
+                // Показать список отгрузок
+                showShipmentSelectionModal();
+              }}
+              style={{ width: '100%', height: '50px' }}
+            >
+              Добавить в существующую отгрузку
+            </Button>
+          </Space>
         </div>
       </Modal>
     </div>

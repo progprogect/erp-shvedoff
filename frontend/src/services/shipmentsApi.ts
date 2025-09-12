@@ -114,6 +114,14 @@ class ShipmentsApiService {
     return token ? { Authorization: `Bearer ${token}` } : {};
   }
 
+  // Получить открытые отгрузки (pending, paused)
+  async getOpenShipments(): Promise<Shipment[]> {
+    const response = await axios.get(`${API_BASE_URL}/shipments/open`, {
+      headers: this.getAuthHeaders()
+    });
+    return response.data.data;
+  }
+
   // Получить все отгрузки
   async getShipments(params?: {
     status?: string;
