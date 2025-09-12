@@ -721,7 +721,7 @@ router.put('/:id/status', authenticateToken, async (req: AuthRequest, res, next)
 router.put('/:id', authenticateToken, authorizeRoles('manager', 'director', 'warehouse'), async (req: AuthRequest, res, next) => {
   try {
     const shipmentId = Number(req.params.id);
-    const { plannedDate, transportInfo, documentsPhotos } = req.body;
+    const { plannedDate, transportInfo, documentsPhotos, orderIds } = req.body;
     const userId = req.user!.id;
 
     const shipment = await db.query.shipments.findFirst({
@@ -755,6 +755,24 @@ router.put('/:id', authenticateToken, authorizeRoles('manager', 'director', 'war
       .set(updateData)
       .where(eq(schema.shipments.id, shipmentId))
       .returning();
+
+    // Обновляем заказы в отгрузке, если переданы orderIds
+    if (orderIds && Array.isArray(orderIds)) {
+      // Удаляем существующие связи
+      await db.delete(schema.shipmentOrders)
+        .where(eq(schema.shipmentOrders.shipmentId, shipmentId));
+
+      // Добавляем новые связи
+      if (orderIds.length > 0) {
+        await db.insert(schema.shipmentOrders).values(
+          orderIds.map(orderId => ({
+            shipmentId,
+            orderId,
+            createdAt: new Date()
+          }))
+        );
+      }
+    }
 
     // Логируем изменение
     await db.insert(schema.auditLog).values({

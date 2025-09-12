@@ -96,6 +96,7 @@ export interface UpdateShipmentRequest {
   plannedDate?: string;
   transportInfo?: string;
   documentsPhotos?: string[];
+  orderIds?: number[]; // Добавляем поле для обновления заказов в отгрузке
 }
 
 export interface ShipmentStatistics {
