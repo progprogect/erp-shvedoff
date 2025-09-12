@@ -302,6 +302,7 @@ const CreateOrder: React.FC = () => {
     const orderData: CreateOrderRequest = {
       customerName: values.customerName,
       customerContact: values.customerContact,
+      contractNumber: values.contractNumber, // Номер договора
       deliveryDate: values.deliveryDate ? values.deliveryDate.toISOString() : undefined,
       priority: values.priority || 'normal',
       source: values.source || 'database',
@@ -551,6 +552,20 @@ const CreateOrder: React.FC = () => {
                   >
                     <Input placeholder="+7 (999) 123-45-67" />
                   </Form.Item>
+                </Col>
+              </Row>
+
+              <Row gutter={24}>
+                <Col span={12}>
+                  <Form.Item
+                    name="contractNumber"
+                    label="Номер договора"
+                  >
+                    <Input placeholder="ДОГ-2025-001" />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  {/* Пустая колонка для выравнивания */}
                 </Col>
               </Row>
 

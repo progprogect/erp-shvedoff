@@ -277,6 +277,7 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
     const { 
       customerName, 
       customerContact, 
+      contractNumber, // Номер договора
       deliveryDate, 
       priority = 'normal', 
       source = 'database',
@@ -366,6 +367,7 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
       orderNumber,
       customerName,
       customerContact,
+      contractNumber, // Номер договора
       status: 'new',
       priority,
       source,
@@ -523,6 +525,7 @@ router.put('/:id', authenticateToken, authorizeRoles('manager', 'director'), asy
     const { 
       customerName, 
       customerContact, 
+      contractNumber, // Номер договора
       deliveryDate, 
       priority, 
       notes,
@@ -596,6 +599,7 @@ router.put('/:id', authenticateToken, authorizeRoles('manager', 'director'), asy
 
     if (customerName) updateData.customerName = customerName;
     if (customerContact !== undefined) updateData.customerContact = customerContact || '';
+    if (contractNumber !== undefined) updateData.contractNumber = contractNumber || ''; // Номер договора
     if (deliveryDate) updateData.deliveryDate = new Date(deliveryDate);
     if (priority) updateData.priority = priority;
     if (notes !== undefined) updateData.notes = notes || '';

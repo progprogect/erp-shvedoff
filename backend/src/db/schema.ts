@@ -194,6 +194,7 @@ export const orders = pgTable('orders', {
   orderNumber: varchar('order_number', { length: 50 }).notNull().unique(),
   customerName: varchar('customer_name', { length: 255 }).notNull(),
   customerContact: varchar('customer_contact', { length: 255 }),
+  contractNumber: varchar('contract_number', { length: 255 }), // Номер договора
   status: orderStatusEnum('status').default('new'),
   priority: priorityLevelEnum('priority').default('normal'),
   source: orderSourceEnum('source').default('database'),

@@ -349,7 +349,10 @@ export const Shipments: React.FC = () => {
           const order = orders[0];
           return (
             <div>
-              <div style={{ fontWeight: 'bold' }}>{order.orderNumber}</div>
+              <div style={{ fontWeight: 'bold' }}>
+                {order.orderNumber}
+                {order.contractNumber && ` - ${order.contractNumber}`}
+              </div>
               <div style={{ fontSize: '12px', color: '#666' }}>{order.customerName}</div>
             </div>
           );
@@ -362,7 +365,9 @@ export const Shipments: React.FC = () => {
               {orders.length} заказов
             </div>
             <div style={{ fontSize: '11px', color: '#999' }}>
-              {orders.slice(0, 2).map(o => o.orderNumber).join(', ')}
+              {orders.slice(0, 2).map(o => 
+                o.contractNumber ? `${o.orderNumber} - ${o.contractNumber}` : o.orderNumber
+              ).join(', ')}
               {orders.length > 2 && ` +${orders.length - 2}`}
             </div>
           </div>
@@ -687,7 +692,10 @@ export const Shipments: React.FC = () => {
               {readyOrders.map(order => (
                 <Option key={order.id} value={order.id} label={`${order.orderNumber} - ${order.customerName}`}>
                   <div>
-                    <div style={{ fontWeight: 'bold' }}>{order.orderNumber}</div>
+                    <div style={{ fontWeight: 'bold' }}>
+                      {order.orderNumber}
+                      {order.contractNumber && ` - ${order.contractNumber}`}
+                    </div>
                     <div style={{ fontSize: '12px', color: '#666' }}>
                       {order.customerName} | {order.items?.length || 0} товаров
                     </div>
@@ -845,6 +853,16 @@ export const Shipments: React.FC = () => {
                       title: 'Номер заказа',
                       dataIndex: 'orderNumber',
                       key: 'orderNumber',
+                      render: (text: string, record: any) => (
+                        <div>
+                          <div style={{ fontWeight: 'bold' }}>{text}</div>
+                          {record.contractNumber && (
+                            <div style={{ fontSize: '12px', color: '#666' }}>
+                              Договор: {record.contractNumber}
+                            </div>
+                          )}
+                        </div>
+                      ),
                     },
                     {
                       title: 'Клиент',

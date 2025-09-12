@@ -1,0 +1,4 @@
+id,order_number,customer_name,customer_contact,status,priority,delivery_date,manager_id,total_amount,notes,created_at,updated_at,source,custom_source
+1,ORD-2025-001,ООО Русагролинии,,confirmed,normal,2025-08-26 21:00:00,1,241110.00,,2025-08-25 09:10:48.791805,2025-08-25 09:10:48.791805,database,
+2,ORD-2025-002,ООО Русагролинии,,new,normal,2025-09-30 21:00:00,7,1911438.00,,2025-09-12 07:40:35.339057,2025-09-12 07:40:35.339057,database,
+3,ORD-2025-003,ООО Русагролинии,,in_production,normal,2025-10-02 21:00:00,7,923400.00,,2025-09-12 07:47:20.402663,2025-09-12 07:47:20.402663,database,

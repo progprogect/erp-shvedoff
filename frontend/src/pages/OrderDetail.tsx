@@ -183,6 +183,7 @@ const OrderDetail: React.FC = () => {
       const orderData = {
         customerName: values.customerName,
         customerContact: values.customerContact,
+        contractNumber: values.contractNumber, // Номер договора
         deliveryDate: values.deliveryDate ? dayjs(values.deliveryDate).toISOString() : null,
         priority: values.priority,
         notes: values.notes,
@@ -218,6 +219,7 @@ const OrderDetail: React.FC = () => {
     editForm.setFieldsValue({
       customerName: order.customerName,
       customerContact: order.customerContact,
+      contractNumber: order.contractNumber, // Номер договора
       deliveryDate: order.deliveryDate ? dayjs(order.deliveryDate) : null,
       priority: order.priority,
       notes: order.notes,
@@ -665,6 +667,13 @@ const OrderDetail: React.FC = () => {
                   <Descriptions.Item label="Клиент" span={1}>
                     <Text strong>{order.customerName}</Text>
                   </Descriptions.Item>
+                  <Descriptions.Item label="Номер договора" span={1}>
+                    {order.contractNumber ? (
+                      <Text>{order.contractNumber}</Text>
+                    ) : (
+                      <Text type="secondary">Не указан</Text>
+                    )}
+                  </Descriptions.Item>
                   <Descriptions.Item label="Контакт" span={1}>
                     {order.customerContact ? (
                       <Space>
@@ -916,6 +925,20 @@ const OrderDetail: React.FC = () => {
               >
                 <Input placeholder="Телефон или email" />
               </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={24}>
+            <Col span={12}>
+              <Form.Item
+                name="contractNumber"
+                label="Номер договора"
+              >
+                <Input placeholder="ДОГ-2025-001" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              {/* Пустая колонка для выравнивания */}
             </Col>
           </Row>
 

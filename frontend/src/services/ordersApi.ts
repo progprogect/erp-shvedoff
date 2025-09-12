@@ -7,6 +7,7 @@ export interface Order {
   orderNumber: string;
   customerName: string;
   customerContact?: string;
+  contractNumber?: string; // Номер договора
   status: 'new' | 'confirmed' | 'in_production' | 'ready' | 'completed' | 'cancelled';
   priority: 'low' | 'normal' | 'high' | 'urgent';
   source?: 'database' | 'website' | 'avito' | 'referral' | 'cold_call' | 'other';
@@ -66,6 +67,7 @@ export interface OrderMessage {
 export interface CreateOrderRequest {
   customerName: string;
   customerContact?: string;
+  contractNumber?: string; // Номер договора
   deliveryDate?: string;
   priority?: 'low' | 'normal' | 'high' | 'urgent';
   source?: 'database' | 'website' | 'avito' | 'referral' | 'cold_call' | 'other';
