@@ -60,7 +60,7 @@ export async function distributeNewStockToOrders(productId: number, newStock: nu
       if (aPriority !== bPriority) return bPriority - aPriority;
       
       // В последнюю очередь - по дате создания (раньше созданные первыми)
-      return new Date(a.order.createdAt).getTime() - new Date(b.order.createdAt).getTime();
+      return new Date(a.order.createdAt || 0).getTime() - new Date(b.order.createdAt || 0).getTime();
     });
 
     let remainingStock = newStock;
@@ -72,15 +72,14 @@ export async function distributeNewStockToOrders(productId: number, newStock: nu
     for (const orderItem of sortedOrders) {
       if (remainingStock <= 0) break;
       
-      const shortage = orderItem.quantity - orderItem.reservedQuantity;
+      const shortage = orderItem.quantity - (orderItem.reservedQuantity || 0);
       const canReserve = Math.min(shortage, remainingStock);
       
       if (canReserve > 0) {
         // Увеличиваем резерв для этого заказа
         await db.update(schema.orderItems)
           .set({ 
-            reservedQuantity: orderItem.reservedQuantity + canReserve,
-            updatedAt: new Date()
+            reservedQuantity: (orderItem.reservedQuantity || 0) + canReserve
           })
           .where(eq(schema.orderItems.id, orderItem.id));
         
