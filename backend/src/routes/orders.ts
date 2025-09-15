@@ -71,7 +71,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
       
       // Получаем только невыполненные заказы из текущего списка
       const incompleteOrders = orders.filter(order => 
-        ['new', 'confirmed', 'in_production'].includes(order.status)
+        order.status && ['new', 'confirmed', 'in_production'].includes(order.status)
       );
       
       if (incompleteOrders.length > 0) {
