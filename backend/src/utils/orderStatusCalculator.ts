@@ -108,7 +108,9 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
       console.warn(`⚠️ Валидация: резерв (${reservedForThisOrder}) превышает потребность (${needed}) для товара ${orderItem.product_id} в заказе ${orderId}`);
     }
     
-    // КАРДИНАЛЬНО ИСПРАВЛЕННАЯ ЛОГИКА: сравниваем резерв для этого заказа с потребностью
+    // ИСПРАВЛЕННАЯ ЛОГИКА: учитываем свободный остаток при определении статуса
+    const free_stock = currentStock - totalReserved; // Свободный (не зарезервированный) остаток
+    
     let itemStatus: 'available' | 'partially_available' | 'needs_production';
     let shortage: number;
     let available_quantity: number;
@@ -117,17 +119,17 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
       // Полностью зарезервировано или избыточный резерв
       itemStatus = 'available';
       shortage = 0;
-      available_quantity = needed; // Показываем только нужное количество
-    } else if (reservedForThisOrder > 0) {
-      // Частично зарезервировано
-      itemStatus = 'needs_production';
-      shortage = needed - reservedForThisOrder;
-      available_quantity = reservedForThisOrder;
+      available_quantity = needed;
+    } else if (reservedForThisOrder + free_stock >= needed) {
+      // Резерв + свободный остаток достаточны (включая случай "впритык")
+      itemStatus = 'available';
+      shortage = 0;
+      available_quantity = needed;
     } else {
-      // Не зарезервировано
+      // Недостаточно даже с учетом свободного остатка
       itemStatus = 'needs_production';
-      shortage = needed;
-      available_quantity = 0;
+      shortage = needed - (reservedForThisOrder + free_stock);
+      available_quantity = reservedForThisOrder + free_stock;
     }
 
     return {
