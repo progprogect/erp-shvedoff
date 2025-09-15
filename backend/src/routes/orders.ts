@@ -1147,8 +1147,7 @@ router.delete('/:id', authenticateToken, authorizeRoles('manager', 'director'), 
       recordId: orderId,
       operation: 'DELETE',
       oldValues: existingOrder,
-      userId: currentUserId,
-      createdAt: new Date()
+      userId: currentUserId
     });
 
     // Delete production queue items related to this order
