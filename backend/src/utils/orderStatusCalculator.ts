@@ -169,8 +169,12 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
   const hasUnavailableItems = needsProductionItems > 0 || partiallyAvailableItems > 0;
 
   // КАРДИНАЛЬНО ИСПРАВЛЕННАЯ ЛОГИКА определения статуса заказа:
-  // ПРИОРИТЕТ 1: Если ВСЕ товары доступны - заказ готов (независимо от производства)
-  if (allItemsFullyAvailable) {
+  // ПРИОРИТЕТ 1: Если заказ уже отгружен - НЕ МЕНЯЕМ статус (финальный статус)
+  if (currentStatus === 'completed') {
+    orderStatus = 'completed';
+  }
+  // ПРИОРИТЕТ 2: Если ВСЕ товары доступны - заказ готов (независимо от производства)
+  else if (allItemsFullyAvailable) {
     // ВСЕ товары в ПОЛНОМ объеме доступны для отгрузки
     if (currentStatus === 'confirmed' || currentStatus === 'in_production') {
       // Заказ уже был подтвержден - теперь готов к отгрузке
@@ -183,11 +187,11 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
       orderStatus = 'confirmed';
     }
   } 
-  // ПРИОРИТЕТ 2: Если товары НЕДОступны И есть производство - в работе
+  // ПРИОРИТЕТ 3: Если товары НЕДОступны И есть производство - в работе
   else if (hasUnavailableItems && hasProduction) {
     orderStatus = 'in_production';
   } 
-  // ПРИОРИТЕТ 3: Если товары НЕДОступны И НЕТ производства - нужно запустить
+  // ПРИОРИТЕТ 4: Если товары НЕДОступны И НЕТ производства - нужно запустить
   else if (hasUnavailableItems && !hasProduction) {
     if (currentStatus === 'confirmed') {
       // Подтвержденный заказ, но товары недоступны - отправляем в производство
@@ -197,7 +201,7 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
       orderStatus = 'new';
     }
   } 
-  // ПРИОРИТЕТ 4: Остальные случаи - сохраняем текущий статус
+  // ПРИОРИТЕТ 5: Остальные случаи - сохраняем текущий статус
   else {
     orderStatus = currentStatus;
   }
@@ -253,13 +257,16 @@ export async function updateOrderStatus(orderId: number): Promise<OrderStatus> {
                        item.status === 'needs_production' ? 'требует производства' : 'частично доступен';
       console.log(`   🎯 Товар ${item.product_id}: ${item.required_quantity} нужно, ${item.available_quantity} доступно, ${item.shortage} дефицит - ${statusText}`);
     });
+    
+    // Обновляем статус в базе данных используя правильный синтаксис Drizzle ORM
+    await db
+      .update(orders)
+      .set({ status: analysis.status })
+      .where(eq(orders.id, orderId));
+  } else {
+    // Статус не изменился - логируем для отладки
+    console.log(`✅ Статус заказа ${orderNumber} стабилен: ${getStatusLabel(currentStatus)}`);
   }
-  
-  // Обновляем статус в базе данных используя правильный синтаксис Drizzle ORM
-  await db
-    .update(orders)
-    .set({ status: analysis.status })
-    .where(eq(orders.id, orderId));
 
   return analysis.status;
 }

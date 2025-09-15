@@ -88,14 +88,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
         );
         
         // Проверяем заказы со статусом "Готов к отгрузке" на полную отгрузку
-        try {
-          const shippedCount = await checkAndUpdateAllShippedOrders(userId);
-          if (shippedCount > 0) {
-            console.log(`📦 Автоматически обновлено ${shippedCount} заказов в статус "Отгружен" при загрузке списка`);
-          }
-        } catch (error) {
-          console.error('❌ Ошибка проверки отгруженных заказов:', error);
-        }
+        // УБРАНО: дублирующий вызов, проверка происходит только на странице заказа
         
         // Получаем обновленные данные заказов
         const updatedOrders = await db.query.orders.findMany({
@@ -200,31 +193,36 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
 
     // Пересчитываем статус заказа при входе на страницу (на случай если триггеры не сработали)
     try {
-      const { analyzeOrderAvailability } = await import('../utils/orderStatusCalculator');
-      const orderAnalysis = await analyzeOrderAvailability(orderId);
-      
-      // Обновляем статус если он изменился
-      if (orderAnalysis.status !== order.status) {
-        await db.update(schema.orders)
-          .set({ 
-            status: orderAnalysis.status as any,
-            updatedAt: new Date()
-          })
-          .where(eq(schema.orders.id, orderId));
+      // СТАБИЛИЗАЦИЯ: не пересчитываем статус если заказ уже отгружен
+      if (order.status === 'completed') {
+        console.log(`✅ Заказ ${order.orderNumber} уже отгружен - пропускаем пересчет статуса`);
+      } else {
+        const { analyzeOrderAvailability } = await import('../utils/orderStatusCalculator');
+        const orderAnalysis = await analyzeOrderAvailability(orderId);
         
-        // Обновляем локальную копию для ответа
-        order.status = orderAnalysis.status as any;
+        // Обновляем статус если он изменился
+        if (orderAnalysis.status !== order.status) {
+          await db.update(schema.orders)
+            .set({ 
+              status: orderAnalysis.status as any,
+              updatedAt: new Date()
+            })
+            .where(eq(schema.orders.id, orderId));
+          
+          // Обновляем локальную копию для ответа
+          order.status = orderAnalysis.status as any;
+          
+          console.log(`🔄 Статус заказа ${order.orderNumber} обновлен при входе на страницу: ${order.status}`);
+        }
         
-        console.log(`🔄 Статус заказа ${order.orderNumber} обновлен при входе на страницу: ${order.status}`);
-      }
-      
-      // Если заказ в статусе "Готов к отгрузке", проверяем полную отгрузку
-      if (order.status === 'ready') {
-        const { updateOrderStatusIfFullyShipped } = await import('../utils/orderShipmentChecker');
-        const wasUpdated = await updateOrderStatusIfFullyShipped(orderId, userId);
-        if (wasUpdated) {
-          order.status = 'completed';
-          console.log(`📦 Заказ ${order.orderNumber} автоматически переведен в статус "Отгружен" при входе на страницу`);
+        // Если заказ в статусе "Готов к отгрузке", проверяем полную отгрузку
+        if (order.status === 'ready') {
+          const { updateOrderStatusIfFullyShipped } = await import('../utils/orderShipmentChecker');
+          const wasUpdated = await updateOrderStatusIfFullyShipped(orderId, userId);
+          if (wasUpdated) {
+            order.status = 'completed';
+            console.log(`📦 Заказ ${order.orderNumber} автоматически переведен в статус "Отгружен" при входе на страницу`);
+          }
         }
       }
     } catch (error) {
