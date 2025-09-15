@@ -159,8 +159,13 @@ const OrderDetail: React.FC = () => {
       }
 
       // Проверяем, не добавлен ли заказ уже в другую отгрузку
-      const existingShipments = await shipmentsApi.getShipments({ status: 'pending,paused' });
-      const orderInOtherShipment = existingShipments.find(s => 
+      const [pendingShipments, pausedShipments] = await Promise.all([
+        shipmentsApi.getShipments({ status: 'pending' }),
+        shipmentsApi.getShipments({ status: 'paused' })
+      ]);
+      
+      const allOpenShipments = [...pendingShipments, ...pausedShipments];
+      const orderInOtherShipment = allOpenShipments.find(s => 
         s.orders?.some(so => so.orderId === order.id)
       );
       
