@@ -1573,8 +1573,8 @@ router.post('/tasks/bulk-register', authenticateToken, authorizeRoles('productio
           const newTotalQuality = (task.qualityQuantity || 0) + taskQuality;
           const newTotalDefect = (task.defectQuantity || 0) + taskDefect;
           
-          // Определяем новый статус
-          const isCompleted = newTotalProduced >= task.requestedQuantity;
+          // Определяем новый статус - готово только если качественных >= запрошенного
+          const isCompleted = newTotalQuality >= task.requestedQuantity;
           const newStatus = isCompleted ? 'completed' : (task.status === 'pending' ? 'in_progress' : task.status);
 
           const updatedTask = await tx.update(schema.productionTasks)
@@ -1735,8 +1735,8 @@ router.post('/tasks/:id/partial-complete', authenticateToken, authorizeRoles('pr
       const newQualityQuantity = (task.qualityQuantity || 0) + taskQualityQuantity;
       const newDefectQuantity = (task.defectQuantity || 0) + taskDefectQuantity;
       
-      // Определяем новый статус
-      const isCompleted = newTotalProduced >= task.requestedQuantity;
+      // Определяем новый статус - готово только если качественных >= запрошенного
+      const isCompleted = newQualityQuantity >= task.requestedQuantity;
       const newStatus = isCompleted ? 'completed' : (task.status === 'pending' ? 'in_progress' : task.status);
       
       const updatedTask = await tx.update(schema.productionTasks)
@@ -1911,33 +1911,50 @@ router.post('/tasks/:id/complete', authenticateToken, authorizeRoles('production
 
       // Обрабатываем дополнительные товары
       for (const extra of extraProducts) {
-        if (extra.productId && extra.quantity > 0) {
+        if (extra.productId && (extra.qualityQuantity > 0 || extra.defectQuantity > 0)) {
+          const totalQuantity = (extra.qualityQuantity || 0) + (extra.defectQuantity || 0);
+          
           // Добавляем в extras
           await tx.insert(schema.productionTaskExtras).values({
             taskId,
             productId: extra.productId,
-            quantity: extra.quantity,
+            quantity: totalQuantity,
             notes: extra.notes || 'Дополнительный товар'
           });
 
-          // Добавляем на склад
-          await tx.update(schema.stock)
-            .set({
-              currentStock: sql`${schema.stock.currentStock} + ${extra.quantity}`,
-              updatedAt: new Date()
-            })
-            .where(eq(schema.stock.productId, extra.productId));
+          // Добавляем на склад только качественные товары
+          if (extra.qualityQuantity > 0) {
+            await tx.update(schema.stock)
+              .set({
+                currentStock: sql`${schema.stock.currentStock} + ${extra.qualityQuantity}`,
+                updatedAt: new Date()
+              })
+              .where(eq(schema.stock.productId, extra.productId));
 
-          // Логируем движение
-          await tx.insert(schema.stockMovements).values({
-            productId: extra.productId,
-            movementType: 'incoming',
-            quantity: extra.quantity,
-            referenceId: taskId,
-            referenceType: 'production_task_extra',
-            comment: `Дополнительный товар (задание #${taskId})`,
-            userId
-          });
+            // Логируем движение качественных товаров
+            await tx.insert(schema.stockMovements).values({
+              productId: extra.productId,
+              movementType: 'incoming',
+              quantity: extra.qualityQuantity,
+              referenceId: taskId,
+              referenceType: 'production_task_extra',
+              comment: `Дополнительный товар (задание #${taskId}) - качественные`,
+              userId
+            });
+          }
+
+          // Логируем брак отдельно
+          if (extra.defectQuantity > 0) {
+            await tx.insert(schema.stockMovements).values({
+              productId: extra.productId,
+              movementType: 'incoming',
+              quantity: extra.defectQuantity,
+              referenceId: taskId,
+              referenceType: 'production_task_extra',
+              comment: `Дополнительный товар (задание #${taskId}) - брак`,
+              userId
+            });
+          }
         }
       }
 

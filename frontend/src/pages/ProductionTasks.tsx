@@ -1752,22 +1752,6 @@ const ProductionTasks: React.FC = () => {
             <Row gutter={16}>
               <Col span={8}>
                 <Form.Item
-                  name="producedQuantity"
-                  label="Произведено всего"
-                  rules={[
-                    { required: true, message: 'Введите количество' },
-                    { type: 'number', min: 0, message: 'Количество не может быть отрицательным' }
-                  ]}
-                >
-                  <InputNumber 
-                    min={0} 
-                    style={{ width: '100%' }}
-                    placeholder="Общее количество"
-                  />
-                </Form.Item>
-              </Col>
-              <Col span={8}>
-                <Form.Item
                   name="qualityQuantity"
                   label="Качественных"
                   rules={[
@@ -1779,6 +1763,10 @@ const ProductionTasks: React.FC = () => {
                     min={0} 
                     style={{ width: '100%' }}
                     placeholder="Годных изделий"
+                    onChange={(value) => {
+                      const defect = completeFormValues.defectQuantity || 0;
+                      completeForm.setFieldsValue({ producedQuantity: (value || 0) + defect });
+                    }}
                   />
                 </Form.Item>
               </Col>
@@ -1795,18 +1783,41 @@ const ProductionTasks: React.FC = () => {
                     min={0} 
                     style={{ width: '100%' }}
                     placeholder="Количество брака"
+                    onChange={(value) => {
+                      const quality = completeFormValues.qualityQuantity || 0;
+                      completeForm.setFieldsValue({ producedQuantity: quality + (value || 0) });
+                    }}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item
+                  name="producedQuantity"
+                  label="Произведено всего"
+                >
+                  <InputNumber 
+                    min={0} 
+                    style={{ width: '100%' }}
+                    placeholder="Автоматически"
+                    disabled
                   />
                 </Form.Item>
               </Col>
             </Row>
 
-            {/* Показываем сумму для проверки */}
-            <div style={{ marginBottom: 16, padding: 8, backgroundColor: '#f0f0f0', borderRadius: 4 }}>
+            {/* Блок проверки готовности */}
+            <div style={{ marginBottom: 16, padding: 12, backgroundColor: '#f5f5f5', borderRadius: 6, border: '1px solid #d9d9d9' }}>
+              <Text strong>Проверка готовности:</Text>
+              <br />
+              <Text>
+                Качественных: {completeFormValues.qualityQuantity || 0} / План: {selectedTask?.requestedQuantity || 0}
+                {completeFormValues.qualityQuantity >= (selectedTask?.requestedQuantity || 0) 
+                  ? ' ✅ Готово' 
+                  : ' ⚠️ Не готово'}
+              </Text>
+              <br />
               <Text type="secondary">
-                Проверка: {completeFormValues.qualityQuantity} + {completeFormValues.defectQuantity} = {completeFormValues.qualityQuantity + completeFormValues.defectQuantity}
-                {completeFormValues.qualityQuantity + completeFormValues.defectQuantity === completeFormValues.producedQuantity 
-                  ? ' ✅' 
-                  : ' ❌ Не совпадает с произведенным количеством'}
+                Произведено всего: {completeFormValues.qualityQuantity || 0} + {completeFormValues.defectQuantity || 0} = {completeFormValues.producedQuantity || 0}
               </Text>
             </div>
 
@@ -1823,52 +1834,71 @@ const ProductionTasks: React.FC = () => {
               {(fields, { add, remove }) => (
                 <>
                   {fields.map(({ key, name, ...restField }) => (
-                    <Row key={key} gutter={16} align="middle">
-                      <Col span={8}>
-                        <Form.Item
-                          {...restField}
-                          name={[name, 'productId']}
-                          label="Товар"
-                          rules={[{ required: true, message: 'Выберите товар' }]}
-                        >
-                          <Select placeholder="Выберите товар">
-                            {products.map(product => (
-                              <Option key={product.id} value={product.id}>
-                                {product.name}
-                              </Option>
-                            ))}
-                          </Select>
-                        </Form.Item>
-                      </Col>
-                      <Col span={6}>
-                        <Form.Item
-                          {...restField}
-                          name={[name, 'quantity']}
-                          label="Количество"
-                          rules={[{ required: true, message: 'Введите количество' }]}
-                        >
-                          <InputNumber min={1} style={{ width: '100%' }} />
-                        </Form.Item>
-                      </Col>
-                      <Col span={8}>
-                        <Form.Item
-                          {...restField}
-                          name={[name, 'notes']}
-                          label="Комментарий"
-                        >
-                          <Input placeholder="Заметки..." />
-                        </Form.Item>
-                      </Col>
-                      <Col span={2}>
-                        <Button 
-                          type="link" 
-                          danger 
-                          onClick={() => remove(name)}
-                        >
-                          Удалить
-                        </Button>
-                      </Col>
-                    </Row>
+                    <div key={key} style={{ marginBottom: 16, padding: 12, border: '1px solid #d9d9d9', borderRadius: 6 }}>
+                      <Row gutter={16} align="middle">
+                        <Col span={8}>
+                          <Form.Item
+                            {...restField}
+                            name={[name, 'productId']}
+                            label="Товар"
+                            rules={[{ required: true, message: 'Выберите товар' }]}
+                          >
+                            <Select placeholder="Выберите товар">
+                              {products.map(product => (
+                                <Option key={product.id} value={product.id}>
+                                  {product.name}
+                                </Option>
+                              ))}
+                            </Select>
+                          </Form.Item>
+                        </Col>
+                        <Col span={4}>
+                          <Form.Item
+                            {...restField}
+                            name={[name, 'qualityQuantity']}
+                            label="Качественных"
+                            rules={[{ required: true, message: 'Введите количество' }]}
+                          >
+                            <InputNumber min={0} style={{ width: '100%' }} placeholder="Годных" />
+                          </Form.Item>
+                        </Col>
+                        <Col span={4}>
+                          <Form.Item
+                            {...restField}
+                            name={[name, 'defectQuantity']}
+                            label="Бракованных"
+                          >
+                            <InputNumber min={0} style={{ width: '100%' }} placeholder="Брак" />
+                          </Form.Item>
+                        </Col>
+                        <Col span={4}>
+                          <Form.Item
+                            {...restField}
+                            name={[name, 'quantity']}
+                            label="Всего"
+                          >
+                            <InputNumber min={0} style={{ width: '100%' }} placeholder="Авто" disabled />
+                          </Form.Item>
+                        </Col>
+                        <Col span={3}>
+                          <Form.Item
+                            {...restField}
+                            name={[name, 'notes']}
+                            label="Комментарий"
+                          >
+                            <Input placeholder="..." />
+                          </Form.Item>
+                        </Col>
+                        <Col span={1}>
+                          <Button 
+                            type="text" 
+                            danger 
+                            icon={<CloseCircleOutlined />} 
+                            onClick={() => remove(name)}
+                          />
+                        </Col>
+                      </Row>
+                    </div>
                   ))}
                   <Form.Item>
                     <Button
