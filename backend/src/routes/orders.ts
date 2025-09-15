@@ -423,7 +423,22 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
 
       let quantityToReserve = 0;
       if (stock) {
-        const availableStock = stock.currentStock - stock.reservedStock;
+        // Получаем реальные резервы из активных заказов (исключая текущий заказ)
+        const totalReservedResult = await db
+          .select({
+            total_reserved: sql<number>`COALESCE(SUM(${schema.orderItems.reservedQuantity}), 0)`.as('total_reserved')
+          })
+          .from(schema.orderItems)
+          .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
+          .where(
+            and(
+              eq(schema.orderItems.productId, item.productId),
+              inArray(schema.orders.status, ['new', 'confirmed', 'in_production'])
+            )
+          );
+        
+        const totalReserved = totalReservedResult[0]?.total_reserved || 0;
+        const availableStock = Math.max(0, stock.currentStock - totalReserved);
         quantityToReserve = Math.min(availableStock, item.quantity);
 
         if (quantityToReserve > 0) {

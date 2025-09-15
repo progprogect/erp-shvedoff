@@ -136,7 +136,7 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
       itemStatus = 'available';
       shortage = 0;
       available_quantity = needed;
-    } else if (reservedForThisOrder + free_stock >= needed) {
+    } else if (reservedForThisOrder + Math.max(0, free_stock) >= needed) {
       // Резерв + свободный остаток достаточны (включая случай "впритык")
       itemStatus = 'available';
       shortage = 0;
@@ -144,8 +144,8 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
     } else {
       // Недостаточно даже с учетом свободного остатка
       itemStatus = 'needs_production';
-      shortage = needed - (reservedForThisOrder + free_stock);
-      available_quantity = reservedForThisOrder + free_stock;
+      shortage = needed - (reservedForThisOrder + Math.max(0, free_stock));
+      available_quantity = reservedForThisOrder + Math.max(0, free_stock);
     }
 
     return {

@@ -626,6 +626,18 @@ router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edi
       return updatedOperation;
     });
 
+    // Распределяем новый товар между заказами
+    try {
+      const { distributeNewStockToOrders } = await import('../utils/stockDistribution');
+      const distributionResult = await distributeNewStockToOrders(operation.targetProductId, actualTargetQuantity);
+      
+      if (distributionResult.distributed > 0) {
+        console.log(`🎯 Распределено ${distributionResult.distributed} шт товара ${operation.targetProductId} между ${distributionResult.ordersUpdated.length} заказами`);
+      }
+    } catch (distributionError) {
+      console.error('Ошибка распределения товара:', distributionError);
+    }
+
     const defectMessage = actualDefect > 0 ? ` Брак: ${actualDefect} шт.` : '';
     const secondGradeMessage = actualSecondGradeQuantity > 0 ? ` 2 сорт: ${actualSecondGradeQuantity} шт.` : '';
     

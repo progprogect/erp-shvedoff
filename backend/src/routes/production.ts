@@ -1081,6 +1081,18 @@ router.post('/tasks/complete-by-product', authenticateToken, authorizeRoles('pro
       };
     });
 
+    // Распределяем новый товар между заказами
+    try {
+      const { distributeNewStockToOrders } = await import('../utils/stockDistribution');
+      const distributionResult = await distributeNewStockToOrders(productId, qualityQuantity);
+      
+      if (distributionResult.distributed > 0) {
+        console.log(`🎯 Распределено ${distributionResult.distributed} шт товара ${productId} между ${distributionResult.ordersUpdated.length} заказами`);
+      }
+    } catch (distributionError) {
+      console.error('Ошибка распределения товара:', distributionError);
+    }
+
     res.json({
       success: true,
       data: result,
@@ -1984,6 +1996,18 @@ router.post('/tasks/:id/complete', authenticateToken, authorizeRoles('production
       } catch (analysisError) {
         // Не прерываем выполнение основной операции из-за ошибки анализа
         console.error('Ошибка пересчета статуса заказа:', analysisError);
+      }
+
+      // Распределяем новый товар между заказами
+      try {
+        const { distributeNewStockToOrders } = await import('../utils/stockDistribution');
+        const distributionResult = await distributeNewStockToOrders(task.productId, qualityQuantity);
+        
+        if (distributionResult.distributed > 0) {
+          console.log(`🎯 Распределено ${distributionResult.distributed} шт товара ${task.productId} между ${distributionResult.ordersUpdated.length} заказами`);
+        }
+      } catch (distributionError) {
+        console.error('Ошибка распределения товара:', distributionError);
       }
 
       return updatedTask[0];

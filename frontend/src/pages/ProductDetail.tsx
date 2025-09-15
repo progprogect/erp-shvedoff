@@ -505,7 +505,7 @@ const ProductDetail: React.FC = () => {
 
   // Получаем размеры из product.dimensions или из characteristics
   const dimensions = product?.dimensions || product?.characteristics?.dimensions || {};
-  const available = (product.currentStock || 0) - (product.reservedStock || 0);
+  const available = Math.max(0, (product.currentStock || 0) - (product.reservedStock || 0));
   const stockStatus = getStockStatus(available, product.normStock || 0);
 
   return (
