@@ -751,10 +751,14 @@ router.put('/:id', authenticateToken, authorizeRoles('manager', 'director', 'war
       updateData.documentsPhotos = documentsPhotos;
     }
 
-    const [updatedShipment] = await db.update(schema.shipments)
-      .set(updateData)
-      .where(eq(schema.shipments.id, shipmentId))
-      .returning();
+    // Обновляем shipments только если есть поля для обновления
+    let updatedShipment = shipment;
+    if (Object.keys(updateData).length > 0) {
+      [updatedShipment] = await db.update(schema.shipments)
+        .set(updateData)
+        .where(eq(schema.shipments.id, shipmentId))
+        .returning();
+    }
 
     // Обновляем заказы в отгрузке, если переданы orderIds
     if (orderIds && Array.isArray(orderIds)) {
