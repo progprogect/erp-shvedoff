@@ -13,6 +13,7 @@ import { useAuthStore } from '../stores/authStore';
 import usePermissions from '../hooks/usePermissions';
 import { handleFormError } from '../utils/errorUtils';
 import { ordersApi, Order, OrderFilters, exportOrders } from '../services/ordersApi';
+import { ORDER_STATUS_LABELS } from '../constants/orderStatuses';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -94,12 +95,12 @@ const Orders: React.FC = () => {
   // Get status info
   const getStatusInfo = (status: string) => {
     const statusMap = {
-      new: { color: 'blue', text: 'Новый' },
-      confirmed: { color: 'cyan', text: 'Подтверждён' },
-      in_production: { color: 'orange', text: 'В производстве' },
-      ready: { color: 'green', text: 'Готов' },
-          completed: { color: 'success', text: 'Выполнен' },
-      cancelled: { color: 'red', text: 'Отменён' }
+      new: { color: 'blue', text: ORDER_STATUS_LABELS.new },
+      confirmed: { color: 'cyan', text: ORDER_STATUS_LABELS.confirmed },
+      in_production: { color: 'orange', text: ORDER_STATUS_LABELS.in_production },
+      ready: { color: 'green', text: ORDER_STATUS_LABELS.ready },
+      completed: { color: 'success', text: ORDER_STATUS_LABELS.completed },
+      cancelled: { color: 'red', text: ORDER_STATUS_LABELS.cancelled }
     };
     return statusMap[status as keyof typeof statusMap] || { color: 'default', text: status };
   };
@@ -497,7 +498,7 @@ const Orders: React.FC = () => {
                             <Option value="new">Новые</Option>
                             <Option value="confirmed">Подтверждённые</Option>
                             <Option value="in_production">В производстве</Option>
-                            <Option value="ready">Готовые</Option>
+                            <Option value="ready">{ORDER_STATUS_LABELS.ready}</Option>
                             <Option value="cancelled">Отменённые</Option>
                           </Select>
                         </Col>
@@ -641,8 +642,8 @@ const Orders: React.FC = () => {
               <Option value="new">Новый</Option>
               <Option value="confirmed">Подтверждён</Option>
               <Option value="in_production">В производстве</Option>
-              <Option value="ready">Готов</Option>
-              <Option value="completed">Выполнен</Option>
+              <Option value="ready">{ORDER_STATUS_LABELS.ready}</Option>
+              <Option value="completed">{ORDER_STATUS_LABELS.completed}</Option>
               <Option value="cancelled">Отменён</Option>
             </Select>
           </Form.Item>

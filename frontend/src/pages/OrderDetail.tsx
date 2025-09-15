@@ -18,6 +18,7 @@ import usePermissions from '../hooks/usePermissions';
 import { handleFormError } from '../utils/errorUtils';
 import { ordersApi, Order, OrderItem, OrderMessage } from '../services/ordersApi';
 import { catalogApi, Product } from '../services/catalogApi';
+import { getOrderStatusText, getOrderStatusColor, ORDER_STATUS_LABELS } from '../constants/orderStatuses';
 import shipmentsApi from '../services/shipmentsApi';
 import ShipmentSelectionModal from '../components/ShipmentSelectionModal';
 import dayjs from 'dayjs';
@@ -400,12 +401,12 @@ const OrderDetail: React.FC = () => {
   // Get status info
   const getStatusInfo = (status: string) => {
     const statusMap = {
-      new: { color: 'blue', text: 'Новый', icon: <ClockCircleOutlined /> },
-      confirmed: { color: 'cyan', text: 'Подтверждён', icon: <CheckCircleOutlined /> },
-      in_production: { color: 'orange', text: 'В производстве', icon: <ExclamationCircleOutlined /> },
-      ready: { color: 'green', text: 'Готов', icon: <CheckCircleOutlined /> },
-              completed: { color: 'success', text: 'Выполнен', icon: <CheckCircleOutlined /> },
-      cancelled: { color: 'red', text: 'Отменён', icon: <ExclamationCircleOutlined /> }
+      new: { color: 'blue', text: ORDER_STATUS_LABELS.new, icon: <ClockCircleOutlined /> },
+      confirmed: { color: 'cyan', text: ORDER_STATUS_LABELS.confirmed, icon: <CheckCircleOutlined /> },
+      in_production: { color: 'orange', text: ORDER_STATUS_LABELS.in_production, icon: <ExclamationCircleOutlined /> },
+      ready: { color: 'green', text: ORDER_STATUS_LABELS.ready, icon: <CheckCircleOutlined /> },
+      completed: { color: 'success', text: ORDER_STATUS_LABELS.completed, icon: <CheckCircleOutlined /> },
+      cancelled: { color: 'red', text: ORDER_STATUS_LABELS.cancelled, icon: <ExclamationCircleOutlined /> }
     };
     return statusMap[status as keyof typeof statusMap] || { color: 'default', text: status, icon: <ClockCircleOutlined /> };
   };
@@ -470,7 +471,7 @@ const OrderDetail: React.FC = () => {
     }
 
     if (allAvailable) {
-      return { status: 'ready', color: '#52c41a', text: '✅ Готов к отгрузке' };
+      return { status: 'ready', color: '#52c41a', text: '✅ ' + ORDER_STATUS_LABELS.ready };
     } else if (anyInProduction) {
       return { status: 'in_production', color: '#faad14', text: '🏭 В производстве' };
     } else if (anyOutOfStock) {
@@ -915,8 +916,8 @@ const OrderDetail: React.FC = () => {
               <Option value="new">Новый</Option>
               <Option value="confirmed">Подтверждён</Option>
               <Option value="in_production">В производстве</Option>
-              <Option value="ready">Готов</Option>
-                              <Option value="completed">Выполнен</Option>
+              <Option value="ready">{ORDER_STATUS_LABELS.ready}</Option>
+              <Option value="completed">{ORDER_STATUS_LABELS.completed}</Option>
               <Option value="cancelled">Отменён</Option>
             </Select>
           </Form.Item>

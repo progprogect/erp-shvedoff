@@ -94,8 +94,8 @@ const Dashboard: React.FC = () => {
       new: 'Новый',
       confirmed: 'Подтвержден',
       in_production: 'В производстве',
-      ready: 'Готов',
-      completed: 'Выполнен',
+      ready: 'Готов к отгрузке',
+      completed: 'Отгружен',
       cancelled: 'Отменен'
     };
     return statusMap[status] || status;
@@ -205,7 +205,7 @@ const Dashboard: React.FC = () => {
         const statusMap: Record<string, { color: string; text: string }> = {
           pending: { color: 'blue', text: 'В очереди' },
           paused: { color: 'orange', text: 'На паузе' },
-          completed: { color: 'green', text: 'Выполнена' },
+          completed: { color: 'green', text: 'Отгружена' },
           cancelled: { color: 'red', text: 'Отменена' }
         };
         const statusInfo = statusMap[status] || { color: 'default', text: status };

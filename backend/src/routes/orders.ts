@@ -7,6 +7,7 @@ import { createError } from '../middleware/errorHandler';
 import { performStockOperation } from '../utils/stockManager';
 import { analyzeOrderAvailability, updateOrderStatus } from '../utils/orderStatusCalculator';
 import { ExcelExporter } from '../utils/excelExporter';
+import { checkAndUpdateAllShippedOrders } from '../utils/orderShipmentChecker';
 import { parsePrice, calculateOrderTotal as calculateOrderTotalBackend } from '../utils/priceUtils';
 
 const router = express.Router();
@@ -85,6 +86,16 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
             )
           )
         );
+        
+        // Проверяем заказы со статусом "Готов к отгрузке" на полную отгрузку
+        try {
+          const shippedCount = await checkAndUpdateAllShippedOrders(userId);
+          if (shippedCount > 0) {
+            console.log(`📦 Автоматически обновлено ${shippedCount} заказов в статус "Отгружен" при загрузке списка`);
+          }
+        } catch (error) {
+          console.error('❌ Ошибка проверки отгруженных заказов:', error);
+        }
         
         // Получаем обновленные данные заказов
         const updatedOrders = await db.query.orders.findMany({
@@ -205,6 +216,16 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
         order.status = orderAnalysis.status as any;
         
         console.log(`🔄 Статус заказа ${order.orderNumber} обновлен при входе на страницу: ${order.status}`);
+      }
+      
+      // Если заказ в статусе "Готов к отгрузке", проверяем полную отгрузку
+      if (order.status === 'ready') {
+        const { updateOrderStatusIfFullyShipped } = await import('../utils/orderShipmentChecker');
+        const wasUpdated = await updateOrderStatusIfFullyShipped(orderId, userId);
+        if (wasUpdated) {
+          order.status = 'completed';
+          console.log(`📦 Заказ ${order.orderNumber} автоматически переведен в статус "Отгружен" при входе на страницу`);
+        }
       }
     } catch (error) {
       console.error(`Ошибка пересчета статуса заказа ${orderId} при входе на страницу:`, error);

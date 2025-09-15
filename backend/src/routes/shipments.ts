@@ -6,6 +6,7 @@ import { requireExportPermission } from '../middleware/permissions';
 import { createError } from '../middleware/errorHandler';
 import { performStockOperation } from '../utils/stockManager';
 import { ExcelExporter } from '../utils/excelExporter';
+import { updateOrderStatusIfFullyShipped } from '../utils/orderShipmentChecker';
 
 const router = express.Router();
 
@@ -71,7 +72,7 @@ async function checkAndArchiveOrder(tx: any, orderId: number, userId: number) {
       }
     }
 
-    // Если все товары отгружены - архивируем заказ
+    // Если все товары отгружены - переводим в статус "Отгружен"
     if (allItemsShipped) {
       await tx.update(schema.orders)
         .set({
@@ -80,18 +81,20 @@ async function checkAndArchiveOrder(tx: any, orderId: number, userId: number) {
         })
         .where(eq(schema.orders.id, orderId));
 
-      // Логируем архивацию
+      // Логируем изменение статуса
       await tx.insert(schema.auditLog).values({
         tableName: 'orders',
         recordId: orderId,
         operation: 'UPDATE',
         oldValues: { status: order.status },
-        newValues: { status: 'completed' },
-        userId,
-        comment: 'Автоматическая архивация - все товары отгружены'
+        newValues: { 
+          status: 'completed',
+          reason: 'Автоматическое обновление - все товары отгружены'
+        },
+        userId
       });
 
-      console.log(`🗄️ Заказ ${order.orderNumber} автоматически архивирован - все товары отгружены`);
+      console.log(`📦 Заказ ${order.orderNumber} автоматически переведен в статус "Отгружен" - все товары отгружены`);
     }
   } catch (error) {
     console.error('Ошибка при проверке архивации заказа:', error);

@@ -86,8 +86,8 @@ const ProductDetail: React.FC = () => {
       'new': 'Новый',
       'confirmed': 'Подтвержден',
       'in_production': 'В производстве',
-      'ready': 'Готов',
-          'completed': 'Выполнен',
+      'ready': 'Готов к отгрузке',
+      'completed': 'Отгружен',
       'cancelled': 'Отменен'
     };
     return statusMap[status] || status;
