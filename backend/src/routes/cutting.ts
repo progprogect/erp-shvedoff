@@ -588,6 +588,41 @@ router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edi
 
       await tx.insert(schema.stockMovements).values(stockMovements);
 
+      // Пересчитываем статусы заказов после завершения резки
+      try {
+        const { analyzeOrderAvailability } = await import('../utils/orderStatusCalculator');
+        
+        // Получаем все активные заказы, которые могут быть затронуты
+        const affectedOrders = await tx
+          .select({ id: schema.orders.id })
+          .from(schema.orders)
+          .innerJoin(schema.orderItems, eq(schema.orders.id, schema.orderItems.orderId))
+          .where(
+            and(
+              eq(schema.orderItems.productId, operation.targetProductId),
+              inArray(schema.orders.status, ['new', 'confirmed', 'in_production'])
+            )
+          )
+          .groupBy(schema.orders.id);
+
+        // Пересчитываем статусы затронутых заказов
+        for (const order of affectedOrders) {
+          try {
+            const orderAnalysis = await analyzeOrderAvailability(order.id);
+            await tx.update(schema.orders)
+              .set({ 
+                status: orderAnalysis.status as any,
+                updatedAt: new Date()
+              })
+              .where(eq(schema.orders.id, order.id));
+          } catch (error) {
+            console.error(`Ошибка пересчета статуса заказа ${order.id} после резки:`, error);
+          }
+        }
+      } catch (error) {
+        console.error('Ошибка пересчета статусов заказов после резки:', error);
+      }
+
       return updatedOperation;
     });
 

@@ -54,15 +54,31 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
 
   const productIds = orderItemsData.map(item => item.product_id);
 
-  // Получаем текущие остатки включая резерв
+  // Получаем текущие остатки
   const stockData = await db
     .select({
       product_id: stock.productId,
-      current_stock: stock.currentStock,
-      reserved_stock: stock.reservedStock
+      current_stock: stock.currentStock
     })
     .from(stock)
     .where(inArray(stock.productId, productIds));
+
+  // Получаем реальные резервы из активных заказов (исключая текущий заказ)
+  const reservedData = await db
+    .select({
+      product_id: orderItems.productId,
+      total_reserved: sql<number>`COALESCE(SUM(${orderItems.reservedQuantity}), 0)`.as('total_reserved')
+    })
+    .from(orderItems)
+    .innerJoin(orders, eq(orderItems.orderId, orders.id))
+    .where(
+      and(
+        inArray(orderItems.productId, productIds),
+        inArray(orders.status, ['new', 'confirmed', 'in_production']),
+        sql`${orders.id} != ${orderId}` // Исключаем текущий заказ
+      )
+    )
+    .groupBy(orderItems.productId);
 
   // Получаем количество в производстве (только из новой системы производственных заданий)
   const productionTasksData = await db
@@ -89,16 +105,16 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
 
   // Создаем карты для быстрого доступа
   const stockMap = new Map(stockData.map(s => [s.product_id, { 
-    currentStock: s.current_stock, 
-    reservedStock: s.reserved_stock 
+    currentStock: s.current_stock
   }]));
+  const reservedMap = new Map(reservedData.map(r => [r.product_id, r.total_reserved]));
   const productionTasksMap = new Map(productionTasksData.map(p => [p.product_id, p.total_in_production]));
 
   // Анализируем каждый товар
   const itemsAnalysis: OrderItemAvailability[] = orderItemsData.map(orderItem => {
     const stockInfo = stockMap.get(orderItem.product_id);
     const currentStock = stockInfo?.currentStock || 0;
-    const totalReserved = stockInfo?.reservedStock || 0;
+    const totalReserved = reservedMap.get(orderItem.product_id) || 0; // Реальные резервы из других заказов
     const reservedForThisOrder = orderItem.reserved_quantity || 0;
     const totalInProduction = productionTasksMap.get(orderItem.product_id) || 0;
     const needed = orderItem.quantity;
