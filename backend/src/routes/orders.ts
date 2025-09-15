@@ -65,10 +65,69 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
       offset: Number(offset)
     });
 
-    res.json({
-      success: true,
-      data: orders
-    });
+    // Пересчитываем статусы для невыполненных заказов
+    try {
+      const { recalculateAllOrderStatuses } = await import('../utils/orderStatusCalculator');
+      
+      // Получаем только невыполненные заказы из текущего списка
+      const incompleteOrders = orders.filter(order => 
+        ['new', 'confirmed', 'in_production'].includes(order.status)
+      );
+      
+      if (incompleteOrders.length > 0) {
+        console.log(`🔄 Пересчитываем статусы ${incompleteOrders.length} невыполненных заказов при загрузке списка`);
+        
+        // Пересчитываем статусы параллельно для ускорения
+        await Promise.all(
+          incompleteOrders.map(order => 
+            updateOrderStatus(order.id).catch(error => 
+              console.error(`❌ Ошибка пересчета статуса заказа ${order.id}:`, error)
+            )
+          )
+        );
+        
+        // Получаем обновленные данные заказов
+        const updatedOrders = await db.query.orders.findMany({
+          where: whereConditions.length > 0 ? and(...whereConditions) : undefined,
+          with: {
+            manager: {
+              columns: {
+                passwordHash: false
+              }
+            },
+            items: {
+              with: {
+                product: {
+                  with: {
+                    stock: true
+                  }
+                }
+              }
+            }
+          },
+          orderBy: sql`${schema.orders.createdAt} DESC`,
+          limit: Number(limit),
+          offset: Number(offset)
+        });
+        
+        res.json({
+          success: true,
+          data: updatedOrders
+        });
+      } else {
+        res.json({
+          success: true,
+          data: orders
+        });
+      }
+    } catch (error) {
+      console.error('❌ Ошибка пересчета статусов заказов:', error);
+      // В случае ошибки возвращаем исходные данные
+      res.json({
+        success: true,
+        data: orders
+      });
+    }
   } catch (error) {
     next(error);
   }
