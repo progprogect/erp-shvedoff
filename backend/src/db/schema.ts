@@ -14,6 +14,9 @@ export const defectStatusEnum = pgEnum('defect_status', ['identified', 'under_re
 export const auditOperationEnum = pgEnum('audit_operation', ['INSERT', 'UPDATE', 'DELETE']);
 export const notificationStatusEnum = pgEnum('notification_status', ['pending', 'sent', 'failed']);
 
+// Sequences - создаем через SQL
+// CREATE SEQUENCE order_number_seq START 1 INCREMENT 1 MINVALUE 1;
+
 // Users table - FR-001
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),

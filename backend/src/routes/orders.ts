@@ -458,62 +458,29 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
       quantity: item.quantity || 0
     }))));
 
-    // Generate unique order number with retry logic
-    let orderNumber: string = '';
-    let orderId: number = 0;
-    let retryCount = 0;
-    const maxRetries = 3;
-    
-    while (retryCount < maxRetries) {
-      try {
-        // Generate order number
-        const orderCountResult = await db.select({ count: sql`count(*)` }).from(schema.orders);
-        const orderCount = Number(orderCountResult[0]?.count || 0);
-        const currentYear = new Date().getFullYear();
-        orderNumber = `ORD-${currentYear}-${String(orderCount + 1).padStart(3, '0')}`;
+    // Generate unique order number using sequence
+    const orderNumberResult = await db.execute(sql`SELECT nextval('order_number_seq') as next_number`);
+    const orderNumber = orderNumberResult.rows[0].next_number;
+    const currentYear = new Date().getFullYear();
+    const orderNumberFormatted = `ORD-${currentYear}-${String(orderNumber).padStart(3, '0')}`;
 
-        // Create order with generated number
-        const newOrder = await db.insert(schema.orders).values({
-          orderNumber,
-          customerName,
-          customerContact,
-          contractNumber, // Номер договора
-          status: 'new',
-          priority,
-          source,
-          customSource: source === 'other' ? customSource : null,
-          deliveryDate: deliveryDate ? new Date(deliveryDate) : null,
-          managerId: assignedManagerId, // Используем назначенного менеджера
-          totalAmount: totalAmount.toString(),
-          notes
-        }).returning();
+    // Create order with generated number
+    const newOrder = await db.insert(schema.orders).values({
+      orderNumber: orderNumberFormatted,
+      customerName,
+      customerContact,
+      contractNumber, // Номер договора
+      status: 'new',
+      priority,
+      source,
+      customSource: source === 'other' ? customSource : null,
+      deliveryDate: deliveryDate ? new Date(deliveryDate) : null,
+      managerId: assignedManagerId, // Используем назначенного менеджера
+      totalAmount: totalAmount.toString(),
+      notes
+    }).returning();
 
-        orderId = newOrder[0].id;
-        break; // Успешно создали заказ, выходим из цикла
-        
-      } catch (error: any) {
-        // Проверяем, это ли ошибка дублирования номера заказа
-        if (error.code === '23505' && error.constraint === 'orders_order_number_unique') {
-          retryCount++;
-          console.log(`⚠️ Конфликт номера заказа, попытка ${retryCount}/${maxRetries}`);
-          
-          if (retryCount >= maxRetries) {
-            return next(createError('Не удалось создать уникальный номер заказа после нескольких попыток', 500));
-          }
-          
-          // Небольшая задержка перед следующей попыткой
-          await new Promise(resolve => setTimeout(resolve, 100 * retryCount));
-          continue;
-        }
-        
-        // Если это не ошибка дублирования, пробрасываем ошибку дальше
-        throw error;
-      }
-    }
-
-    if (!orderNumber) {
-      return next(createError('Не удалось создать заказ', 500));
-    }
+    const orderId = newOrder[0].id;
 
     // Create order items and check/reserve stock
     const itemsNeedingProduction = [];
