@@ -1173,6 +1173,14 @@ router.delete('/:id', authenticateToken, authorizeRoles('manager', 'director'), 
     await db.delete(schema.orderMessages)
       .where(eq(schema.orderMessages.orderId, orderId));
 
+    // Отвязываем производственные задания от заказа (задания остаются, но без привязки к заказу)
+    await db.update(schema.productionTasks)
+      .set({ 
+        orderId: null,
+        notes: sql`COALESCE(${schema.productionTasks.notes}, '') || ' | Отвязано от заказа при его удалении'`
+      })
+      .where(eq(schema.productionTasks.orderId, orderId));
+
     // Delete order items
     await db.delete(schema.orderItems)
       .where(eq(schema.orderItems.orderId, orderId));
