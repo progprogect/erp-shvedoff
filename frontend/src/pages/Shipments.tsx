@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   Table, 
   Button, 
@@ -58,6 +58,7 @@ const { TabPane } = Tabs;
 export const Shipments: React.FC = () => {
   const { user } = useAuthStore();
   const location = useLocation();
+  const navigate = useNavigate();
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [readyOrders, setReadyOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -109,15 +110,25 @@ export const Shipments: React.FC = () => {
     if (createParam === 'true' && orderIdParam) {
       // Открываем модальное окно создания отгрузки
       setCreateModalVisible(true);
-      
-      // Предвыбираем заказ в форме после загрузки готовых заказов
-      setTimeout(() => {
-        createForm.setFieldsValue({
-          orderIds: [Number(orderIdParam)]
-        });
-      }, 500);
     }
-  }, [location.search, createForm]);
+  }, [location.search]);
+
+  // Предвыбираем заказ когда модальное окно открыто и готовые заказы загружены
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const orderIdParam = searchParams.get('orderId');
+    
+    if (createModalVisible && readyOrders.length > 0 && orderIdParam) {
+      const orderId = Number(orderIdParam);
+      const orderExists = readyOrders.some(order => order.id === orderId);
+      
+      if (orderExists) {
+        createForm.setFieldsValue({
+          orderIds: [orderId]
+        });
+      }
+    }
+  }, [createModalVisible, readyOrders, createForm, location.search]);
 
   const loadData = async () => {
     try {
@@ -190,6 +201,9 @@ export const Shipments: React.FC = () => {
       loadData();
       loadReadyOrders(); // Обновляем список готовых заказов
       loadStatistics();
+      
+      // Очищаем URL параметры после создания отгрузки
+      navigate('/shipments', { replace: true });
     } catch (error: any) {
       message.error(error.response?.data?.message || 'Ошибка создания отгрузки');
     } finally {
