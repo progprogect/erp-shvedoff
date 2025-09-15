@@ -128,6 +128,30 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
       return next(createError('Order not found', 404));
     }
 
+    // Пересчитываем статус заказа при входе на страницу (на случай если триггеры не сработали)
+    try {
+      const { analyzeOrderAvailability } = await import('../utils/orderStatusCalculator');
+      const orderAnalysis = await analyzeOrderAvailability(orderId);
+      
+      // Обновляем статус если он изменился
+      if (orderAnalysis.status !== order.status) {
+        await db.update(schema.orders)
+          .set({ 
+            status: orderAnalysis.status as any,
+            updatedAt: new Date()
+          })
+          .where(eq(schema.orders.id, orderId));
+        
+        // Обновляем локальную копию для ответа
+        order.status = orderAnalysis.status as any;
+        
+        console.log(`🔄 Статус заказа ${order.orderNumber} обновлен при входе на страницу: ${order.status}`);
+      }
+    } catch (error) {
+      console.error(`Ошибка пересчета статуса заказа ${orderId} при входе на страницу:`, error);
+      // Не прерываем выполнение, просто логируем ошибку
+    }
+
     // Helper function to calculate production quantity for products
     async function getProductionQuantities(productIds: number[]) {
       if (productIds.length === 0) {
