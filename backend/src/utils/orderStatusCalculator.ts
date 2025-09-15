@@ -175,6 +175,9 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
     if (currentStatus === 'confirmed' || currentStatus === 'in_production') {
       // Заказ уже был подтвержден - теперь готов к отгрузке
       orderStatus = 'ready';
+    } else if (currentStatus === 'ready') {
+      // Заказ уже готов - оставляем как есть
+      orderStatus = 'ready';
     } else {
       // Новый заказ с доступными товарами - подтверждаем
       orderStatus = 'confirmed';
@@ -197,6 +200,12 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
   // ПРИОРИТЕТ 4: Остальные случаи - сохраняем текущий статус
   else {
     orderStatus = currentStatus;
+  }
+
+  // Дополнительная проверка стабильности: если статус не должен меняться, оставляем текущий
+  if (orderStatus !== currentStatus) {
+    // Логируем только реальные изменения
+    console.log(`📊 Статус заказа ${orderId} изменен: ${getStatusLabel(currentStatus)} → ${getStatusLabel(orderStatus)}`);
   }
 
   const canBeFulfilled = itemsAnalysis.every(item => 
@@ -233,7 +242,7 @@ export async function updateOrderStatus(orderId: number): Promise<OrderStatus> {
   
   const analysis = await analyzeOrderAvailability(orderId);
   
-  // Логируем изменение статуса
+  // Логируем изменение статуса только если оно действительно произошло
   if (currentStatus !== analysis.status) {
     console.log(`📊 Статус заказа ${orderNumber} изменен: ${getStatusLabel(currentStatus)} → ${getStatusLabel(analysis.status)}`);
     console.log(`   📦 Товары: ${analysis.available_items} доступны, ${analysis.needs_production_items} требуют производства`);
