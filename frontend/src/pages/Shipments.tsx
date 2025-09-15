@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { 
   Table, 
   Button, 
@@ -56,6 +57,7 @@ const { TabPane } = Tabs;
 
 export const Shipments: React.FC = () => {
   const { user } = useAuthStore();
+  const location = useLocation();
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [readyOrders, setReadyOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,6 +99,25 @@ export const Shipments: React.FC = () => {
     loadReadyOrders();
     loadStatistics();
   }, []);
+
+  // Обработка URL параметров для предвыбора заказа
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const createParam = searchParams.get('create');
+    const orderIdParam = searchParams.get('orderId');
+
+    if (createParam === 'true' && orderIdParam) {
+      // Открываем модальное окно создания отгрузки
+      setCreateModalVisible(true);
+      
+      // Предвыбираем заказ в форме после загрузки готовых заказов
+      setTimeout(() => {
+        createForm.setFieldsValue({
+          orderIds: [Number(orderIdParam)]
+        });
+      }, 500);
+    }
+  }, [location.search, createForm]);
 
   const loadData = async () => {
     try {

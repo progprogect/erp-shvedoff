@@ -137,12 +137,35 @@ const OrderDetail: React.FC = () => {
     if (!order || !token) return;
     
     try {
+      // Валидация: проверяем, что заказ готов к отгрузке
+      if (order.status !== 'ready') {
+        message.error('Можно добавлять в отгрузку только готовые заказы (статус "Готов к отгрузке")');
+        return;
+      }
+
       // Получаем текущую отгрузку
       const shipment = await shipmentsApi.getShipment(shipmentId);
       
       // Валидация: проверяем, что отгрузка открыта
       if (!shipment.status || !['pending', 'paused'].includes(shipment.status)) {
         message.error('Нельзя добавить заказ в закрытую отгрузку');
+        return;
+      }
+      
+      // Проверяем, не добавлен ли заказ уже в эту отгрузку
+      if (shipment.orders?.some(so => so.orderId === order.id)) {
+        message.warning('Заказ уже добавлен в эту отгрузку');
+        return;
+      }
+
+      // Проверяем, не добавлен ли заказ уже в другую отгрузку
+      const existingShipments = await shipmentsApi.getShipments({ status: 'pending' });
+      const orderInOtherShipment = existingShipments.find(s => 
+        s.orders?.some(so => so.orderId === order.id)
+      );
+      
+      if (orderInOtherShipment) {
+        message.warning(`Заказ уже добавлен в отгрузку ${orderInOtherShipment.shipmentNumber}`);
         return;
       }
       
@@ -160,6 +183,9 @@ const OrderDetail: React.FC = () => {
       message.success(`Заказ ${order.orderNumber} добавлен в отгрузку ${shipment.shipmentNumber}`);
       setPlanShipmentModalVisible(false);
       setShipmentSelectionModalVisible(false);
+      
+      // Обновляем данные заказа (статус может измениться)
+      loadOrder();
       
       // Переходим к редактированию отгрузки
       navigate(`/shipments/${shipmentId}`);
@@ -1157,7 +1183,13 @@ const OrderDetail: React.FC = () => {
             <Button 
               size="large"
               icon={<EditOutlined />}
-              onClick={() => setShipmentSelectionModalVisible(true)}
+              onClick={() => {
+                if (order?.status !== 'ready') {
+                  message.error('Можно добавлять в отгрузку только готовые заказы');
+                  return;
+                }
+                setShipmentSelectionModalVisible(true);
+              }}
               style={{ width: '100%', height: '50px' }}
             >
               Добавить в существующую отгрузку
