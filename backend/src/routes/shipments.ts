@@ -663,20 +663,55 @@ router.put('/:id/status', authenticateToken, async (req: AuthRequest, res, next)
 
              // При завершении автоматически списываем товары
        if (status === 'completed') {
+         console.log(`📦 Начинаем списание товаров для отгрузки ${shipment.shipmentNumber}`);
+         
          for (const item of shipment.items || []) {
            const quantityToShip = (actualQuantities && actualQuantities[item.id]) ? Number(actualQuantities[item.id]) : item.plannedQuantity;
            
+           console.log(`📦 Товар ${item.product?.name || item.productId}: запланировано ${item.plannedQuantity}, к отгрузке ${quantityToShip}`);
+           
            if (quantityToShip > 0) {
-             // Списываем товар со склада
-             await performStockOperation({
-               productId: item.productId,
-               type: 'outgoing',
-               quantity: quantityToShip,
-               userId,
-               comment: `Отгрузка ${shipment.shipmentNumber}: ${item.product?.name || 'товар'}`
+             // Получаем текущие остатки товара
+             const currentStock = await tx.query.stock.findFirst({
+               where: eq(schema.stock.productId, item.productId)
              });
+
+             if (!currentStock) {
+               console.error(`❌ Товар ${item.productId} не найден в остатках`);
+               continue;
+             }
+
+             // Проверяем, что резерва достаточно
+             if (quantityToShip > currentStock.reservedStock) {
+               console.error(`❌ Недостаточно резерва для товара ${item.productId}: резерв ${currentStock.reservedStock}, требуется ${quantityToShip}`);
+               continue;
+             }
+
+             // Списываем товар со склада (уменьшаем и общий остаток и резерв)
+             await tx.update(schema.stock)
+               .set({
+                 currentStock: sql`${schema.stock.currentStock} - ${quantityToShip}`,
+                 reservedStock: sql`${schema.stock.reservedStock} - ${quantityToShip}`,
+                 updatedAt: new Date()
+               })
+               .where(eq(schema.stock.productId, item.productId));
+
+             // Логируем движение товара
+             await tx.insert(schema.stockMovements).values({
+               productId: item.productId,
+               movementType: 'outgoing',
+               quantity: -quantityToShip,
+               referenceId: shipmentId,
+               referenceType: 'shipment',
+               comment: `Отгрузка ${shipment.shipmentNumber}: ${item.product?.name || 'товар'}`,
+               userId
+             });
+
+             console.log(`✅ Товар ${item.product?.name || item.productId} списан: ${quantityToShip} шт`);
            }
          }
+         
+         console.log(`📦 Списывание товаров для отгрузки ${shipment.shipmentNumber} завершено`);
 
         // Умная логика архивации заказов (WBS 2 - Adjustments Задача 5.1)
         // Получаем все заказы, связанные с этой отгрузкой
