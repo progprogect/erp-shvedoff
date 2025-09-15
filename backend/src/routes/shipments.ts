@@ -762,12 +762,16 @@ router.put('/:id', authenticateToken, authorizeRoles('manager', 'director', 'war
 
     // Обновляем заказы в отгрузке, если переданы orderIds
     if (orderIds && Array.isArray(orderIds)) {
-      // Удаляем существующие связи
+      // Удаляем существующие связи и товары
       await db.delete(schema.shipmentOrders)
         .where(eq(schema.shipmentOrders.shipmentId, shipmentId));
+      
+      await db.delete(schema.shipmentItems)
+        .where(eq(schema.shipmentItems.shipmentId, shipmentId));
 
-      // Добавляем новые связи
+      // Добавляем новые связи и товары
       if (orderIds.length > 0) {
+        // Создаем связи между отгрузкой и заказами
         await db.insert(schema.shipmentOrders).values(
           orderIds.map(orderId => ({
             shipmentId,
@@ -775,6 +779,47 @@ router.put('/:id', authenticateToken, authorizeRoles('manager', 'director', 'war
             createdAt: new Date()
           }))
         );
+
+        // Получаем заказы с товарами для создания shipment_items
+        const orders = await db.query.orders.findMany({
+          where: inArray(schema.orders.id, orderIds),
+          with: {
+            items: {
+              with: {
+                product: true
+              }
+            }
+          }
+        });
+
+        // Создаем элементы отгрузки для всех товаров из всех заказов
+        const shipmentItems = [];
+        for (const order of orders) {
+          for (const item of order.items) {
+            // Валидируем данные перед вставкой
+            const productId = parseInt(String(item.productId), 10);
+            const quantity = parseInt(String(item.quantity), 10);
+            
+            if (!Number.isInteger(productId) || productId <= 0) {
+              throw new Error(`Некорректный ID товара: ${item.productId}`);
+            }
+            
+            if (!Number.isInteger(quantity) || quantity <= 0) {
+              throw new Error(`Некорректное количество товара: ${item.quantity}`);
+            }
+            
+            shipmentItems.push({
+              shipmentId,
+              productId: productId,
+              plannedQuantity: quantity,
+              actualQuantity: null
+            });
+          }
+        }
+
+        if (shipmentItems.length > 0) {
+          await db.insert(schema.shipmentItems).values(shipmentItems);
+        }
       }
     }
 
