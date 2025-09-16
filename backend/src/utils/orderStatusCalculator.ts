@@ -211,8 +211,8 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
       // Заказ уже готов - оставляем как есть
       orderStatus = 'ready';
     } else {
-      // Новый заказ с доступными товарами - сразу готов к отгрузке
-      orderStatus = 'ready';
+      // Новый заказ с доступными товарами - подтверждаем
+      orderStatus = 'confirmed';
     }
   } 
   // ПРИОРИТЕТ 3: Если товары НЕДОступны И есть производство - в работе
