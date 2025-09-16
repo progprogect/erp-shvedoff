@@ -100,15 +100,15 @@ const getLegacyPermissions = (role: string): MenuPermissions => {
   const basePermissions = {
     catalog: true, stock: true, orders: true, production: true, cutting: true, shipments: true,
     users: false, permissions: false, audit: false,
-    actions: {
-      catalog_create: false, catalog_edit: false, catalog_delete: false,
-      stock_edit: false, stock_manage: false,
-      orders_create: false, orders_edit: false, orders_delete: false,
-      production_create: false, production_manage: false,
-      cutting_create: false, cutting_execute: false,
-      shipments_create: false, shipments_manage: false,
-      users_manage: false,
-    }
+      actions: {
+        catalog_create: false, catalog_edit: false, catalog_delete: false,
+        stock_edit: false, stock_manage: false,
+        orders_create: false, orders_edit: false, orders_delete: false,
+        production_create: false, production_manage: false,
+        cutting_create: false, cutting_execute: false,
+        shipments_create: false, shipments_edit: false, shipments_delete: false, shipments_manage: false,
+        users_manage: false,
+      }
   };
 
   if (role === 'director') {
@@ -123,7 +123,7 @@ const getLegacyPermissions = (role: string): MenuPermissions => {
         orders_create: true, orders_edit: true, orders_delete: true,
         production_create: true, production_manage: true,
         cutting_create: true, cutting_execute: true,
-        shipments_create: true, shipments_manage: true,
+        shipments_create: true, shipments_edit: true, shipments_delete: true, shipments_manage: true,
         users_manage: true,
       }
     };

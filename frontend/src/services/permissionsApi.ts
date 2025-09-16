@@ -48,6 +48,8 @@ export interface MenuPermissions {
     cutting_create: boolean;
     cutting_execute: boolean;
     shipments_create: boolean;
+    shipments_edit: boolean;
+    shipments_delete: boolean;
     shipments_manage: boolean;
     users_manage: boolean;
   };
