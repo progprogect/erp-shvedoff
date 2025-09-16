@@ -1183,13 +1183,21 @@ router.delete('/:id', authenticateToken, requirePermission('orders', 'delete'), 
     });
 
     if (!existingOrder) {
-      return next(createError('Order not found', 404));
+      return next(createError('Заказ не найден', 404));
     }
 
-    // Check if order can be deleted (only new, confirmed, or in_production orders)
-    const deletableStatuses = ['new', 'confirmed', 'in_production'];
+    // Check if order can be deleted
+    const deletableStatuses = ['new', 'confirmed', 'in_production', 'ready'];
     if (existingOrder.status && !deletableStatuses.includes(existingOrder.status)) {
-      return next(createError(`Cannot delete order with status '${existingOrder.status}'`, 400));
+      return next(createError(`Нельзя удалить заказ со статусом '${existingOrder.status}'`, 400));
+    }
+
+    // Check if order is linked to any shipment (import the function)
+    const { isOrderLinkedToShipment } = await import('../utils/orderShipmentChecker');
+    const isLinkedToShipment = await isOrderLinkedToShipment(orderId);
+    
+    if (isLinkedToShipment) {
+      return next(createError('Нельзя удалить заказ, который привязан к отгрузке. Сначала удалите его из отгрузки.', 400));
     }
 
     // Release all reservations
