@@ -353,7 +353,7 @@ export const generateShipmentDocument = async (orderId: number): Promise<void> =
     // Создаем временную ссылку для скачивания
     const link = document.createElement('a');
     link.href = url;
-    link.download = `Отгрузочное задание ORD-${orderId}.docx`;
+    link.download = `Shipment_ORD-${orderId}.docx`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

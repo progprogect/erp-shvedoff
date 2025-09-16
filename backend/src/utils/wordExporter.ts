@@ -262,7 +262,11 @@ export class WordExporter {
 
       // Устанавливаем заголовки HTTP для скачивания файла
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-      res.setHeader('Content-Disposition', `attachment; filename="Отгрузочное задание ${orderData.orderNumber}.docx"`);
+      
+      // Правильно кодируем имя файла для кириллицы
+      const fileName = `Shipment_${orderData.orderNumber}.docx`;
+      const encodedFileName = encodeURIComponent(fileName);
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedFileName}`);
       res.setHeader('Content-Length', buffer.length);
 
       // Отправляем файл
