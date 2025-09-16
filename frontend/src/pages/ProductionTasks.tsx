@@ -97,7 +97,7 @@ const ProductionTasks: React.FC = () => {
   const { message } = App.useApp();
   const [activeTab, setActiveTab] = useState<string>('list');
 
-  // Добавляем стили для переноса текста в Select
+  // Добавляем стили для переноса текста в Select и таблицах
   useEffect(() => {
     const style = document.createElement('style');
     style.textContent = `
@@ -133,6 +133,28 @@ const ProductionTasks: React.FC = () => {
         padding: 0 !important;
         max-height: 60px !important;
         overflow: hidden !important;
+      }
+      
+      /* Стили для таблиц производственных заданий */
+      .ant-table-tbody > tr > td {
+        word-wrap: break-word !important;
+        overflow-wrap: break-word !important;
+        white-space: normal !important;
+        vertical-align: top !important;
+      }
+      
+      /* Специальные стили для колонки "Заказ" */
+      .ant-table-tbody > tr > td:nth-child(3) {
+        min-width: 200px !important;
+        max-width: 200px !important;
+        word-break: break-word !important;
+      }
+      
+      /* Специальные стили для колонки "Товар" */
+      .ant-table-tbody > tr > td:nth-child(4) {
+        min-width: 250px !important;
+        max-width: 250px !important;
+        word-break: break-word !important;
       }
     `;
     document.head.appendChild(style);
@@ -449,6 +471,7 @@ const ProductionTasks: React.FC = () => {
             size="middle"
             showHeader={false}
             style={{ marginBottom: 0 }}
+            scroll={{ x: 1200 }}
           />
         </div>
       </div>
@@ -953,17 +976,18 @@ const ProductionTasks: React.FC = () => {
     {
       title: 'Заказ',
       key: 'order',
+      width: 200,
       render: (record: ProductionTask) => {
         if (!record) return null;
         if (!record.orderId || !record.order) {
           return (
-            <Text type="secondary" style={{ fontStyle: 'italic' }}>
+            <Text type="secondary" style={{ fontStyle: 'italic', wordBreak: 'break-word' }}>
               Задание на будущее
             </Text>
           );
         }
         return (
-          <div>
+          <div style={{ wordBreak: 'break-word' }}>
             <div>№{record.order.orderNumber}</div>
             <Text type="secondary" style={{ fontSize: '12px' }}>
               {record.order.customerName}
@@ -976,8 +1000,9 @@ const ProductionTasks: React.FC = () => {
       title: 'Товар',
       dataIndex: 'product',
       key: 'product',
+      width: 250,
       render: (product: any) => (
-        <div>
+        <div style={{ wordBreak: 'break-word' }}>
           <div>{product.name}</div>
           {product.code && (
             <Text type="secondary" style={{ fontSize: '12px' }}>
@@ -1621,6 +1646,7 @@ const ProductionTasks: React.FC = () => {
                         rowKey="id"
                         pagination={false}
                         size="small"
+                        scroll={{ x: 1200 }}
                       />
                     ),
                     rowExpandable: (record) => record.tasks.length > 0,
