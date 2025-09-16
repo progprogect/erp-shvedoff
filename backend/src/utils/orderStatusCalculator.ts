@@ -211,8 +211,8 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
       // Заказ уже готов - оставляем как есть
       orderStatus = 'ready';
     } else {
-      // Новый заказ с доступными товарами - подтверждаем
-      orderStatus = 'confirmed';
+      // Новый заказ с доступными товарами - сразу готов к отгрузке
+      orderStatus = 'ready';
     }
   } 
   // ПРИОРИТЕТ 3: Если товары НЕДОступны И есть производство - в работе
@@ -225,8 +225,8 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
       // Подтвержденный заказ, но товары недоступны - отправляем в производство
       orderStatus = 'in_production';
     } else {
-      // Новый заказ с недоступными товарами
-      orderStatus = 'new';
+      // Новый заказ с недоступными товарами - сразу в производство
+      orderStatus = 'in_production';
     }
   } 
   // ПРИОРИТЕТ 5: Остальные случаи - сохраняем текущий статус
