@@ -83,6 +83,14 @@ export async function distributeNewStockToOrders(productId: number, newStock: nu
           })
           .where(eq(schema.orderItems.id, orderItem.id));
         
+        // ВАЖНО: Увеличиваем общий резерв склада
+        await db.update(schema.stock)
+          .set({
+            reservedStock: sql`${schema.stock.reservedStock} + ${canReserve}`,
+            updatedAt: new Date()
+          })
+          .where(eq(schema.stock.productId, productId));
+        
         remainingStock -= canReserve;
         totalDistributed += canReserve;
         ordersUpdated.push(orderItem.orderId);

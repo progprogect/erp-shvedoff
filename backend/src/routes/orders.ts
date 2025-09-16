@@ -191,44 +191,14 @@ router.get('/:id', authenticateToken, requirePermission('orders', 'view'), async
       return next(createError('Order not found', 404));
     }
 
-    // Пересчитываем статус заказа при входе на страницу (на случай если триггеры не сработали)
-    try {
-      // СТАБИЛИЗАЦИЯ: не пересчитываем статус если заказ уже отгружен
-      if (order.status === 'completed') {
-        console.log(`✅ Заказ ${order.orderNumber} уже отгружен - пропускаем пересчет статуса`);
-      } else {
-        const { analyzeOrderAvailability } = await import('../utils/orderStatusCalculator');
-        const orderAnalysis = await analyzeOrderAvailability(orderId);
-        
-        // Обновляем статус если он изменился
-        if (orderAnalysis.status !== order.status) {
-          await db.update(schema.orders)
-            .set({ 
-              status: orderAnalysis.status as any,
-              updatedAt: new Date()
-            })
-            .where(eq(schema.orders.id, orderId));
-          
-          // Обновляем локальную копию для ответа
-          order.status = orderAnalysis.status as any;
-          
-          console.log(`🔄 Статус заказа ${order.orderNumber} обновлен при входе на страницу: ${order.status}`);
-        }
-        
-        // Если заказ в статусе "Готов к отгрузке", проверяем полную отгрузку
-        if (order.status === 'ready') {
-          const { updateOrderStatusIfFullyShipped } = await import('../utils/orderShipmentChecker');
-          const wasUpdated = await updateOrderStatusIfFullyShipped(orderId, userId);
-          if (wasUpdated) {
-            order.status = 'completed';
-            console.log(`📦 Заказ ${order.orderNumber} автоматически переведен в статус "Отгружен" при входе на страницу`);
-          }
-        }
-      }
-    } catch (error) {
-      console.error(`Ошибка пересчета статуса заказа ${orderId} при входе на страницу:`, error);
-      // Не прерываем выполнение, просто логируем ошибку
-    }
+    // УБРАНО: Автоматический пересчет статуса при входе на страницу
+    // Статус заказа обновляется только серверными событиями:
+    // - При создании/изменении позиций заказа
+    // - При изменении резервов
+    // - При изменении складских остатков (приёмка/производство/возврат)
+    // - При снятии/перераспределении резервов
+    // - При создании/завершении отгрузок
+    console.log(`✅ Заказ ${order.orderNumber} загружен без пересчета статуса (статус: ${order.status})`);
 
     // Helper function to calculate production quantity for products
     async function getProductionQuantities(productIds: number[]) {
@@ -502,6 +472,7 @@ router.post('/', authenticateToken, requirePermission('orders', 'create'), async
       let quantityToReserve = 0;
       if (stock) {
         // Получаем реальные резервы из активных заказов (исключая текущий заказ)
+        // Включаем статус 'ready' - резерв сохраняется до фактической отгрузки
         const totalReservedResult = await db
           .select({
             total_reserved: sql<number>`COALESCE(SUM(${schema.orderItems.reservedQuantity}), 0)`.as('total_reserved')
@@ -511,7 +482,7 @@ router.post('/', authenticateToken, requirePermission('orders', 'create'), async
           .where(
             and(
               eq(schema.orderItems.productId, item.productId),
-              inArray(schema.orders.status, ['new', 'confirmed', 'in_production'])
+              inArray(schema.orders.status, ['new', 'confirmed', 'in_production', 'ready'])
             )
           );
         

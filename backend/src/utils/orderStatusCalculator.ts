@@ -41,7 +41,19 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
     .where(eq(orderItems.orderId, orderId));
 
   if (orderItemsData.length === 0) {
-    throw new Error('Заказ не содержит товаров');
+    // Для пустых заказов возвращаем статус "new"
+    console.log(`⚠️ Заказ ${orderId} не содержит товаров - возвращаем статус "new"`);
+    return {
+      order_id: orderId,
+      status: 'new',
+      items: [],
+      total_items: 0,
+      available_items: 0,
+      partially_available_items: 0,
+      needs_production_items: 0,
+      can_be_fulfilled: true,
+      should_suggest_production: false
+    };
   }
 
   // Получаем текущий статус заказа для правильного определения нового статуса
@@ -64,6 +76,7 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
     .where(inArray(stock.productId, productIds));
 
   // Получаем реальные резервы из активных заказов (исключая текущий заказ)
+  // Включаем статус 'ready' - резерв сохраняется до фактической отгрузки
   const reservedData = await db
     .select({
       product_id: orderItems.productId,
@@ -74,7 +87,7 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
     .where(
       and(
         inArray(orderItems.productId, productIds),
-        inArray(orders.status, ['new', 'confirmed', 'in_production']),
+        inArray(orders.status, ['new', 'confirmed', 'in_production', 'ready']),
         sql`${orders.id} != ${orderId}` // Исключаем текущий заказ
       )
     )
@@ -251,12 +264,19 @@ export async function updateOrderStatus(orderId: number): Promise<OrderStatus> {
     console.log(`📊 Статус заказа ${orderNumber} изменен: ${getStatusLabel(currentStatus)} → ${getStatusLabel(analysis.status)}`);
     console.log(`   📦 Товары: ${analysis.available_items} доступны, ${analysis.needs_production_items} требуют производства`);
     
-    // Детальное логирование по товарам
+    // Детальное логирование по товарам с расчетными параметрами
     analysis.items.forEach(item => {
       const statusText = item.status === 'available' ? 'доступен' : 
                        item.status === 'needs_production' ? 'требует производства' : 'частично доступен';
-      console.log(`   🎯 Товар ${item.product_id}: ${item.required_quantity} нужно, ${item.available_quantity} доступно, ${item.shortage} дефицит - ${statusText}`);
+      console.log(`   🎯 Товар ${item.product_id}: need=${item.required_quantity}, available=${item.available_quantity}, shortage=${item.shortage}, in_production=${item.in_production_quantity} → ${statusText}`);
     });
+    
+    // Логируем правило смены статуса
+    const rule = analysis.status === 'ready' ? 'все товары доступны' :
+                analysis.status === 'confirmed' ? 'товары в наличии' :
+                analysis.status === 'in_production' ? 'товары в производстве' :
+                analysis.status === 'new' ? 'новый заказ' : 'другое';
+    console.log(`   📋 Правило: ${rule}`);
     
     // Обновляем статус в базе данных используя правильный синтаксис Drizzle ORM
     await db
@@ -265,7 +285,7 @@ export async function updateOrderStatus(orderId: number): Promise<OrderStatus> {
       .where(eq(orders.id, orderId));
   } else {
     // Статус не изменился - логируем для отладки
-    console.log(`✅ Статус заказа ${orderNumber} стабилен: ${getStatusLabel(currentStatus)}`);
+    console.log(`✅ Статус заказа ${orderNumber} стабилен: ${getStatusLabel(currentStatus)} (товаров: ${analysis.total_items})`);
   }
 
   return analysis.status;
