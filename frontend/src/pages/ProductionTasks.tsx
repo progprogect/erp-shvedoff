@@ -2863,7 +2863,7 @@ const ProductionTasks: React.FC = () => {
                     </Col>
                     <Col span={12}>
                       <strong>Артикул товара:</strong>
-                      <div style={{ marginTop: 4, fontSize: '16px', fontWeight: 500 }}>
+                      <div style={{ marginTop: 4, fontSize: '16px', fontWeight: 500, wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                         {viewingTask.product?.article || viewingTask.product?.code ? (
                           <Button
                             type="link"
@@ -2872,7 +2872,13 @@ const ProductionTasks: React.FC = () => {
                               height: 'auto', 
                               fontSize: '16px', 
                               fontWeight: 500,
-                              color: '#1890ff'
+                              color: '#1890ff',
+                              wordBreak: 'break-word',
+                              overflowWrap: 'break-word',
+                              whiteSpace: 'normal',
+                              textAlign: 'left',
+                              display: 'block',
+                              width: '100%'
                             }}
                             onClick={() => navigate(`/catalog/products/${viewingTask.productId}`)}
                           >
@@ -2936,8 +2942,10 @@ const ProductionTasks: React.FC = () => {
                           {(() => {
                             const dims = viewingTask.product.dimensions;
                             if (typeof dims === 'object' && dims !== null) {
-                              const { length, width, height } = dims as any;
-                              return `${length || '?'} × ${width || '?'} × ${height || '?'} мм`;
+                              const { length, width, height, thickness } = dims as any;
+                              // Используем thickness если есть, иначе height
+                              const actualHeight = thickness || height;
+                              return `${length || '?'} × ${width || '?'} × ${actualHeight || '?'} мм`;
                             }
                             return 'Не указаны';
                           })()}
@@ -2991,6 +2999,8 @@ const ProductionTasks: React.FC = () => {
                           {viewingTask.product.carpetEdgeType === 'straight_cut' ? 'Прямой срез' :
                            viewingTask.product.carpetEdgeType === 'overlock' ? 'Оверлок' :
                            viewingTask.product.carpetEdgeType === 'binding' ? 'Обвязка' :
+                           viewingTask.product.carpetEdgeType === 'cast_puzzle' ? 'Литой пазл' :
+                           viewingTask.product.carpetEdgeType === 'puzzle' ? 'Пазл' :
                            viewingTask.product.carpetEdgeType}
                         </div>
                       </Col>
@@ -3010,6 +3020,8 @@ const ProductionTasks: React.FC = () => {
                           {viewingTask.product.carpetEdgeStrength === 'normal' ? 'Обычная' :
                            viewingTask.product.carpetEdgeStrength === 'high' ? 'Высокая' :
                            viewingTask.product.carpetEdgeStrength === 'low' ? 'Низкая' :
+                           viewingTask.product.carpetEdgeStrength === 'weak' ? 'Слабая' :
+                           viewingTask.product.carpetEdgeStrength === 'strong' ? 'Сильная' :
                            viewingTask.product.carpetEdgeStrength}
                         </div>
                       </Col>
@@ -3072,6 +3084,9 @@ const ProductionTasks: React.FC = () => {
                           {viewingTask.product.pressType === 'not_selected' ? 'Не выбран' :
                            viewingTask.product.pressType === 'hydraulic' ? 'Гидравлический' :
                            viewingTask.product.pressType === 'mechanical' ? 'Механический' :
+                           viewingTask.product.pressType === 'ukrainian' ? 'Украинский' :
+                           viewingTask.product.pressType === 'german' ? 'Немецкий' :
+                           viewingTask.product.pressType === 'italian' ? 'Итальянский' :
                            viewingTask.product.pressType}
                         </div>
                       </Col>
