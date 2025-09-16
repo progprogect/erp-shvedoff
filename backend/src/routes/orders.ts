@@ -1461,14 +1461,22 @@ router.get('/:id/shipment-document', authenticateToken, requirePermission('order
       client: {
         name: order.customerName || 'Не указан'
       },
-      items: order.items?.map((item: any) => ({
-        product: {
-          name: item.product?.name || 'Неизвестный товар',
+      items: order.items?.map((item: any) => {
+        console.log('🔍 Товар для документа:', {
+          name: item.product?.name,
           article: item.product?.article,
-          area: item.product?.area
-        },
-        quantity: item.quantity
-      })) || [],
+          matArea: item.product?.matArea,
+          quantity: item.quantity
+        });
+        return {
+          product: {
+            name: item.product?.name || 'Неизвестный товар',
+            article: item.product?.article,
+            area: item.product?.matArea
+          },
+          quantity: item.quantity
+        };
+      }) || [],
       createdAt: order.createdAt?.toISOString() || new Date().toISOString()
     };
 

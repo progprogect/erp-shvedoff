@@ -25,6 +25,14 @@ export class WordExporter {
    */
   static async exportShipmentDocument(res: Response, orderData: OrderData): Promise<void> {
     try {
+      console.log('📄 Генерация документа для заказа:', orderData.orderNumber);
+      console.log('📦 Товары:', orderData.items.map(item => ({
+        name: item.product.name,
+        article: item.product.article,
+        area: item.product.area,
+        quantity: item.quantity
+      })));
+      
       const doc = new Document({
         sections: [{
           properties: {},
