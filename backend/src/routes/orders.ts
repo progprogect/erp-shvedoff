@@ -471,7 +471,7 @@ router.post('/', authenticateToken, requirePermission('orders', 'create'), async
 
       let quantityToReserve = 0;
       if (stock) {
-        // Получаем реальные резервы из активных заказов (исключая текущий заказ)
+        // Получаем реальные резервы из активных заказов (НЕ исключая текущий заказ при создании)
         // Включаем статус 'ready' - резерв сохраняется до фактической отгрузки
         const totalReservedResult = await db
           .select({
@@ -1274,7 +1274,7 @@ router.get('/by-product/:productId', authenticateToken, requirePermission('order
         WHERE oi.order_id = ${schema.orders.id} 
         AND oi.product_id = ${productId}
       )`,
-      inArray(schema.orders.status, ['new', 'confirmed', 'in_production'])
+      inArray(schema.orders.status, ['new', 'confirmed', 'in_production', 'ready'])
     ];
 
     // Role-based filtering

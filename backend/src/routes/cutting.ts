@@ -600,7 +600,7 @@ router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edi
           .where(
             and(
               eq(schema.orderItems.productId, operation.targetProductId),
-              inArray(schema.orders.status, ['new', 'confirmed', 'in_production'])
+              inArray(schema.orders.status, ['new', 'confirmed', 'in_production', 'ready'])
             )
           )
           .groupBy(schema.orders.id);
