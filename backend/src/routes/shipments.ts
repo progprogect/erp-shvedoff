@@ -1036,7 +1036,7 @@ router.post('/export', authenticateToken, requireExportPermission('shipments'), 
 });
 
 // GET /api/shipments/:id/shipment-document - Generate shipment document
-router.get('/:id/shipment-document', authenticateToken, requirePermission('shipments', 'view'), async (req: AuthRequest, res, next) => {
+router.get('/:id/shipment-document', authenticateToken, requirePermission('shipments', 'edit'), async (req: AuthRequest, res, next) => {
   try {
     const shipmentId = Number(req.params.id);
     

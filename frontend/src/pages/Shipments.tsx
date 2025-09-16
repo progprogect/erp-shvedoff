@@ -559,13 +559,15 @@ export const Shipments: React.FC = () => {
               />
             </Tooltip>
             
-            <Tooltip title="Сформировать отгрузочное задание">
-              <Button 
-                type="text" 
-                icon={<FileTextOutlined />} 
-                onClick={() => handleGenerateShipmentDocument(record)}
-              />
-            </Tooltip>
+            {canEdit('shipments') && (
+              <Tooltip title="Сформировать отгрузочное задание">
+                <Button 
+                  type="text" 
+                  icon={<FileTextOutlined />} 
+                  onClick={() => handleGenerateShipmentDocument(record)}
+                />
+              </Tooltip>
+            )}
             
             {canEdit('shipments') && record.status !== 'cancelled' && (
               <Tooltip title="Редактировать">
