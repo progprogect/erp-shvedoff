@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Card, 
   Tabs, 
@@ -95,6 +96,7 @@ const ProductionTasks: React.FC = () => {
   const { user, token } = useAuthStore();
   const { canManage } = usePermissions();
   const { message } = App.useApp();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<string>('list');
 
   // Добавляем стили для переноса текста в Select и таблицах
@@ -2854,8 +2856,24 @@ const ProductionTasks: React.FC = () => {
                     </Col>
                     <Col span={12}>
                       <strong>Артикул товара:</strong>
-                      <div style={{ marginTop: 4, fontSize: '16px', fontWeight: 500, color: '#1890ff' }}>
-                        {viewingTask.product?.article || viewingTask.product?.code || 'Не указан'}
+                      <div style={{ marginTop: 4, fontSize: '16px', fontWeight: 500 }}>
+                        {viewingTask.product?.article || viewingTask.product?.code ? (
+                          <Button
+                            type="link"
+                            style={{ 
+                              padding: 0, 
+                              height: 'auto', 
+                              fontSize: '16px', 
+                              fontWeight: 500,
+                              color: '#1890ff'
+                            }}
+                            onClick={() => navigate(`/catalog/products/${viewingTask.productId}`)}
+                          >
+                            {viewingTask.product?.article || viewingTask.product?.code}
+                          </Button>
+                        ) : (
+                          <span style={{ color: '#999' }}>Не указан</span>
+                        )}
                       </div>
                     </Col>
                     <Col span={12}>
@@ -2877,6 +2895,7 @@ const ProductionTasks: React.FC = () => {
               <Col span={24}>
                 <Card title="🔧 Характеристики товара" size="small">
                   <Row gutter={[16, 8]}>
+                    {/* Основные характеристики */}
                     {viewingTask.product?.surface && (
                       <Col span={8}>
                         <strong>Поверхность:</strong>
@@ -2901,6 +2920,8 @@ const ProductionTasks: React.FC = () => {
                         </div>
                       </Col>
                     )}
+                    
+                    {/* Размеры и физические характеристики */}
                     {viewingTask.product?.dimensions && (
                       <Col span={8}>
                         <strong>Размеры:</strong>
@@ -2924,6 +2945,16 @@ const ProductionTasks: React.FC = () => {
                         </div>
                       </Col>
                     )}
+                    {viewingTask.product?.matArea && (
+                      <Col span={8}>
+                        <strong>Площадь мата:</strong>
+                        <div style={{ marginTop: 4 }}>
+                          {viewingTask.product.matArea} м²
+                        </div>
+                      </Col>
+                    )}
+                    
+                    {/* Сорт и качество */}
                     {viewingTask.product?.grade && (
                       <Col span={8}>
                         <strong>Сорт:</strong>
@@ -2944,14 +2975,69 @@ const ProductionTasks: React.FC = () => {
                         </div>
                       </Col>
                     )}
-                    {viewingTask.product?.matArea && (
+                    
+                    {/* Дополнительные характеристики для ковров */}
+                    {viewingTask.product?.carpetEdgeType && (
                       <Col span={8}>
-                        <strong>Площадь мата:</strong>
+                        <strong>Тип края ковра:</strong>
                         <div style={{ marginTop: 4 }}>
-                          {viewingTask.product.matArea} м²
+                          {viewingTask.product.carpetEdgeType === 'straight_cut' ? 'Прямой срез' :
+                           viewingTask.product.carpetEdgeType === 'overlock' ? 'Оверлок' :
+                           viewingTask.product.carpetEdgeType === 'binding' ? 'Обвязка' :
+                           viewingTask.product.carpetEdgeType}
                         </div>
                       </Col>
                     )}
+                    {viewingTask.product?.carpetEdgeSides && (
+                      <Col span={8}>
+                        <strong>Стороны края:</strong>
+                        <div style={{ marginTop: 4 }}>
+                          {viewingTask.product.carpetEdgeSides} сторона(ы)
+                        </div>
+                      </Col>
+                    )}
+                    {viewingTask.product?.carpetEdgeStrength && (
+                      <Col span={8}>
+                        <strong>Прочность края:</strong>
+                        <div style={{ marginTop: 4 }}>
+                          {viewingTask.product.carpetEdgeStrength === 'normal' ? 'Обычная' :
+                           viewingTask.product.carpetEdgeStrength === 'high' ? 'Высокая' :
+                           viewingTask.product.carpetEdgeStrength === 'low' ? 'Низкая' :
+                           viewingTask.product.carpetEdgeStrength}
+                        </div>
+                      </Col>
+                    )}
+                    {viewingTask.product?.bottomType && (
+                      <Col span={8}>
+                        <strong>Тип низа:</strong>
+                        <div style={{ marginTop: 4 }}>
+                          {viewingTask.product.bottomType.name}
+                        </div>
+                      </Col>
+                    )}
+                    
+                    {/* Характеристики для рулонных покрытий */}
+                    {viewingTask.product?.productType === 'roll_covering' && (
+                      <>
+                        {viewingTask.product?.rollComposition && viewingTask.product.rollComposition.length > 0 && (
+                          <Col span={24}>
+                            <strong>Состав рулонного покрытия:</strong>
+                            <div style={{ marginTop: 4 }}>
+                              {viewingTask.product.rollComposition.map((item: any, index: number) => (
+                                <div key={index} style={{ marginBottom: 4 }}>
+                                  <Tag color="blue">{item.carpet.name}</Tag>
+                                  <span style={{ marginLeft: 8 }}>
+                                    {item.quantity} шт. (порядок: {item.sortOrder})
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </Col>
+                        )}
+                      </>
+                    )}
+                    
+                    {/* Опции паззла */}
                     {viewingTask.product?.puzzleOptions && (
                       <Col span={12}>
                         <strong>Опции паззла:</strong>
@@ -2970,9 +3056,45 @@ const ProductionTasks: React.FC = () => {
                         </div>
                       </Col>
                     )}
+                    
+                    {/* Дополнительные поля */}
+                    {viewingTask.product?.pressType && (
+                      <Col span={8}>
+                        <strong>Тип пресса:</strong>
+                        <div style={{ marginTop: 4 }}>
+                          {viewingTask.product.pressType === 'not_selected' ? 'Не выбран' :
+                           viewingTask.product.pressType === 'hydraulic' ? 'Гидравлический' :
+                           viewingTask.product.pressType === 'mechanical' ? 'Механический' :
+                           viewingTask.product.pressType}
+                        </div>
+                      </Col>
+                    )}
+                    {viewingTask.product?.tags && viewingTask.product.tags.length > 0 && (
+                      <Col span={24}>
+                        <strong>Теги:</strong>
+                        <div style={{ marginTop: 4 }}>
+                          {viewingTask.product.tags.map((tag: string, index: number) => (
+                            <Tag key={index} color="default" style={{ marginBottom: 4 }}>
+                              {tag}
+                            </Tag>
+                          ))}
+                        </div>
+                      </Col>
+                    )}
+                    {viewingTask.product?.notes && (
+                      <Col span={24}>
+                        <strong>Примечания к товару:</strong>
+                        <div style={{ marginTop: 4, whiteSpace: 'pre-wrap', color: '#666' }}>
+                          {viewingTask.product.notes}
+                        </div>
+                      </Col>
+                    )}
                   </Row>
                   {(!viewingTask.product?.surface && !viewingTask.product?.logo && !viewingTask.product?.material && 
-                    !viewingTask.product?.dimensions && !viewingTask.product?.weight) && (
+                    !viewingTask.product?.dimensions && !viewingTask.product?.weight && 
+                    !viewingTask.product?.grade && !viewingTask.product?.borderType && 
+                    !viewingTask.product?.matArea && !viewingTask.product?.carpetEdgeType &&
+                    !viewingTask.product?.bottomType && !viewingTask.product?.pressType) && (
                     <div style={{ textAlign: 'center', color: '#999', padding: '20px 0' }}>
                       <i>Характеристики товара не заполнены</i>
                     </div>

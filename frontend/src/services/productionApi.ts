@@ -46,6 +46,7 @@ export interface ProductionTask {
     name: string;
     code?: string;
     article?: string;
+    productType?: 'carpet' | 'other' | 'pur' | 'roll_covering';
     category: {
       id: number;
       name: string;
@@ -76,6 +77,27 @@ export interface ProductionTask {
       type?: 'old' | 'new';
       enabled?: boolean;
     };
+    // Дополнительные характеристики для ковров
+    carpetEdgeType?: 'straight_cut' | 'overlock' | 'binding';
+    carpetEdgeSides?: number;
+    carpetEdgeStrength?: 'normal' | 'high' | 'low';
+    bottomType?: {
+      id: number;
+      name: string;
+    };
+    // Характеристики для рулонных покрытий
+    rollComposition?: Array<{
+      carpet: {
+        id: number;
+        name: string;
+      };
+      quantity: number;
+      sortOrder: number;
+    }>;
+    // Дополнительные поля
+    pressType?: 'not_selected' | 'hydraulic' | 'mechanical';
+    tags?: string[];
+    notes?: string;
     manager?: {
       id: number;
       username: string;
