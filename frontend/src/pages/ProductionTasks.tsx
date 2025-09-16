@@ -3084,6 +3084,26 @@ const ProductionTasks: React.FC = () => {
                       </Col>
                     )}
                     
+                    {/* Тип паззла из БД */}
+                    {viewingTask.product?.puzzleType && (
+                      <Col span={8}>
+                        <strong>Тип паззла:</strong>
+                        <div style={{ marginTop: 4 }}>
+                          {viewingTask.product.puzzleType.name}
+                        </div>
+                      </Col>
+                    )}
+                    
+                    {/* Стороны паззла из БД */}
+                    {viewingTask.product?.puzzleSides && (
+                      <Col span={8}>
+                        <strong>Стороны паззла:</strong>
+                        <div style={{ marginTop: 4 }}>
+                          {viewingTask.product.puzzleSides} сторона(ы)
+                        </div>
+                      </Col>
+                    )}
+                    
                     {/* Дополнительные поля */}
                     {viewingTask.product?.pressType && (
                       <Col span={8}>

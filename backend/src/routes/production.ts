@@ -467,6 +467,18 @@ router.get('/tasks', authenticateToken, requirePermission('production', 'view'),
             surface: true,
             logo: true,
             material: true,
+            bottomType: true,
+            puzzleType: true,
+            rollComposition: {
+              with: {
+                carpet: {
+                  columns: {
+                    id: true,
+                    name: true
+                  }
+                }
+              }
+            },
             manager: {
               columns: {
                 id: true,
@@ -775,7 +787,19 @@ router.get('/tasks/by-product', authenticateToken, requirePermission('production
         },
         product: {
           with: {
-            category: true
+            category: true,
+            bottomType: true,
+            puzzleType: true,
+            rollComposition: {
+              with: {
+                carpet: {
+                  columns: {
+                    id: true,
+                    name: true
+                  }
+                }
+              }
+            }
           }
         }
       },
@@ -2357,7 +2381,19 @@ router.get('/tasks/by-product/:productId', authenticateToken, requirePermission(
         product: {
           with: {
             category: true,
-            stock: true
+            stock: true,
+            bottomType: true,
+            puzzleType: true,
+            rollComposition: {
+              with: {
+                carpet: {
+                  columns: {
+                    id: true,
+                    name: true
+                  }
+                }
+              }
+            }
           }
         },
         createdByUser: {

@@ -96,6 +96,13 @@ export interface ProductionTask {
     }>;
     // Дополнительные поля
     pressType?: 'not_selected' | 'hydraulic' | 'mechanical';
+    // Поля паззла из БД
+    puzzleType?: {
+      id: number;
+      name: string;
+      code: string;
+    };
+    puzzleSides?: number;
     tags?: string[];
     notes?: string;
     manager?: {
