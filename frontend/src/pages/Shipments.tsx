@@ -854,9 +854,11 @@ export const Shipments: React.FC = () => {
               placeholder="Выберите заказы"
               style={{ width: '100%' }}
               optionFilterProp="children"
-              filterOption={(input, option) =>
-                (option?.children as string)?.toLowerCase().includes(input.toLowerCase())
-              }
+              filterOption={(input, option) => {
+                const children = option?.children;
+                const text = Array.isArray(children) ? children.join('') : String(children || '');
+                return text.toLowerCase().includes(input.toLowerCase());
+              }}
             >
               {readyOrders.map(order => (
                 <Option key={order.id} value={order.id}>
