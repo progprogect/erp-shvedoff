@@ -55,6 +55,7 @@ export interface RollCoveringData {
     quantity: number;
     sortOrder: number;
   }>;
+  grade?: string; // 🔥 НОВОЕ: сорт товара для рулонных покрытий
 }
 
 /**
@@ -431,8 +432,8 @@ export function previewArticle(product: Partial<ProductData>): string {
 
 /**
  * Генерация артикула для рулонных покрытий
- * Формат: [Название] - [Размеры] - [Поверхности] - [Логотип] - [Низ] - [Количество ковров]
- * Пример: "Покрытие - 1500x10000x3 - Глад - GEA - 0Шип - 2Ковр"
+ * Формат: [Название] - [Размеры] - [Поверхности] - [Логотип] - [Низ] - [Количество ковров] - [Сорт]
+ * Пример: "Покрытие - 1500x10000x3 - Глад - GEA - 0Шип - 2Ковр - 2СОРТ"
  */
 export function generateRollCoveringArticle(productData: RollCoveringData): string {
   const parts: string[] = [];
@@ -449,7 +450,7 @@ export function generateRollCoveringArticle(productData: RollCoveringData): stri
   const surfaceCode = formatRollSurfaces(productData.surfaces);
   if (surfaceCode) parts.push(surfaceCode);
   
-  // 4. ЛОГОТИП (краткий код, только если выбран) - 🔥 НОВОЕ
+  // 4. ЛОГОТИП (краткий код, только если выбран)
   const logoPart = formatLogo(productData.logo?.name);
   if (logoPart) parts.push(logoPart);
   
@@ -460,6 +461,10 @@ export function generateRollCoveringArticle(productData: RollCoveringData): stri
   // 6. Количество ковров в составе
   const compositionCode = formatRollComposition(productData.composition);
   if (compositionCode) parts.push(compositionCode);
+  
+  // 7. СОРТ (только если не обычный) - 🔥 НОВОЕ
+  const gradePart = formatGrade(productData.grade);
+  if (gradePart) parts.push(gradePart);
   
   return parts.join(' - ');
 }

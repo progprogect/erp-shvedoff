@@ -1289,8 +1289,8 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
         {/* Блок 6: Дополнительно */}
         <FormBlock title="Дополнительно" icon="⚙️">
           <Row gutter={16}>
-            {/* Сорт товара - только для ковров */}
-            {productType === 'carpet' && (
+            {/* Сорт товара - для ковров и рулонных покрытий */}
+            {(productType === 'carpet' || productType === 'roll_covering') && (
               <Col span={8}>
                 <Form.Item
                   name="grade"

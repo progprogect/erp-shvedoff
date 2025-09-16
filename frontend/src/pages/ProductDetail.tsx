@@ -1263,8 +1263,8 @@ const ProductDetail: React.FC = () => {
                 />
               </Form.Item>
             </Col>
-            {/* Сорт товара - только для ковров */}
-            {product?.productType === 'carpet' && (
+            {/* Сорт товара - для ковров и рулонных покрытий */}
+            {(product?.productType === 'carpet' || product?.productType === 'roll_covering') && (
               <Col span={12}>
                 <Form.Item
                   name="grade"

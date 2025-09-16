@@ -744,9 +744,10 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
           name,
           dimensions,
           surfaces: surfaces.length > 0 ? surfaces.map(s => ({ name: s.name })) : undefined,
-          logo: logo ? { name: logo.name } : undefined, // 🔥 НОВОЕ: добавляем логотип
+          logo: logo ? { name: logo.name } : undefined,
           bottomType: bottomType ? { code: bottomType.code } : undefined,
-          composition: composition || []
+          composition: composition || [],
+          grade: grade || 'usual' // 🔥 НОВОЕ: добавляем сорт товара
         };
         
         finalArticle = generateRollCoveringArticle(rollData);
@@ -1292,7 +1293,8 @@ router.post('/regenerate/dry-run', authenticateToken, requirePermission('catalog
               carpetId: item.carpetId,
               quantity: parseFloat(item.quantity.toString()),
               sortOrder: item.sortOrder
-            })) : []
+            })) : [],
+            grade: product.grade || 'usual' // 🔥 НОВОЕ: добавляем сорт товара
           };
           
           newArticle = generateRollCoveringArticle(rollData);
