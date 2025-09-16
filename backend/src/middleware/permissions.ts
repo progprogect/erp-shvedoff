@@ -84,7 +84,7 @@ function checkLegacyRolePermission(role: string, resource: string, action: strin
       catalog: ['view', 'create', 'edit'],
       stock: ['view'],
       orders: ['view', 'create', 'edit', 'delete'],
-      shipments: ['view', 'create', 'edit'],
+      shipments: ['view', 'create', 'edit', 'delete'],
       production: ['view'],
       cutting: ['view', 'create']
     },
@@ -99,7 +99,7 @@ function checkLegacyRolePermission(role: string, resource: string, action: strin
       catalog: ['view'],
       stock: ['view', 'edit'],
       orders: ['view'],
-      shipments: ['view', 'edit']
+      shipments: ['view', 'create', 'edit', 'delete']
     }
   };
 
