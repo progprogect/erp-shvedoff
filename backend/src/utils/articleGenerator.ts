@@ -594,7 +594,8 @@ export function previewRollCoveringArticle(productData: Partial<RollCoveringData
     surfaces: productData.surfaces,
     logo: productData.logo, // 🔥 НОВОЕ: добавляем логотип
     bottomType: productData.bottomType,
-    composition: productData.composition || []
+    composition: productData.composition || [],
+    grade: productData.grade || 'usual' // 🔥 ИСПРАВЛЕНИЕ: добавляем сорт товара
   };
   
   return generateRollCoveringArticle(defaultData);

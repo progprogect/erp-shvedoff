@@ -905,7 +905,8 @@ router.post('/products/preview-article', authenticateToken, async (req: AuthRequ
         surfaces: surfaces ? surfaces.map(s => ({ name: s.name })) : undefined,
         logo: logo ? { name: logo.name } : undefined, // 🔥 НОВОЕ: добавляем логотип
         bottomType: bottomType ? { code: bottomType.code } : undefined,
-        composition: composition || []
+        composition: composition || [],
+        grade: grade || 'usual' // 🔥 ИСПРАВЛЕНИЕ: добавляем сорт товара
       };
       
       previewArticle = generateRollCoveringArticle(rollData);
