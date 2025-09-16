@@ -628,10 +628,10 @@ router.get('/statistics/daily', authenticateToken, requirePermission('production
         paused_tasks: sql<number>`COUNT(CASE WHEN ${schema.productionTasks.status} = 'paused' THEN 1 END)`.as('paused_tasks'),
         completed_tasks: sql<number>`COUNT(CASE WHEN ${schema.productionTasks.status} = 'completed' THEN 1 END)`.as('completed_tasks'),
         cancelled_tasks: sql<number>`COUNT(CASE WHEN ${schema.productionTasks.status} = 'cancelled' THEN 1 END)`.as('cancelled_tasks'),
-        total_requested: sql<number>`COALESCE(SUM(${schema.productionTasks.requestedQuantity}), 0)`.as('total_requested'),
-        total_produced: sql<number>`COALESCE(SUM(${schema.productionTasks.producedQuantity}), 0)`.as('total_produced'),
-        total_quality: sql<number>`COALESCE(SUM(${schema.productionTasks.qualityQuantity}), 0)`.as('total_quality'),
-        total_defects: sql<number>`COALESCE(SUM(${schema.productionTasks.defectQuantity}), 0)`.as('total_defects')
+        total_requested: sql<number>`COALESCE(SUM(requested_quantity), 0)`.as('total_requested'),
+        total_produced: sql<number>`COALESCE(SUM(produced_quantity), 0)`.as('total_produced'),
+        total_quality: sql<number>`COALESCE(SUM(quality_quantity), 0)`.as('total_quality'),
+        total_defects: sql<number>`COALESCE(SUM(defect_quantity), 0)`.as('total_defects')
       })
       .from(schema.productionTasks)
       .where(and(
@@ -680,10 +680,10 @@ router.get('/statistics/detailed', authenticateToken, requirePermission('product
         pausedTasks: sql<number>`COUNT(CASE WHEN ${schema.productionTasks.status} = 'paused' THEN 1 END)`,
         completedTasks: sql<number>`COUNT(CASE WHEN ${schema.productionTasks.status} = 'completed' THEN 1 END)`,
         cancelledTasks: sql<number>`COUNT(CASE WHEN ${schema.productionTasks.status} = 'cancelled' THEN 1 END)`,
-        totalRequested: sql<number>`COALESCE(SUM(${schema.productionTasks.requestedQuantity}), 0)`,
-        totalProduced: sql<number>`COALESCE(SUM(${schema.productionTasks.producedQuantity}), 0)`,
-        qualityQuantity: sql<number>`COALESCE(SUM(${schema.productionTasks.qualityQuantity}), 0)`,
-        defectQuantity: sql<number>`COALESCE(SUM(${schema.productionTasks.defectQuantity}), 0)`
+        totalRequested: sql<number>`COALESCE(SUM(requested_quantity), 0)`,
+        totalProduced: sql<number>`COALESCE(SUM(produced_quantity), 0)`,
+        qualityQuantity: sql<number>`COALESCE(SUM(quality_quantity), 0)`,
+        defectQuantity: sql<number>`COALESCE(SUM(defect_quantity), 0)`
       })
       .from(schema.productionTasks)
       .leftJoin(schema.products, eq(schema.productionTasks.productId, schema.products.id))
