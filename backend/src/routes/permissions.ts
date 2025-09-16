@@ -259,6 +259,8 @@ router.get('/user-menu', authenticateToken, async (req: AuthRequest, res, next) 
         cutting_execute: await checkUserPermission(userId, 'cutting', 'execute'),
         
         shipments_create: await checkUserPermission(userId, 'shipments', 'create'),
+        shipments_edit: await checkUserPermission(userId, 'shipments', 'edit'),
+        shipments_delete: await checkUserPermission(userId, 'shipments', 'delete'),
         shipments_manage: await checkUserPermission(userId, 'shipments', 'manage'),
         
         users_manage: await checkUserPermission(userId, 'users', 'manage'),
