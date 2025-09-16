@@ -1846,7 +1846,7 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
         message = `Задание завершено! Произведено ${newTotalProduced} из ${task.requestedQuantity} шт.`;
       }
     } else {
-      message = `Зарегистрировано ${taskProducedQuantity} шт. Осталось произвести: ${result.remainingQuantity} шт.`;
+      message = `Зарегистрировано ${producedQuantity} шт. Осталось произвести: ${result.remainingQuantity} шт.`;
       if (result.overproductionQuantity > 0) {
         message += ` + ${result.overproductionQuantity} шт. сверх плана`;
       }
