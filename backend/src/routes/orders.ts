@@ -785,6 +785,15 @@ router.put('/:id', authenticateToken, requirePermission('orders', 'edit'), async
       message: 'Заказ был отредактирован'
     });
 
+    // Пересчитываем статус заказа после изменения позиций
+    try {
+      const { updateOrderStatus } = await import('../utils/orderStatusCalculator');
+      await updateOrderStatus(orderId);
+      console.log(`🔄 Пересчитан статус заказа ${orderId} после редактирования`);
+    } catch (error) {
+      console.error(`❌ Ошибка пересчета статуса заказа ${orderId}:`, error);
+    }
+
     // Get complete updated order
     const completeOrder = await db.query.orders.findFirst({
       where: eq(schema.orders.id, orderId),

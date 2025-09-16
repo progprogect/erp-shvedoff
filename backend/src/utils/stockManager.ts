@@ -228,6 +228,16 @@ export async function performStockOperation(operation: StockOperation): Promise<
     // Получаем обновленную информацию
     const stockInfo = await getStockInfo(productId);
 
+    // Пересчитываем статусы заказов для этого товара
+    try {
+      const { recalculateOrdersForProduct } = await import('./stockDistribution');
+      await recalculateOrdersForProduct(productId);
+      console.log(`🔄 Пересчитаны статусы заказов для товара ${productId} после изменения остатков`);
+    } catch (error) {
+      console.error(`❌ Ошибка пересчета статусов заказов для товара ${productId}:`, error);
+      // Не прерываем основную операцию из-за ошибки пересчета
+    }
+
     return {
       success: true,
       message: `Операция ${type} выполнена успешно`,
