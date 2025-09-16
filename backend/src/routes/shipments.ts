@@ -6,6 +6,7 @@ import { requirePermission, requireExportPermission } from '../middleware/permis
 import { createError } from '../middleware/errorHandler';
 import { performStockOperation } from '../utils/stockManager';
 import { ExcelExporter } from '../utils/excelExporter';
+import { WordExporter } from '../utils/wordExporter';
 import { updateOrderStatusIfFullyShipped } from '../utils/orderShipmentChecker';
 
 const router = express.Router();
@@ -1030,6 +1031,107 @@ router.post('/export', authenticateToken, requireExportPermission('shipments'), 
     });
 
   } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/shipments/:id/shipment-document - Generate shipment document
+router.get('/:id/shipment-document', authenticateToken, requirePermission('shipments', 'view'), async (req: AuthRequest, res, next) => {
+  try {
+    const shipmentId = Number(req.params.id);
+    
+    if (isNaN(shipmentId) || shipmentId <= 0) {
+      return next(createError('Некорректный ID отгрузки', 400));
+    }
+
+    // Получаем отгрузку с полными данными
+    const shipment = await db.query.shipments.findFirst({
+      where: eq(schema.shipments.id, shipmentId),
+      with: {
+        orders: {
+          with: {
+            order: {
+              with: {
+                items: {
+                  with: {
+                    product: {
+                      with: {
+                        category: true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!shipment) {
+      return next(createError('Отгрузка не найдена', 404));
+    }
+
+    // Получаем связанные заказы
+    const relatedOrders = shipment.orders?.map(so => so.order) || [];
+
+    if (relatedOrders.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'В отгрузке нет заказов для генерации документа'
+      });
+    }
+
+    // Собираем все товары из всех заказов
+    const allItems: any[] = [];
+    const clientsMap = new Map<string, { name: string; contractNumber?: string }>();
+
+    relatedOrders.forEach(order => {
+      // Добавляем клиента в карту
+      if (order.customerName) {
+        clientsMap.set(order.customerName, {
+          name: order.customerName,
+          contractNumber: order.contractNumber || undefined
+        });
+      }
+
+      // Добавляем товары заказа
+      order.items?.forEach(item => {
+        allItems.push({
+          orderNumber: order.orderNumber,
+          contractNumber: order.contractNumber,
+          clientName: order.customerName || 'Не указан',
+          product: {
+            name: item.product?.name || 'Неизвестный товар',
+            article: item.product?.article,
+            area: item.product?.matArea
+          },
+          quantity: item.quantity
+        });
+      });
+    });
+
+    // Подготавливаем данные для генерации документа
+    const shipmentData = {
+      id: shipment.id,
+      shipmentNumber: shipment.shipmentNumber,
+      plannedDate: shipment.plannedDate?.toISOString(),
+      clients: Array.from(clientsMap.values()),
+      items: allItems,
+      createdAt: shipment.createdAt?.toISOString() || new Date().toISOString()
+    };
+
+    console.log('📦 Данные отгрузки для документа:', {
+      shipmentNumber: shipmentData.shipmentNumber,
+      clientsCount: shipmentData.clients.length,
+      itemsCount: shipmentData.items.length
+    });
+
+    // Генерируем и отправляем Word-документ
+    await WordExporter.exportShipmentDocumentForShipment(res, shipmentData);
+
+  } catch (error) {
+    console.error('Ошибка при генерации документа отгрузки:', error);
     next(error);
   }
 });

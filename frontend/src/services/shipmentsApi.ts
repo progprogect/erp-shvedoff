@@ -393,6 +393,45 @@ class ShipmentsApiService {
       throw new Error('Ошибка при экспорте отгрузок');
     }
   }
+
+  // Generate shipment document
+  async generateShipmentDocument(shipmentId: number): Promise<void> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/shipments/${shipmentId}/shipment-document`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Ошибка при генерации документа отгрузки');
+      }
+
+      // Создаем blob из ответа
+      const blob = await response.blob();
+      
+      // Создаем URL для скачивания
+      const url = window.URL.createObjectURL(blob);
+      
+      // Создаем временную ссылку для скачивания
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Shipment_${shipmentId}.docx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Освобождаем память
+      window.URL.revokeObjectURL(url);
+      
+    } catch (error) {
+      console.error('Error generating shipment document:', error);
+      throw new Error('Ошибка при генерации документа отгрузки');
+    }
+  }
 }
 
 export const shipmentsApi = new ShipmentsApiService();

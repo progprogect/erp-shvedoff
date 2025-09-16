@@ -402,6 +402,17 @@ export const Shipments: React.FC = () => {
     }
   };
 
+  // Функция генерации документа отгрузки
+  const handleGenerateShipmentDocument = async (shipment: Shipment) => {
+    try {
+      await shipmentsApi.generateShipmentDocument(shipment.id);
+      message.success('Документ отгрузочного задания успешно сгенерирован');
+    } catch (error: any) {
+      console.error('Ошибка генерации документа:', error);
+      message.error(error.message || 'Ошибка при генерации документа');
+    }
+  };
+
   // Колонки таблицы
   const columns = [
     {
@@ -545,6 +556,14 @@ export const Shipments: React.FC = () => {
                 type="text" 
                 icon={<EyeOutlined />} 
                 onClick={() => handleViewDetails(record)}
+              />
+            </Tooltip>
+            
+            <Tooltip title="Сформировать отгрузочное задание">
+              <Button 
+                type="text" 
+                icon={<FileTextOutlined />} 
+                onClick={() => handleGenerateShipmentDocument(record)}
               />
             </Tooltip>
             
