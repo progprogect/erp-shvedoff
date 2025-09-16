@@ -473,9 +473,10 @@ router.post('/', authenticateToken, requirePermission('orders', 'create'), async
       if (stock) {
         // Получаем реальные резервы из активных заказов (НЕ исключая текущий заказ при создании)
         // Включаем статус 'ready' - резерв сохраняется до фактической отгрузки
+        // ИСПРАВЛЕНО: считаем резервы по quantity, а не по reservedQuantity при создании
         const totalReservedResult = await db
           .select({
-            total_reserved: sql<number>`COALESCE(SUM(${schema.orderItems.reservedQuantity}), 0)`.as('total_reserved')
+            total_reserved: sql<number>`COALESCE(SUM(${schema.orderItems.quantity}), 0)`.as('total_reserved')
           })
           .from(schema.orderItems)
           .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))

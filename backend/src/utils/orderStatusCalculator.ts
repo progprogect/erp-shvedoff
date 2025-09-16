@@ -132,6 +132,14 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
     const totalInProduction = productionTasksMap.get(orderItem.product_id) || 0;
     const needed = orderItem.quantity;
     
+    // ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ для отладки
+    console.log(`🔍 Анализ товара ${orderItem.product_id} в заказе ${orderId}:`);
+    console.log(`   📦 currentStock: ${currentStock}`);
+    console.log(`   🔒 totalReserved (другие заказы): ${totalReserved}`);
+    console.log(`   🎯 reservedForThisOrder: ${reservedForThisOrder}`);
+    console.log(`   📋 needed: ${needed}`);
+    console.log(`   🏭 totalInProduction: ${totalInProduction}`);
+    
     // Валидация данных: резерв не может превышать потребность
     if (reservedForThisOrder > needed) {
       console.warn(`⚠️ Валидация: резерв (${reservedForThisOrder}) превышает потребность (${needed}) для товара ${orderItem.product_id} в заказе ${orderId}`);
@@ -139,6 +147,10 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
     
     // ИСПРАВЛЕННАЯ ЛОГИКА: учитываем свободный остаток при определении статуса
     const free_stock = currentStock - totalReserved; // Свободный (не зарезервированный) остаток
+    
+    console.log(`   💰 free_stock: ${free_stock} (currentStock: ${currentStock} - totalReserved: ${totalReserved})`);
+    console.log(`   🧮 Проверка: reservedForThisOrder (${reservedForThisOrder}) + free_stock (${free_stock}) >= needed (${needed})?`);
+    console.log(`   🧮 Результат: ${reservedForThisOrder + Math.max(0, free_stock)} >= ${needed} = ${reservedForThisOrder + Math.max(0, free_stock) >= needed}`);
     
     let itemStatus: 'available' | 'partially_available' | 'needs_production';
     let shortage: number;
@@ -149,16 +161,19 @@ export async function analyzeOrderAvailability(orderId: number): Promise<OrderAv
       itemStatus = 'available';
       shortage = 0;
       available_quantity = needed;
+      console.log(`   ✅ Статус: available (полностью зарезервировано)`);
     } else if (reservedForThisOrder + Math.max(0, free_stock) >= needed) {
       // Резерв + свободный остаток достаточны (включая случай "впритык")
       itemStatus = 'available';
       shortage = 0;
       available_quantity = needed;
+      console.log(`   ✅ Статус: available (резерв + свободный остаток)`);
     } else {
       // Недостаточно даже с учетом свободного остатка
       itemStatus = 'needs_production';
       shortage = needed - (reservedForThisOrder + Math.max(0, free_stock));
       available_quantity = reservedForThisOrder + Math.max(0, free_stock);
+      console.log(`   ❌ Статус: needs_production (недостаточно: shortage=${shortage})`);
     }
 
     return {
