@@ -1,7 +1,7 @@
 import express from 'express';
 import { db } from '../db';
 import { bottomTypes } from '../db/schema';
-import { authenticateToken, authorizeRoles } from '../middleware/auth';
+import { authenticateToken } from '../middleware/auth';
 import { createError } from '../middleware/errorHandler';
 import { eq } from 'drizzle-orm';
 
@@ -46,7 +46,8 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
 });
 
 // POST /api/bottom-types - Создать новый тип
-router.post('/', authenticateToken, authorizeRoles('director'), async (req, res, next) => {
+router.post('/', authenticateToken, async (req, res, next) => {
+  // Справочники доступны всем авторизованным пользователям
   try {
     const { code, name, description } = req.body;
 
@@ -72,7 +73,8 @@ router.post('/', authenticateToken, authorizeRoles('director'), async (req, res,
 });
 
 // PUT /api/bottom-types/:id - Обновить тип
-router.put('/:id', authenticateToken, authorizeRoles('director'), async (req, res, next) => {
+router.put('/:id', authenticateToken, async (req, res, next) => {
+  // Справочники доступны всем авторизованным пользователям
   try {
     const { id } = req.params;
     const { code, name, description } = req.body;
@@ -105,7 +107,8 @@ router.put('/:id', authenticateToken, authorizeRoles('director'), async (req, re
 });
 
 // DELETE /api/bottom-types/:id - Удалить тип
-router.delete('/:id', authenticateToken, authorizeRoles('director'), async (req, res, next) => {
+router.delete('/:id', authenticateToken, async (req, res, next) => {
+  // Справочники доступны всем авторизованным пользователям
   try {
     const { id } = req.params;
     

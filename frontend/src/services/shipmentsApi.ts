@@ -247,26 +247,8 @@ class ShipmentsApiService {
     }
   }
 
-  // Проверка прав доступа
-  canCreate(userRole: string): boolean {
-    return userRole === 'manager' || userRole === 'director';
-  }
-
-  canEdit(userRole: string): boolean {
-    return userRole === 'manager' || userRole === 'director';
-  }
-
-  canUpdateStatus(userRole: string): boolean {
-    return userRole === 'manager' || userRole === 'director' || userRole === 'warehouse';
-  }
-
-  canCancel(userRole: string): boolean {
-    return userRole === 'manager' || userRole === 'director';
-  }
-
-  canViewAll(userRole: string): boolean {
-    return true; // Все роли могут просматривать отгрузки
-  }
+  // Проверка прав доступа - теперь через usePermissions hook
+  // Эти методы удалены - используйте usePermissions() hook вместо них
 
   // Валидация статусных переходов
   getValidNextStatuses(currentStatus: Shipment['status']): Shipment['status'][] {

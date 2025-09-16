@@ -153,26 +153,10 @@ class UsersApiService {
     return isActive ? 'Активен' : 'Неактивен';
   }
 
-  // Проверка прав доступа
-  canManageUsers(userRole: string): boolean {
-    return userRole === 'director';
-  }
+  // Проверка прав доступа - теперь через usePermissions hook
+  // Эти методы удалены - используйте usePermissions() hook вместо них
 
-  canCreateUser(userRole: string): boolean {
-    return userRole === 'director';
-  }
-
-  canEditUser(userRole: string): boolean {
-    return userRole === 'director';
-  }
-
-  canChangePassword(userRole: string): boolean {
-    return userRole === 'director';
-  }
-
-  canDeactivateUser(userRole: string): boolean {
-    return userRole === 'director';
-  }
+  // canDeactivateUser удален - используйте usePermissions() hook
 
   // Валидация
   validateUsername(username: string): string | null {

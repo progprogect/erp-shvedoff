@@ -14,7 +14,7 @@ import {
 } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import usePermissions from '../hooks/usePermissions';
+import { usePermissions } from '../hooks/usePermissions';
 import { handleFormError } from '../utils/errorUtils';
 import { ordersApi, Order, OrderItem, OrderMessage } from '../services/ordersApi';
 import { catalogApi, Product } from '../services/catalogApi';
@@ -38,7 +38,7 @@ const OrderDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, token } = useAuthStore();
-  const { canEdit, canManage } = usePermissions();
+  const { canEdit, canManage, canCreate } = usePermissions();
 
   const getRoleDisplayName = (role: string) => {
     const roleNames: Record<string, string> = {
@@ -731,7 +731,7 @@ const OrderDetail: React.FC = () => {
                     Удалить заказ
                   </Button>
                 )}
-                {order?.status === 'ready' && shipmentsApi.canCreate(user?.role || '') && (
+                {order?.status === 'ready' && canCreate('shipments') && (
                   <Button 
                     type="primary"
                     icon={<TruckOutlined />}

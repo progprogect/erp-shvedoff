@@ -169,7 +169,7 @@ router.post('/', authenticateToken, requirePermission('cutting', 'create'), asyn
 // DEPRECATED: Больше не используется, операции создаются сразу в статусе "in_progress"
 /*
 // PUT /api/cutting/:id/approve - Approve cutting operation (Director only)
-router.put('/:id/approve', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.put('/:id/approve', authenticateToken, requirePermission('cutting', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const operationId = Number(req.params.id);
     const userId = req.user!.id;
@@ -246,7 +246,7 @@ router.put('/:id/approve', authenticateToken, authorizeRoles('director'), async 
 });
 
 // PUT /api/cutting/:id/start - Start cutting operation
-router.put('/:id/start', authenticateToken, authorizeRoles('production', 'director'), async (req: AuthRequest, res, next) => {
+router.put('/:id/start', authenticateToken, requirePermission('cutting', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const operationId = Number(req.params.id);
     const userId = req.user!.id;

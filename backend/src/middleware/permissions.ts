@@ -296,20 +296,25 @@ export async function initializeDefaultPermissions() {
       { name: 'Создание заказов', resource: 'orders', action: 'create', description: 'Создание новых заказов' },
       { name: 'Редактирование заказов', resource: 'orders', action: 'edit', description: 'Изменение заказов' },
       { name: 'Удаление заказов', resource: 'orders', action: 'delete', description: 'Удаление заказов' },
+      { name: 'Управление заказами', resource: 'orders', action: 'manage', description: 'Полное управление заказами' },
       
       // Производство
       { name: 'Просмотр производства', resource: 'production', action: 'view', description: 'Просмотр производственных заданий' },
       { name: 'Создание заданий', resource: 'production', action: 'create', description: 'Создание производственных заданий' },
+      { name: 'Редактирование производства', resource: 'production', action: 'edit', description: 'Редактирование производственных заданий' },
       { name: 'Управление производством', resource: 'production', action: 'manage', description: 'Полное управление производством' },
       
       // Операции резки
       { name: 'Просмотр операций резки', resource: 'cutting', action: 'view', description: 'Просмотр операций резки' },
       { name: 'Создание операций резки', resource: 'cutting', action: 'create', description: 'Создание заявок на резку' },
+      { name: 'Редактирование операций резки', resource: 'cutting', action: 'edit', description: 'Редактирование операций резки' },
       { name: 'Выполнение операций резки', resource: 'cutting', action: 'execute', description: 'Выполнение операций резки' },
+      { name: 'Управление операциями резки', resource: 'cutting', action: 'manage', description: 'Полное управление операциями резки' },
       
       // Отгрузки
       { name: 'Просмотр отгрузок', resource: 'shipments', action: 'view', description: 'Просмотр отгрузок' },
       { name: 'Создание отгрузок', resource: 'shipments', action: 'create', description: 'Создание отгрузок' },
+      { name: 'Редактирование отгрузок', resource: 'shipments', action: 'edit', description: 'Редактирование отгрузок' },
       { name: 'Управление отгрузками', resource: 'shipments', action: 'manage', description: 'Полное управление отгрузками' },
       
       // Пользователи
@@ -372,14 +377,19 @@ async function setDefaultRolePermissions() {
         permissionMap['orders:create'],
         permissionMap['orders:edit'],
         permissionMap['orders:delete'],
+        permissionMap['orders:manage'], // добавляем управление заказами
         permissionMap['orders:export'], // добавляем экспорт заказов
         permissionMap['production:view'],
+        permissionMap['production:edit'], // добавляем редактирование производства
         permissionMap['cutting:view'],
         permissionMap['cutting:create'],
+        permissionMap['cutting:manage'], // добавляем управление резкой
         permissionMap['shipments:view'],
         permissionMap['shipments:create'],
+        permissionMap['shipments:edit'], // добавляем редактирование отгрузок
         permissionMap['shipments:manage'],
-        permissionMap['shipments:export'] // добавляем экспорт отгрузок
+        permissionMap['shipments:export'], // добавляем экспорт отгрузок
+        permissionMap['users:view'] // добавляем просмотр пользователей
       ].filter(Boolean),
       production: [
         permissionMap['catalog:view'],
@@ -387,10 +397,12 @@ async function setDefaultRolePermissions() {
         permissionMap['orders:view'],
         permissionMap['production:view'],
         permissionMap['production:create'],
+        permissionMap['production:edit'], // добавляем редактирование производства
         permissionMap['production:manage'],
         permissionMap['production:export'], // добавляем экспорт производства
         permissionMap['cutting:view'],
         permissionMap['cutting:execute'],
+        permissionMap['cutting:manage'], // добавляем управление резкой
         permissionMap['cutting:export'], // добавляем экспорт операций резки
         permissionMap['shipments:view']
       ].filter(Boolean),

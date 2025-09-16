@@ -41,6 +41,7 @@ import {
   ExclamationCircleOutlined
 } from '@ant-design/icons';
 import { useAuthStore } from '../stores/authStore';
+import { usePermissions } from '../hooks/usePermissions';
 import shipmentsApi, { 
   Shipment, 
   Order, 
@@ -57,6 +58,7 @@ const { TabPane } = Tabs;
 
 export const Shipments: React.FC = () => {
   const { user } = useAuthStore();
+  const { canCreate, canEdit, canDelete } = usePermissions();
   const location = useLocation();
   const navigate = useNavigate();
   const [shipments, setShipments] = useState<Shipment[]>([]);
@@ -486,7 +488,7 @@ export const Shipments: React.FC = () => {
               />
             </Tooltip>
             
-            {(record.status === 'pending' || record.status === 'paused') && shipmentsApi.canEdit(userRole) && (
+            {(record.status === 'pending' || record.status === 'paused') && canEdit('shipments') && (
               <Tooltip title="Редактировать">
                 <Button 
                   type="text" 
@@ -496,7 +498,7 @@ export const Shipments: React.FC = () => {
               </Tooltip>
             )}
             
-            {shipmentsApi.canUpdateStatus(userRole) && record.status !== 'completed' && record.status !== 'cancelled' && (
+            {canEdit('shipments') && record.status !== 'completed' && record.status !== 'cancelled' && (
               <Select
                 size="small"
                 value={record.status}
@@ -515,7 +517,7 @@ export const Shipments: React.FC = () => {
               </Select>
             )}
             
-            {record.status === 'pending' && shipmentsApi.canCancel(userRole) && (
+            {record.status === 'pending' && canDelete('shipments') && (
               <Tooltip title="Отменить">
                 <Popconfirm
                   title="Отменить отгрузку?"
@@ -600,7 +602,7 @@ export const Shipments: React.FC = () => {
           type="info"
           showIcon
           action={
-            shipmentsApi.canCreate(user?.role || '') && (
+            canCreate('shipments') && (
               <Button size="small" onClick={() => setCreateModalVisible(true)}>
                 Создать отгрузку
               </Button>
@@ -672,7 +674,7 @@ export const Shipments: React.FC = () => {
           </Button>
         </Space>
         
-        {shipmentsApi.canCreate(user?.role || '') && (
+        {canCreate('shipments') && (
           <Button 
             type="primary" 
             icon={<PlusOutlined />}

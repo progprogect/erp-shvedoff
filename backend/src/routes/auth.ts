@@ -5,6 +5,7 @@ import { db, schema } from '../db';
 import { eq } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { requirePermission } from '../middleware/permissions';
 
 const router = express.Router();
 

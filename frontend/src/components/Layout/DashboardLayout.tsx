@@ -19,8 +19,8 @@ import {
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
+import { usePermissions } from '../../hooks/usePermissions';
 import { permissionsApi, MenuPermissions } from '../../services/permissionsApi';
-import usePermissions from '../../hooks/usePermissions';
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
@@ -221,18 +221,18 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
 
     let menuItems = [...baseItems];
 
-    if (user?.role === 'manager' || user?.role === 'director') {
+    if (permissionsHook.canEdit('orders') || permissionsHook.canManage('orders')) {
       menuItems = [...menuItems, ...managerDirectorItems];
     }
 
-    if (user?.role === 'production' || user?.role === 'director' || user?.role === 'manager') {
+    if (permissionsHook.canEdit('production') || permissionsHook.canManage('production')) {
       menuItems = [...menuItems, ...productionItems];
     }
 
     // Отгрузки доступны всем ролям
     menuItems = [...menuItems, ...logisticsItems];
 
-    if (user?.role === 'director') {
+    if (permissionsHook.canManage('users') || permissionsHook.canManage('permissions')) {
       menuItems = [...menuItems, ...directorItems];
     }
 

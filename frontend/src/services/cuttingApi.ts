@@ -214,22 +214,12 @@ class CuttingApiService {
     return statusTexts[status] || status;
   }
 
-  // Проверка прав доступа
-  canApprove(userRole: string): boolean {
-    return userRole === 'director';
-  }
+  // Проверка прав доступа - теперь через usePermissions hook
+  // Эти методы удалены - используйте usePermissions() hook вместо них
 
-  canStart(userRole: string): boolean {
-    return ['production', 'director'].includes(userRole);
-  }
+  // canComplete удален - используйте usePermissions() hook
 
-  canComplete(userRole: string): boolean {
-    return ['production', 'director'].includes(userRole);
-  }
-
-  canCancel(userRole: string): boolean {
-    return ['production', 'director'].includes(userRole);
-  }
+  // canCancel удален - используйте usePermissions() hook
 
   // DEPRECATED: Больше не используется
   /*

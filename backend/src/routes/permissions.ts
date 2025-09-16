@@ -2,13 +2,13 @@ import { Router } from 'express';
 import { db, schema } from '../db';
 import { eq, and, or, sql } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
-import { authenticateToken, authorizeRoles, AuthRequest } from '../middleware/auth';
+import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { requirePermission, getUserPermissions, initializeDefaultPermissions } from '../middleware/permissions';
 
 const router = Router();
 
 // GET /api/permissions - получить все разрешения в системе (для директоров)
-router.get('/', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.get('/', authenticateToken, requirePermission('permissions', 'view'), async (req: AuthRequest, res, next) => {
   try {
     const permissions = await db.query.permissions.findMany({
       orderBy: [schema.permissions.resource, schema.permissions.action]
@@ -36,7 +36,7 @@ router.get('/', authenticateToken, authorizeRoles('director'), async (req: AuthR
 });
 
 // GET /api/permissions/roles - получить разрешения для всех ролей (для директоров)
-router.get('/roles', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.get('/roles', authenticateToken, requirePermission('permissions', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const rolePermissions = await db.query.rolePermissions.findMany({
       with: {
@@ -63,7 +63,7 @@ router.get('/roles', authenticateToken, authorizeRoles('director'), async (req: 
 });
 
 // GET /api/permissions/users/:userId - получить разрешения конкретного пользователя (для директоров)
-router.get('/users/:userId', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.get('/users/:userId', authenticateToken, requirePermission('permissions', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const userId = parseInt(req.params.userId);
     
@@ -83,7 +83,7 @@ router.get('/users/:userId', authenticateToken, authorizeRoles('director'), asyn
 });
 
 // POST /api/permissions/roles/:role - установить разрешения для роли (для директоров)
-router.post('/roles/:role', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.post('/roles/:role', authenticateToken, requirePermission('permissions', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const role = req.params.role;
     const { permissionIds } = req.body;
@@ -122,7 +122,7 @@ router.post('/roles/:role', authenticateToken, authorizeRoles('director'), async
 });
 
 // POST /api/permissions/users/:userId - установить индивидуальные разрешения пользователя (для директоров)
-router.post('/users/:userId', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.post('/users/:userId', authenticateToken, requirePermission('permissions', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const userId = parseInt(req.params.userId);
     const { permissions } = req.body;
@@ -169,7 +169,7 @@ router.post('/users/:userId', authenticateToken, authorizeRoles('director'), asy
 });
 
 // POST /api/permissions/initialize - инициализация базовых разрешений (для директоров)
-router.post('/initialize', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.post('/initialize', authenticateToken, requirePermission('permissions', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     await initializeDefaultPermissions();
 
@@ -277,7 +277,7 @@ router.get('/user-menu', authenticateToken, async (req: AuthRequest, res, next) 
 });
 
 // POST /api/permissions/assign - Назначить разрешение роли
-router.post('/assign', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.post('/assign', authenticateToken, requirePermission('permissions', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const { role, permissionId } = req.body;
     const userId = req.user!.id;
@@ -344,7 +344,7 @@ router.post('/assign', authenticateToken, authorizeRoles('director'), async (req
 });
 
 // DELETE /api/permissions/revoke - Отозвать разрешение у роли
-router.delete('/revoke', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.delete('/revoke', authenticateToken, requirePermission('permissions', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const { role, permissionId } = req.body;
     const userId = req.user!.id;
@@ -402,7 +402,7 @@ router.delete('/revoke', authenticateToken, authorizeRoles('director'), async (r
 });
 
 // POST /api/permissions/roles/:role/bulk-assign - Массовое назначение разрешений роли
-router.post('/roles/:role/bulk-assign', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.post('/roles/:role/bulk-assign', authenticateToken, requirePermission('permissions', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const { role } = req.params;
     const { permissionIds } = req.body;
@@ -480,7 +480,7 @@ router.post('/roles/:role/bulk-assign', authenticateToken, authorizeRoles('direc
 });
 
 // GET /api/permissions/available-roles - Получить список доступных ролей
-router.get('/available-roles', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.get('/available-roles', authenticateToken, requirePermission('permissions', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const roles = [
       { value: 'manager', label: 'Менеджер', description: 'Управление заказами и клиентами' },

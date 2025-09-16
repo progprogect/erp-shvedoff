@@ -3,7 +3,6 @@ import { db, schema } from '../db';
 import { eq, like, isNull, and, desc } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
-import { requirePermission } from '../middleware/permissions';
 
 const router = express.Router();
 
@@ -91,7 +90,8 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
 });
 
 // POST /api/categories - создать новую категорию
-router.post('/', authenticateToken, requirePermission('catalog', 'create'), async (req: AuthRequest, res, next) => {
+router.post('/', authenticateToken, async (req: AuthRequest, res, next) => {
+  // Справочники доступны всем авторизованным пользователям
   try {
     const { name, parentId, description, sortOrder } = req.body;
     const userId = req.user!.id;
@@ -159,7 +159,8 @@ router.post('/', authenticateToken, requirePermission('catalog', 'create'), asyn
 });
 
 // PUT /api/categories/:id - обновить категорию
-router.put('/:id', authenticateToken, requirePermission('catalog', 'edit'), async (req: AuthRequest, res, next) => {
+router.put('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
+  // Справочники доступны всем авторизованным пользователям
   try {
     const { id } = req.params;
     const { name, parentId, description, sortOrder } = req.body;

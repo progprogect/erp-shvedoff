@@ -3,6 +3,7 @@ import { db } from '../db';
 import { orders, orderItems, stock, products, shipments, users, shipmentOrders } from '../db/schema';
 import { eq, desc, gte, sql, and } from 'drizzle-orm';
 import { authenticateToken } from '../middleware/auth';
+import { requirePermission } from '../middleware/permissions';
 import { createError } from '../middleware/errorHandler';
 
 const router = Router();

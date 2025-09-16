@@ -1,7 +1,8 @@
 import express from 'express';
 import { db, schema } from '../db';
 import { eq, and, sql, desc, asc, inArray } from 'drizzle-orm';
-import { authenticateToken, authorizeRoles, AuthRequest } from '../middleware/auth';
+import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { requirePermission } from '../middleware/permissions';
 import { requireExportPermission } from '../middleware/permissions';
 import { createError } from '../middleware/errorHandler';
 import { 
@@ -15,7 +16,7 @@ import { ExcelExporter } from '../utils/excelExporter';
 const router = express.Router();
 
 // GET /api/production/queue - Get production queue
-router.get('/queue', authenticateToken, authorizeRoles('production', 'director'), async (req: AuthRequest, res, next) => {
+router.get('/queue', authenticateToken, requirePermission('production', 'view'), async (req: AuthRequest, res, next) => {
   try {
     const { status, priority, limit = 50, offset = 0 } = req.query;
 
@@ -75,7 +76,7 @@ router.get('/queue', authenticateToken, authorizeRoles('production', 'director')
 });
 
 // GET /api/production/queue/:id - Get specific production queue item
-router.get('/queue/:id', authenticateToken, authorizeRoles('production', 'director'), async (req: AuthRequest, res, next) => {
+router.get('/queue/:id', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const productionId = Number(req.params.id);
 
@@ -127,7 +128,7 @@ router.get('/queue/:id', authenticateToken, authorizeRoles('production', 'direct
 });
 
 // PUT /api/production/queue/:id/status - Update production status
-router.put('/queue/:id/status', authenticateToken, authorizeRoles('production', 'director'), async (req: AuthRequest, res, next) => {
+router.put('/queue/:id/status', authenticateToken, requirePermission('production', 'edit'), async (req: AuthRequest, res, next) => {
   try {
     const productionId = Number(req.params.id);
     const { status, notes } = req.body;
@@ -249,7 +250,7 @@ router.put('/queue/:id/status', authenticateToken, authorizeRoles('production', 
 });
 
 // POST /api/production/auto-queue - Automatically add orders without stock to production queue
-router.post('/auto-queue', authenticateToken, authorizeRoles('production', 'director'), async (req: AuthRequest, res, next) => {
+router.post('/auto-queue', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     // Find orders with items that don't have enough stock
     // Ищем заказы в статусах: new, confirmed, in_production - все которые могут требовать производства
@@ -336,7 +337,7 @@ router.post('/auto-queue', authenticateToken, authorizeRoles('production', 'dire
 });
 
 // POST /api/production/queue - Manually add production task to queue
-router.post('/queue', authenticateToken, authorizeRoles('production', 'director'), async (req: AuthRequest, res, next) => {
+router.post('/queue', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const { productId, quantity, priority = 3, notes } = req.body;
 
@@ -387,7 +388,7 @@ router.post('/queue', authenticateToken, authorizeRoles('production', 'director'
 });
 
 // GET /api/production/stats - Get production statistics
-router.get('/stats', authenticateToken, authorizeRoles('production', 'director'), async (req: AuthRequest, res, next) => {
+router.get('/stats', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const stats = await Promise.all([
       // Count by status
@@ -435,7 +436,7 @@ router.get('/stats', authenticateToken, authorizeRoles('production', 'director')
 // ==================== НОВЫЕ РОУТЫ ДЛЯ ПРОИЗВОДСТВЕННЫХ ЗАДАНИЙ ====================
 
 // GET /api/production/tasks - Get production tasks
-router.get('/tasks', authenticateToken, authorizeRoles('manager', 'production', 'director'), async (req: AuthRequest, res, next) => {
+router.get('/tasks', authenticateToken, requirePermission('production', 'view'), async (req: AuthRequest, res, next) => {
   try {
     const { status, limit = 50, offset = 0 } = req.query;
 
@@ -530,7 +531,7 @@ router.get('/tasks', authenticateToken, authorizeRoles('manager', 'production', 
 // === КАЛЕНДАРНЫЕ И СТАТИСТИЧЕСКИЕ API ===
 
 // GET /api/production/tasks/calendar - Получить задания за период для календаря
-router.get('/tasks/calendar', authenticateToken, authorizeRoles('manager', 'production', 'director'), async (req: AuthRequest, res, next) => {
+router.get('/tasks/calendar', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const { startDate, endDate } = req.query;
 
@@ -589,7 +590,7 @@ router.get('/tasks/calendar', authenticateToken, authorizeRoles('manager', 'prod
 });
 
 // GET /api/production/statistics/daily - Получить статистику по дням за период
-router.get('/statistics/daily', authenticateToken, authorizeRoles('manager', 'production', 'director'), async (req: AuthRequest, res, next) => {
+router.get('/statistics/daily', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const { startDate, endDate } = req.query;
 
@@ -636,7 +637,7 @@ router.get('/statistics/daily', authenticateToken, authorizeRoles('manager', 'pr
 });
 
 // GET /api/production/statistics/detailed - Получить детальную статистику с разбивкой по товарам  
-router.get('/statistics/detailed', authenticateToken, authorizeRoles('manager', 'production', 'director'), async (req: AuthRequest, res, next) => {
+router.get('/statistics/detailed', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const { startDate, endDate, period = 'day' } = req.query;
 
@@ -688,7 +689,7 @@ router.get('/statistics/detailed', authenticateToken, authorizeRoles('manager', 
 });
 
 // PUT /api/production/tasks/:id/schedule - Обновить планирование задания
-router.put('/tasks/:id/schedule', authenticateToken, authorizeRoles('manager', 'production', 'director'), async (req: AuthRequest, res, next) => {
+router.put('/tasks/:id/schedule', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const taskId = Number(req.params.id);
     const { plannedDate, plannedStartTime } = req.body;
@@ -735,7 +736,7 @@ router.put('/tasks/:id/schedule', authenticateToken, authorizeRoles('manager', '
 });
 
 // GET /api/production/tasks/by-product - Группировка заданий по товарам
-router.get('/tasks/by-product', authenticateToken, authorizeRoles('manager', 'production', 'director'), async (req: AuthRequest, res, next) => {
+router.get('/tasks/by-product', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const { status = 'pending,in_progress' } = req.query;
     
@@ -844,7 +845,7 @@ router.get('/tasks/by-product', authenticateToken, authorizeRoles('manager', 'pr
 });
 
 // POST /api/production/tasks/complete-by-product - Массовое завершение заданий по товару
-router.post('/tasks/complete-by-product', authenticateToken, authorizeRoles('production', 'director'), async (req: AuthRequest, res, next) => {
+router.post('/tasks/complete-by-product', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const { productId, producedQuantity, qualityQuantity, defectQuantity, productionDate, notes } = req.body;
     const userId = req.user!.id;
@@ -1104,7 +1105,7 @@ router.post('/tasks/complete-by-product', authenticateToken, authorizeRoles('pro
 });
 
 // POST /api/production/tasks/:id/start - Начать выполнение задания
-router.post('/tasks/:id/start', authenticateToken, authorizeRoles('production', 'director'), async (req: AuthRequest, res, next) => {
+router.post('/tasks/:id/start', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const taskId = Number(req.params.id);
     const userId = req.user!.id;
@@ -1143,7 +1144,7 @@ router.post('/tasks/:id/start', authenticateToken, authorizeRoles('production', 
 });
 
 // PUT /api/production/tasks/:id/status - Изменить статус задания
-router.put('/tasks/:id/status', authenticateToken, authorizeRoles('production', 'director'), async (req: AuthRequest, res, next) => {
+router.put('/tasks/:id/status', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const taskId = Number(req.params.id);
     const { status } = req.body;
@@ -1221,7 +1222,7 @@ router.put('/tasks/:id/status', authenticateToken, authorizeRoles('production', 
 });
 
 // PUT /api/production/tasks/:id - Редактировать задание
-router.put('/tasks/:id', authenticateToken, authorizeRoles('manager', 'production', 'director'), async (req: AuthRequest, res, next) => {
+router.put('/tasks/:id', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const taskId = Number(req.params.id);
     const { requestedQuantity, priority, notes, assignedTo, plannedDate, plannedStartTime } = req.body;
@@ -1355,7 +1356,7 @@ router.put('/tasks/:id', authenticateToken, authorizeRoles('manager', 'productio
 });
 
 // PUT /api/production/tasks/:id/order - Изменить порядок заданий (drag-and-drop)
-router.put('/tasks/reorder', authenticateToken, authorizeRoles('production', 'director'), async (req: AuthRequest, res, next) => {
+router.put('/tasks/reorder', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const { taskIds } = req.body; // массив ID в новом порядке
 
@@ -1382,7 +1383,7 @@ router.put('/tasks/reorder', authenticateToken, authorizeRoles('production', 'di
 });
 
 // POST /api/production/tasks/bulk-register - Массовая регистрация выпуска продукции (WBS 2 - Adjustments Задача 4.2)
-router.post('/tasks/bulk-register', authenticateToken, authorizeRoles('production', 'director'), async (req: AuthRequest, res, next) => {
+router.post('/tasks/bulk-register', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const { items, productionDate, notes } = req.body;
     const userId = req.user!.id;
@@ -1666,7 +1667,7 @@ router.post('/tasks/bulk-register', authenticateToken, authorizeRoles('productio
 });
 
 // POST /api/production/tasks/:id/partial-complete - Частичное выполнение задания (WBS 2 - Adjustments Задача 4.1)
-router.post('/tasks/:id/partial-complete', authenticateToken, authorizeRoles('production', 'director'), async (req: AuthRequest, res, next) => {
+router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const taskId = Number(req.params.id);
     const { 
@@ -1834,7 +1835,7 @@ router.post('/tasks/:id/partial-complete', authenticateToken, authorizeRoles('pr
 });
 
 // POST /api/production/tasks/:id/complete - Завершить задание с указанием результатов
-router.post('/tasks/:id/complete', authenticateToken, authorizeRoles('production', 'director'), async (req: AuthRequest, res, next) => {
+router.post('/tasks/:id/complete', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const taskId = Number(req.params.id);
     const { 
@@ -2041,7 +2042,7 @@ router.post('/tasks/:id/complete', authenticateToken, authorizeRoles('production
 });
 
 // POST /api/production/tasks/suggest - Предложить производственное задание
-router.post('/tasks/suggest', authenticateToken, authorizeRoles('manager', 'director'), async (req: AuthRequest, res, next) => {
+router.post('/tasks/suggest', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const { orderId, productId, requestedQuantity, priority = 3, notes, assignedTo } = req.body;
     const userId = req.user!.id;
@@ -2122,7 +2123,7 @@ router.post('/tasks/suggest', authenticateToken, authorizeRoles('manager', 'dire
 });
 
 // POST /api/production/sync/full - Full synchronization between production_queue and production_tasks
-router.post('/sync/full', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.post('/sync/full', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const syncResult = await fullProductionSync();
 
@@ -2139,7 +2140,7 @@ router.post('/sync/full', authenticateToken, authorizeRoles('director'), async (
 });
 
 // POST /api/production/sync/queue - Sync production_queue to production_tasks
-router.post('/sync/queue', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.post('/sync/queue', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const syncResult = await syncProductionQueueToTasks();
 
@@ -2155,7 +2156,7 @@ router.post('/sync/queue', authenticateToken, authorizeRoles('director'), async 
 });
 
 // POST /api/production/sync/orders - Create tasks for pending orders
-router.post('/sync/orders', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.post('/sync/orders', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const syncResult = await createTasksForPendingOrders();
 
@@ -2171,7 +2172,7 @@ router.post('/sync/orders', authenticateToken, authorizeRoles('director'), async
 });
 
 // POST /api/production/recalculate - Recalculate production needs
-router.post('/recalculate', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.post('/recalculate', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const { recalculateProductionNeeds } = await import('../utils/productionSynchronizer');
     const result = await recalculateProductionNeeds();
@@ -2187,7 +2188,7 @@ router.post('/recalculate', authenticateToken, authorizeRoles('director'), async
 });
 
 // GET /api/production/sync/stats - Get synchronization statistics
-router.get('/sync/stats', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.get('/sync/stats', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const { getSyncStatistics } = await import('../utils/productionSynchronizer');
     const stats = await getSyncStatistics();
@@ -2202,7 +2203,7 @@ router.get('/sync/stats', authenticateToken, authorizeRoles('director'), async (
 });
 
 // POST /api/production/notify-ready - Send notifications for ready orders
-router.post('/notify-ready', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.post('/notify-ready', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const { notifyReadyOrders } = await import('../utils/productionSynchronizer');
     const result = await notifyReadyOrders();
@@ -2218,7 +2219,7 @@ router.post('/notify-ready', authenticateToken, authorizeRoles('director'), asyn
 });
 
 // GET /api/production/sync/statistics - Get sync statistics
-router.get('/sync/statistics', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.get('/sync/statistics', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const statistics = await getSyncStatistics();
 
@@ -2232,7 +2233,7 @@ router.get('/sync/statistics', authenticateToken, authorizeRoles('director'), as
 });
 
 // DELETE /api/production/tasks/:id - Delete production task (only pending status)
-router.delete('/tasks/:id', authenticateToken, authorizeRoles('manager', 'production', 'director'), async (req: AuthRequest, res, next) => {
+router.delete('/tasks/:id', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const taskId = Number(req.params.id);
     const userId = req.user!.id;
@@ -2307,7 +2308,7 @@ router.delete('/tasks/:id', authenticateToken, authorizeRoles('manager', 'produc
 });
 
 // GET /api/production/tasks/by-product/:productId - Get production tasks by product
-router.get('/tasks/by-product/:productId', authenticateToken, authorizeRoles('manager', 'production', 'director'), async (req: AuthRequest, res, next) => {
+router.get('/tasks/by-product/:productId', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const productId = Number(req.params.productId);
     const { status = 'pending,in_progress' } = req.query;

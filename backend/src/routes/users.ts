@@ -2,13 +2,14 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import { db, schema } from '../db';
 import { eq, sql, ilike, or, and } from 'drizzle-orm';
-import { authenticateToken, authorizeRoles, AuthRequest } from '../middleware/auth';
+import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { requirePermission } from '../middleware/permissions';
 import { createError } from '../middleware/errorHandler';
 
 const router = express.Router();
 
 // GET /api/users - Get all users (только для директоров)
-router.get('/', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.get('/', authenticateToken, requirePermission('users', 'view'), async (req: AuthRequest, res, next) => {
   try {
     const { search, role, limit = 50, offset = 0 } = req.query;
 
@@ -82,7 +83,7 @@ router.get('/list', authenticateToken, async (req: AuthRequest, res, next) => {
 });
 
 // GET /api/users/statistics - Get user statistics (только для директоров)
-router.get('/statistics', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.get('/statistics', authenticateToken, requirePermission('users', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     // Простая статистика пользователей
     const users = await db.query.users.findMany();
@@ -107,7 +108,7 @@ router.get('/statistics', authenticateToken, authorizeRoles('director'), async (
 });
 
 // GET /api/users/:id - Get user details (только для директоров)
-router.get('/:id', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.get('/:id', authenticateToken, requirePermission('users', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const userId = parseInt(req.params.id) || 0;
 
@@ -139,7 +140,7 @@ router.get('/:id', authenticateToken, authorizeRoles('director'), async (req: Au
 });
 
 // POST /api/users - Create new user (только для директоров)
-router.post('/', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.post('/', authenticateToken, requirePermission('users', 'create'), async (req: AuthRequest, res, next) => {
   try {
     const { username, fullName, email, password, role } = req.body;
     const createdBy = req.user!.id;
@@ -220,7 +221,7 @@ router.post('/', authenticateToken, authorizeRoles('director'), async (req: Auth
 });
 
 // PUT /api/users/:id - Update user (только для директоров)
-router.put('/:id', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.put('/:id', authenticateToken, requirePermission('users', 'edit'), async (req: AuthRequest, res, next) => {
   try {
     const userId = parseInt(req.params.id) || 0;
     const { fullName, email, role, isActive } = req.body;
@@ -324,7 +325,7 @@ router.put('/:id', authenticateToken, authorizeRoles('director'), async (req: Au
 });
 
 // PUT /api/users/:id/password - Change user password (только для директоров)
-router.put('/:id/password', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.put('/:id/password', authenticateToken, requirePermission('users', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const userId = parseInt(req.params.id) || 0;
     const { newPassword } = req.body;
@@ -374,7 +375,7 @@ router.put('/:id/password', authenticateToken, authorizeRoles('director'), async
 });
 
 // DELETE /api/users/:id - Deactivate user (только для директоров)
-router.delete('/:id', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.delete('/:id', authenticateToken, requirePermission('users', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const userId = parseInt(req.params.id) || 0;
     const deactivatedBy = req.user!.id;
@@ -425,7 +426,7 @@ router.delete('/:id', authenticateToken, authorizeRoles('director'), async (req:
 });
 
 // PUT /api/users/:id/activate - Activate user (только для директоров)
-router.put('/:id/activate', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.put('/:id/activate', authenticateToken, requirePermission('users', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const userId = parseInt(req.params.id) || 0;
     const activatedBy = req.user!.id;

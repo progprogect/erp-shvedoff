@@ -1,7 +1,8 @@
 import express from 'express';
 import { db, schema } from '../db';
 import { eq, sql, and, or, ilike, inArray } from 'drizzle-orm';
-import { authenticateToken, authorizeRoles, AuthRequest } from '../middleware/auth';
+import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { requirePermission } from '../middleware/permissions';
 import { createError } from '../middleware/errorHandler';
 import { 
   performStockOperation, 
@@ -115,7 +116,7 @@ async function getProductionQuantities(productIds?: number[]) {
 }
 
 // GET /api/stock - Get current stock levels
-router.get('/', authenticateToken, async (req, res, next) => {
+router.get('/', authenticateToken, requirePermission('stock', 'view'), async (req, res, next) => {
   try {
     const { status, categoryId, search, sortBy, sortOrder } = req.query;
 
@@ -284,7 +285,7 @@ router.get('/', authenticateToken, async (req, res, next) => {
 });
 
 // POST /api/stock/adjust - Adjust stock levels (UPDATED)
-router.post('/adjust', authenticateToken, authorizeRoles('manager', 'director', 'warehouse'), async (req: AuthRequest, res, next) => {
+router.post('/adjust', authenticateToken, requirePermission('stock', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const { productId, adjustment, comment, productionAction, productionQuantity } = req.body;
     const userId = req.user!.id;
@@ -376,7 +377,7 @@ router.post('/adjust', authenticateToken, authorizeRoles('manager', 'director', 
 });
 
 // GET /api/stock/movements/:productId - Get stock movement history
-router.get('/movements/:productId', authenticateToken, async (req, res, next) => {
+router.get('/movements/:productId', authenticateToken, requirePermission('stock', 'view'), async (req, res, next) => {
   try {
     const productId = Number(req.params.productId);
     const { limit = 50, offset = 0 } = req.query;
@@ -405,7 +406,7 @@ router.get('/movements/:productId', authenticateToken, async (req, res, next) =>
 });
 
 // POST /api/stock/reserve - Reserve stock for order (UPDATED)
-router.post('/reserve', authenticateToken, async (req: AuthRequest, res, next) => {
+router.post('/reserve', authenticateToken, requirePermission('stock', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const { productId, quantity, orderId } = req.body;
     const userId = req.user!.id;
@@ -438,7 +439,7 @@ router.post('/reserve', authenticateToken, async (req: AuthRequest, res, next) =
 });
 
 // POST /api/stock/release - Release reserved stock (UPDATED)
-router.post('/release', authenticateToken, async (req: AuthRequest, res, next) => {
+router.post('/release', authenticateToken, requirePermission('stock', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const { productId, quantity, orderId } = req.body;
     const userId = req.user!.id;
@@ -467,7 +468,7 @@ router.post('/release', authenticateToken, async (req: AuthRequest, res, next) =
 });
 
 // POST /api/stock/outgoing - Process outgoing shipment (UPDATED)
-router.post('/outgoing', authenticateToken, authorizeRoles('manager', 'director', 'warehouse'), async (req: AuthRequest, res, next) => {
+router.post('/outgoing', authenticateToken, requirePermission('stock', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const { productId, quantity, orderId } = req.body;
     const userId = req.user!.id;
@@ -500,7 +501,7 @@ router.post('/outgoing', authenticateToken, authorizeRoles('manager', 'director'
 });
 
 // POST /api/stock/incoming - Process incoming goods (NEW)
-router.post('/incoming', authenticateToken, authorizeRoles('manager', 'director'), async (req: AuthRequest, res, next) => {
+router.post('/incoming', authenticateToken, requirePermission('stock', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const { productId, quantity, comment } = req.body;
     const userId = req.user!.id;
@@ -532,7 +533,7 @@ router.post('/incoming', authenticateToken, authorizeRoles('manager', 'director'
 });
 
 // GET /api/stock/validate - Validate all stock data integrity (NEW)
-router.get('/validate', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.get('/validate', authenticateToken, requirePermission('stock', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const validation = await validateAllStock();
     
@@ -550,7 +551,7 @@ router.get('/validate', authenticateToken, authorizeRoles('director'), async (re
 });
 
 // POST /api/stock/fix-inconsistencies - Fix stock data inconsistencies (NEW)
-router.post('/fix-inconsistencies', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.post('/fix-inconsistencies', authenticateToken, requirePermission('stock', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const userId = req.user!.id;
     
@@ -570,7 +571,7 @@ router.post('/fix-inconsistencies', authenticateToken, authorizeRoles('director'
 });
 
 // POST /api/stock/sync-reservations - Sync reservations with orders (NEW)
-router.post('/sync-reservations', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.post('/sync-reservations', authenticateToken, requirePermission('stock', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const userId = req.user!.id;
     
@@ -590,7 +591,7 @@ router.post('/sync-reservations', authenticateToken, authorizeRoles('director'),
 });
 
 // GET /api/stock/statistics - Get enhanced stock statistics (NEW)
-router.get('/statistics', authenticateToken, async (req: AuthRequest, res, next) => {
+router.get('/statistics', authenticateToken, requirePermission('stock', 'view'), async (req: AuthRequest, res, next) => {
   try {
     const statistics = await getStockStatistics();
     
@@ -604,7 +605,7 @@ router.get('/statistics', authenticateToken, async (req: AuthRequest, res, next)
 });
 
 // GET /api/stock/product/:id - Get detailed stock info for specific product (NEW)
-router.get('/product/:id', authenticateToken, async (req: AuthRequest, res, next) => {
+router.get('/product/:id', authenticateToken, requirePermission('stock', 'view'), async (req: AuthRequest, res, next) => {
   try {
     const { id } = req.params;
     
@@ -620,7 +621,7 @@ router.get('/product/:id', authenticateToken, async (req: AuthRequest, res, next
 });
 
 // POST /api/stock/clear-reservations - Clear all reservations for a product (admin only)
-router.post('/clear-reservations', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.post('/clear-reservations', authenticateToken, requirePermission('stock', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const { productId, comment } = req.body;
     const userId = req.user!.id;
@@ -678,7 +679,7 @@ router.post('/clear-reservations', authenticateToken, authorizeRoles('director')
 });
 
 // 🔧 НОВЫЙ ENDPOINT: Исправление целостности данных
-router.post('/fix-integrity', authenticateToken, async (req, res) => {
+router.post('/fix-integrity', authenticateToken, requirePermission('stock', 'manage'), async (req, res) => {
   try {
     console.log('🔍 Начинаю диагностику и исправление данных...');
     
@@ -769,7 +770,7 @@ router.post('/fix-integrity', authenticateToken, async (req, res) => {
 });
 
 // POST /api/stock/audit - комплексный аудит данных
-router.post('/audit', authenticateToken, authorizeRoles('director', 'manager'), async (req, res) => {
+router.post('/audit', authenticateToken, requirePermission('stock', 'manage'), async (req, res) => {
   try {
     const auditResults = {
       timestamp: new Date().toISOString(),
@@ -908,7 +909,7 @@ router.post('/audit', authenticateToken, authorizeRoles('director', 'manager'), 
 });
 
 // POST /api/stock/sync-reservations - синхронизация резервов с заказами
-router.post('/sync-reservations', authenticateToken, authorizeRoles('director', 'manager'), async (req, res) => {
+router.post('/sync-reservations', authenticateToken, requirePermission('stock', 'manage'), async (req, res) => {
   try {
     const syncResults = {
       synchronized: 0,

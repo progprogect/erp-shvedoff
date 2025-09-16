@@ -1,8 +1,8 @@
 import express from 'express';
 import { db, schema } from '../db';
 import { eq, and, sql, desc, asc, inArray } from 'drizzle-orm';
-import { authenticateToken, authorizeRoles, AuthRequest } from '../middleware/auth';
-import { requireExportPermission } from '../middleware/permissions';
+import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { requirePermission, requireExportPermission } from '../middleware/permissions';
 import { createError } from '../middleware/errorHandler';
 import { performStockOperation } from '../utils/stockManager';
 import { ExcelExporter } from '../utils/excelExporter';
@@ -103,7 +103,7 @@ async function checkAndArchiveOrder(tx: any, orderId: number, userId: number) {
 }
 
 // GET /api/shipments - Get shipments list
-router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
+router.get('/', authenticateToken, requirePermission('shipments', 'view'), async (req: AuthRequest, res, next) => {
   try {
     const { status, limit = 50, offset = 0, search } = req.query;
 
@@ -172,7 +172,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
 });
 
 // GET /api/shipments/open - Get open shipments (pending, paused)
-router.get('/open', authenticateToken, authorizeRoles('manager', 'director', 'warehouse'), async (req: AuthRequest, res, next) => {
+router.get('/open', authenticateToken, requirePermission('shipments', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const openShipments = await db.query.shipments.findMany({
       where: inArray(schema.shipments.status, ['pending', 'paused']),
@@ -213,7 +213,7 @@ router.get('/open', authenticateToken, authorizeRoles('manager', 'director', 'wa
 });
 
 // GET /api/shipments/ready-orders - Get orders ready for shipment
-router.get('/ready-orders', authenticateToken, authorizeRoles('manager', 'director', 'warehouse'), async (req: AuthRequest, res, next) => {
+router.get('/ready-orders', authenticateToken, requirePermission('shipments', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     // Получаем заказы готовые к отгрузке (статус 'ready')
     const readyOrders = await db.query.orders.findMany({
@@ -265,7 +265,7 @@ router.get('/ready-orders', authenticateToken, authorizeRoles('manager', 'direct
 });
 
 // POST /api/shipments - Create new shipment
-router.post('/', authenticateToken, authorizeRoles('manager', 'director', 'warehouse'), async (req: AuthRequest, res, next) => {
+router.post('/', authenticateToken, requirePermission('shipments', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const { 
       orderIds, 
@@ -422,7 +422,7 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director', 'wareh
 });
 
 // GET /api/shipments/statistics - Get shipments statistics
-router.get('/statistics', authenticateToken, async (req: AuthRequest, res, next) => {
+router.get('/statistics', authenticateToken, requirePermission('shipments', 'view'), async (req: AuthRequest, res, next) => {
   try {
     // Получаем все отгрузки
     const shipments = await db.query.shipments.findMany({
@@ -498,7 +498,7 @@ router.get('/statistics', authenticateToken, async (req: AuthRequest, res, next)
 });
 
 // GET /api/shipments/:id - Get shipment details
-router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
+router.get('/:id', authenticateToken, requirePermission('shipments', 'view'), async (req: AuthRequest, res, next) => {
   try {
     const shipmentId = Number(req.params.id);
     
@@ -564,7 +564,7 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
 });
 
 // PUT /api/shipments/:id/status - Update shipment status
-router.put('/:id/status', authenticateToken, async (req: AuthRequest, res, next) => {
+router.put('/:id/status', authenticateToken, requirePermission('shipments', 'edit'), async (req: AuthRequest, res, next) => {
   try {
     const shipmentId = Number(req.params.id);
     const { status, actualQuantities, transportInfo, documentsPhotos } = req.body;
@@ -756,7 +756,7 @@ router.put('/:id/status', authenticateToken, async (req: AuthRequest, res, next)
 });
 
 // PUT /api/shipments/:id - Update shipment details
-router.put('/:id', authenticateToken, authorizeRoles('manager', 'director', 'warehouse'), async (req: AuthRequest, res, next) => {
+router.put('/:id', authenticateToken, requirePermission('shipments', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const shipmentId = Number(req.params.id);
     const { plannedDate, transportInfo, documentsPhotos, orderIds } = req.body;
@@ -882,7 +882,7 @@ router.put('/:id', authenticateToken, authorizeRoles('manager', 'director', 'war
 });
 
 // DELETE /api/shipments/:id - Cancel shipment
-router.delete('/:id', authenticateToken, authorizeRoles('manager', 'director', 'warehouse'), async (req: AuthRequest, res, next) => {
+router.delete('/:id', authenticateToken, requirePermission('shipments', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const shipmentId = Number(req.params.id);
     const userId = req.user!.id;

@@ -433,8 +433,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   products: many(products), // товары под ответственностью пользователя
   messages: many(orderMessages),
   productions: many(productionQueue),
-  notifications: many(telegramNotifications),
   stockMovements: many(stockMovements),
+  notifications: many(telegramNotifications),
   userPermissions: many(userPermissions),
   tasksCreated: many(productionTasks, { relationName: 'tasksCreated' }),
   tasksAssigned: many(productionTasks, { relationName: 'tasksAssigned' }),

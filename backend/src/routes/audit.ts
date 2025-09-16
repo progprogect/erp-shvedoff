@@ -2,6 +2,7 @@ import express from 'express';
 import { db, schema } from '../db';
 import { eq, and, like, desc, sql } from 'drizzle-orm';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { requirePermission } from '../middleware/permissions';
 
 const router = express.Router();
 

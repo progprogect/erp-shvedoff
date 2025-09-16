@@ -3,6 +3,7 @@ import { db, schema } from '../db';
 import { eq, like, and, desc, sql, ilike, inArray } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { requirePermission } from '../middleware/permissions';
 
 const router = express.Router();
 
@@ -33,7 +34,7 @@ async function getProductionQuantity(productId: number): Promise<number> {
 }
 
 // GET /api/products - получить все товары с фильтрацией и поиском
-router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
+router.get('/', authenticateToken, requirePermission('products', 'view'), async (req: AuthRequest, res, next) => {
   try {
     const { 
       search, 
@@ -144,7 +145,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
 });
 
 // GET /api/products/search - быстрый поиск товаров (минимум 3 символа)
-router.get('/search', authenticateToken, async (req: AuthRequest, res, next) => {
+router.get('/search', authenticateToken, requirePermission('products', 'view'), async (req: AuthRequest, res, next) => {
   try {
     const { q } = req.query;
 
@@ -191,7 +192,7 @@ router.get('/search', authenticateToken, async (req: AuthRequest, res, next) => 
 });
 
 // GET /api/products/:id - получить товар по ID
-router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
+router.get('/:id', authenticateToken, requirePermission('products', 'view'), async (req: AuthRequest, res, next) => {
   try {
     const { id } = req.params;
 
@@ -260,7 +261,7 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
 });
 
 // POST /api/products - создать новый товар
-router.post('/', authenticateToken, async (req: AuthRequest, res, next) => {
+router.post('/', authenticateToken, requirePermission('products', 'create'), async (req: AuthRequest, res, next) => {
   try {
     const {
       name,
@@ -453,7 +454,7 @@ router.post('/', authenticateToken, async (req: AuthRequest, res, next) => {
 });
 
 // PUT /api/products/:id - обновить товар
-router.put('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
+router.put('/:id', authenticateToken, requirePermission('products', 'edit'), async (req: AuthRequest, res, next) => {
   try {
     const { id } = req.params;
     const {

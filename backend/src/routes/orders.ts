@@ -1,8 +1,8 @@
 import express from 'express';
 import { db, schema } from '../db';
 import { eq, and, sql, inArray } from 'drizzle-orm';
-import { authenticateToken, authorizeRoles, AuthRequest } from '../middleware/auth';
-import { requireExportPermission } from '../middleware/permissions';
+import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { requirePermission, requireExportPermission } from '../middleware/permissions';
 import { createError } from '../middleware/errorHandler';
 import { performStockOperation } from '../utils/stockManager';
 import { analyzeOrderAvailability, updateOrderStatus } from '../utils/orderStatusCalculator';
@@ -13,7 +13,7 @@ import { parsePrice, calculateOrderTotal as calculateOrderTotalBackend } from '.
 const router = express.Router();
 
 // GET /api/orders - Get orders list
-router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
+router.get('/', authenticateToken, requirePermission('orders', 'view'), async (req: AuthRequest, res, next) => {
   try {
     const { status, priority, managerId, limit = 50, offset = 0 } = req.query;
     const userRole = req.user!.role;
@@ -138,7 +138,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
 });
 
 // GET /api/orders/:id - Get order details
-router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
+router.get('/:id', authenticateToken, requirePermission('orders', 'view'), async (req: AuthRequest, res, next) => {
   try {
     const orderId = Number(req.params.id);
     const userRole = req.user!.role;
@@ -374,7 +374,7 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
 });
 
 // POST /api/orders - Create new order
-router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async (req: AuthRequest, res, next) => {
+router.post('/', authenticateToken, requirePermission('orders', 'create'), async (req: AuthRequest, res, next) => {
   try {
     const { 
       customerName, 
@@ -636,7 +636,7 @@ router.post('/', authenticateToken, authorizeRoles('manager', 'director'), async
 });
 
 // PUT /api/orders/:id - Update order
-router.put('/:id', authenticateToken, authorizeRoles('manager', 'director'), async (req: AuthRequest, res, next) => {
+router.put('/:id', authenticateToken, requirePermission('orders', 'edit'), async (req: AuthRequest, res, next) => {
   try {
     const orderId = Number(req.params.id);
     const { 
@@ -856,7 +856,7 @@ router.put('/:id', authenticateToken, authorizeRoles('manager', 'director'), asy
 });
 
 // PUT /api/orders/:id/confirm - Confirm order (move from 'new' to 'confirmed')
-router.put('/:id/confirm', authenticateToken, authorizeRoles('manager', 'director'), async (req: AuthRequest, res, next) => {
+router.put('/:id/confirm', authenticateToken, requirePermission('orders', 'edit'), async (req: AuthRequest, res, next) => {
   try {
     const orderId = Number(req.params.id);
     const { comment } = req.body;
@@ -968,7 +968,7 @@ router.put('/:id/confirm', authenticateToken, authorizeRoles('manager', 'directo
 });
 
 // PUT /api/orders/:id/status - Update order status
-router.put('/:id/status', authenticateToken, async (req: AuthRequest, res, next) => {
+router.put('/:id/status', authenticateToken, requirePermission('orders', 'edit'), async (req: AuthRequest, res, next) => {
   try {
     const orderId = Number(req.params.id);
     const { status, comment } = req.body;
@@ -1086,7 +1086,7 @@ router.put('/:id/status', authenticateToken, async (req: AuthRequest, res, next)
 });
 
 // POST /api/orders/:id/messages - Add message to order
-router.post('/:id/messages', authenticateToken, async (req: AuthRequest, res, next) => {
+router.post('/:id/messages', authenticateToken, requirePermission('orders', 'edit'), async (req: AuthRequest, res, next) => {
   try {
     const orderId = Number(req.params.id);
     const { message } = req.body;
@@ -1124,7 +1124,7 @@ router.post('/:id/messages', authenticateToken, async (req: AuthRequest, res, ne
 });
 
 // POST /api/orders/recalculate-statuses - Recalculate all order statuses
-router.post('/recalculate-statuses', authenticateToken, authorizeRoles('director'), async (req: AuthRequest, res, next) => {
+router.post('/recalculate-statuses', authenticateToken, requirePermission('orders', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const { recalculateAllOrderStatuses } = await import('../utils/orderStatusCalculator');
     await recalculateAllOrderStatuses();
@@ -1139,7 +1139,7 @@ router.post('/recalculate-statuses', authenticateToken, authorizeRoles('director
 });
 
 // POST /api/orders/:id/analyze-availability - Analyze order availability (for testing)
-router.post('/:id/analyze-availability', authenticateToken, authorizeRoles('director', 'manager'), async (req: AuthRequest, res, next) => {
+router.post('/:id/analyze-availability', authenticateToken, requirePermission('orders', 'view'), async (req: AuthRequest, res, next) => {
   try {
     const orderId = Number(req.params.id);
     const { analyzeOrderAvailability, cancelUnnecessaryProductionTasks } = await import('../utils/orderStatusCalculator');
@@ -1161,7 +1161,7 @@ router.post('/:id/analyze-availability', authenticateToken, authorizeRoles('dire
 });
 
 // GET /api/orders/:id/availability - Get order availability analysis
-router.get('/:id/availability', authenticateToken, async (req: AuthRequest, res, next) => {
+router.get('/:id/availability', authenticateToken, requirePermission('orders', 'view'), async (req: AuthRequest, res, next) => {
   try {
     const orderId = Number(req.params.id);
     const analysis = await analyzeOrderAvailability(orderId);
@@ -1176,7 +1176,7 @@ router.get('/:id/availability', authenticateToken, async (req: AuthRequest, res,
 });
 
 // DELETE /api/orders/:id - Delete order (cancel with reservation release)
-router.delete('/:id', authenticateToken, authorizeRoles('manager', 'director'), async (req: AuthRequest, res, next) => {
+router.delete('/:id', authenticateToken, requirePermission('orders', 'delete'), async (req: AuthRequest, res, next) => {
   try {
     const orderId = Number(req.params.id);
     const currentUserId = req.user!.id;
@@ -1277,7 +1277,7 @@ router.delete('/:id', authenticateToken, authorizeRoles('manager', 'director'), 
 });
 
 // GET /api/orders/by-product/:productId - Get orders by product
-router.get('/by-product/:productId', authenticateToken, async (req: AuthRequest, res, next) => {
+router.get('/by-product/:productId', authenticateToken, requirePermission('orders', 'view'), async (req: AuthRequest, res, next) => {
   try {
     const productId = Number(req.params.productId);
     const userRole = req.user!.role;
