@@ -303,4 +303,66 @@ export const exportOrders = async (filters?: any): Promise<void> => {
     console.error('Error exporting orders:', error);
     throw new Error('Ошибка при экспорте заказов');
   }
+};
+
+// Check if order is linked to shipment
+export const isOrderLinkedToShipment = async (orderId: number): Promise<boolean> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/orders/${orderId}/shipment-link`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      return false;
+    }
+
+    const data = await response.json();
+    return data.isLinked || false;
+  } catch (error) {
+    console.error('Error checking shipment link:', error);
+    return false;
+  }
+};
+
+// Generate shipment document
+export const generateShipmentDocument = async (orderId: number): Promise<void> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/orders/${orderId}/shipment-document`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Ошибка при генерации документа отгрузки');
+    }
+
+    // Создаем blob из ответа
+    const blob = await response.blob();
+    
+    // Создаем URL для скачивания
+    const url = window.URL.createObjectURL(blob);
+    
+    // Создаем временную ссылку для скачивания
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Отгрузочное задание ORD-${orderId}.docx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Освобождаем память
+    window.URL.revokeObjectURL(url);
+    
+  } catch (error) {
+    console.error('Error generating shipment document:', error);
+    throw new Error('Ошибка при генерации документа отгрузки');
+  }
 }; 

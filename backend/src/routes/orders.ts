@@ -7,8 +7,9 @@ import { createError } from '../middleware/errorHandler';
 import { performStockOperation } from '../utils/stockManager';
 import { analyzeOrderAvailability, updateOrderStatus } from '../utils/orderStatusCalculator';
 import { ExcelExporter } from '../utils/excelExporter';
-import { checkAndUpdateAllShippedOrders } from '../utils/orderShipmentChecker';
+import { isOrderLinkedToShipment } from '../utils/orderShipmentChecker';
 import { parsePrice, calculateOrderTotal as calculateOrderTotalBackend } from '../utils/priceUtils';
+import { WordExporter } from '../utils/wordExporter';
 
 const router = express.Router();
 
@@ -1400,6 +1401,125 @@ router.post('/export', authenticateToken, requireExportPermission('orders'), asy
     });
 
   } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/orders/:id/shipment-document - Generate shipment document
+router.get('/:id/shipment-document', authenticateToken, requirePermission('orders', 'view'), async (req: AuthRequest, res, next) => {
+  try {
+    const orderId = Number(req.params.id);
+    const userRole = req.user!.role;
+    const userId = req.user!.id;
+
+    let whereCondition;
+    
+    // Role-based access control
+    if (userRole === 'manager') {
+      whereCondition = and(
+        eq(schema.orders.id, orderId),
+        eq(schema.orders.managerId, userId)
+      );
+    } else {
+      whereCondition = eq(schema.orders.id, orderId);
+    }
+
+    // Получаем заказ с полными данными
+    const order = await db.query.orders.findFirst({
+      where: whereCondition,
+      with: {
+        items: {
+          with: {
+            product: {
+              with: {
+                category: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!order) {
+      return next(createError('Order not found', 404));
+    }
+
+    // Проверяем, привязан ли заказ к отгрузке
+    const isLinkedToShipment = await isOrderLinkedToShipment(orderId);
+    if (!isLinkedToShipment) {
+      return res.status(400).json({
+        success: false,
+        message: 'Заказ не привязан к отгрузке. Сначала добавьте заказ в отгрузку.'
+      });
+    }
+
+    // Подготавливаем данные для генерации документа
+    const orderData = {
+      id: order.id,
+      orderNumber: order.orderNumber,
+      contractNumber: order.contractNumber || undefined,
+      client: {
+        name: order.customerName || 'Не указан'
+      },
+      items: order.items?.map((item: any) => ({
+        product: {
+          name: item.product?.name || 'Неизвестный товар',
+          article: item.product?.article,
+          area: item.product?.area
+        },
+        quantity: item.quantity
+      })) || [],
+      createdAt: order.createdAt?.toISOString() || new Date().toISOString()
+    };
+
+    // Генерируем и отправляем Word-документ
+    await WordExporter.exportShipmentDocument(res, orderData);
+
+  } catch (error) {
+    console.error('Ошибка при генерации документа отгрузки:', error);
+    next(error);
+  }
+});
+
+// GET /api/orders/:id/shipment-link - Check if order is linked to shipment
+router.get('/:id/shipment-link', authenticateToken, requirePermission('orders', 'view'), async (req: AuthRequest, res, next) => {
+  try {
+    const orderId = Number(req.params.id);
+    const userRole = req.user!.role;
+    const userId = req.user!.id;
+
+    let whereCondition;
+    
+    // Role-based access control
+    if (userRole === 'manager') {
+      whereCondition = and(
+        eq(schema.orders.id, orderId),
+        eq(schema.orders.managerId, userId)
+      );
+    } else {
+      whereCondition = eq(schema.orders.id, orderId);
+    }
+
+    // Проверяем существование заказа
+    const order = await db.query.orders.findFirst({
+      where: whereCondition,
+      columns: { id: true }
+    });
+
+    if (!order) {
+      return next(createError('Order not found', 404));
+    }
+
+    // Проверяем связь с отгрузкой
+    const isLinked = await isOrderLinkedToShipment(orderId);
+
+    res.json({
+      success: true,
+      isLinked
+    });
+
+  } catch (error) {
+    console.error('Ошибка при проверке связи заказ-отгрузка:', error);
     next(error);
   }
 });

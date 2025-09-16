@@ -10,13 +10,13 @@ import {
   ArrowLeftOutlined, EditOutlined, MessageOutlined, UserOutlined,
   ShoppingCartOutlined, CalendarOutlined, PhoneOutlined, DollarOutlined,
   CheckCircleOutlined, ExclamationCircleOutlined, ClockCircleOutlined,
-  DeleteOutlined, PlusOutlined, SettingOutlined, TruckOutlined
+  DeleteOutlined, PlusOutlined, SettingOutlined, TruckOutlined, FileTextOutlined
 } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { usePermissions } from '../hooks/usePermissions';
 import { handleFormError } from '../utils/errorUtils';
-import { ordersApi, Order, OrderItem, OrderMessage } from '../services/ordersApi';
+import { ordersApi, Order, OrderItem, OrderMessage, generateShipmentDocument, isOrderLinkedToShipment } from '../services/ordersApi';
 import { catalogApi, Product } from '../services/catalogApi';
 import { getOrderStatusText, getOrderStatusColor, ORDER_STATUS_LABELS } from '../constants/orderStatuses';
 import shipmentsApi from '../services/shipmentsApi';
@@ -61,6 +61,8 @@ const OrderDetail: React.FC = () => {
   const [planShipmentModalVisible, setPlanShipmentModalVisible] = useState(false);
   const [shipmentSelectionModalVisible, setShipmentSelectionModalVisible] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
+  const [isLinkedToShipment, setIsLinkedToShipment] = useState(false);
+  const [checkingShipmentLink, setCheckingShipmentLink] = useState(false);
   
   const [statusForm] = Form.useForm();
   const [messageForm] = Form.useForm();
@@ -89,6 +91,8 @@ const OrderDetail: React.FC = () => {
       
       if (response.success) {
         setOrder(response.data);
+        // Проверяем связь с отгрузкой
+        checkShipmentLink(Number(id));
       } else {
         message.error('Ошибка загрузки заказа');
         navigate('/orders');
@@ -99,6 +103,31 @@ const OrderDetail: React.FC = () => {
       navigate('/orders');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkShipmentLink = async (orderId: number) => {
+    setCheckingShipmentLink(true);
+    try {
+      const isLinked = await isOrderLinkedToShipment(orderId);
+      setIsLinkedToShipment(isLinked);
+    } catch (error) {
+      console.error('Ошибка проверки связи с отгрузкой:', error);
+      setIsLinkedToShipment(false);
+    } finally {
+      setCheckingShipmentLink(false);
+    }
+  };
+
+  const handleGenerateShipmentDocument = async () => {
+    if (!order) return;
+    
+    try {
+      await generateShipmentDocument(order.id);
+      message.success('Документ отгрузочного задания успешно сгенерирован');
+    } catch (error: any) {
+      console.error('Ошибка генерации документа:', error);
+      message.error(error.message || 'Ошибка при генерации документа');
     }
   };
 
@@ -738,6 +767,16 @@ const OrderDetail: React.FC = () => {
                     onClick={() => setPlanShipmentModalVisible(true)}
                   >
                     Запланировать отгрузку
+                  </Button>
+                )}
+                {isLinkedToShipment && (
+                  <Button 
+                    type="default"
+                    icon={<FileTextOutlined />}
+                    onClick={handleGenerateShipmentDocument}
+                    loading={checkingShipmentLink}
+                  >
+                    Создать отгрузочное задание
                   </Button>
                 )}
               </Space>

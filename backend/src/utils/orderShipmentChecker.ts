@@ -55,19 +55,19 @@ export async function isOrderFullyShipped(orderId: number): Promise<boolean> {
     }
 
     // Проверяем - отгружены ли все товары из заказа полностью
-    for (const orderItem of order.items) {
-      const orderedQty = orderItem.quantity;
+    for (const orderItem of order.items || []) {
+      const requiredQty = orderItem.quantity;
       const shippedQty = shippedQuantities[orderItem.productId] || 0;
       
-      if (shippedQty < orderedQty) {
+      if (shippedQty < requiredQty) {
         return false; // Не все товары отгружены
       }
     }
 
     return true; // Все товары отгружены
   } catch (error) {
-    console.error('Ошибка при проверке полной отгрузки заказа:', error);
-    return false; // В случае ошибки считаем, что заказ не отгружен
+    console.error('Ошибка при проверке статуса отгрузки заказа:', error);
+    return false;
   }
 }
 
@@ -129,20 +129,16 @@ export async function updateOrderStatusIfFullyShipped(orderId: number, userId: n
  * @param userId - ID пользователя для логирования
  * @returns Promise<number> - количество обновленных заказов
  */
-export async function checkAndUpdateAllShippedOrders(userId: number): Promise<number> {
+export async function updateAllFullyShippedOrders(userId: number): Promise<number> {
   try {
-    // Получаем все заказы со статусом "Готов к отгрузке"
+    // Получаем все заказы со статусом 'ready'
     const readyOrders = await db.query.orders.findMany({
       where: eq(schema.orders.status, 'ready'),
-      columns: {
-        id: true,
-        orderNumber: true
-      }
+      columns: { id: true, orderNumber: true }
     });
 
     let updatedCount = 0;
-
-    // Проверяем каждый заказ
+    
     for (const order of readyOrders) {
       const wasUpdated = await updateOrderStatusIfFullyShipped(order.id, userId);
       if (wasUpdated) {
@@ -150,13 +146,28 @@ export async function checkAndUpdateAllShippedOrders(userId: number): Promise<nu
       }
     }
 
-    if (updatedCount > 0) {
-      console.log(`📦 Автоматически обновлено ${updatedCount} заказов в статус "Отгружен"`);
-    }
-
+    console.log(`📦 Обновлено статусов заказов: ${updatedCount}`);
     return updatedCount;
   } catch (error) {
-    console.error('Ошибка при массовой проверке отгруженных заказов:', error);
+    console.error('Ошибка при массовом обновлении статусов заказов:', error);
     return 0;
+  }
+}
+
+/**
+ * Проверяет, привязан ли заказ к любой отгрузке (любого статуса)
+ * @param orderId - ID заказа для проверки
+ * @returns Promise<boolean> - true если заказ привязан к отгрузке
+ */
+export async function isOrderLinkedToShipment(orderId: number): Promise<boolean> {
+  try {
+    const shipmentOrder = await db.query.shipmentOrders.findFirst({
+      where: eq(schema.shipmentOrders.orderId, orderId)
+    });
+
+    return !!shipmentOrder;
+  } catch (error) {
+    console.error('Ошибка при проверке связи заказ-отгрузка:', error);
+    return false;
   }
 }
