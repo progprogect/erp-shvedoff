@@ -22,7 +22,13 @@ const ProductionStatistics: React.FC = () => {
   const [detailedStats, setDetailedStats] = useState<any[]>([]);
   const [summary, setSummary] = useState({
     totalTasks: 0,
-    totalQuantity: 0,
+    pendingTasks: 0,
+    inProgressTasks: 0,
+    pausedTasks: 0,
+    completedTasks: 0,
+    cancelledTasks: 0,
+    totalRequested: 0,
+    totalProduced: 0,
     totalQuality: 0,
     totalDefects: 0
   });
@@ -51,10 +57,27 @@ const ProductionStatistics: React.FC = () => {
         // Подсчитываем общую статистику
         const totals = detailedResponse.data.reduce((acc: any, item: any) => ({
           totalTasks: acc.totalTasks + (item.totalTasks || 0),
-          totalQuantity: acc.totalQuantity + (item.totalQuantity || 0),
+          pendingTasks: acc.pendingTasks + (item.pendingTasks || 0),
+          inProgressTasks: acc.inProgressTasks + (item.inProgressTasks || 0),
+          pausedTasks: acc.pausedTasks + (item.pausedTasks || 0),
+          completedTasks: acc.completedTasks + (item.completedTasks || 0),
+          cancelledTasks: acc.cancelledTasks + (item.cancelledTasks || 0),
+          totalRequested: acc.totalRequested + (item.totalRequested || 0),
+          totalProduced: acc.totalProduced + (item.totalProduced || 0),
           totalQuality: acc.totalQuality + (item.qualityQuantity || 0),
           totalDefects: acc.totalDefects + (item.defectQuantity || 0)
-        }), { totalTasks: 0, totalQuantity: 0, totalQuality: 0, totalDefects: 0 });
+        }), { 
+          totalTasks: 0, 
+          pendingTasks: 0, 
+          inProgressTasks: 0, 
+          pausedTasks: 0, 
+          completedTasks: 0, 
+          cancelledTasks: 0,
+          totalRequested: 0, 
+          totalProduced: 0, 
+          totalQuality: 0, 
+          totalDefects: 0 
+        });
         
         setSummary(totals);
       }
@@ -131,9 +154,19 @@ const ProductionStatistics: React.FC = () => {
       )
     },
     {
+      title: 'Запрошено',
+      dataIndex: 'totalRequested',
+      key: 'totalRequested',
+      render: (quantity: number) => (
+        <Text style={{ color: '#722ed1' }}>
+          {quantity || 0} шт.
+        </Text>
+      )
+    },
+    {
       title: 'Произведено',
-      dataIndex: 'totalQuantity',
-      key: 'totalQuantity',
+      dataIndex: 'totalProduced',
+      key: 'totalProduced',
       render: (quantity: number) => (
         <Text strong style={{ color: '#1890ff' }}>
           {quantity || 0} шт.
@@ -164,7 +197,7 @@ const ProductionStatistics: React.FC = () => {
       title: 'Качество',
       key: 'quality',
       render: (record: any) => {
-        const total = record.totalQuantity || 0;
+        const total = record.totalProduced || 0;
         const quality = record.qualityQuantity || 0;
         const percentage = total > 0 ? ((quality / total) * 100).toFixed(1) : '0';
         
@@ -293,7 +326,7 @@ const ProductionStatistics: React.FC = () => {
 
       {/* Общая статистика */}
       <Row gutter={16} style={{ marginBottom: '16px' }}>
-        <Col span={6}>
+        <Col span={4}>
           <Card>
             <Statistic
               title="Всего заданий"
@@ -303,11 +336,71 @@ const ProductionStatistics: React.FC = () => {
             />
           </Card>
         </Col>
+        <Col span={4}>
+          <Card>
+            <Statistic
+              title="Ожидают"
+              value={summary.pendingTasks}
+              valueStyle={{ color: '#faad14' }}
+            />
+          </Card>
+        </Col>
+        <Col span={4}>
+          <Card>
+            <Statistic
+              title="В работе"
+              value={summary.inProgressTasks}
+              valueStyle={{ color: '#1890ff' }}
+            />
+          </Card>
+        </Col>
+        <Col span={4}>
+          <Card>
+            <Statistic
+              title="На паузе"
+              value={summary.pausedTasks}
+              valueStyle={{ color: '#fa8c16' }}
+            />
+          </Card>
+        </Col>
+        <Col span={4}>
+          <Card>
+            <Statistic
+              title="Завершено"
+              value={summary.completedTasks}
+              valueStyle={{ color: '#52c41a' }}
+            />
+          </Card>
+        </Col>
+        <Col span={4}>
+          <Card>
+            <Statistic
+              title="Отменено"
+              value={summary.cancelledTasks}
+              valueStyle={{ color: '#f5222d' }}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Статистика по производству */}
+      <Row gutter={16} style={{ marginBottom: '16px' }}>
+        <Col span={6}>
+          <Card>
+            <Statistic
+              title="Запрошено"
+              value={summary.totalRequested}
+              suffix="шт."
+              prefix={<ProductOutlined />}
+              valueStyle={{ color: '#722ed1' }}
+            />
+          </Card>
+        </Col>
         <Col span={6}>
           <Card>
             <Statistic
               title="Произведено"
-              value={summary.totalQuantity}
+              value={summary.totalProduced}
               suffix="шт."
               prefix={<ProductOutlined />}
               valueStyle={{ color: '#1890ff' }}
@@ -384,16 +477,28 @@ const ProductionStatistics: React.FC = () => {
                       <Text strong>Среднее за задание: </Text>
                       <Text>
                         {record.totalTasks > 0 ? 
-                          Math.round(record.totalQuantity / record.totalTasks) : 0
+                          Math.round(record.totalProduced / record.totalTasks) : 0
                         } шт.
                       </Text>
                     </Col>
                     <Col span={6}>
                       <Text strong>Процент брака: </Text>
                       <Text style={{ color: '#f5222d' }}>
-                        {record.totalQuantity > 0 ? 
-                          ((record.defectQuantity / record.totalQuantity) * 100).toFixed(2) : 0
+                        {record.totalProduced > 0 ? 
+                          ((record.defectQuantity / record.totalProduced) * 100).toFixed(2) : 0
                         }%
+                      </Text>
+                    </Col>
+                    <Col span={6}>
+                      <Text strong>Ожидают: </Text>
+                      <Text style={{ color: '#faad14' }}>
+                        {record.pendingTasks || 0}
+                      </Text>
+                    </Col>
+                    <Col span={6}>
+                      <Text strong>В работе: </Text>
+                      <Text style={{ color: '#1890ff' }}>
+                        {record.inProgressTasks || 0}
                       </Text>
                     </Col>
                   </Row>

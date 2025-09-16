@@ -606,25 +606,28 @@ router.get('/statistics/daily', authenticateToken, requirePermission('production
       return next(createError('Некорректный формат даты', 400));
     }
 
-    // Правильная SQL конструкция для группировки по дням
-    const dateExpression = sql`DATE(${schema.productionTasks.completedAt})`;
-
+    // Получаем статистику по всем заданиям в периоде (не только завершенным)
     const dailyStats = await db
       .select({
-        production_date: dateExpression.as('production_date'),
-        completed_tasks: sql<number>`COUNT(*)`.as('completed_tasks'),
+        production_date: sql`DATE(COALESCE(${schema.productionTasks.completedAt}, ${schema.productionTasks.startedAt}, ${schema.productionTasks.createdAt}))`.as('production_date'),
+        total_tasks: sql<number>`COUNT(*)`.as('total_tasks'),
+        pending_tasks: sql<number>`COUNT(CASE WHEN ${schema.productionTasks.status} = 'pending' THEN 1 END)`.as('pending_tasks'),
+        in_progress_tasks: sql<number>`COUNT(CASE WHEN ${schema.productionTasks.status} = 'in_progress' THEN 1 END)`.as('in_progress_tasks'),
+        paused_tasks: sql<number>`COUNT(CASE WHEN ${schema.productionTasks.status} = 'paused' THEN 1 END)`.as('paused_tasks'),
+        completed_tasks: sql<number>`COUNT(CASE WHEN ${schema.productionTasks.status} = 'completed' THEN 1 END)`.as('completed_tasks'),
+        cancelled_tasks: sql<number>`COUNT(CASE WHEN ${schema.productionTasks.status} = 'cancelled' THEN 1 END)`.as('cancelled_tasks'),
+        total_requested: sql<number>`COALESCE(SUM(${schema.productionTasks.requestedQuantity}), 0)`.as('total_requested'),
         total_produced: sql<number>`COALESCE(SUM(${schema.productionTasks.producedQuantity}), 0)`.as('total_produced'),
         total_quality: sql<number>`COALESCE(SUM(${schema.productionTasks.qualityQuantity}), 0)`.as('total_quality'),
         total_defects: sql<number>`COALESCE(SUM(${schema.productionTasks.defectQuantity}), 0)`.as('total_defects')
       })
       .from(schema.productionTasks)
       .where(and(
-        eq(schema.productionTasks.status, 'completed'),
-        sql`${schema.productionTasks.completedAt} >= ${start.toISOString()}::timestamp`,
-        sql`${schema.productionTasks.completedAt} <= ${end.toISOString()}::timestamp + INTERVAL '1 day'`
+        sql`COALESCE(${schema.productionTasks.completedAt}, ${schema.productionTasks.startedAt}, ${schema.productionTasks.createdAt}) >= ${start.toISOString()}::timestamp`,
+        sql`COALESCE(${schema.productionTasks.completedAt}, ${schema.productionTasks.startedAt}, ${schema.productionTasks.createdAt}) <= ${end.toISOString()}::timestamp + INTERVAL '1 day'`
       ))
-      .groupBy(dateExpression)
-      .orderBy(dateExpression);
+      .groupBy(sql`DATE(COALESCE(${schema.productionTasks.completedAt}, ${schema.productionTasks.startedAt}, ${schema.productionTasks.createdAt}))`)
+      .orderBy(sql`DATE(COALESCE(${schema.productionTasks.completedAt}, ${schema.productionTasks.startedAt}, ${schema.productionTasks.createdAt}))`);
 
     res.json({
       success: true,
@@ -653,23 +656,28 @@ router.get('/statistics/detailed', authenticateToken, requirePermission('product
       return next(createError('Некорректный формат даты', 400));
     }
 
-    // Более простой подход - группировка только по товарам в заданном периоде
+    // Получаем статистику по всем заданиям в периоде (не только завершенным)
     const detailedStats = await db
       .select({
         productId: schema.productionTasks.productId,
         productName: schema.products.name,
         productArticle: schema.products.article,
         totalTasks: sql<number>`COUNT(*)`,
-        totalQuantity: sql<number>`COALESCE(SUM(${schema.productionTasks.producedQuantity}), 0)`,
+        pendingTasks: sql<number>`COUNT(CASE WHEN ${schema.productionTasks.status} = 'pending' THEN 1 END)`,
+        inProgressTasks: sql<number>`COUNT(CASE WHEN ${schema.productionTasks.status} = 'in_progress' THEN 1 END)`,
+        pausedTasks: sql<number>`COUNT(CASE WHEN ${schema.productionTasks.status} = 'paused' THEN 1 END)`,
+        completedTasks: sql<number>`COUNT(CASE WHEN ${schema.productionTasks.status} = 'completed' THEN 1 END)`,
+        cancelledTasks: sql<number>`COUNT(CASE WHEN ${schema.productionTasks.status} = 'cancelled' THEN 1 END)`,
+        totalRequested: sql<number>`COALESCE(SUM(${schema.productionTasks.requestedQuantity}), 0)`,
+        totalProduced: sql<number>`COALESCE(SUM(${schema.productionTasks.producedQuantity}), 0)`,
         qualityQuantity: sql<number>`COALESCE(SUM(${schema.productionTasks.qualityQuantity}), 0)`,
         defectQuantity: sql<number>`COALESCE(SUM(${schema.productionTasks.defectQuantity}), 0)`
       })
       .from(schema.productionTasks)
       .leftJoin(schema.products, eq(schema.productionTasks.productId, schema.products.id))
       .where(and(
-        eq(schema.productionTasks.status, 'completed'),
-        sql`${schema.productionTasks.completedAt} >= ${start.toISOString()}::timestamp`,
-        sql`${schema.productionTasks.completedAt} <= ${end.toISOString()}::timestamp + INTERVAL '1 day'`
+        sql`COALESCE(${schema.productionTasks.completedAt}, ${schema.productionTasks.startedAt}, ${schema.productionTasks.createdAt}) >= ${start.toISOString()}::timestamp`,
+        sql`COALESCE(${schema.productionTasks.completedAt}, ${schema.productionTasks.startedAt}, ${schema.productionTasks.createdAt}) <= ${end.toISOString()}::timestamp + INTERVAL '1 day'`
       ))
       .groupBy(
         schema.productionTasks.productId, 
