@@ -185,6 +185,13 @@ class ShipmentsApiService {
     return response.data.data;
   }
 
+  // Удалить отгрузку
+  async deleteShipment(id: number): Promise<void> {
+    await axios.delete(`${API_BASE_URL}/shipments/${id}`, {
+      headers: this.getAuthHeaders()
+    });
+  }
+
   // Получить статистику отгрузок
   async getShipmentStatistics(): Promise<ShipmentStatistics> {
     const response = await axios.get(`${API_BASE_URL}/shipments/statistics`, {

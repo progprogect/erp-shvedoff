@@ -318,6 +318,22 @@ export const Shipments: React.FC = () => {
     }
   };
 
+  // Удаление отгрузки
+  const handleDeleteShipment = async (shipment: Shipment) => {
+    try {
+      setActionLoading(true);
+      await shipmentsApi.deleteShipment(shipment.id);
+      message.success('Отгрузка удалена');
+      loadData();
+      loadReadyOrders();
+      loadStatistics();
+    } catch (error: any) {
+      message.error(error.response?.data?.message || 'Ошибка удаления отгрузки');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Просмотр деталей отгрузки
   const handleViewDetails = async (shipment: Shipment) => {
     try {
@@ -532,7 +548,7 @@ export const Shipments: React.FC = () => {
               />
             </Tooltip>
             
-            {(record.status === 'pending' || record.status === 'paused') && canEdit('shipments') && (
+            {canEdit('shipments') && record.status !== 'cancelled' && (
               <Tooltip title="Редактировать">
                 <Button 
                   type="text" 
@@ -561,12 +577,12 @@ export const Shipments: React.FC = () => {
               </Select>
             )}
             
-            {record.status === 'pending' && canDelete('shipments') && (
-              <Tooltip title="Отменить">
+            {canDelete('shipments') && record.status !== 'completed' && (
+              <Tooltip title={record.status === 'cancelled' ? "Удалить" : "Отменить"}>
                 <Popconfirm
-                  title="Отменить отгрузку?"
-                  description="Связанные заказы вернутся в статус готовых к отгрузке"
-                  onConfirm={() => handleCancelShipment(record)}
+                  title={record.status === 'cancelled' ? "Удалить отгрузку?" : "Отменить отгрузку?"}
+                  description={record.status === 'cancelled' ? "Отгрузка будет удалена навсегда" : "Связанные заказы вернутся в статус готовых к отгрузке"}
+                  onConfirm={() => record.status === 'cancelled' ? handleDeleteShipment(record) : handleCancelShipment(record)}
                 >
                   <Button 
                     type="text" 
