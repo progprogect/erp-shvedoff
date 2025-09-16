@@ -251,11 +251,36 @@ export const Shipments: React.FC = () => {
       const request: UpdateShipmentRequest = {
         plannedDate: values.plannedDate ? values.plannedDate.toISOString() : undefined,
         transportInfo: values.transportInfo,
-        documentsPhotos: values.documentsPhotos
+        documentsPhotos: values.documentsPhotos,
+        orderIds: values.orderIds // Включаем заказы в запрос
       };
       
-      await shipmentsApi.updateShipment(selectedShipment.id, request);
-      message.success('Отгрузка обновлена');
+      const updatedShipment = await shipmentsApi.updateShipment(selectedShipment.id, request);
+      
+      // Проверяем количество заказов после обновления
+      const orderCount = updatedShipment.orders?.length || 0;
+      if (orderCount === 0) {
+        Modal.confirm({
+          title: 'Пустая отгрузка',
+          content: 'В отгрузке не осталось заказов. Хотите удалить эту отгрузку?',
+          okText: 'Удалить',
+          cancelText: 'Оставить',
+          okType: 'danger',
+          onOk: async () => {
+            try {
+              await shipmentsApi.cancelShipment(selectedShipment.id);
+              message.success('Отгрузка удалена');
+              loadData();
+              loadReadyOrders();
+              loadStatistics();
+            } catch (error: any) {
+              message.error('Ошибка удаления отгрузки');
+            }
+          }
+        });
+      } else {
+        message.success('Отгрузка обновлена');
+      }
       
       setEditModalVisible(false);
       editForm.resetFields();
@@ -325,7 +350,8 @@ export const Shipments: React.FC = () => {
     editForm.setFieldsValue({
       plannedDate: shipment.plannedDate ? dayjs(shipment.plannedDate) : null,
       transportInfo: shipment.transportInfo,
-      documentsPhotos: shipment.documentsPhotos
+      documentsPhotos: shipment.documentsPhotos,
+      orderIds: shipment.orders?.map(so => so.order.id) || []
     });
     setEditModalVisible(true);
   };
@@ -817,6 +843,27 @@ export const Shipments: React.FC = () => {
               rows={3} 
               placeholder="Номер автомобиля, водитель, маршрут..."
             />
+          </Form.Item>
+
+          <Form.Item
+            name="orderIds"
+            label="Заказы в отгрузке"
+          >
+            <Select
+              mode="multiple"
+              placeholder="Выберите заказы"
+              style={{ width: '100%' }}
+              optionFilterProp="children"
+              filterOption={(input, option) =>
+                (option?.children as string)?.toLowerCase().includes(input.toLowerCase())
+              }
+            >
+              {readyOrders.map(order => (
+                <Option key={order.id} value={order.id}>
+                  {order.orderNumber} - {order.customerName}
+                </Option>
+              ))}
+            </Select>
           </Form.Item>
         </Form>
       </Modal>

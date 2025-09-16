@@ -321,7 +321,12 @@ class ShipmentsApiService {
 
     const today = new Date();
     const plannedDate = new Date(shipment.plannedDate);
-    return plannedDate < today;
+    
+    // Сравниваем только даты без времени
+    const todayDateString = today.toDateString();
+    const plannedDateString = plannedDate.toDateString();
+    
+    return plannedDateString < todayDateString;
   }
 
   // Группировка отгрузок по статусам
