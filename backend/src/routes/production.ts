@@ -1739,7 +1739,6 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
     const currentProduced = task.producedQuantity || 0;
     const remainingNeeded = task.requestedQuantity - currentProduced;
     
-    let taskProducedQuantity = producedQuantity;
     let taskQualityQuantity = qualityQuantity;
     let taskDefectQuantity = defectQuantity;
     let overproductionQuantity = 0;
@@ -1747,20 +1746,18 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
     
     // Если производится больше чем нужно для завершения задания
     if (producedQuantity > remainingNeeded) {
-      // Засчитываем в задание только то что нужно
-      taskProducedQuantity = remainingNeeded;
-      
       // Пропорционально распределяем качественные и брак для задания
-      const taskRatio = taskProducedQuantity / producedQuantity;
+      const taskRatio = remainingNeeded / producedQuantity;
       taskQualityQuantity = Math.round(qualityQuantity * taskRatio);
-      taskDefectQuantity = taskProducedQuantity - taskQualityQuantity;
+      taskDefectQuantity = remainingNeeded - taskQualityQuantity;
       
       // Остальное считается сверхплановым производством
-      overproductionQuantity = producedQuantity - taskProducedQuantity;
+      overproductionQuantity = producedQuantity - remainingNeeded;
       overproductionQuality = qualityQuantity - taskQualityQuantity;
     }
     
-    const newTotalProduced = currentProduced + taskProducedQuantity;
+    // Обновляем общее количество БЕЗ ограничений - отражаем фактически произведенное
+    const newTotalProduced = currentProduced + producedQuantity;
 
     // Используем транзакцию для атомарности операций
     const result = await db.transaction(async (tx) => {
