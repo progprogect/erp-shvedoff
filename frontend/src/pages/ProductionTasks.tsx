@@ -3066,8 +3066,16 @@ const ProductionTasks: React.FC = () => {
                             if (typeof puzzle === 'object' && puzzle !== null) {
                               const { sides, type, enabled } = puzzle as any;
                               if (!enabled) return 'Паззл отключен';
-                              const sidesText = sides === '1_side' ? '1 сторона' : sides === '2_sides' ? '2 стороны' : sides;
-                              const typeText = type === 'old' ? 'Старый' : type === 'new' ? 'Новый' : type;
+                              const sidesText = sides === '1_side' ? '1 сторона' : 
+                                               sides === '2_sides' ? '2 стороны' : 
+                                               sides === '3_sides' ? '3 стороны' : 
+                                               sides === '4_sides' ? '4 стороны' : 
+                                               sides;
+                              const typeText = type === 'old' ? 'Старый' : 
+                                             type === 'new' ? 'Новый' : 
+                                             type === 'classic' ? 'Классический' :
+                                             type === 'modern' ? 'Современный' :
+                                             type;
                               return `${sidesText}, ${typeText}`;
                             }
                             return 'Не настроено';
