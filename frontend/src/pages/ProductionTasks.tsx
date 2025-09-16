@@ -1020,7 +1020,9 @@ const ProductionTasks: React.FC = () => {
       render: (record: ProductionTask) => {
         const requested = record.requestedQuantity;
         const produced = record.producedQuantity || 0;
-        const remaining = requested - produced;
+        const remaining = Math.max(0, requested - produced);
+        const isOverproduced = produced > requested;
+        const overproduction = isOverproduced ? produced - requested : 0;
         const progressPercent = Math.round((produced / requested) * 100);
         
         return (
@@ -1038,9 +1040,14 @@ const ProductionTasks: React.FC = () => {
                     <strong>Осталось:</strong> {remaining} шт
                   </div>
                 )}
-                {remaining === 0 && (
+                {remaining === 0 && !isOverproduced && (
                   <div style={{ color: '#52c41a', fontWeight: 'bold' }}>
                     ✅ Выполнено полностью
+                  </div>
+                )}
+                {isOverproduced && (
+                  <div style={{ color: '#52c41a', fontWeight: 'bold' }}>
+                    ✅ Выполнено полностью + {overproduction} шт сверх плана
                   </div>
                 )}
               </>
@@ -2387,7 +2394,21 @@ const ProductionTasks: React.FC = () => {
                   <strong>Задание:</strong> {selectedTask.product.name}<br/>
                   <strong>Запрошено:</strong> {selectedTask.requestedQuantity} шт.<br/>
                   <strong>Уже произведено:</strong> {selectedTask.producedQuantity || 0} шт.<br/>
-                  <strong>Осталось произвести:</strong> {selectedTask.requestedQuantity - (selectedTask.producedQuantity || 0)} шт.
+                  {(() => {
+                    const requested = selectedTask.requestedQuantity;
+                    const produced = selectedTask.producedQuantity || 0;
+                    const remaining = Math.max(0, requested - produced);
+                    const isOverproduced = produced > requested;
+                    const overproduction = isOverproduced ? produced - requested : 0;
+                    
+                    if (isOverproduced) {
+                      return <><strong>✅ Выполнено полностью + {overproduction} шт сверх плана</strong></>;
+                    } else if (remaining > 0) {
+                      return <><strong>Осталось произвести:</strong> {remaining} шт.</>;
+                    } else {
+                      return <><strong>✅ Выполнено полностью</strong></>;
+                    }
+                  })()}
                 </div>
               }
               description="Вы можете произвести любое количество. Если больше чем нужно - излишки добавятся в остатки товара."
@@ -3235,11 +3256,24 @@ const ProductionTasks: React.FC = () => {
                         {(() => {
                           const requested = viewingTask.requestedQuantity;
                           const produced = viewingTask.producedQuantity || 0;
-                          const remaining = requested - produced;
+                          const remaining = Math.max(0, requested - produced);
+                          const isOverproduced = produced > requested;
+                          const overproduction = isOverproduced ? produced - requested : 0;
                           const progressPercent = Math.round((produced / requested) * 100);
                           
-                          if (remaining === 0) {
+                          if (remaining === 0 && !isOverproduced) {
                             return <Tag color="success" style={{ fontSize: '14px', padding: '4px 8px' }}>✅ Выполнено полностью</Tag>;
+                          } else if (isOverproduced) {
+                            return (
+                              <div>
+                                <Tag color="success" style={{ fontSize: '14px', padding: '4px 8px' }}>
+                                  ✅ Выполнено полностью
+                                </Tag>
+                                <span style={{ marginLeft: 8, color: '#52c41a', fontWeight: 'bold' }}>
+                                  +{overproduction} шт сверх плана
+                                </span>
+                              </div>
+                            );
                           } else if (produced > 0) {
                             return (
                               <div>
