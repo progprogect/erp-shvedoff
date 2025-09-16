@@ -116,7 +116,7 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         orders_create: false, orders_edit: false, orders_delete: false,
         production_create: false, production_manage: false,
         cutting_create: false, cutting_execute: false,
-        shipments_create: false, shipments_manage: false,
+        shipments_create: false, shipments_edit: false, shipments_delete: false, shipments_manage: false,
         users_manage: false,
       }
     };
@@ -133,11 +133,25 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
           orders_create: true, orders_edit: true, orders_delete: true,
           production_create: true, production_manage: true,
           cutting_create: true, cutting_execute: true,
-          shipments_create: true, shipments_manage: true,
+          shipments_create: true, shipments_edit: true, shipments_delete: true, shipments_manage: true,
           users_manage: true,
         }
       };
     }
+    
+    // Для менеджеров и других ролей даем базовые права на отгрузки
+    if (role === 'manager' || role === 'admin') {
+      return {
+        ...basePermissions,
+        actions: {
+          ...basePermissions.actions,
+          shipments_create: true,
+          shipments_edit: true,
+          shipments_delete: true,
+        }
+      };
+    }
+    
     return basePermissions;
   }, []);
 

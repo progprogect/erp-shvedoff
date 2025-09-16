@@ -59,6 +59,14 @@ const { TabPane } = Tabs;
 export const Shipments: React.FC = () => {
   const { user } = useAuthStore();
   const { canCreate, canEdit, canDelete } = usePermissions();
+  
+  // Отладочная информация для проверки прав
+  console.log('🔐 Shipments permissions:', {
+    canCreate: canCreate('shipments'),
+    canEdit: canEdit('shipments'),
+    canDelete: canDelete('shipments'),
+    userRole: user?.role
+  });
   const location = useLocation();
   const navigate = useNavigate();
   const [shipments, setShipments] = useState<Shipment[]>([]);
