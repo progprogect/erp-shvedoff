@@ -59,6 +59,15 @@ const { TabPane } = Tabs;
 export const Shipments: React.FC = () => {
   const { user } = useAuthStore();
   const { canCreate, canEdit, canDelete } = usePermissions();
+  
+  // Отладочная информация для прав доступа
+  console.log('🔍 Shipments - Права доступа:', {
+    user: user?.username,
+    role: user?.role,
+    canCreate: canCreate('shipments'),
+    canEdit: canEdit('shipments'),
+    canDelete: canDelete('shipments')
+  });
   const location = useLocation();
   const navigate = useNavigate();
   const [shipments, setShipments] = useState<Shipment[]>([]);
@@ -503,6 +512,15 @@ export const Shipments: React.FC = () => {
       width: 180,
       render: (record: Shipment) => {
         const userRole = user?.role || '';
+        
+        // Отладочная информация для каждой отгрузки
+        console.log(`🔍 Отгрузка ${record.shipmentNumber}:`, {
+          status: record.status,
+          canEdit: canEdit('shipments'),
+          canDelete: canDelete('shipments'),
+          showEditButton: (record.status === 'pending' || record.status === 'paused') && canEdit('shipments'),
+          showStatusSelect: canEdit('shipments') && record.status !== 'completed' && record.status !== 'cancelled'
+        });
         
         return (
           <Space size="small">
