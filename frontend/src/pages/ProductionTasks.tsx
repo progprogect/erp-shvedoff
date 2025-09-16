@@ -1006,9 +1006,9 @@ const ProductionTasks: React.FC = () => {
       render: (product: any) => (
         <div style={{ wordBreak: 'break-word' }}>
           <div>{product.name}</div>
-          {product.code && (
+          {(product.article || product.code) && (
             <Text type="secondary" style={{ fontSize: '12px' }}>
-              {product.code}
+              Арт: {product.article || product.code}
             </Text>
           )}
         </div>
@@ -1315,8 +1315,15 @@ const ProductionTasks: React.FC = () => {
       render: (record: TasksByProduct) => (
         <div>
           <div style={{ fontWeight: 'bold' }}>{record.product.name}</div>
+          {record.product.article && (
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              Арт: {record.product.article}
+            </Text>
+          )}
           {record.product.sku && (
-            <Text type="secondary">{record.product.sku}</Text>
+            <Text type="secondary" style={{ fontSize: '11px', color: '#999' }}>
+              SKU: {record.product.sku}
+            </Text>
           )}
         </div>
       ),
