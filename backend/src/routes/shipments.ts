@@ -682,11 +682,37 @@ router.put('/:id/status', authenticateToken, requirePermission('shipments', 'edi
                continue;
              }
 
-             // Проверяем, что резерва достаточно
-             if (quantityToShip > currentStock.reservedStock) {
-               console.error(`❌ Недостаточно резерва для товара ${item.productId}: резерв ${currentStock.reservedStock}, требуется ${quantityToShip}`);
-               continue;
-             }
+            // Проверяем доступность товара для отгрузки
+            const availableStock = currentStock.currentStock - currentStock.reservedStock;
+            const reservedForThisItem = Math.min(quantityToShip, currentStock.reservedStock);
+            const needFromAvailable = quantityToShip - reservedForThisItem;
+            
+            if (needFromAvailable > availableStock) {
+              console.error(`❌ Недостаточно товара для отгрузки ${item.productId}: общий остаток ${currentStock.currentStock}, резерв ${currentStock.reservedStock}, доступно ${availableStock}, требуется ${quantityToShip}`);
+              continue;
+            }
+            
+            // Если резерва недостаточно, но товар есть - резервируем недостающее количество
+            if (needFromAvailable > 0) {
+              console.log(`📦 Дорезервируем ${needFromAvailable} шт товара ${item.productId} для отгрузки`);
+              await tx.update(schema.stock)
+                .set({
+                  reservedStock: sql`${schema.stock.reservedStock} + ${needFromAvailable}`,
+                  updatedAt: new Date()
+                })
+                .where(eq(schema.stock.productId, item.productId));
+                
+              // Логируем дополнительное резервирование  
+              await tx.insert(schema.stockMovements).values({
+                productId: item.productId,
+                movementType: 'reservation',
+                quantity: needFromAvailable,
+                referenceId: shipmentId,
+                referenceType: 'shipment',
+                comment: `Дополнительное резервирование для отгрузки ${shipment.shipmentNumber}`,
+                userId
+              });
+            }
 
              // Списываем товар со склада (уменьшаем и общий остаток и резерв)
              await tx.update(schema.stock)
