@@ -1,37 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { Card, DatePicker, Select, Table, Statistic, Row, Col, Typography, Spin, Tag, Space, Button, App } from 'antd';
-import { BarChartOutlined, CalendarOutlined, ProductOutlined, TrophyOutlined } from '@ant-design/icons';
-import { getDayStatistics, getDetailedStatistics } from '../services/productionApi';
+import { Card, DatePicker, Table, Row, Col, Typography, Spin, Tag, Space, Button, App } from 'antd';
+import { BarChartOutlined, CalendarOutlined, TrophyOutlined, LineChartOutlined } from '@ant-design/icons';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { getDayStatistics } from '../services/productionApi';
 import { useAuthStore } from '../stores/authStore';
 import dayjs from 'dayjs';
 
 const { RangePicker } = DatePicker;
-const { Option } = Select;
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const ProductionStatistics: React.FC = () => {
   const { token } = useAuthStore();
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
-  const [period, setPeriod] = useState<'day' | 'week' | 'month'>('day');
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([
     dayjs().subtract(30, 'days'),
     dayjs()
   ]);
   const [dailyStats, setDailyStats] = useState<any[]>([]);
-  const [detailedStats, setDetailedStats] = useState<any[]>([]);
-  const [summary, setSummary] = useState({
-    totalTasks: 0,
-    pendingTasks: 0,
-    inProgressTasks: 0,
-    pausedTasks: 0,
-    completedTasks: 0,
-    cancelledTasks: 0,
-    totalRequested: 0,
-    totalProduced: 0,
-    totalQuality: 0,
-    totalDefects: 0
-  });
+  const [chartData, setChartData] = useState<any[]>([]);
 
   // Загрузка статистики
   const loadStatistics = async () => {
@@ -42,44 +29,24 @@ const ProductionStatistics: React.FC = () => {
       const startDate = dateRange[0].format('YYYY-MM-DD');
       const endDate = dateRange[1].format('YYYY-MM-DD');
 
-      const [dailyResponse, detailedResponse] = await Promise.all([
-        getDayStatistics(startDate, endDate),
-        getDetailedStatistics(startDate, endDate, period)
-      ]);
+      const dailyResponse = await getDayStatistics(startDate, endDate);
 
       if (dailyResponse.success) {
         setDailyStats(dailyResponse.data);
-      }
-
-      if (detailedResponse.success) {
-        setDetailedStats(detailedResponse.data);
         
-        // Подсчитываем общую статистику
-        const totals = detailedResponse.data.reduce((acc: any, item: any) => ({
-          totalTasks: acc.totalTasks + (item.totalTasks || 0),
-          pendingTasks: acc.pendingTasks + (item.pendingTasks || 0),
-          inProgressTasks: acc.inProgressTasks + (item.inProgressTasks || 0),
-          pausedTasks: acc.pausedTasks + (item.pausedTasks || 0),
-          completedTasks: acc.completedTasks + (item.completedTasks || 0),
-          cancelledTasks: acc.cancelledTasks + (item.cancelledTasks || 0),
-          totalRequested: acc.totalRequested + (item.totalRequested || 0),
-          totalProduced: acc.totalProduced + (item.totalProduced || 0),
-          totalQuality: acc.totalQuality + (item.qualityQuantity || 0),
-          totalDefects: acc.totalDefects + (item.defectQuantity || 0)
-        }), { 
-          totalTasks: 0, 
-          pendingTasks: 0, 
-          inProgressTasks: 0, 
-          pausedTasks: 0, 
-          completedTasks: 0, 
-          cancelledTasks: 0,
-          totalRequested: 0, 
-          totalProduced: 0, 
-          totalQuality: 0, 
-          totalDefects: 0 
-        });
+        // Преобразуем данные для графика
+        const chartDataFormatted = dailyResponse.data.map((item: any) => ({
+          date: dayjs(item.production_date).format('DD.MM'),
+          fullDate: dayjs(item.production_date).format('DD.MM.YYYY'),
+          completedTasks: item.completed_tasks || 0,
+          totalProduced: item.total_produced || 0,
+          totalQuality: item.total_quality || 0,
+          totalDefects: item.total_defects || 0,
+          efficiency: item.total_produced > 0 ? 
+            Math.round((item.total_quality / item.total_produced) * 100) : 0
+        }));
         
-        setSummary(totals);
+        setChartData(chartDataFormatted);
       }
     } catch (error) {
       console.error('Ошибка загрузки статистики:', error);
@@ -91,12 +58,7 @@ const ProductionStatistics: React.FC = () => {
 
   useEffect(() => {
     loadStatistics();
-  }, [token, dateRange, period]);
-
-  // Обработчик изменения периода
-  const handlePeriodChange = (newPeriod: 'day' | 'week' | 'month') => {
-    setPeriod(newPeriod);
-  };
+  }, [token, dateRange]);
 
   // Обработчик изменения диапазона дат
   const handleDateRangeChange = (dates: any) => {
@@ -105,112 +67,29 @@ const ProductionStatistics: React.FC = () => {
     }
   };
 
-  // Форматирование периода для отображения
-  const formatPeriod = (periodStr: string) => {
-    if (!periodStr) return '';
-    
-    switch (period) {
-      case 'week':
-        return dayjs(periodStr).format('DD.MM.YYYY') + ' - ' + dayjs(periodStr).add(6, 'days').format('DD.MM.YYYY');
-      case 'month':
-        return dayjs(periodStr).format('MMMM YYYY');
-      default:
-        return dayjs(periodStr).format('DD.MM.YYYY');
+  // Кастомный тултип для графика
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div className="custom-tooltip" style={{
+          backgroundColor: '#fff',
+          padding: '10px',
+          border: '1px solid #ccc',
+          borderRadius: '4px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+        }}>
+          <p style={{ margin: 0, fontWeight: 'bold' }}>{`Дата: ${data.fullDate}`}</p>
+          <p style={{ margin: 0, color: '#722ed1' }}>{`Завершено заданий: ${data.completedTasks}`}</p>
+          <p style={{ margin: 0, color: '#1890ff' }}>{`Произведено: ${data.totalProduced} шт.`}</p>
+          <p style={{ margin: 0, color: '#52c41a' }}>{`Годных: ${data.totalQuality} шт.`}</p>
+          <p style={{ margin: 0, color: '#f5222d' }}>{`Брак: ${data.totalDefects} шт.`}</p>
+          <p style={{ margin: 0, color: '#fa8c16' }}>{`Эффективность: ${data.efficiency}%`}</p>
+        </div>
+      );
     }
+    return null;
   };
-
-  // Колонки для таблицы детальной статистики
-  const detailedColumns = [
-    {
-      title: 'Период',
-      dataIndex: 'period',
-      key: 'period',
-      render: (period: string) => (
-        <Text strong>{formatPeriod(period)}</Text>
-      )
-    },
-    {
-      title: 'Товар',
-      key: 'product',
-      render: (record: any) => (
-        <Space direction="vertical" size={2}>
-          <Text strong>{record.productName}</Text>
-          {record.productArticle && (
-            <Text type="secondary" style={{ fontSize: '12px' }}>
-              Артикул: {record.productArticle}
-            </Text>
-          )}
-        </Space>
-      )
-    },
-    {
-      title: 'Заданий',
-      dataIndex: 'totalTasks',
-      key: 'totalTasks',
-      render: (count: number) => (
-        <Tag icon={<BarChartOutlined />} color="blue">
-          {count}
-        </Tag>
-      )
-    },
-    {
-      title: 'Запрошено',
-      dataIndex: 'totalRequested',
-      key: 'totalRequested',
-      render: (quantity: number) => (
-        <Text style={{ color: '#722ed1' }}>
-          {quantity || 0} шт.
-        </Text>
-      )
-    },
-    {
-      title: 'Произведено',
-      dataIndex: 'totalProduced',
-      key: 'totalProduced',
-      render: (quantity: number) => (
-        <Text strong style={{ color: '#1890ff' }}>
-          {quantity || 0} шт.
-        </Text>
-      )
-    },
-    {
-      title: 'Годных',
-      dataIndex: 'qualityQuantity',
-      key: 'qualityQuantity',
-      render: (quantity: number) => (
-        <Text style={{ color: '#52c41a' }}>
-          {quantity || 0} шт.
-        </Text>
-      )
-    },
-    {
-      title: 'Брак',
-      dataIndex: 'defectQuantity',
-      key: 'defectQuantity',
-      render: (quantity: number) => (
-        <Text style={{ color: '#f5222d' }}>
-          {quantity || 0} шт.
-        </Text>
-      )
-    },
-    {
-      title: 'Качество',
-      key: 'quality',
-      render: (record: any) => {
-        const total = record.totalProduced || 0;
-        const quality = record.qualityQuantity || 0;
-        const percentage = total > 0 ? ((quality / total) * 100).toFixed(1) : '0';
-        
-        return (
-          <Tag 
-            color={parseFloat(percentage) >= 95 ? 'green' : parseFloat(percentage) >= 90 ? 'orange' : 'red'}
-          >
-            {percentage}%
-          </Tag>
-        );
-      }
-    }
-  ];
 
   // Колонки для таблицы дневной статистики
   const dailyColumns = [
@@ -233,7 +112,7 @@ const ProductionStatistics: React.FC = () => {
       )
     },
     {
-      title: 'Общее количество',
+      title: 'Произведено',
       dataIndex: 'total_produced',
       key: 'total_produced',
       render: (quantity: number) => (
@@ -286,7 +165,7 @@ const ProductionStatistics: React.FC = () => {
       {/* Панель управления */}
       <Card style={{ marginBottom: '16px' }}>
         <Row gutter={16} align="middle">
-          <Col span={8}>
+          <Col span={12}>
             <Space>
               <CalendarOutlined />
               <Text strong>Период:</Text>
@@ -298,20 +177,6 @@ const ProductionStatistics: React.FC = () => {
             </Space>
           </Col>
           <Col span={6}>
-            <Space>
-              <Text strong>Группировка:</Text>
-              <Select
-                value={period}
-                onChange={handlePeriodChange}
-                style={{ width: 120 }}
-              >
-                <Option value="day">По дням</Option>
-                <Option value="week">По неделям</Option>
-                <Option value="month">По месяцам</Option>
-              </Select>
-            </Space>
-          </Col>
-          <Col span={4}>
             <Button
               type="primary"
               icon={<BarChartOutlined />}
@@ -324,122 +189,74 @@ const ProductionStatistics: React.FC = () => {
         </Row>
       </Card>
 
-      {/* Общая статистика */}
-      <Row gutter={16} style={{ marginBottom: '16px' }}>
-        <Col span={4}>
-          <Card>
-            <Statistic
-              title="Всего заданий"
-              value={summary.totalTasks}
-              prefix={<TrophyOutlined />}
-              valueStyle={{ color: '#722ed1' }}
-            />
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card>
-            <Statistic
-              title="Ожидают"
-              value={summary.pendingTasks}
-              valueStyle={{ color: '#faad14' }}
-            />
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card>
-            <Statistic
-              title="В работе"
-              value={summary.inProgressTasks}
-              valueStyle={{ color: '#1890ff' }}
-            />
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card>
-            <Statistic
-              title="На паузе"
-              value={summary.pausedTasks}
-              valueStyle={{ color: '#fa8c16' }}
-            />
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card>
-            <Statistic
-              title="Завершено"
-              value={summary.completedTasks}
-              valueStyle={{ color: '#52c41a' }}
-            />
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card>
-            <Statistic
-              title="Отменено"
-              value={summary.cancelledTasks}
-              valueStyle={{ color: '#f5222d' }}
-            />
-          </Card>
-        </Col>
-      </Row>
+      <Spin spinning={loading}>
+        {/* График производства по дням */}
+        <Card 
+          title={
+            <Space>
+              <LineChartOutlined />
+              График производства по дням
+            </Space>
+          }
+          style={{ marginBottom: '16px' }}
+        >
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend />
+              <Line 
+                type="monotone" 
+                dataKey="completedTasks" 
+                stroke="#722ed1" 
+                strokeWidth={2}
+                name="Завершено заданий"
+              />
+              <Line 
+                type="monotone" 
+                dataKey="totalProduced" 
+                stroke="#1890ff" 
+                strokeWidth={2}
+                name="Произведено шт."
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </Card>
 
-      {/* Статистика по производству */}
-      <Row gutter={16} style={{ marginBottom: '16px' }}>
-        <Col span={6}>
-          <Card>
-            <Statistic
-              title="Запрошено"
-              value={summary.totalRequested}
-              suffix="шт."
-              prefix={<ProductOutlined />}
-              valueStyle={{ color: '#722ed1' }}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic
-              title="Произведено"
-              value={summary.totalProduced}
-              suffix="шт."
-              prefix={<ProductOutlined />}
-              valueStyle={{ color: '#1890ff' }}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic
-              title="Годных"
-              value={summary.totalQuality}
-              suffix="шт."
-              valueStyle={{ color: '#52c41a' }}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic
-              title="Брак"
-              value={summary.totalDefects}
-              suffix="шт."
-              valueStyle={{ color: '#f5222d' }}
-            />
-          </Card>
-        </Col>
-      </Row>
+        {/* Столбчатая диаграмма качества */}
+        <Card 
+          title={
+            <Space>
+              <BarChartOutlined />
+              Качество производства по дням
+            </Space>
+          }
+          style={{ marginBottom: '16px' }}
+        >
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend />
+              <Bar dataKey="totalQuality" fill="#52c41a" name="Годных шт." />
+              <Bar dataKey="totalDefects" fill="#f5222d" name="Брак шт." />
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
 
-      {/* Статистика по дням */}
-      <Card 
-        title={
-          <Space>
-            <CalendarOutlined />
-            Статистика по дням
-          </Space>
-        }
-        style={{ marginBottom: '16px' }}
-      >
-        <Spin spinning={loading}>
+        {/* Таблица с детализацией */}
+        <Card 
+          title={
+            <Space>
+              <CalendarOutlined />
+              Детализация по дням
+            </Space>
+          }
+        >
           <Table
             columns={dailyColumns}
             dataSource={dailyStats}
@@ -447,68 +264,8 @@ const ProductionStatistics: React.FC = () => {
             pagination={{ pageSize: 10 }}
             size="middle"
           />
-        </Spin>
-      </Card>
-
-      {/* Детальная статистика по товарам */}
-      <Card 
-        title={
-          <Space>
-            <ProductOutlined />
-            Детальная статистика по товарам
-          </Space>
-        }
-      >
-        <Spin spinning={loading}>
-          <Table
-            columns={detailedColumns}
-            dataSource={detailedStats}
-            rowKey={(record) => `${record.period}_${record.productId}`}
-            pagination={{ pageSize: 20 }}
-            size="middle"
-            expandable={{
-              expandedRowRender: (record) => (
-                <div style={{ padding: '8px 16px' }}>
-                  <Text type="secondary">
-                    Дополнительная информация по товару {record.productName}
-                  </Text>
-                  <Row gutter={16} style={{ marginTop: '8px' }}>
-                    <Col span={6}>
-                      <Text strong>Среднее за задание: </Text>
-                      <Text>
-                        {record.totalTasks > 0 ? 
-                          Math.round(record.totalProduced / record.totalTasks) : 0
-                        } шт.
-                      </Text>
-                    </Col>
-                    <Col span={6}>
-                      <Text strong>Процент брака: </Text>
-                      <Text style={{ color: '#f5222d' }}>
-                        {record.totalProduced > 0 ? 
-                          ((record.defectQuantity / record.totalProduced) * 100).toFixed(2) : 0
-                        }%
-                      </Text>
-                    </Col>
-                    <Col span={6}>
-                      <Text strong>Ожидают: </Text>
-                      <Text style={{ color: '#faad14' }}>
-                        {record.pendingTasks || 0}
-                      </Text>
-                    </Col>
-                    <Col span={6}>
-                      <Text strong>В работе: </Text>
-                      <Text style={{ color: '#1890ff' }}>
-                        {record.inProgressTasks || 0}
-                      </Text>
-                    </Col>
-                  </Row>
-                </div>
-              ),
-              rowExpandable: () => true,
-            }}
-          />
-        </Spin>
-      </Card>
+        </Card>
+      </Spin>
     </div>
   );
 };
