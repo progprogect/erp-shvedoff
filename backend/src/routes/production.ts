@@ -1758,7 +1758,7 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
     // Используем транзакцию для атомарности операций
     const result = await db.transaction(async (tx) => {
       // Обновляем счетчики задания
-      const newQualityQuantity = (task.qualityQuantity || 0) + taskQualityQuantity;
+      const newQualityQuantity = (task.qualityQuantity || 0) + qualityQuantity; // записываем ВСЕ качественное количество
       const newDefectQuantity = (task.defectQuantity || 0) + defectQuantity; // весь брак записываем в задание
       
       // Определяем новый статус - готово только если качественных >= запрошенного
