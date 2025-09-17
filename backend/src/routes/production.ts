@@ -2577,8 +2577,7 @@ router.put('/tasks/:id/cancel', authenticateToken, requirePermission('production
         operation: 'UPDATE',
         oldValues: task,
         newValues: updatedTask[0],
-        userId,
-        comment: auditComment
+        userId
       });
 
       // Добавляем сообщение в заказ (если задание связано с заказом)
