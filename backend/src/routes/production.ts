@@ -2514,4 +2514,97 @@ router.post('/tasks/export', authenticateToken, requireExportPermission('product
   }
 });
 
+// PUT /api/production/tasks/:id/cancel - Отменить производственное задание
+router.put('/tasks/:id/cancel', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
+  try {
+    const taskId = Number(req.params.id);
+    const { reason } = req.body;
+    const userId = req.user!.id;
+
+    // Валидация обязательной причины
+    if (!reason || reason.trim().length === 0) {
+      return next(createError('Причина отмены обязательна для указания', 400));
+    }
+
+    // Получаем задание с деталями
+    const task = await db.query.productionTasks.findFirst({
+      where: eq(schema.productionTasks.id, taskId),
+      with: {
+        product: true,
+        order: true
+      }
+    });
+
+    if (!task) {
+      return next(createError('Производственное задание не найдено', 404));
+    }
+
+    // Проверяем возможность отмены
+    if (task.status === 'completed') {
+      return next(createError('Нельзя отменить завершенное производственное задание', 400));
+    }
+
+    if (task.status === 'cancelled') {
+      return next(createError('Производственное задание уже отменено', 400));
+    }
+
+    // Используем транзакцию для атомарности
+    const result = await db.transaction(async (tx) => {
+      // Отменяем задание
+      const updatedTask = await tx.update(schema.productionTasks)
+        .set({
+          status: 'cancelled',
+          cancelledBy: userId,
+          cancelReason: reason.trim(),
+          updatedAt: new Date()
+        })
+        .where(eq(schema.productionTasks.id, taskId))
+        .returning();
+
+      // Формируем детальное сообщение для аудита
+      const produced = task.producedQuantity || 0;
+      const quality = task.qualityQuantity || 0;
+      let auditComment = `Производственное задание #${taskId} отменено. Причина: ${reason.trim()}`;
+      
+      if (produced > 0) {
+        auditComment += `. Произведенная продукция (${produced} шт., из них ${quality} шт. качественных) сохранена на складе`;
+      }
+
+      // Аудит лог
+      await tx.insert(schema.auditLog).values({
+        tableName: 'production_tasks',
+        recordId: taskId,
+        operation: 'UPDATE',
+        oldValues: task,
+        newValues: updatedTask[0],
+        userId,
+        comment: auditComment
+      });
+
+      // Добавляем сообщение в заказ (если задание связано с заказом)
+      if (task.orderId) {
+        await tx.insert(schema.orderMessages).values({
+          orderId: task.orderId,
+          userId,
+          message: `🚫 Производственное задание отменено: "${task.product.name}" (${task.requestedQuantity} шт.). Причина: ${reason.trim()}`
+        });
+      }
+
+      return { task: updatedTask[0], auditComment };
+    });
+
+    res.json({
+      success: true,
+      message: 'Производственное задание успешно отменено',
+      data: {
+        task: result.task,
+        auditInfo: result.auditComment
+      }
+    });
+
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router; 

@@ -281,6 +281,8 @@ export const productionTasks = pgTable('production_tasks', {
   assignedTo: integer('assigned_to').references(() => users.id),   // на кого назначено
   startedBy: integer('started_by').references(() => users.id),     // кто запустил
   completedBy: integer('completed_by').references(() => users.id), // кто завершил
+  cancelledBy: integer('cancelled_by').references(() => users.id), // кто отменил
+  cancelReason: text('cancel_reason'), // причина отмены
   
   notes: text('notes'),
   
@@ -440,6 +442,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   tasksAssigned: many(productionTasks, { relationName: 'tasksAssigned' }),
   tasksStarted: many(productionTasks, { relationName: 'tasksStarted' }),
   tasksCompleted: many(productionTasks, { relationName: 'tasksCompleted' }),
+  tasksCancelled: many(productionTasks, { relationName: 'tasksCancelled' }),
   cuttingOperator: many(cuttingOperations, { relationName: 'cuttingOperator' }),
   cuttingAssigned: many(cuttingOperations, { relationName: 'cuttingAssigned' })
 }));
@@ -542,6 +545,7 @@ export const productionTasksRelations = relations(productionTasks, ({ one, many 
   assignedToUser: one(users, { fields: [productionTasks.assignedTo], references: [users.id], relationName: 'tasksAssigned' }),
   startedByUser: one(users, { fields: [productionTasks.startedBy], references: [users.id], relationName: 'tasksStarted' }),
   completedByUser: one(users, { fields: [productionTasks.completedBy], references: [users.id], relationName: 'tasksCompleted' }),
+  cancelledByUser: one(users, { fields: [productionTasks.cancelledBy], references: [users.id], relationName: 'tasksCancelled' }),
   extras: many(productionTaskExtras)
 }));
 

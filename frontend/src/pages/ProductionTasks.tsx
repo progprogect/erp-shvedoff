@@ -36,7 +36,8 @@ import {
   ClockCircleOutlined,
   ExclamationCircleOutlined,
   QuestionCircleOutlined,
-  InboxOutlined
+  InboxOutlined,
+  StopOutlined
 } from '@ant-design/icons';
 
 import {
@@ -192,6 +193,7 @@ const ProductionTasks: React.FC = () => {
   const [bulkRegisterModalVisible, setBulkRegisterModalVisible] = useState<boolean>(false);
   const [createTaskModalVisible, setCreateTaskModalVisible] = useState<boolean>(false);
   const [completeByProductModalVisible, setCompleteByProductModalVisible] = useState<boolean>(false);
+  const [cancelModalVisible, setCancelModalVisible] = useState<boolean>(false);
   const [selectedTask, setSelectedTask] = useState<ProductionTask | null>(null);
   const [selectedProductForCompletion, setSelectedProductForCompletion] = useState<TasksByProduct | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -204,6 +206,7 @@ const ProductionTasks: React.FC = () => {
   const [bulkRegisterForm] = Form.useForm();
   const [createTaskForm] = Form.useForm();
   const [completeByProductForm] = Form.useForm();
+  const [cancelForm] = Form.useForm();
 
   // Состояние для формы завершения
   const [completeFormValues, setCompleteFormValues] = useState<{
@@ -619,6 +622,45 @@ const ProductionTasks: React.FC = () => {
       setEditModalVisible(false);
       setEditingTask(null);
       editForm.resetFields();
+      loadTasks();
+      loadTasksByProduct();
+    } catch (error) {
+      message.error(`Ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
+    }
+  };
+
+  // Отмена задания
+  const handleCancelTask = (task: ProductionTask) => {
+    setSelectedTask(task);
+    setCancelModalVisible(true);
+    cancelForm.resetFields();
+  };
+
+  const handleConfirmCancelTask = async (values: any) => {
+    if (!selectedTask) return;
+
+    try {
+      const response = await fetch(`/api/production/tasks/${selectedTask.id}/cancel`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          reason: values.reason
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Ошибка отмены задания');
+      }
+
+      message.success('Производственное задание успешно отменено');
+      setCancelModalVisible(false);
+      setSelectedTask(null);
+      cancelForm.resetFields();
       loadTasks();
       loadTasksByProduct();
     } catch (error) {
@@ -1163,6 +1205,15 @@ const ProductionTasks: React.FC = () => {
                   onClick={() => handleDeleteTask(record)}
                 />
               </Tooltip>
+              <Tooltip title="Отменить задание">
+                <Button
+                  type="default"
+                  size="small"
+                  danger
+                  icon={<StopOutlined />}
+                  onClick={() => handleCancelTask(record)}
+                />
+              </Tooltip>
               <Button
                 type="primary"
                 size="small"
@@ -1217,6 +1268,15 @@ const ProductionTasks: React.FC = () => {
                   onClick={() => handleEditTask(record)}
                 />
               </Tooltip>
+              <Tooltip title="Отменить задание">
+                <Button
+                  type="default"
+                  size="small"
+                  danger
+                  icon={<StopOutlined />}
+                  onClick={() => handleCancelTask(record)}
+                />
+              </Tooltip>
               <Button
                 type="primary"
                 size="small"
@@ -1269,6 +1329,15 @@ const ProductionTasks: React.FC = () => {
                   size="small"
                   icon={<EditOutlined />}
                   onClick={() => handleEditTask(record)}
+                />
+              </Tooltip>
+              <Tooltip title="Отменить задание">
+                <Button
+                  type="default"
+                  size="small"
+                  danger
+                  icon={<StopOutlined />}
+                  onClick={() => handleCancelTask(record)}
                 />
               </Tooltip>
               <Button
@@ -3194,6 +3263,20 @@ const ProductionTasks: React.FC = () => {
                       </div>
                     </Col>
                   </Row>
+                  
+                  {/* Причина отмены для отмененных заданий */}
+                  {viewingTask.status === 'cancelled' && (viewingTask as any).cancelReason && (
+                    <Row style={{ marginTop: 16 }}>
+                      <Col span={24}>
+                        <Alert
+                          message="Причина отмены"
+                          description={(viewingTask as any).cancelReason}
+                          type="error"
+                          showIcon
+                        />
+                      </Col>
+                    </Row>
+                  )}
                 </Card>
               </Col>
 
@@ -3382,6 +3465,90 @@ const ProductionTasks: React.FC = () => {
                 </Col>
               )}
             </Row>
+          </div>
+        )}
+      </Modal>
+
+      {/* Модальное окно отмены задания */}
+      <Modal
+        title={
+          <div style={{ color: '#ff4d4f' }}>
+            <StopOutlined style={{ marginRight: 8 }} />
+            Отменить производственное задание
+          </div>
+        }
+        open={cancelModalVisible}
+        onCancel={() => {
+          setCancelModalVisible(false);
+          setSelectedTask(null);
+          cancelForm.resetFields();
+        }}
+        footer={null}
+        width={500}
+      >
+        {selectedTask && (
+          <div>
+            <Alert
+              message="Внимание!"
+              description={
+                <div>
+                  {selectedTask.status === 'pending' && (
+                    <p>Задание будет отменено без последствий.</p>
+                  )}
+                  {(selectedTask.status === 'in_progress' || selectedTask.status === 'paused') && (
+                    <div>
+                      <p>Произведенная продукция ({selectedTask.producedQuantity || 0} шт.) останется на складе.</p>
+                      {selectedTask.qualityQuantity > 0 && (
+                        <p>Качественных изделий: {selectedTask.qualityQuantity} шт.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              }
+              type="warning"
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
+
+            <Form
+              form={cancelForm}
+              layout="vertical"
+              onFinish={handleConfirmCancelTask}
+            >
+              <Form.Item
+                label="Причина отмены"
+                name="reason"
+                rules={[
+                  { required: true, message: 'Укажите причину отмены' },
+                  { min: 5, message: 'Причина должна содержать минимум 5 символов' }
+                ]}
+              >
+                <Input.TextArea
+                  rows={4}
+                  placeholder="Укажите подробную причину отмены производственного задания..."
+                />
+              </Form.Item>
+
+              <Form.Item>
+                <Space>
+                  <Button 
+                    type="primary" 
+                    danger 
+                    htmlType="submit"
+                    icon={<StopOutlined />}
+                  >
+                    Отменить задание
+                  </Button>
+                  <Button onClick={() => {
+                    setCancelModalVisible(false);
+                    setSelectedTask(null);
+                    cancelForm.resetFields();
+                  }}>
+                    Закрыть
+                  </Button>
+                </Space>
+              </Form.Item>
+            </Form>
           </div>
         )}
       </Modal>

@@ -30,6 +30,8 @@ export interface ProductionTask {
   assignedTo?: number;
   startedBy?: number;
   completedBy?: number;
+  cancelledBy?: number;
+  cancelReason?: string;
   notes?: string;
   updatedAt: string;
   

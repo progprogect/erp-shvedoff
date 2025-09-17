@@ -240,3 +240,4 @@ GROUP BY p.product_type;
 
 
 
+
