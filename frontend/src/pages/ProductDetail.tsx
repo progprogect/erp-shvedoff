@@ -191,7 +191,7 @@ const ProductDetail: React.FC = () => {
       if (ordersResponse.success) {
         // Фильтруем только активные заказы (не завершенные и не отмененные)
         const activeOrders = ordersResponse.data.filter((order: any) => 
-          ['new', 'confirmed', 'in_production'].includes(order.status)
+          ['new', 'confirmed', 'in_production', 'ready'].includes(order.status)
         );
         setProductOrders(activeOrders);
       }
@@ -199,7 +199,7 @@ const ProductDetail: React.FC = () => {
       if (tasksResponse.success) {
         // Фильтруем только активные задания (не завершенные и не отмененные)
         const activeTasks = tasksResponse.data.filter((task: any) => 
-          ['pending', 'in_progress'].includes(task.status)
+          ['pending', 'in_progress', 'paused'].includes(task.status)
         );
         setProductionTasks(activeTasks);
       }
