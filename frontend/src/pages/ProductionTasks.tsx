@@ -1250,25 +1250,6 @@ const ProductionTasks: React.FC = () => {
               >
                 Зарегистрировать выпуск
               </Button>
-              <Button
-                type="primary"
-                size="small"
-                icon={<CheckCircleOutlined />}
-                onClick={() => {
-                  setSelectedTask(record);
-                  const initialProduced = record.requestedQuantity;
-                  const initialValues = {
-                    producedQuantity: initialProduced,
-                    qualityQuantity: initialProduced,
-                    defectQuantity: 0
-                  };
-                  setCompleteFormValues(initialValues);
-                  completeForm.setFieldsValue(initialValues);
-                  setCompleteModalVisible(true);
-                }}
-              >
-                Завершить
-              </Button>
             </>
           )}
           
