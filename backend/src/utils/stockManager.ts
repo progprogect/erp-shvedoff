@@ -228,6 +228,21 @@ export async function performStockOperation(operation: StockOperation): Promise<
     // Получаем обновленную информацию
     const stockInfo = await getStockInfo(productId);
 
+    // Для операций incoming - автоматически распределяем товар между заказами
+    if (type === 'incoming' && quantity > 0) {
+      try {
+        const { distributeNewStockToOrders } = await import('./stockDistribution');
+        const distributionResult = await distributeNewStockToOrders(productId, quantity);
+        
+        if (distributionResult.distributed > 0) {
+          console.log(`🎯 Автоматически распределено ${distributionResult.distributed} шт товара ${productId} между ${distributionResult.ordersUpdated.length} заказами`);
+        }
+      } catch (error) {
+        console.error(`❌ Ошибка автораспределения товара ${productId}:`, error);
+        // Не прерываем основную операцию из-за ошибки автораспределения
+      }
+    }
+
     // Пересчитываем статусы заказов для этого товара
     try {
       const { recalculateOrdersForProduct } = await import('./stockDistribution');

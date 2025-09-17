@@ -834,6 +834,19 @@ router.post('/products', authenticateToken, requirePermission('catalog', 'create
         userId: req.user!.id,
         createdAt: new Date()
       });
+
+      // Автоматически распределяем начальный остаток между заказами
+      try {
+        const { distributeNewStockToOrders } = await import('../utils/stockDistribution');
+        const distributionResult = await distributeNewStockToOrders(newProduct[0].id, initialStockValue);
+        
+        if (distributionResult.distributed > 0) {
+          console.log(`🎯 Автоматически распределено ${distributionResult.distributed} шт нового товара ${newProduct[0].id} между ${distributionResult.ordersUpdated.length} заказами`);
+        }
+      } catch (error) {
+        console.error(`❌ Ошибка автораспределения нового товара ${newProduct[0].id}:`, error);
+        // Не прерываем создание товара из-за ошибки автораспределения
+      }
     }
 
     // Сохраняем состав для рулонных покрытий

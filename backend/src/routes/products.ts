@@ -431,6 +431,19 @@ router.post('/', authenticateToken, requirePermission('products', 'create'), asy
         userId,
         createdAt: new Date()
       });
+
+      // Автоматически распределяем начальный остаток между заказами
+      try {
+        const { distributeNewStockToOrders } = await import('../utils/stockDistribution');
+        const distributionResult = await distributeNewStockToOrders(newProduct.id, initialStockValue);
+        
+        if (distributionResult.distributed > 0) {
+          console.log(`🎯 Автоматически распределено ${distributionResult.distributed} шт нового товара ${newProduct.id} между ${distributionResult.ordersUpdated.length} заказами`);
+        }
+      } catch (error) {
+        console.error(`❌ Ошибка автораспределения нового товара ${newProduct.id}:`, error);
+        // Не прерываем создание товара из-за ошибки автораспределения
+      }
     }
 
     // Логируем создание
