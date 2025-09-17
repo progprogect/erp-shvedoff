@@ -1735,26 +1735,22 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
       return next(createError('Сумма годных и брака должна равняться произведенному количеству', 400));
     }
 
-    // Обработка сверхпланового производства (WBS 2 - Adjustments Задача 4.4)
+    // Обработка сверхпланового производства (исправленная логика)
     const currentProduced = task.producedQuantity || 0;
-    const remainingNeeded = task.requestedQuantity - currentProduced;
+    const currentQuality = task.qualityQuantity || 0;
+    const remainingNeeded = Math.max(0, task.requestedQuantity - currentQuality); // остается качественного для закрытия задания
     
-    let taskQualityQuantity = qualityQuantity;
-    let taskDefectQuantity = defectQuantity;
-    let overproductionQuantity = 0;
-    let overproductionQuality = 0;
+    // Определяем сколько качественной продукции пойдет на закрытие задания
+    const taskQualityQuantity = Math.min(qualityQuantity, remainingNeeded);
     
-    // Если производится больше чем нужно для завершения задания
-    if (producedQuantity > remainingNeeded) {
-      // Пропорционально распределяем качественные и брак для задания
-      const taskRatio = remainingNeeded / producedQuantity;
-      taskQualityQuantity = Math.round(qualityQuantity * taskRatio);
-      taskDefectQuantity = remainingNeeded - taskQualityQuantity;
-      
-      // Остальное считается сверхплановым производством
-      overproductionQuantity = producedQuantity - remainingNeeded;
-      overproductionQuality = qualityQuantity - taskQualityQuantity;
-    }
+    // Сверхплановое качественное производство (если есть)
+    const overproductionQuality = Math.max(0, qualityQuantity - taskQualityQuantity);
+    
+    // Весь брак считается сверхплановым (не засчитывается в выполнение задания)
+    const taskDefectQuantity = 0;
+    
+    // Общее сверхплановое количество = сверхплановые качественные + весь брак
+    const overproductionQuantity = overproductionQuality + defectQuantity;
     
     // Обновляем общее количество БЕЗ ограничений - отражаем фактически произведенное
     const newTotalProduced = currentProduced + producedQuantity;
@@ -1763,7 +1759,7 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
     const result = await db.transaction(async (tx) => {
       // Обновляем счетчики задания
       const newQualityQuantity = (task.qualityQuantity || 0) + taskQualityQuantity;
-      const newDefectQuantity = (task.defectQuantity || 0) + taskDefectQuantity;
+      const newDefectQuantity = (task.defectQuantity || 0) + defectQuantity; // весь брак записываем в задание
       
       // Определяем новый статус - готово только если качественных >= запрошенного
       const isCompleted = newQualityQuantity >= task.requestedQuantity;
@@ -1794,18 +1790,20 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
           })
           .where(eq(schema.stock.productId, task.productId));
 
-        // Логируем движение товара от задания
-        await tx.insert(schema.stockMovements).values({
-          productId: task.productId,
-          movementType: 'incoming',
-          quantity: taskQualityQuantity,
-          referenceId: taskId,
-          referenceType: 'production_task',
-          comment: `Частичное производство (задание #${taskId}${isCompleted ? ' - завершено' : ''})`,
-          userId
-        });
+        // Логируем движение товара от задания (только то что идет на выполнение плана)
+        if (taskQualityQuantity > 0) {
+          await tx.insert(schema.stockMovements).values({
+            productId: task.productId,
+            movementType: 'incoming',
+            quantity: taskQualityQuantity,
+            referenceId: taskId,
+            referenceType: 'production_task',
+            comment: `Производство по заданию #${taskId}${isCompleted ? ' (завершено)' : ''}`,
+            userId
+          });
+        }
         
-        // Логируем сверхплановое производство (если есть)
+        // Логируем сверхплановое производство отдельно
         if (overproductionQuality > 0) {
           await tx.insert(schema.stockMovements).values({
             productId: task.productId,
@@ -1813,7 +1811,7 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
             quantity: overproductionQuality,
             referenceId: taskId,
             referenceType: 'overproduction',
-            comment: `Сверхплановое производство при выполнении задания #${taskId}`,
+            comment: `Сверхплановое производство (задание #${taskId})`,
             userId
           });
         }

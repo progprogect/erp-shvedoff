@@ -1020,10 +1020,11 @@ const ProductionTasks: React.FC = () => {
       render: (record: ProductionTask) => {
         const requested = record.requestedQuantity;
         const produced = record.producedQuantity || 0;
-        const remaining = Math.max(0, requested - produced);
+        const quality = record.qualityQuantity || 0;
+        const remaining = Math.max(0, requested - quality); // остается только по качественной продукции
         const isOverproduced = produced > requested;
         const overproduction = isOverproduced ? produced - requested : 0;
-        const progressPercent = Math.round((produced / requested) * 100);
+        const progressPercent = Math.round((quality / requested) * 100); // прогресс по качественной продукции
         
         return (
           <div>
@@ -1035,19 +1036,22 @@ const ProductionTasks: React.FC = () => {
                 <div style={{ color: '#52c41a' }}>
                   <strong>Произведено:</strong> {produced} шт ({progressPercent}%)
                 </div>
+                {record.defectQuantity > 0 && (
+                  <div style={{ color: '#ff7875' }}>
+                    <strong>Брак:</strong> {record.defectQuantity} шт
+                  </div>
+                )}
                 {remaining > 0 && (
                   <div style={{ color: '#faad14' }}>
                     <strong>Осталось:</strong> {remaining} шт
                   </div>
                 )}
-                {remaining === 0 && !isOverproduced && (
+                {quality >= requested && (
                   <div style={{ color: '#52c41a', fontWeight: 'bold' }}>
                     ✅ Выполнено полностью
-                  </div>
-                )}
-                {isOverproduced && (
-                  <div style={{ color: '#52c41a', fontWeight: 'bold' }}>
-                    ✅ Выполнено полностью + {overproduction} шт сверх плана
+                    {overproduction > 0 && (
+                      <span style={{ marginLeft: 4 }}>+ {overproduction} шт сверх плана</span>
+                    )}
                   </div>
                 )}
               </>
@@ -3256,25 +3260,32 @@ const ProductionTasks: React.FC = () => {
                         {(() => {
                           const requested = viewingTask.requestedQuantity;
                           const produced = viewingTask.producedQuantity || 0;
-                          const remaining = Math.max(0, requested - produced);
-                          const isOverproduced = produced > requested;
-                          const overproduction = isOverproduced ? produced - requested : 0;
-                          const progressPercent = Math.round((produced / requested) * 100);
+                          const quality = viewingTask.qualityQuantity || 0;
+                          const defect = viewingTask.defectQuantity || 0;
+                          const remaining = Math.max(0, requested - quality); // остается только по качественной продукции
+                          const isCompleted = quality >= requested;
+                          const overproduction = Math.max(0, produced - requested);
+                          const progressPercent = Math.round((quality / requested) * 100);
                           
-                          if (remaining === 0 && !isOverproduced) {
-                            return <Tag color="success" style={{ fontSize: '14px', padding: '4px 8px' }}>✅ Выполнено полностью</Tag>;
-                          } else if (isOverproduced) {
+                          if (isCompleted) {
                             return (
                               <div>
                                 <Tag color="success" style={{ fontSize: '14px', padding: '4px 8px' }}>
                                   ✅ Выполнено полностью
                                 </Tag>
-                                <span style={{ marginLeft: 8, color: '#52c41a', fontWeight: 'bold' }}>
-                                  +{overproduction} шт сверх плана
-                                </span>
+                                {overproduction > 0 && (
+                                  <span style={{ marginLeft: 8, color: '#52c41a', fontWeight: 'bold' }}>
+                                    +{overproduction} шт сверх плана
+                                  </span>
+                                )}
+                                {defect > 0 && (
+                                  <span style={{ marginLeft: 8, color: '#ff7875' }}>
+                                    (брак: {defect} шт)
+                                  </span>
+                                )}
                               </div>
                             );
-                          } else if (produced > 0) {
+                          } else if (quality > 0) {
                             return (
                               <div>
                                 <Tag color="processing" style={{ fontSize: '14px', padding: '4px 8px' }}>
@@ -3283,6 +3294,11 @@ const ProductionTasks: React.FC = () => {
                                 <span style={{ marginLeft: 8, color: '#faad14' }}>
                                   Осталось: <strong>{remaining} шт</strong>
                                 </span>
+                                {defect > 0 && (
+                                  <span style={{ marginLeft: 8, color: '#ff7875' }}>
+                                    (брак: {defect} шт)
+                                  </span>
+                                )}
                               </div>
                             );
                           } else {
