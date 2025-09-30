@@ -1,8 +1,12 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Card, Row, Col, Button, Select, Space, Tooltip, message } from 'antd';
 import { LeftOutlined, RightOutlined } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
+import 'dayjs/locale/ru';
 import { ProductionTask, updateProductionTask } from '../services/productionApi';
+
+// Устанавливаем русскую локаль для dayjs
+dayjs.locale('ru');
 
 const { Option } = Select;
 
@@ -26,11 +30,14 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
   tasks, 
   onTaskUpdate 
 }) => {
+  const [currentMonth, setCurrentMonth] = useState<Dayjs>(dayjs());
   const [currentWeek, setCurrentWeek] = useState<Dayjs>(dayjs());
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [draggedTask, setDraggedTask] = useState<GanttTask | null>(null);
   const [dragStartX, setDragStartX] = useState<number>(0);
+  const [resizeMode, setResizeMode] = useState<'start' | 'end' | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const timelineRef = useRef<HTMLDivElement>(null);
 
   // Группировка заданий по заказам
   const groupedTasks = useMemo(() => {
@@ -65,7 +72,23 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
     return grouped;
   }, [tasks, statusFilter]);
 
-  // Получение дней недели
+  // Получение всех дней месяца
+  const monthDays = useMemo(() => {
+    const startOfMonth = currentMonth.startOf('month');
+    const endOfMonth = currentMonth.endOf('month');
+    const days = [];
+    
+    let currentDay = startOfMonth.startOf('week'); // Начинаем с начала недели первого дня месяца
+    
+    while (currentDay.isBefore(endOfMonth.endOf('week'))) {
+      days.push(currentDay);
+      currentDay = currentDay.add(1, 'day');
+    }
+    
+    return days;
+  }, [currentMonth]);
+
+  // Получение дней текущей недели для отображения
   const weekDays = useMemo(() => {
     const startOfWeek = currentWeek.startOf('week');
     const days = [];
@@ -116,24 +139,63 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
     };
   };
 
-  // Навигация по неделям
-  const goToPreviousWeek = () => {
-    setCurrentWeek(currentWeek.subtract(1, 'week'));
+  // Навигация по месяцам
+  const goToPreviousMonth = () => {
+    const newMonth = currentMonth.subtract(1, 'month');
+    setCurrentMonth(newMonth);
+    // Устанавливаем первую неделю нового месяца
+    setCurrentWeek(newMonth.startOf('month'));
   };
 
-  const goToNextWeek = () => {
-    setCurrentWeek(currentWeek.add(1, 'week'));
+  const goToNextMonth = () => {
+    const newMonth = currentMonth.add(1, 'month');
+    setCurrentMonth(newMonth);
+    // Устанавливаем первую неделю нового месяца
+    setCurrentWeek(newMonth.startOf('month'));
   };
 
   const goToToday = () => {
-    setCurrentWeek(dayjs());
+    const today = dayjs();
+    setCurrentMonth(today);
+    setCurrentWeek(today);
   };
 
-  // Обработка drag & drop
-  const handleMouseDown = (task: GanttTask, event: React.MouseEvent) => {
+  // Обработка скролла для навигации по неделям внутри месяца
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      if (!timelineRef.current?.contains(e.target as Node)) return;
+      
+      e.preventDefault();
+      
+      if (e.deltaY > 0) {
+        // Скролл вниз - следующая неделя
+        const nextWeek = currentWeek.add(1, 'week');
+        if (nextWeek.isSame(currentMonth, 'month') || nextWeek.isBefore(currentMonth.endOf('month'))) {
+          setCurrentWeek(nextWeek);
+        }
+      } else {
+        // Скролл вверх - предыдущая неделя
+        const prevWeek = currentWeek.subtract(1, 'week');
+        if (prevWeek.isSame(currentMonth, 'month') || prevWeek.isAfter(currentMonth.startOf('month'))) {
+          setCurrentWeek(prevWeek);
+        }
+      }
+    };
+
+    const timeline = timelineRef.current;
+    if (timeline) {
+      timeline.addEventListener('wheel', handleWheel, { passive: false });
+      return () => timeline.removeEventListener('wheel', handleWheel);
+    }
+  }, [currentWeek, currentMonth]);
+
+  // Обработка drag & drop и resize
+  const handleMouseDown = (task: GanttTask, event: React.MouseEvent, mode: 'move' | 'resize-start' | 'resize-end' = 'move') => {
     setDraggedTask(task);
     setDragStartX(event.clientX);
+    setResizeMode(mode === 'move' ? null : mode === 'resize-start' ? 'start' : 'end');
     event.preventDefault();
+    event.stopPropagation();
   };
 
   const handleMouseMove = (event: React.MouseEvent) => {
@@ -157,8 +219,23 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
     // Обновляем позицию полосы визуально
     const taskElement = document.querySelector(`[data-task-id="${draggedTask.id}"]`) as HTMLElement;
     if (taskElement) {
-      const newLeft = `${(dayOffset / 7) * 100}%`;
-      taskElement.style.left = newLeft;
+      if (resizeMode === 'start') {
+        // Изменяем только начало
+        const currentWidth = parseFloat(taskElement.style.width || '100%');
+        const newLeft = `${(dayOffset / 7) * 100}%`;
+        const newWidth = `${currentWidth + (parseFloat(taskElement.style.left || '0%') - parseFloat(newLeft))}%`;
+        taskElement.style.left = newLeft;
+        taskElement.style.width = newWidth;
+      } else if (resizeMode === 'end') {
+        // Изменяем только конец (ширину)
+        const currentLeft = parseFloat(taskElement.style.left || '0%');
+        const newWidth = `${((dayOffset / 7) * 100) - currentLeft}%`;
+        taskElement.style.width = newWidth;
+      } else {
+        // Обычное перемещение
+        const newLeft = `${(dayOffset / 7) * 100}%`;
+        taskElement.style.left = newLeft;
+      }
     }
   };
 
@@ -195,11 +272,23 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
       return;
     }
     
-    // Вычисляем новую дату начала
+    // Вычисляем новые даты в зависимости от режима
     const weekStart = currentWeek.startOf('week');
-    const newStartDate = weekStart.add(dayOffset, 'day');
-    const duration = draggedTask.endDate.diff(draggedTask.startDate, 'day');
-    const newEndDate = newStartDate.add(duration, 'day');
+    let newStartDate: Dayjs;
+    let newEndDate: Dayjs;
+    
+    if (resizeMode === 'start') {
+      newStartDate = weekStart.add(dayOffset, 'day');
+      newEndDate = draggedTask.endDate; // Конец остается тот же
+    } else if (resizeMode === 'end') {
+      newStartDate = draggedTask.startDate; // Начало остается то же
+      newEndDate = weekStart.add(dayOffset, 'day');
+    } else {
+      // Обычное перемещение
+      newStartDate = weekStart.add(dayOffset, 'day');
+      const duration = draggedTask.endDate.diff(draggedTask.startDate, 'day');
+      newEndDate = newStartDate.add(duration, 'day');
+    }
 
     // Проверяем, что даты не выходят за границы недели
     if (newStartDate.isBefore(weekStart) || newEndDate.isAfter(weekStart.endOf('week'))) {
@@ -240,6 +329,7 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
       }
     } finally {
       setDraggedTask(null);
+      setResizeMode(null);
     }
   };
 
@@ -252,10 +342,10 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
             <Space>
               <Button 
                 icon={<LeftOutlined />} 
-                onClick={goToPreviousWeek}
+                onClick={goToPreviousMonth}
                 size="small"
               >
-                Пред
+                Пред. месяц
               </Button>
               <Button 
                 onClick={goToToday}
@@ -265,10 +355,10 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
               </Button>
               <Button 
                 icon={<RightOutlined />} 
-                onClick={goToNextWeek}
+                onClick={goToNextMonth}
                 size="small"
               >
-                След
+                След. месяц
               </Button>
             </Space>
           </Col>
@@ -288,7 +378,10 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
               </Select>
               
               <span style={{ fontSize: '16px', fontWeight: 'bold' }}>
-                {currentWeek.format('MMMM YYYY')}
+                {currentMonth.format('MMMM YYYY')}
+              </span>
+              <span style={{ fontSize: '14px', color: '#666' }}>
+                Неделя {Math.ceil(currentWeek.date() / 7)}: {currentWeek.format('DD.MM')} - {currentWeek.endOf('week').format('DD.MM')}
               </span>
             </Space>
           </Col>
@@ -305,7 +398,10 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
         }}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={() => setDraggedTask(null)}
+        onMouseLeave={() => {
+          setDraggedTask(null);
+          setResizeMode(null);
+        }}
       >
         {/* Заголовок с днями недели */}
         <div style={{
@@ -322,11 +418,15 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
             Задания
           </div>
           
-          <div style={{ 
-            display: 'grid',
-            gridTemplateColumns: 'repeat(7, 1fr)',
-            textAlign: 'center'
-          }}>
+          <div 
+            ref={timelineRef}
+            className="timeline-area"
+            style={{ 
+              display: 'grid',
+              gridTemplateColumns: 'repeat(7, 1fr)',
+              textAlign: 'center'
+            }}
+          >
             {weekDays.map((day, index) => (
               <div 
                 key={index}
@@ -436,7 +536,7 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
                       
                       {/* Полоса задания */}
                       <Tooltip 
-                        title={`${task.startDate.format('DD.MM')} - ${task.endDate.format('DD.MM.YYYY')}. Перетащите для изменения даты.`}
+                        title={`${task.startDate.format('DD.MM')} - ${task.endDate.format('DD.MM.YYYY')}. Перетащите для изменения даты, потяните за края для изменения длительности.`}
                       >
                         <div
                           data-task-id={task.id}
@@ -448,7 +548,9 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
                             height: '32px',
                             backgroundColor: getStatusColor(task.status),
                             borderRadius: '4px',
-                            cursor: draggedTask ? 'grabbing' : 'grab',
+                            cursor: draggedTask?.id === task.id ? 
+                              (resizeMode === 'start' ? 'w-resize' : 
+                               resizeMode === 'end' ? 'e-resize' : 'grabbing') : 'grab',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -461,7 +563,7 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
                             transition: 'all 0.2s ease',
                             userSelect: 'none'
                           }}
-                          onMouseDown={(e) => handleMouseDown(task, e)}
+                          onMouseDown={(e) => handleMouseDown(task, e, 'move')}
                           onClick={(e) => {
                             if (!draggedTask) {
                               console.log('Task clicked:', task);
@@ -471,6 +573,34 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
                           }}
                         >
                           {task.status === 'in_progress' && '▶'}
+                          
+                          {/* Resize handles */}
+                          <div
+                            style={{
+                              position: 'absolute',
+                              left: '-4px',
+                              top: '0',
+                              width: '8px',
+                              height: '100%',
+                              cursor: 'w-resize',
+                              backgroundColor: 'rgba(255,255,255,0.3)',
+                              borderRadius: '2px 0 0 2px'
+                            }}
+                            onMouseDown={(e) => handleMouseDown(task, e, 'resize-start')}
+                          />
+                          <div
+                            style={{
+                              position: 'absolute',
+                              right: '-4px',
+                              top: '0',
+                              width: '8px',
+                              height: '100%',
+                              cursor: 'e-resize',
+                              backgroundColor: 'rgba(255,255,255,0.3)',
+                              borderRadius: '0 2px 2px 0'
+                            }}
+                            onMouseDown={(e) => handleMouseDown(task, e, 'resize-end')}
+                          />
                         </div>
                       </Tooltip>
                     </div>

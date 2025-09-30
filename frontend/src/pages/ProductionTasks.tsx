@@ -513,7 +513,7 @@ const ProductionTasks: React.FC = () => {
     setActiveTab(key);
     if (key === 'by-product') {
       loadTasksByProduct();
-    } else if (key === 'list' || key === 'calendar' || key === 'gantt') {
+    } else if (key === 'list' || key === 'gantt') {
       loadTasks();
     }
     // Для статистики не нужно дополнительно загружать данные
@@ -1757,16 +1757,6 @@ const ProductionTasks: React.FC = () => {
                     ),
                     rowExpandable: (record) => record.tasks.length > 0,
                   }}
-                />
-              )
-            },
-            {
-              key: 'calendar',
-              label: 'Календарь',
-              children: (
-                <ProductionCalendar 
-                  tasks={tasks}
-                  onTaskUpdate={loadTasks}
                 />
               )
             },
