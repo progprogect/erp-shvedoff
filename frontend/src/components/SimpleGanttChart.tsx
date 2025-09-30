@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Card, Row, Col, Button, Select, Space, Tooltip, message } from 'antd';
-import { LeftOutlined, RightOutlined } from '@ant-design/icons';
+import { Card, Row, Col, Button, Select, Space, Tooltip, message, DatePicker } from 'antd';
+import { LeftOutlined, RightOutlined, CalendarOutlined } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import 'dayjs/locale/ru';
 import { ProductionTask, updateProductionTask } from '../services/productionApi';
@@ -30,8 +30,10 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
   tasks, 
   onTaskUpdate 
 }) => {
-  const [currentMonth, setCurrentMonth] = useState<Dayjs>(dayjs());
-  const [currentWeek, setCurrentWeek] = useState<Dayjs>(dayjs());
+  const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>([
+    dayjs().startOf('week'),
+    dayjs().endOf('week').add(2, 'week') // Показываем 3 недели по умолчанию
+  ]);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [draggedTask, setDraggedTask] = useState<GanttTask | null>(null);
   const [dragStartX, setDragStartX] = useState<number>(0);
@@ -72,33 +74,19 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
     return grouped;
   }, [tasks, statusFilter]);
 
-  // Получение всех дней месяца
-  const monthDays = useMemo(() => {
-    const startOfMonth = currentMonth.startOf('month');
-    const endOfMonth = currentMonth.endOf('month');
+  // Получение дней в выбранном диапазоне для отображения
+  const visibleDays = useMemo(() => {
+    const [startDate, endDate] = dateRange;
     const days = [];
     
-    let currentDay = startOfMonth.startOf('week'); // Начинаем с начала недели первого дня месяца
-    
-    while (currentDay.isBefore(endOfMonth.endOf('week'))) {
+    let currentDay = startDate;
+    while (currentDay.isSame(endDate, 'day') || currentDay.isBefore(endDate)) {
       days.push(currentDay);
       currentDay = currentDay.add(1, 'day');
     }
     
     return days;
-  }, [currentMonth]);
-
-  // Получение дней текущей недели для отображения
-  const weekDays = useMemo(() => {
-    const startOfWeek = currentWeek.startOf('week');
-    const days = [];
-    
-    for (let i = 0; i < 7; i++) {
-      days.push(startOfWeek.add(i, 'day'));
-    }
-    
-    return days;
-  }, [currentWeek]);
+  }, [dateRange]);
 
   // Получение цвета статуса
   const getStatusColor = (status: string) => {
@@ -112,55 +100,66 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
     return colors[status as keyof typeof colors] || '#d9d9d9';
   };
 
-  // Проверка, пересекается ли задание с текущей неделей
-  const isTaskInWeek = (startDate: Dayjs, endDate: Dayjs) => {
-    const weekStart = currentWeek.startOf('week');
-    const weekEnd = currentWeek.endOf('week');
+  // Проверка, пересекается ли задание с видимым диапазоном
+  const isTaskInRange = (startDate: Dayjs, endDate: Dayjs) => {
+    const [rangeStart, rangeEnd] = dateRange;
     
-    return startDate.isBefore(weekEnd) && endDate.isAfter(weekStart);
+    return startDate.isBefore(rangeEnd.add(1, 'day')) && endDate.isAfter(rangeStart.subtract(1, 'day'));
   };
 
   // Получение позиции и ширины полосы
   const getTaskPosition = (startDate: Dayjs, endDate: Dayjs) => {
-    const weekStart = currentWeek.startOf('week');
-    const weekEnd = currentWeek.endOf('week');
+    const [rangeStart, rangeEnd] = dateRange;
     
-    // Ограничиваем даты рамками недели
-    const taskStart = startDate.isBefore(weekStart) ? weekStart : startDate;
-    const taskEnd = endDate.isAfter(weekEnd) ? weekEnd : endDate;
+    // Ограничиваем даты рамками диапазона
+    const taskStart = startDate.isBefore(rangeStart) ? rangeStart : startDate;
+    const taskEnd = endDate.isAfter(rangeEnd) ? rangeEnd : endDate;
     
-    // Вычисляем позицию в днях
-    const startDay = taskStart.diff(weekStart, 'day');
+    // Вычисляем позицию в днях относительно начала диапазона
+    const startDay = taskStart.diff(rangeStart, 'day');
     const duration = taskEnd.diff(taskStart, 'day') + 1;
+    const totalDays = rangeEnd.diff(rangeStart, 'day') + 1;
     
     return {
-      left: `${(startDay / 7) * 100}%`,
-      width: `${(duration / 7) * 100}%`
+      left: `${(startDay / totalDays) * 100}%`,
+      width: `${(duration / totalDays) * 100}%`
     };
   };
 
-  // Навигация по месяцам
-  const goToPreviousMonth = () => {
-    const newMonth = currentMonth.subtract(1, 'month');
-    setCurrentMonth(newMonth);
-    // Устанавливаем первую неделю нового месяца
-    setCurrentWeek(newMonth.startOf('month'));
+  // Навигация по диапазону дат
+  const goToPreviousWeek = () => {
+    const [startDate, endDate] = dateRange;
+    const duration = endDate.diff(startDate, 'day');
+    const newEndDate = startDate.subtract(1, 'day');
+    const newStartDate = newEndDate.subtract(duration, 'day');
+    setDateRange([newStartDate, newEndDate]);
   };
 
-  const goToNextMonth = () => {
-    const newMonth = currentMonth.add(1, 'month');
-    setCurrentMonth(newMonth);
-    // Устанавливаем первую неделю нового месяца
-    setCurrentWeek(newMonth.startOf('month'));
+  const goToNextWeek = () => {
+    const [startDate, endDate] = dateRange;
+    const duration = endDate.diff(startDate, 'day');
+    const newStartDate = endDate.add(1, 'day');
+    const newEndDate = newStartDate.add(duration, 'day');
+    setDateRange([newStartDate, newEndDate]);
   };
 
   const goToToday = () => {
     const today = dayjs();
-    setCurrentMonth(today);
-    setCurrentWeek(today);
+    const [startDate, endDate] = dateRange;
+    const duration = endDate.diff(startDate, 'day');
+    const newStartDate = today.startOf('week');
+    const newEndDate = newStartDate.add(duration, 'day');
+    setDateRange([newStartDate, newEndDate]);
   };
 
-  // Обработка скролла для навигации по неделям внутри месяца
+  // Обработчик изменения диапазона дат
+  const handleDateRangeChange = (dates: [Dayjs | null, Dayjs | null] | null) => {
+    if (dates && dates[0] && dates[1]) {
+      setDateRange([dates[0], dates[1]]);
+    }
+  };
+
+  // Обработка скролла для навигации по диапазону дат
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
       if (!timelineRef.current?.contains(e.target as Node)) return;
@@ -168,17 +167,11 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
       e.preventDefault();
       
       if (e.deltaY > 0) {
-        // Скролл вниз - следующая неделя
-        const nextWeek = currentWeek.add(1, 'week');
-        if (nextWeek.isSame(currentMonth, 'month') || nextWeek.isBefore(currentMonth.endOf('month'))) {
-          setCurrentWeek(nextWeek);
-        }
+        // Скролл вниз - следующий период
+        goToNextWeek();
       } else {
-        // Скролл вверх - предыдущая неделя
-        const prevWeek = currentWeek.subtract(1, 'week');
-        if (prevWeek.isSame(currentMonth, 'month') || prevWeek.isAfter(currentMonth.startOf('month'))) {
-          setCurrentWeek(prevWeek);
-        }
+        // Скролл вверх - предыдущий период
+        goToPreviousWeek();
       }
     };
 
@@ -187,7 +180,7 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
       timeline.addEventListener('wheel', handleWheel, { passive: false });
       return () => timeline.removeEventListener('wheel', handleWheel);
     }
-  }, [currentWeek, currentMonth]);
+  }, [dateRange]);
 
   // Обработка drag & drop и resize
   const handleMouseDown = (task: GanttTask, event: React.MouseEvent, mode: 'move' | 'resize-start' | 'resize-end' = 'move') => {
@@ -210,11 +203,12 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
     // Валидация координат
     if (relativeX < 0 || relativeX > timelineRect.width) return;
     
-    const dayWidth = timelineRect.width / 7;
+    const totalDays = visibleDays.length;
+    const dayWidth = timelineRect.width / totalDays;
     const dayOffset = Math.round(relativeX / dayWidth);
     
     // Валидация dayOffset
-    if (dayOffset < 0 || dayOffset > 6) return;
+    if (dayOffset < 0 || dayOffset >= totalDays) return;
     
     // Обновляем позицию полосы визуально
     const taskElement = document.querySelector(`[data-task-id="${draggedTask.id}"]`) as HTMLElement;
@@ -222,18 +216,18 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
       if (resizeMode === 'start') {
         // Изменяем только начало
         const currentWidth = parseFloat(taskElement.style.width || '100%');
-        const newLeft = `${(dayOffset / 7) * 100}%`;
+        const newLeft = `${(dayOffset / totalDays) * 100}%`;
         const newWidth = `${currentWidth + (parseFloat(taskElement.style.left || '0%') - parseFloat(newLeft))}%`;
         taskElement.style.left = newLeft;
         taskElement.style.width = newWidth;
       } else if (resizeMode === 'end') {
         // Изменяем только конец (ширину)
         const currentLeft = parseFloat(taskElement.style.left || '0%');
-        const newWidth = `${((dayOffset / 7) * 100) - currentLeft}%`;
+        const newWidth = `${((dayOffset / totalDays) * 100) - currentLeft}%`;
         taskElement.style.width = newWidth;
       } else {
         // Обычное перемещение
-        const newLeft = `${(dayOffset / 7) * 100}%`;
+        const newLeft = `${(dayOffset / totalDays) * 100}%`;
         taskElement.style.left = newLeft;
       }
     }
@@ -254,46 +248,50 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
     }
 
     const relativeX = event.clientX - timelineRect.left;
-    const dayWidth = timelineRect.width / 7;
+    const totalDays = visibleDays.length;
+    const dayWidth = timelineRect.width / totalDays;
     
     // Валидация координат
     if (relativeX < 0 || relativeX > timelineRect.width) {
       message.warning('Перетаскивание за границы временной шкалы');
       setDraggedTask(null);
+      setResizeMode(null);
       return;
     }
     
     const dayOffset = Math.round(relativeX / dayWidth);
     
     // Валидация dayOffset
-    if (dayOffset < 0 || dayOffset > 6) {
+    if (dayOffset < 0 || dayOffset >= totalDays) {
       message.warning('Некорректная позиция для задания');
       setDraggedTask(null);
+      setResizeMode(null);
       return;
     }
     
     // Вычисляем новые даты в зависимости от режима
-    const weekStart = currentWeek.startOf('week');
+    const [rangeStart, rangeEnd] = dateRange;
     let newStartDate: Dayjs;
     let newEndDate: Dayjs;
     
     if (resizeMode === 'start') {
-      newStartDate = weekStart.add(dayOffset, 'day');
+      newStartDate = rangeStart.add(dayOffset, 'day');
       newEndDate = draggedTask.endDate; // Конец остается тот же
     } else if (resizeMode === 'end') {
       newStartDate = draggedTask.startDate; // Начало остается то же
-      newEndDate = weekStart.add(dayOffset, 'day');
+      newEndDate = rangeStart.add(dayOffset, 'day');
     } else {
       // Обычное перемещение
-      newStartDate = weekStart.add(dayOffset, 'day');
+      newStartDate = rangeStart.add(dayOffset, 'day');
       const duration = draggedTask.endDate.diff(draggedTask.startDate, 'day');
       newEndDate = newStartDate.add(duration, 'day');
     }
 
-    // Проверяем, что даты не выходят за границы недели
-    if (newStartDate.isBefore(weekStart) || newEndDate.isAfter(weekStart.endOf('week'))) {
-      message.warning('Задание не может быть перемещено за границы недели');
+    // Проверяем, что даты не выходят за границы диапазона
+    if (newStartDate.isBefore(rangeStart) || newEndDate.isAfter(rangeEnd)) {
+      message.warning('Задание не может быть перемещено за границы выбранного периода');
       setDraggedTask(null);
+      setResizeMode(null);
       return;
     }
 
@@ -342,10 +340,10 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
             <Space>
               <Button 
                 icon={<LeftOutlined />} 
-                onClick={goToPreviousMonth}
+                onClick={goToPreviousWeek}
                 size="small"
               >
-                Пред. месяц
+                Пред. период
               </Button>
               <Button 
                 onClick={goToToday}
@@ -355,16 +353,26 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
               </Button>
               <Button 
                 icon={<RightOutlined />} 
-                onClick={goToNextMonth}
+                onClick={goToNextWeek}
                 size="small"
               >
-                След. месяц
+                След. период
               </Button>
             </Space>
           </Col>
           
           <Col>
             <Space>
+              <DatePicker.RangePicker
+                value={dateRange}
+                onChange={handleDateRangeChange}
+                format="DD.MM.YYYY"
+                size="small"
+                style={{ width: 240 }}
+                placeholder={['От', 'До']}
+                allowClear={false}
+              />
+              
               <Select
                 value={statusFilter}
                 onChange={setStatusFilter}
@@ -377,11 +385,8 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
                 <Option value="completed">Завершено</Option>
               </Select>
               
-              <span style={{ fontSize: '16px', fontWeight: 'bold' }}>
-                {currentMonth.format('MMMM YYYY')}
-              </span>
               <span style={{ fontSize: '14px', color: '#666' }}>
-                Неделя {Math.ceil(currentWeek.date() / 7)}: {currentWeek.format('DD.MM')} - {currentWeek.endOf('week').format('DD.MM')}
+                {visibleDays.length} дней: {dateRange[0].format('DD.MM')} - {dateRange[1].format('DD.MM.YYYY')}
               </span>
             </Space>
           </Col>
@@ -423,16 +428,16 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
             className="timeline-area"
             style={{ 
               display: 'grid',
-              gridTemplateColumns: 'repeat(7, 1fr)',
+              gridTemplateColumns: `repeat(${visibleDays.length}, 1fr)`,
               textAlign: 'center'
             }}
           >
-            {weekDays.map((day, index) => (
+            {visibleDays.map((day, index) => (
               <div 
                 key={index}
                 style={{ 
                   padding: '8px 4px',
-                  borderRight: index < 6 ? '1px solid #d9d9d9' : 'none',
+                  borderRight: index < visibleDays.length - 1 ? '1px solid #d9d9d9' : 'none',
                   backgroundColor: day.isSame(dayjs(), 'day') ? '#e6f7ff' : 'transparent'
                 }}
               >
@@ -476,15 +481,15 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
                   className="timeline-area"
                   style={{ 
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(7, 1fr)',
+                    gridTemplateColumns: `repeat(${visibleDays.length}, 1fr)`,
                     height: '40px'
                   }}
                 >
-                  {weekDays.map((_, index) => (
+                  {visibleDays.map((_, index) => (
                     <div 
                       key={index}
                       style={{ 
-                        borderRight: index < 6 ? '1px solid #d9d9d9' : 'none'
+                        borderRight: index < visibleDays.length - 1 ? '1px solid #d9d9d9' : 'none'
                       }}
                     />
                   ))}
@@ -493,7 +498,7 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
 
               {/* Задания заказа */}
               {orderTasks.map((task) => {
-                if (!isTaskInWeek(task.startDate, task.endDate)) {
+                if (!isTaskInRange(task.startDate, task.endDate)) {
                   return null;
                 }
 
@@ -521,15 +526,15 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
                     {/* Область для полосы */}
                     <div style={{ 
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(7, 1fr)',
+                      gridTemplateColumns: `repeat(${visibleDays.length}, 1fr)`,
                       height: '40px',
                       position: 'relative'
                     }}>
-                      {weekDays.map((_, index) => (
+                      {visibleDays.map((_, index) => (
                         <div 
                           key={index}
                           style={{ 
-                            borderRight: index < 6 ? '1px solid #d9d9d9' : 'none'
+                            borderRight: index < visibleDays.length - 1 ? '1px solid #d9d9d9' : 'none'
                           }}
                         />
                       ))}
