@@ -3942,20 +3942,33 @@ const ProductionTasks: React.FC = () => {
         )}
       </Modal>
 
-      {/* DatePicker для экспорта в Word */}
-      <DatePicker
+      {/* Модальное окно выбора даты для экспорта в Word */}
+      <Modal
+        title="📄 Выберите дату для экспорта в Word"
         open={exportWordDatePickerVisible}
-        onOpenChange={setExportWordDatePickerVisible}
-        onChange={(date) => {
-          if (date) {
-            handleExportToWord(date);
-            setExportWordDatePickerVisible(false);
-          }
-        }}
-        placeholder="Выберите дату для экспорта"
-        format="DD.MM.YYYY"
-        style={{ position: 'absolute', left: '-9999px' }} // Скрываем, так как открывается программно
-      />
+        onCancel={() => setExportWordDatePickerVisible(false)}
+        footer={null}
+        width={400}
+      >
+        <div style={{ padding: '20px 0', textAlign: 'center' }}>
+          <p style={{ marginBottom: '16px', color: '#666' }}>
+            Выберите дату, на которую будут экспортированы производственные задания
+          </p>
+          <DatePicker
+            onChange={(date) => {
+              if (date) {
+                handleExportToWord(date);
+                setExportWordDatePickerVisible(false);
+              }
+            }}
+            placeholder="Выберите дату"
+            format="DD.MM.YYYY"
+            style={{ width: '100%' }}
+            size="large"
+            autoFocus
+          />
+        </div>
+      </Modal>
 
       </div>
     </App>
