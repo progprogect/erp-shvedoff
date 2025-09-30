@@ -1018,6 +1018,144 @@ const ProductionTasks: React.FC = () => {
     }
   };
 
+  // Функция для форматирования характеристик товара в текст
+  const formatProductCharacteristics = (product: any): string[] => {
+    const characteristics: string[] = [];
+    
+    if (!product) return characteristics;
+
+    // Размеры
+    if (product.dimensions && typeof product.dimensions === 'object') {
+      const { length, width, height, thickness } = product.dimensions;
+      const actualHeight = thickness || height;
+      if (length && width && actualHeight) {
+        characteristics.push(`Размеры: ${length}×${width}×${actualHeight} мм`);
+      }
+    }
+
+    // Вес
+    if (product.weight) {
+      characteristics.push(`Вес: ${product.weight} кг`);
+    }
+
+    // Площадь мата
+    if (product.matArea) {
+      characteristics.push(`Площадь мата: ${product.matArea} м²`);
+    }
+
+    // Поверхности (для ковров и рулонных покрытий)
+    if (product.productType === 'carpet' || product.productType === 'roll_covering') {
+      if (product.surfaces && product.surfaces.length > 0) {
+        const surfaceNames = product.surfaces.map((s: any) => s.name).join(', ');
+        characteristics.push(`Поверхности: ${surfaceNames}`);
+      } else if (product.surface) {
+        characteristics.push(`Поверхность: ${product.surface.name}`);
+      }
+
+      // Логотип
+      if (product.logo) {
+        characteristics.push(`Логотип: ${product.logo.name}`);
+      }
+
+      // Материал
+      if (product.material) {
+        characteristics.push(`Материал: ${product.material.name}`);
+      }
+
+      // Тип пресса
+      if (product.pressType && product.pressType !== 'not_selected') {
+        const pressTypeNames = {
+          'ukrainian': 'Украинский',
+          'chinese': 'Китайский'
+        };
+        characteristics.push(`Тип пресса: ${pressTypeNames[product.pressType as keyof typeof pressTypeNames] || product.pressType}`);
+      }
+    }
+
+    // Характеристики только для ковров
+    if (product.productType === 'carpet') {
+      // Сорт
+      if (product.grade) {
+        const gradeNames = {
+          'usual': 'Обычный',
+          'grade_2': 'Второй сорт',
+          'telyatnik': 'Телятник',
+          'liber': 'Либер'
+        };
+        characteristics.push(`Сорт: ${gradeNames[product.grade as keyof typeof gradeNames] || product.grade}`);
+      }
+
+      // Тип борта
+      if (product.borderType) {
+        const borderTypeNames = {
+          'with_border': 'С бортом',
+          'without_border': 'Без борта'
+        };
+        characteristics.push(`Тип борта: ${borderTypeNames[product.borderType as keyof typeof borderTypeNames] || product.borderType}`);
+      }
+
+      // Тип края ковра
+      if (product.carpetEdgeType) {
+        const edgeTypeNames = {
+          'straight_cut': 'Литой',
+          'direct_cut': 'Прямой рез',
+          'puzzle': 'Пазл',
+          'sub_puzzle': 'Подпазл',
+          'cast_puzzle': 'Литой пазл'
+        };
+        characteristics.push(`Тип края: ${edgeTypeNames[product.carpetEdgeType as keyof typeof edgeTypeNames] || product.carpetEdgeType}`);
+      }
+
+      // Стороны края
+      if (product.carpetEdgeSides && product.carpetEdgeType && 
+          product.carpetEdgeType !== 'straight_cut' && 
+          product.carpetEdgeType !== 'direct_cut') {
+        characteristics.push(`Стороны края: ${product.carpetEdgeSides} ${product.carpetEdgeSides === 1 ? 'сторона' : 'стороны'}`);
+      }
+
+      // Край (прочность)
+      if (product.carpetEdgeStrength) {
+        const strengthNames = {
+          'normal': 'Не усиленный',
+          'reinforced': 'Усиленный',
+          'strong': 'Усиленный',
+          'weak': 'Не усиленный'
+        };
+        characteristics.push(`Край: ${strengthNames[product.carpetEdgeStrength as keyof typeof strengthNames] || product.carpetEdgeStrength}`);
+      }
+
+      // Тип низа ковра
+      if (product.bottomType) {
+        characteristics.push(`Тип низа: ${product.bottomType.name}`);
+      }
+
+      // Тип паззла
+      if (product.puzzleType && product.carpetEdgeType === 'puzzle') {
+        characteristics.push(`Тип паззла: ${product.puzzleType.name}`);
+      }
+
+      // Стороны паззла
+      if (product.puzzleSides && product.carpetEdgeType === 'puzzle') {
+        characteristics.push(`Стороны паззла: ${product.puzzleSides} ${product.puzzleSides === 1 ? 'сторона' : 'стороны'}`);
+      }
+    }
+
+    // Характеристики для рулонных покрытий
+    if (product.productType === 'roll_covering' && product.rollComposition && product.rollComposition.length > 0) {
+      const compositionText = product.rollComposition
+        .map((item: any) => `${item.carpet.name} (${item.quantity} шт.)`)
+        .join(', ');
+      characteristics.push(`Состав: ${compositionText}`);
+    }
+
+    // Номер ПУР для товаров типа ПУР
+    if (product.productType === 'pur' && product.purNumber) {
+      characteristics.push(`Номер ПУР: ${product.purNumber}`);
+    }
+
+    return characteristics;
+  };
+
   // Функция экспорта заданий в Word документ
   const handleExportToWord = async (selectedDate: Dayjs) => {
     try {
@@ -1090,6 +1228,11 @@ const ProductionTasks: React.FC = () => {
                     }),
                     new DocxTableCell({
                       children: [new Paragraph({
+                        children: [new TextRun({ text: "Заказчик", bold: true })]
+                      })]
+                    }),
+                    new DocxTableCell({
+                      children: [new Paragraph({
                         children: [new TextRun({ text: "Товар", bold: true })]
                       })]
                     }),
@@ -1123,21 +1266,26 @@ const ProductionTasks: React.FC = () => {
                 
                 // Строки с заданиями
                 ...tasksForDate.map(task => {
-                  const remaining = task.requestedQuantity - task.producedQuantity;
-                  const orderInfo = task.order ? 
-                    `№${task.order.orderNumber} - ${task.order.customerName}` : 
-                    'Задание на будущее';
+                  const remaining = task.requestedQuantity - task.qualityQuantity;
+                  const orderNumber = task.order ? task.order.orderNumber : 'Задание на будущее';
+                  const customerName = task.order ? task.order.customerName : '-';
+                  const productName = task.product?.name || 'Не указан';
                   
                   return new DocxTableRow({
                     children: [
                       new DocxTableCell({
                         children: [new Paragraph({
-                          children: [new TextRun({ text: orderInfo })]
+                          children: [new TextRun({ text: orderNumber })]
                         })]
                       }),
                       new DocxTableCell({
                         children: [new Paragraph({
-                          children: [new TextRun({ text: task.product?.name || 'Неизвестный товар' })]
+                          children: [new TextRun({ text: customerName })]
+                        })]
+                      }),
+                      new DocxTableCell({
+                        children: [new Paragraph({
+                          children: [new TextRun({ text: productName })]
                         })]
                       }),
                       new DocxTableCell({
@@ -1152,7 +1300,7 @@ const ProductionTasks: React.FC = () => {
                       }),
                       new DocxTableCell({
                         children: [new Paragraph({
-                          children: [new TextRun({ text: `${task.producedQuantity} шт.` })]
+                          children: [new TextRun({ text: `${task.qualityQuantity} шт.` })]
                         })]
                       }),
                       new DocxTableCell({
@@ -1174,7 +1322,60 @@ const ProductionTasks: React.FC = () => {
                   });
                 })
               ]
+            }),
+
+            // Разделитель
+            new Paragraph({
+              children: [new TextRun({ text: "" })],
+              spacing: { after: 400 }
+            }),
+
+            // Заголовок секции характеристик
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: "ХАРАКТЕРИСТИКИ ТОВАРОВ",
+                  bold: true,
+                  size: 28
+                })
+              ],
+              spacing: { after: 400 }
+            }),
+
+            // Характеристики для каждого товара
+            ...tasksForDate.flatMap(task => {
+              const characteristics = formatProductCharacteristics(task.product);
+              if (characteristics.length === 0) return [];
+
+              return [
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: `Характеристики товара: ${task.product?.article || 'Не указан'}`,
+                      bold: true,
+                      size: 24
+                    })
+                  ],
+                  spacing: { after: 200 }
+                }),
+                ...characteristics.map(char => 
+                  new Paragraph({
+                    children: [
+                      new TextRun({
+                        text: `• ${char}`,
+                        size: 20
+                      })
+                    ],
+                    spacing: { after: 100 }
+                  })
+                ),
+                new Paragraph({
+                  children: [new TextRun({ text: "" })],
+                  spacing: { after: 300 }
+                })
+              ];
             })
+
           ]
         }]
       });
