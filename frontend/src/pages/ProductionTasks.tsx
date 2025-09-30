@@ -941,33 +941,12 @@ const ProductionTasks: React.FC = () => {
         taskData.orderId = values.orderId;
       }
 
-      // Добавляем гибкое планирование если указано
-      if (values.plannedStartDate) {
+      // Добавляем планирование (обязательные поля)
+      if (values.plannedStartDate && values.plannedEndDate) {
         taskData.plannedStartDate = values.plannedStartDate.format('YYYY-MM-DD');
-      }
-      
-      if (values.plannedEndDate) {
         taskData.plannedEndDate = values.plannedEndDate.format('YYYY-MM-DD');
-      }
-      
-      if (values.estimatedDurationDays) {
-        taskData.estimatedDurationDays = values.estimatedDurationDays;
-      }
-      
-      if (values.planningStatus) {
-        taskData.planningStatus = values.planningStatus;
-      }
-      
-      if (values.isFlexible !== undefined) {
-        taskData.isFlexible = values.isFlexible;
-      }
-      
-      if (values.autoAdjustEndDate !== undefined) {
-        taskData.autoAdjustEndDate = values.autoAdjustEndDate;
-      }
-      
-      if (values.planningNotes) {
-        taskData.planningNotes = values.planningNotes;
+      } else {
+        return message.error('Необходимо указать дату начала и дату завершения производства');
       }
 
       const result = await createProductionTask(taskData);
@@ -978,17 +957,13 @@ const ProductionTasks: React.FC = () => {
         createTaskForm.resetFields();
         loadTasks();
         
-        // Если задание запланировано, показываем дополнительное сообщение
-        if (values.plannedStartDate) {
-          const startDateStr = values.plannedStartDate.format('DD.MM.YYYY');
-          if (values.plannedEndDate) {
-            const endDateStr = values.plannedEndDate.format('DD.MM.YYYY');
-            message.info(`Задание запланировано с ${startDateStr} по ${endDateStr}`);
-          } else {
-            message.info(`Задание запланировано на ${startDateStr}`);
-          }
-        } else if (values.estimatedDurationDays) {
-          message.info(`Задание запланировано на ${values.estimatedDurationDays} дней`);
+        // Показываем информацию о планировании
+        const startDateStr = values.plannedStartDate.format('DD.MM.YYYY');
+        const endDateStr = values.plannedEndDate.format('DD.MM.YYYY');
+        if (startDateStr === endDateStr) {
+          message.info(`Задание запланировано на ${startDateStr}`);
+        } else {
+          message.info(`Задание запланировано с ${startDateStr} по ${endDateStr}`);
         }
       } else {
         message.error(result.message || 'Ошибка создания задания');

@@ -1269,14 +1269,9 @@ router.put('/tasks/:id', authenticateToken, requirePermission('production', 'man
       priority, 
       notes, 
       assignedTo,
-      // Новые поля гибкого планирования
+      // Поля планирования
       plannedStartDate,
-      plannedEndDate,
-      estimatedDurationDays,
-      planningStatus,
-      isFlexible,
-      autoAdjustEndDate,
-      planningNotes
+      plannedEndDate
     } = req.body;
     const userId = req.user!.id;
 
@@ -1329,11 +1324,10 @@ router.put('/tasks/:id', authenticateToken, requirePermission('production', 'man
     }
 
     // Валидация и обновление полей планирования
-    if (plannedStartDate !== undefined || plannedEndDate !== undefined || estimatedDurationDays !== undefined) {
+    if (plannedStartDate !== undefined || plannedEndDate !== undefined) {
       const planningValidation = validateProductionPlanning({
         plannedStartDate,
-        plannedEndDate,
-        estimatedDurationDays
+        plannedEndDate
       });
 
       if (!planningValidation.valid) {
@@ -1360,26 +1354,6 @@ router.put('/tasks/:id', authenticateToken, requirePermission('production', 'man
 
     if (plannedEndDate !== undefined) {
       updateData.plannedEndDate = plannedEndDate ? new Date(plannedEndDate) : null;
-    }
-
-    if (estimatedDurationDays !== undefined) {
-      updateData.estimatedDurationDays = estimatedDurationDays;
-    }
-
-    if (planningStatus !== undefined) {
-      updateData.planningStatus = planningStatus;
-    }
-
-    if (isFlexible !== undefined) {
-      updateData.isFlexible = isFlexible;
-    }
-
-    if (autoAdjustEndDate !== undefined) {
-      updateData.autoAdjustEndDate = autoAdjustEndDate;
-    }
-
-    if (planningNotes !== undefined) {
-      updateData.planningNotes = planningNotes;
     }
 
     // Обновляем задание
@@ -2136,14 +2110,9 @@ router.post('/tasks/suggest', authenticateToken, requirePermission('production',
       priority = 3, 
       notes, 
       assignedTo,
-      // Новые поля гибкого планирования
+      // Поля планирования
       plannedStartDate,
-      plannedEndDate,
-      estimatedDurationDays,
-      planningStatus = 'draft',
-      isFlexible = false,
-      autoAdjustEndDate = true,
-      planningNotes
+      plannedEndDate
     } = req.body;
     const userId = req.user!.id;
 
@@ -2172,11 +2141,10 @@ router.post('/tasks/suggest', authenticateToken, requirePermission('production',
     }
     }
 
-    // Валидация планирования
+    // Валидация планирования (даты обязательны)
     const planningValidation = validateProductionPlanning({
       plannedStartDate,
-      plannedEndDate,
-      estimatedDurationDays
+      plannedEndDate
     });
 
     if (!planningValidation.valid) {
@@ -2205,14 +2173,10 @@ router.post('/tasks/suggest', authenticateToken, requirePermission('production',
       assignedTo: assignedTo || userId,
       status: 'pending',  // сразу готово к работе
       
-      // Поля планирования
-      plannedStartDate: plannedStartDate ? new Date(plannedStartDate) : null,
-      plannedEndDate: plannedEndDate ? new Date(plannedEndDate) : null,
-      estimatedDurationDays,
-      planningStatus,
-      isFlexible,
-      autoAdjustEndDate,
-      planningNotes
+      // Поля планирования (обязательные)
+      plannedStartDate: new Date(plannedStartDate),
+      plannedEndDate: new Date(plannedEndDate),
+      planningStatus: 'confirmed'  // всегда подтвержденное планирование
     };
 
     // Добавляем заказ если указан

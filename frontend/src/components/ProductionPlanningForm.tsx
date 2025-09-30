@@ -5,10 +5,6 @@ import {
   Row,
   Col,
   DatePicker,
-  InputNumber,
-  Radio,
-  Switch,
-  Input,
   Alert,
   Space,
   Button,
@@ -19,7 +15,6 @@ import {
 import {
   InfoCircleOutlined,
   CalendarOutlined,
-  ClockCircleOutlined,
   BulbOutlined,
   WarningOutlined
 } from '@ant-design/icons';
@@ -34,9 +29,6 @@ import {
 } from '../services/productionApi';
 
 const { Title, Text } = Typography;
-const { TextArea } = Input;
-
-export type PlanningMode = 'flexible' | 'strict' | 'duration';
 
 interface ProductionPlanningFormProps {
   productId?: number;
@@ -44,11 +36,6 @@ interface ProductionPlanningFormProps {
   initialValues?: {
     plannedStartDate?: string;
     plannedEndDate?: string;
-    estimatedDurationDays?: number;
-    planningStatus?: 'draft' | 'confirmed' | 'started' | 'completed';
-    isFlexible?: boolean;
-    autoAdjustEndDate?: boolean;
-    planningNotes?: string;
   };
   onValuesChange?: (values: any) => void;
   disabled?: boolean;
@@ -62,7 +49,6 @@ const ProductionPlanningForm: React.FC<ProductionPlanningFormProps> = ({
   disabled = false
 }) => {
   const [form] = Form.useForm();
-  const [planningMode, setPlanningMode] = useState<PlanningMode>('flexible');
   const [suggestions, setSuggestions] = useState<OptimalPlanningSuggestion | null>(null);
   const [overlaps, setOverlaps] = useState<OverlapInfo[]>([]);
   const [alternativeSuggestions, setAlternativeSuggestions] = useState<AlternativeDateSuggestion[]>([]);
@@ -73,19 +59,9 @@ const ProductionPlanningForm: React.FC<ProductionPlanningFormProps> = ({
   useEffect(() => {
     if (initialValues) {
       form.setFieldsValue({
-        ...initialValues,
         plannedStartDate: initialValues.plannedStartDate ? dayjs(initialValues.plannedStartDate) : undefined,
         plannedEndDate: initialValues.plannedEndDate ? dayjs(initialValues.plannedEndDate) : undefined,
       });
-
-      // Определяем режим планирования на основе начальных значений
-      if (initialValues.plannedStartDate && initialValues.plannedEndDate) {
-        setPlanningMode('strict');
-      } else if (initialValues.estimatedDurationDays) {
-        setPlanningMode('duration');
-      } else {
-        setPlanningMode('flexible');
-      }
     }
   }, [initialValues, form]);
 
@@ -147,21 +123,6 @@ const ProductionPlanningForm: React.FC<ProductionPlanningFormProps> = ({
       }
     }
 
-    // Автоматический расчет длительности
-    if (changedValues.plannedStartDate && changedValues.plannedEndDate) {
-      const start = dayjs(allValues.plannedStartDate);
-      const end = dayjs(allValues.plannedEndDate);
-      const duration = end.diff(start, 'day') + 1;
-      form.setFieldsValue({ estimatedDurationDays: duration });
-    }
-
-    // Автоматическая коррекция даты завершения
-    if (changedValues.plannedStartDate && allValues.autoAdjustEndDate && allValues.estimatedDurationDays) {
-      const start = dayjs(allValues.plannedStartDate);
-      const end = start.add(allValues.estimatedDurationDays - 1, 'day');
-      form.setFieldsValue({ plannedEndDate: end });
-    }
-
     if (onValuesChange) {
       onValuesChange(allValues);
     }
@@ -172,16 +133,14 @@ const ProductionPlanningForm: React.FC<ProductionPlanningFormProps> = ({
     if (!suggestions) return;
 
     form.setFieldsValue({
-      estimatedDurationDays: suggestions.suggestedDuration,
       plannedStartDate: suggestions.suggestedStartDate ? dayjs(suggestions.suggestedStartDate) : undefined,
-      planningStatus: 'draft',
-      isFlexible: true
     });
 
-    if (suggestions.suggestedStartDate) {
-      setPlanningMode('flexible');
-    } else {
-      setPlanningMode('duration');
+    // Если есть предложенная дата начала, устанавливаем дату завершения на основе длительности
+    if (suggestions.suggestedStartDate && suggestions.suggestedDuration) {
+      const startDate = dayjs(suggestions.suggestedStartDate);
+      const endDate = startDate.add(suggestions.suggestedDuration - 1, 'day');
+      form.setFieldsValue({ plannedEndDate: endDate });
     }
   };
 
@@ -191,7 +150,6 @@ const ProductionPlanningForm: React.FC<ProductionPlanningFormProps> = ({
       plannedStartDate: dayjs(suggestion.startDate),
       plannedEndDate: dayjs(suggestion.endDate)
     });
-    setPlanningMode('strict');
   };
 
   return (
@@ -204,39 +162,6 @@ const ProductionPlanningForm: React.FC<ProductionPlanningFormProps> = ({
       }
       size="small"
     >
-      {/* Режимы планирования */}
-      <Form.Item label="Режим планирования">
-        <Radio.Group 
-          value={planningMode} 
-          onChange={(e) => setPlanningMode(e.target.value)}
-          disabled={disabled}
-        >
-          <Radio value="flexible">
-            <Space>
-              Гибкое планирование
-              <Tooltip title="Указывается только дата начала, дата завершения определится автоматически">
-                <InfoCircleOutlined style={{ color: '#1890ff' }} />
-              </Tooltip>
-            </Space>
-          </Radio>
-          <Radio value="strict">
-            <Space>
-              Строгое планирование
-              <Tooltip title="Указывается четкий период от начала до завершения">
-                <InfoCircleOutlined style={{ color: '#1890ff' }} />
-              </Tooltip>
-            </Space>
-          </Radio>
-          <Radio value="duration">
-            <Space>
-              По длительности
-              <Tooltip title="Указывается только длительность, даты определятся позже">
-                <InfoCircleOutlined style={{ color: '#1890ff' }} />
-              </Tooltip>
-            </Space>
-          </Radio>
-        </Radio.Group>
-      </Form.Item>
 
       {/* Умные предложения */}
       {suggestions && (
@@ -284,123 +209,54 @@ const ProductionPlanningForm: React.FC<ProductionPlanningFormProps> = ({
         disabled={disabled}
       >
         <Row gutter={16}>
-          {(planningMode === 'flexible' || planningMode === 'strict') && (
-            <Col span={12}>
-              <Form.Item
-                name="plannedStartDate"
-                label="Дата начала производства"
-                help="Когда планируется начать производство"
-              >
-                <DatePicker 
-                  style={{ width: '100%' }}
-                  placeholder="Выберите дату начала"
-                  format="DD.MM.YYYY"
-                  disabledDate={(current) => current && current.isBefore(dayjs().startOf('day'))}
-                />
-              </Form.Item>
-            </Col>
-          )}
-          
-          {planningMode === 'strict' && (
-            <Col span={12}>
-              <Form.Item
-                name="plannedEndDate"
-                label="Дата завершения производства"
-                help="Когда планируется завершить производство"
-                dependencies={['plannedStartDate']}
-                rules={[
-                  ({ getFieldValue }) => ({
-                    validator(_, value) {
-                      const startDate = getFieldValue('plannedStartDate');
-                      if (startDate && value && value.isBefore(startDate)) {
-                        return Promise.reject('Дата завершения должна быть позже даты начала');
-                      }
-                      return Promise.resolve();
-                    },
-                  }),
-                ]}
-              >
-                <DatePicker 
-                  style={{ width: '100%' }}
-                  placeholder="Выберите дату завершения"
-                  format="DD.MM.YYYY"
-                  disabledDate={(current) => {
-                    const startDate = form.getFieldValue('plannedStartDate');
-                    return current && startDate && current.isBefore(startDate);
-                  }}
-                />
-              </Form.Item>
-            </Col>
-          )}
-          
-          {(planningMode === 'duration' || planningMode === 'flexible') && (
-            <Col span={12}>
-              <Form.Item
-                name="estimatedDurationDays"
-                label="Планируемая длительность (дни)"
-                help="Сколько дней займет производство"
-              >
-                <InputNumber
-                  min={1}
-                  max={30}
-                  style={{ width: '100%' }}
-                  placeholder="Количество дней"
-                />
-              </Form.Item>
-            </Col>
-          )}
-        </Row>
-
-        {/* Дополнительные настройки */}
-        <Row gutter={16}>
           <Col span={12}>
             <Form.Item
-              name="planningStatus"
-              label="Статус планирования"
-              initialValue="draft"
+              name="plannedStartDate"
+              label="Дата начала производства"
+              help="Когда планируется начать производство"
+              rules={[{ required: true, message: 'Выберите дату начала' }]}
             >
-              <Radio.Group>
-                <Radio value="draft">Черновик</Radio>
-                <Radio value="confirmed">Подтверждено</Radio>
-              </Radio.Group>
+              <DatePicker 
+                style={{ width: '100%' }}
+                placeholder="Выберите дату начала"
+                format="DD.MM.YYYY"
+                disabledDate={(current) => current && current.isBefore(dayjs().startOf('day'))}
+              />
             </Form.Item>
           </Col>
+          
           <Col span={12}>
             <Form.Item
-              name="isFlexible"
-              label="Гибкое планирование"
-              valuePropName="checked"
-              initialValue={true}
+              name="plannedEndDate"
+              label="Дата завершения производства"
+              help="Когда планируется завершить производство (может быть одинаковой с датой начала)"
+              dependencies={['plannedStartDate']}
+              rules={[
+                { required: true, message: 'Выберите дату завершения' },
+                ({ getFieldValue }) => ({
+                  validator(_, value) {
+                    const startDate = getFieldValue('plannedStartDate');
+                    if (startDate && value && value.isBefore(startDate)) {
+                      return Promise.reject('Дата завершения не может быть раньше даты начала');
+                    }
+                    return Promise.resolve();
+                  },
+                }),
+              ]}
             >
-              <Switch 
-                checkedChildren="Включено" 
-                unCheckedChildren="Отключено"
+              <DatePicker 
+                style={{ width: '100%' }}
+                placeholder="Выберите дату завершения"
+                format="DD.MM.YYYY"
+                disabledDate={(current) => {
+                  const startDate = form.getFieldValue('plannedStartDate');
+                  return current && startDate && current.isBefore(startDate);
+                }}
               />
             </Form.Item>
           </Col>
         </Row>
 
-        <Form.Item
-          name="autoAdjustEndDate"
-          label="Автоматическая коррекция даты завершения"
-          valuePropName="checked"
-          initialValue={true}
-        >
-          <Switch 
-            checkedChildren="Включено" 
-            unCheckedChildren="Отключено"
-          />
-        </Form.Item>
-
-        <Form.Item
-          name="planningNotes"
-          label="Заметки по планированию"
-        >
-          <TextArea 
-            rows={3} 
-            placeholder="Дополнительная информация о планировании..."
-          />
-        </Form.Item>
       </Form>
 
       {/* Предупреждения о перекрытиях */}

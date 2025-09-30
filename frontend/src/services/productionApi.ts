@@ -16,14 +16,10 @@ export interface ProductionTask {
   status: 'pending' | 'in_progress' | 'paused' | 'completed' | 'cancelled';
   priority: number;
   sortOrder: number;
-  // Гибкое планирование производства
+  // Планирование производства
   plannedStartDate?: string; // дата начала производства
   plannedEndDate?: string; // дата завершения производства
-  estimatedDurationDays?: number; // расчетная длительность в днях
   planningStatus?: 'draft' | 'confirmed' | 'started' | 'completed'; // статус планирования
-  isFlexible?: boolean; // гибкое планирование
-  autoAdjustEndDate?: boolean; // авто-коррекция даты завершения
-  planningNotes?: string; // заметки по планированию
   createdAt: string;
   startedAt?: string;
   completedAt?: string;
@@ -193,14 +189,9 @@ export interface CreateProductionTaskRequest {
   priority?: number;
   notes?: string;
   assignedTo?: number;
-  // Гибкое планирование производства
-  plannedStartDate?: string; // дата начала производства
-  plannedEndDate?: string; // дата завершения производства
-  estimatedDurationDays?: number; // расчетная длительность в днях
-  planningStatus?: 'draft' | 'confirmed' | 'started' | 'completed'; // статус планирования
-  isFlexible?: boolean; // гибкое планирование
-  autoAdjustEndDate?: boolean; // авто-коррекция даты завершения
-  planningNotes?: string; // заметки по планированию
+  // Планирование производства (обязательные поля)
+  plannedStartDate: string; // дата начала производства
+  plannedEndDate: string; // дата завершения производства
 }
 
 export interface UpdateProductionTaskRequest {
@@ -208,14 +199,9 @@ export interface UpdateProductionTaskRequest {
   priority?: number;
   notes?: string;
   assignedTo?: number;
-  // Гибкое планирование производства
+  // Планирование производства
   plannedStartDate?: string; // дата начала производства
   plannedEndDate?: string; // дата завершения производства
-  estimatedDurationDays?: number; // расчетная длительность в днях
-  planningStatus?: 'draft' | 'confirmed' | 'started' | 'completed'; // статус планирования
-  isFlexible?: boolean; // гибкое планирование
-  autoAdjustEndDate?: boolean; // авто-коррекция даты завершения
-  planningNotes?: string; // заметки по планированию
 }
 
 export interface CompleteTaskRequest {
@@ -865,11 +851,6 @@ export const getDayStatistics = async (startDate: string, endDate: string): Prom
 export const updateTaskSchedule = async (taskId: number, scheduleData: {
   plannedStartDate?: string;
   plannedEndDate?: string;
-  estimatedDurationDays?: number;
-  planningStatus?: string;
-  isFlexible?: boolean;
-  autoAdjustEndDate?: boolean;
-  planningNotes?: string;
 }): Promise<{ success: boolean; data: ProductionTask }> => {
   const token = localStorage.getItem('token');
   const response = await fetch(`${API_BASE_URL}/production/tasks/${taskId}/schedule`, {

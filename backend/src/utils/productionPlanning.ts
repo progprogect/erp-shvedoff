@@ -31,49 +31,35 @@ export interface AlternativeDateSuggestion {
 
 // Валидация планирования производства
 export function validateProductionPlanning(data: ProductionPlanningData): PlanningValidationResult {
-  const { plannedStartDate, plannedEndDate, estimatedDurationDays } = data;
+  const { plannedStartDate, plannedEndDate } = data;
   
-  // Правило 1: Минимум одно поле должно быть заполнено
-  if (!plannedStartDate && !plannedEndDate && !estimatedDurationDays) {
+  // Правило 1: Обязательны обе даты
+  if (!plannedStartDate || !plannedEndDate) {
     return {
       valid: false,
-      error: 'Необходимо указать хотя бы дату начала, дату завершения или длительность'
+      error: 'Необходимо указать дату начала и дату завершения производства'
     };
   }
   
-  // Правило 2: Дата завершения должна быть позже даты начала
-  if (plannedStartDate && plannedEndDate) {
-    const start = new Date(plannedStartDate);
-    const end = new Date(plannedEndDate);
-    
-    if (end <= start) {
-      return {
-        valid: false,
-        error: 'Дата завершения должна быть позже даты начала'
-      };
-    }
-  }
+  // Правило 2: Дата завершения должна быть не раньше даты начала (может быть одинаковой)
+  const start = new Date(plannedStartDate);
+  const end = new Date(plannedEndDate);
   
-  // Правило 3: Проверка на разумность длительности
-  if (estimatedDurationDays && (estimatedDurationDays < 1 || estimatedDurationDays > 30)) {
+  if (end < start) {
     return {
       valid: false,
-      error: 'Длительность должна быть от 1 до 30 дней'
+      error: 'Дата завершения не может быть раньше даты начала'
     };
   }
   
-  // Правило 4: Проверка на разумность периода
-  if (plannedStartDate && plannedEndDate) {
-    const start = new Date(plannedStartDate);
-    const end = new Date(plannedEndDate);
-    const diffDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-    
-    if (diffDays > 30) {
-      return {
-        valid: true,
-        warnings: ['Период планирования превышает 30 дней. Рекомендуется разбить на более мелкие задания.']
-      };
-    }
+  // Правило 3: Проверка на разумность периода (максимум 30 дней)
+  const diffDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  
+  if (diffDays > 30) {
+    return {
+      valid: true,
+      warnings: ['Период планирования превышает 30 дней. Рекомендуется разбить на более мелкие задания.']
+    };
   }
   
   return { valid: true };
