@@ -701,9 +701,12 @@ const ProductDetail: React.FC = () => {
                       </Descriptions.Item>
                       
                       <Descriptions.Item label="Усиленный край">
-                        {product?.carpetEdgeStrength === 'normal' ? 'Усиленный' :
+                        {product?.carpetEdgeStrength === 'normal' ? 'Не усиленный' :
+                         product?.carpetEdgeStrength === 'reinforced' ? 'Усиленный' :
                          product?.carpetEdgeStrength === 'weak' ? 'Не усиленный' :
-                         'Усиленный'}
+                         product?.carpetEdgeStrength === 'strong' ? 'Усиленный' :
+                         product?.carpetEdgeStrength === '' ? 'Не выбран' :
+                         'Не указано'}
                       </Descriptions.Item>
                       
                       {/* Количество сторон - для всех типов кроме Литой */}
@@ -1508,8 +1511,9 @@ const ProductDetail: React.FC = () => {
             <Col span={8}>
               <Form.Item name="carpetEdgeStrength" label="Усиленный край">
                 <Select placeholder="Выберите тип усиления">
-                  <Option value="normal">Усиленный</Option>
-                  <Option value="weak">Не усиленный</Option>
+                  <Option value="">Не выбран</Option>
+                  <Option value="normal">Не усиленный</Option>
+                  <Option value="reinforced">Усиленный</Option>
                 </Select>
               </Form.Item>
             </Col>

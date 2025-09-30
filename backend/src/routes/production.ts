@@ -512,7 +512,8 @@ router.get('/tasks', authenticateToken, requirePermission('production', 'view'),
             weight: true,
             matArea: true,
             characteristics: true,
-            puzzleOptions: true
+            puzzleOptions: true,
+            surfaceIds: true
           }
         },
         createdByUser: {
@@ -558,9 +559,29 @@ router.get('/tasks', authenticateToken, requirePermission('production', 'view'),
       offset: Number(offset)
     });
 
+    // Загружаем множественные поверхности для каждого товара
+    const tasksWithSurfaces = await Promise.all(
+      tasks.map(async (task) => {
+        let surfaces: any[] = [];
+        if (task.product.surfaceIds && task.product.surfaceIds.length > 0) {
+          surfaces = await db.query.productSurfaces.findMany({
+            where: inArray(schema.productSurfaces.id, task.product.surfaceIds)
+          });
+        }
+        
+        return {
+          ...task,
+          product: {
+            ...task.product,
+            surfaces
+          }
+        };
+      })
+    );
+
     res.json({
       success: true,
-      data: tasks
+      data: tasksWithSurfaces
     });
   } catch (error) {
     next(error);
@@ -857,7 +878,8 @@ router.get('/tasks/by-product', authenticateToken, requirePermission('production
             weight: true,
             matArea: true,
             characteristics: true,
-            puzzleOptions: true
+            puzzleOptions: true,
+            surfaceIds: true
           }
         }
       },
@@ -868,8 +890,28 @@ router.get('/tasks/by-product', authenticateToken, requirePermission('production
       ]
     });
 
+    // Загружаем множественные поверхности для каждого товара
+    const tasksWithSurfaces = await Promise.all(
+      tasks.map(async (task) => {
+        let surfaces: any[] = [];
+        if (task.product.surfaceIds && task.product.surfaceIds.length > 0) {
+          surfaces = await db.query.productSurfaces.findMany({
+            where: inArray(schema.productSurfaces.id, task.product.surfaceIds)
+          });
+        }
+        
+        return {
+          ...task,
+          product: {
+            ...task.product,
+            surfaces
+          }
+        };
+      })
+    );
+
     // Группируем по товарам
-    const groupedTasks = tasks.reduce((acc, task) => {
+    const groupedTasks = tasksWithSurfaces.reduce((acc, task) => {
       const productId = task.productId;
       
       if (!acc[productId]) {
@@ -2529,7 +2571,8 @@ router.get('/tasks/by-product/:productId', authenticateToken, requirePermission(
             weight: true,
             matArea: true,
             characteristics: true,
-            puzzleOptions: true
+            puzzleOptions: true,
+            surfaceIds: true
           }
         },
         createdByUser: {
@@ -2569,9 +2612,29 @@ router.get('/tasks/by-product/:productId', authenticateToken, requirePermission(
       limit: 50
     });
 
+    // Загружаем множественные поверхности для каждого товара
+    const tasksWithSurfaces = await Promise.all(
+      tasks.map(async (task) => {
+        let surfaces: any[] = [];
+        if (task.product.surfaceIds && task.product.surfaceIds.length > 0) {
+          surfaces = await db.query.productSurfaces.findMany({
+            where: inArray(schema.productSurfaces.id, task.product.surfaceIds)
+          });
+        }
+        
+        return {
+          ...task,
+          product: {
+            ...task.product,
+            surfaces
+          }
+        };
+      })
+    );
+
     res.json({
       success: true,
-      data: tasks
+      data: tasksWithSurfaces
     });
   } catch (error) {
     next(error);

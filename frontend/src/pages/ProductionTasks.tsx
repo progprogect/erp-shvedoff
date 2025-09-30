@@ -1116,10 +1116,11 @@ const ProductionTasks: React.FC = () => {
       // Край (прочность)
       if (product.carpetEdgeStrength) {
         const strengthNames = {
+          '': 'Не выбран',
           'normal': 'Не усиленный',
           'reinforced': 'Усиленный',
-          'strong': 'Усиленный',
-          'weak': 'Не усиленный'
+          'weak': 'Не усиленный',    // старое значение
+          'strong': 'Усиленный'      // старое значение
         };
         characteristics.push(`Край: ${strengthNames[product.carpetEdgeStrength as keyof typeof strengthNames] || product.carpetEdgeStrength}`);
       }
@@ -3690,14 +3691,16 @@ const ProductionTasks: React.FC = () => {
                           <Col span={8}>
                             <strong>Край:</strong>
                             <div style={{ marginTop: 4 }}>
-                              {(viewingTask.product.carpetEdgeStrength as any) === 'normal' ? (
+                              {(viewingTask.product.carpetEdgeStrength as any) === '' ? (
+                                <Tag color="default">Не выбран</Tag>
+                              ) : (viewingTask.product.carpetEdgeStrength as any) === 'normal' ? (
                                 <Tag color="blue">Не усиленный</Tag>
                               ) : (viewingTask.product.carpetEdgeStrength as any) === 'reinforced' ? (
                                 <Tag color="orange">Усиленный</Tag>
-                              ) : (viewingTask.product.carpetEdgeStrength as any) === 'strong' ? (
-                                <Tag color="red">Усиленный</Tag>
                               ) : (viewingTask.product.carpetEdgeStrength as any) === 'weak' ? (
-                                <Tag color="default">Не усиленный</Tag>
+                                <Tag color="blue">Не усиленный</Tag>
+                              ) : (viewingTask.product.carpetEdgeStrength as any) === 'strong' ? (
+                                <Tag color="orange">Усиленный</Tag>
                               ) : (
                                 <Tag color="default">{viewingTask.product.carpetEdgeStrength}</Tag>
                               )}
