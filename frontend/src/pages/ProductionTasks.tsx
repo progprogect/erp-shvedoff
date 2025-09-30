@@ -3279,14 +3279,6 @@ const ProductionTasks: React.FC = () => {
                 <Card title="🔧 Характеристики товара" size="small">
                   <Row gutter={[16, 8]}>
                     {/* Основные характеристики - для всех типов товаров */}
-                    {viewingTask.product?.article && (
-                      <Col span={8}>
-                        <strong>Артикул:</strong>
-                        <div style={{ marginTop: 4 }}>
-                          <Tag color="blue">{viewingTask.product.article}</Tag>
-                        </div>
-                      </Col>
-                    )}
                     
                     {/* Тип товара */}
                     <Col span={8}>
@@ -3492,19 +3484,19 @@ const ProductionTasks: React.FC = () => {
                           </Col>
                         )}
                         
-                        {/* Прочность края */}
+                        {/* Край */}
                         {viewingTask.product?.carpetEdgeStrength && (
                           <Col span={8}>
-                            <strong>Прочность края:</strong>
+                            <strong>Край:</strong>
                             <div style={{ marginTop: 4 }}>
                               {(viewingTask.product.carpetEdgeStrength as any) === 'normal' ? (
-                                <Tag color="blue">Обычная</Tag>
+                                <Tag color="blue">Не усиленный</Tag>
                               ) : (viewingTask.product.carpetEdgeStrength as any) === 'reinforced' ? (
-                                <Tag color="orange">Усиленная</Tag>
+                                <Tag color="orange">Усиленный</Tag>
                               ) : (viewingTask.product.carpetEdgeStrength as any) === 'strong' ? (
-                                <Tag color="red">💪 Сильная</Tag>
+                                <Tag color="red">Усиленный</Tag>
                               ) : (viewingTask.product.carpetEdgeStrength as any) === 'weak' ? (
-                                <Tag color="default">💔 Слабая</Tag>
+                                <Tag color="default">Не усиленный</Tag>
                               ) : (
                                 <Tag color="default">{viewingTask.product.carpetEdgeStrength}</Tag>
                               )}

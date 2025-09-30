@@ -507,7 +507,12 @@ router.get('/tasks', authenticateToken, requirePermission('production', 'view'),
             carpetEdgeType: true,
             carpetEdgeSides: true,
             carpetEdgeStrength: true,
-            puzzleSides: true
+            puzzleSides: true,
+            dimensions: true,
+            weight: true,
+            matArea: true,
+            characteristics: true,
+            puzzleOptions: true
           }
         },
         createdByUser: {
@@ -2500,7 +2505,12 @@ router.get('/tasks/by-product/:productId', authenticateToken, requirePermission(
             carpetEdgeType: true,
             carpetEdgeSides: true,
             carpetEdgeStrength: true,
-            puzzleSides: true
+            puzzleSides: true,
+            dimensions: true,
+            weight: true,
+            matArea: true,
+            characteristics: true,
+            puzzleOptions: true
           }
         },
         createdByUser: {
