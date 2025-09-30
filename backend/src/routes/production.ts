@@ -12,6 +12,12 @@ import {
   getSyncStatistics 
 } from '../utils/productionSynchronizer';
 import { ExcelExporter } from '../utils/excelExporter';
+import { 
+  validateProductionPlanning, 
+  checkProductionOverlaps, 
+  suggestAlternativeDates,
+  suggestOptimalPlanning 
+} from '../utils/productionPlanning';
 
 const router = express.Router();
 
@@ -1257,7 +1263,20 @@ router.put('/tasks/:id/status', authenticateToken, requirePermission('production
 router.put('/tasks/:id', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const taskId = Number(req.params.id);
-    const { requestedQuantity, priority, notes, assignedTo, plannedDate, plannedStartTime } = req.body;
+    const { 
+      requestedQuantity, 
+      priority, 
+      notes, 
+      assignedTo,
+      // Новые поля гибкого планирования
+      plannedStartDate,
+      plannedEndDate,
+      estimatedDurationDays,
+      planningStatus,
+      isFlexible,
+      autoAdjustEndDate,
+      planningNotes
+    } = req.body;
     const userId = req.user!.id;
 
     const task = await db.query.productionTasks.findFirst({
@@ -1308,20 +1327,58 @@ router.put('/tasks/:id', authenticateToken, requirePermission('production', 'man
       updateData.assignedTo = assignedTo; // Устанавливаем assignedTo (может быть null)
     }
 
-    if (plannedDate !== undefined) {
-      if (plannedDate) {
-        const date = new Date(plannedDate);
-        if (isNaN(date.getTime())) {
-          return next(createError('Некорректная дата планирования', 400));
+    // Валидация и обновление полей планирования
+    if (plannedStartDate !== undefined || plannedEndDate !== undefined || estimatedDurationDays !== undefined) {
+      const planningValidation = validateProductionPlanning({
+        plannedStartDate,
+        plannedEndDate,
+        estimatedDurationDays
+      });
+
+      if (!planningValidation.valid) {
+        return next(createError(planningValidation.error || 'Некорректные данные планирования', 400));
+      }
+
+      // Проверка перекрытий при изменении дат
+      if (plannedStartDate && plannedEndDate) {
+        const overlaps = await checkProductionOverlaps(taskId, plannedStartDate, plannedEndDate);
+        if (overlaps.length > 0) {
+          return res.status(409).json({
+            success: false,
+            error: 'Обнаружены перекрытия с существующими заданиями',
+            overlaps: overlaps,
+            suggestions: await suggestAlternativeDates(plannedStartDate, plannedEndDate)
+          });
         }
-        updateData.plannedDate = date;
-      } else {
-        updateData.plannedDate = null;
       }
     }
 
-    if (plannedStartTime !== undefined) {
-      updateData.plannedStartTime = plannedStartTime || null;
+    if (plannedStartDate !== undefined) {
+      updateData.plannedStartDate = plannedStartDate ? new Date(plannedStartDate) : null;
+    }
+
+    if (plannedEndDate !== undefined) {
+      updateData.plannedEndDate = plannedEndDate ? new Date(plannedEndDate) : null;
+    }
+
+    if (estimatedDurationDays !== undefined) {
+      updateData.estimatedDurationDays = estimatedDurationDays;
+    }
+
+    if (planningStatus !== undefined) {
+      updateData.planningStatus = planningStatus;
+    }
+
+    if (isFlexible !== undefined) {
+      updateData.isFlexible = isFlexible;
+    }
+
+    if (autoAdjustEndDate !== undefined) {
+      updateData.autoAdjustEndDate = autoAdjustEndDate;
+    }
+
+    if (planningNotes !== undefined) {
+      updateData.planningNotes = planningNotes;
     }
 
     // Обновляем задание
@@ -2071,7 +2128,22 @@ router.post('/tasks/:id/complete', authenticateToken, requirePermission('product
 // POST /api/production/tasks/suggest - Предложить производственное задание
 router.post('/tasks/suggest', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
-    const { orderId, productId, requestedQuantity, priority = 3, notes, assignedTo } = req.body;
+    const { 
+      orderId, 
+      productId, 
+      requestedQuantity, 
+      priority = 3, 
+      notes, 
+      assignedTo,
+      // Новые поля гибкого планирования
+      plannedStartDate,
+      plannedEndDate,
+      estimatedDurationDays,
+      planningStatus = 'draft',
+      isFlexible = false,
+      autoAdjustEndDate = true,
+      planningNotes
+    } = req.body;
     const userId = req.user!.id;
 
     if (!productId || !requestedQuantity || requestedQuantity <= 0) {
@@ -2099,6 +2171,30 @@ router.post('/tasks/suggest', authenticateToken, requirePermission('production',
     }
     }
 
+    // Валидация планирования
+    const planningValidation = validateProductionPlanning({
+      plannedStartDate,
+      plannedEndDate,
+      estimatedDurationDays
+    });
+
+    if (!planningValidation.valid) {
+      return next(createError(planningValidation.error || 'Некорректные данные планирования', 400));
+    }
+
+    // Проверка перекрытий (если указаны даты)
+    if (plannedStartDate && plannedEndDate) {
+      const overlaps = await checkProductionOverlaps(null, plannedStartDate, plannedEndDate);
+      if (overlaps.length > 0) {
+        return res.status(409).json({
+          success: false,
+          error: 'Обнаружены перекрытия с существующими заданиями',
+          overlaps: overlaps,
+          suggestions: await suggestAlternativeDates(plannedStartDate, plannedEndDate)
+        });
+      }
+    }
+
     // Создаем производственное задание
     const taskData: any = {
       productId,
@@ -2106,7 +2202,16 @@ router.post('/tasks/suggest', authenticateToken, requirePermission('production',
       priority,
       createdBy: userId,
       assignedTo: assignedTo || userId,
-      status: 'pending'  // сразу готово к работе
+      status: 'pending',  // сразу готово к работе
+      
+      // Поля планирования
+      plannedStartDate: plannedStartDate ? new Date(plannedStartDate) : null,
+      plannedEndDate: plannedEndDate ? new Date(plannedEndDate) : null,
+      estimatedDurationDays,
+      planningStatus,
+      isFlexible,
+      autoAdjustEndDate,
+      planningNotes
     };
 
     // Добавляем заказ если указан
@@ -2601,6 +2706,61 @@ router.put('/tasks/:id/cancel', authenticateToken, requirePermission('production
       }
     });
 
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/production/planning/suggest - Получить предложения оптимального планирования
+router.get('/planning/suggest', authenticateToken, requirePermission('production', 'view'), async (req: AuthRequest, res, next) => {
+  try {
+    const { productId, quantity } = req.query;
+    
+    if (!productId || !quantity) {
+      return next(createError('Необходимо указать productId и quantity', 400));
+    }
+    
+    const suggestions = await suggestOptimalPlanning(Number(productId), Number(quantity));
+    
+    res.json({
+      success: true,
+      data: suggestions
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/production/planning/overlaps - Проверить перекрытия
+router.get('/planning/overlaps', authenticateToken, requirePermission('production', 'view'), async (req: AuthRequest, res, next) => {
+  try {
+    const { plannedStartDate, plannedEndDate, excludeTaskId } = req.query;
+    
+    if (!plannedStartDate || !plannedEndDate) {
+      return next(createError('Необходимо указать plannedStartDate и plannedEndDate', 400));
+    }
+    
+    const overlaps = await checkProductionOverlaps(
+      excludeTaskId ? Number(excludeTaskId) : null,
+      plannedStartDate as string,
+      plannedEndDate as string
+    );
+    
+    let suggestions = [];
+    if (overlaps.length > 0) {
+      suggestions = await suggestAlternativeDates(
+        plannedStartDate as string,
+        plannedEndDate as string
+      );
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        overlaps,
+        suggestions
+      }
+    });
   } catch (error) {
     next(error);
   }

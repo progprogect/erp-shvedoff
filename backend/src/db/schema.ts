@@ -255,6 +255,14 @@ export const productionTaskStatusEnum = pgEnum('production_task_status', [
   'cancelled'      // отменено
 ]);
 
+// Статусы планирования производства
+export const planningStatusEnum = pgEnum('planning_status', [
+  'draft',         // черновик планирования
+  'confirmed',     // подтвержденное планирование
+  'started',       // начатое производство
+  'completed'      // завершенное планирование
+]);
+
 export const productionTasks = pgTable('production_tasks', {
   id: serial('id').primaryKey(),
   orderId: integer('order_id').references(() => orders.id), // Убираем notNull - задания могут быть без заказа
@@ -264,9 +272,16 @@ export const productionTasks = pgTable('production_tasks', {
   priority: integer('priority').default(1), // 1-5, где 5 - срочный
   sortOrder: integer('sort_order').default(0), // для drag-and-drop сортировки
   
-  // Планирование и даты
-  plannedDate: timestamp('planned_date'), // планируемая дата выполнения задания
-  plannedStartTime: varchar('planned_start_time', { length: 8 }), // планируемое время начала (HH:MM)
+  // Гибкое планирование производства
+  plannedStartDate: timestamp('planned_start_date'), // планируемая дата начала производства
+  plannedEndDate: timestamp('planned_end_date'),     // планируемая дата завершения производства
+  estimatedDurationDays: integer('estimated_duration_days'), // расчетная длительность в днях
+  planningStatus: planningStatusEnum('planning_status').default('draft'), // статус планирования
+  isFlexible: boolean('is_flexible').default(false), // гибкое планирование
+  autoAdjustEndDate: boolean('auto_adjust_end_date').default(true), // авто-коррекция даты завершения
+  planningNotes: text('planning_notes'), // заметки по планированию
+  
+  // Системные даты
   createdAt: timestamp('created_at').defaultNow(),
   startedAt: timestamp('started_at'),
   completedAt: timestamp('completed_at'),

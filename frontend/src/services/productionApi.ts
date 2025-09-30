@@ -16,10 +16,14 @@ export interface ProductionTask {
   status: 'pending' | 'in_progress' | 'paused' | 'completed' | 'cancelled';
   priority: number;
   sortOrder: number;
-  // Календарное планирование
-  plannedDate?: string;
-  plannedStartTime?: string; // HH:MM формат
-  estimatedDuration?: number; // в минутах
+  // Гибкое планирование производства
+  plannedStartDate?: string; // дата начала производства
+  plannedEndDate?: string; // дата завершения производства
+  estimatedDurationDays?: number; // расчетная длительность в днях
+  planningStatus?: 'draft' | 'confirmed' | 'started' | 'completed'; // статус планирования
+  isFlexible?: boolean; // гибкое планирование
+  autoAdjustEndDate?: boolean; // авто-коррекция даты завершения
+  planningNotes?: string; // заметки по планированию
   createdAt: string;
   startedAt?: string;
   completedAt?: string;
@@ -189,9 +193,14 @@ export interface CreateProductionTaskRequest {
   priority?: number;
   notes?: string;
   assignedTo?: number;
-  // Календарное планирование
-  plannedDate?: string;
-  plannedStartTime?: string; // HH:MM формат
+  // Гибкое планирование производства
+  plannedStartDate?: string; // дата начала производства
+  plannedEndDate?: string; // дата завершения производства
+  estimatedDurationDays?: number; // расчетная длительность в днях
+  planningStatus?: 'draft' | 'confirmed' | 'started' | 'completed'; // статус планирования
+  isFlexible?: boolean; // гибкое планирование
+  autoAdjustEndDate?: boolean; // авто-коррекция даты завершения
+  planningNotes?: string; // заметки по планированию
 }
 
 export interface UpdateProductionTaskRequest {
@@ -199,9 +208,14 @@ export interface UpdateProductionTaskRequest {
   priority?: number;
   notes?: string;
   assignedTo?: number;
-  // Календарное планирование
-  plannedDate?: string;
-  plannedStartTime?: string; // HH:MM формат
+  // Гибкое планирование производства
+  plannedStartDate?: string; // дата начала производства
+  plannedEndDate?: string; // дата завершения производства
+  estimatedDurationDays?: number; // расчетная длительность в днях
+  planningStatus?: 'draft' | 'confirmed' | 'started' | 'completed'; // статус планирования
+  isFlexible?: boolean; // гибкое планирование
+  autoAdjustEndDate?: boolean; // авто-коррекция даты завершения
+  planningNotes?: string; // заметки по планированию
 }
 
 export interface CompleteTaskRequest {
@@ -226,6 +240,40 @@ export interface GetProductionTasksParams {
   offset?: number;
   startDate?: string; // для календарной фильтрации
   endDate?: string;   // для календарной фильтрации
+}
+
+// Типы для планирования
+export interface PlanningValidationResult {
+  valid: boolean;
+  error?: string;
+  warnings?: string[];
+}
+
+export interface OverlapInfo {
+  taskId: number;
+  productName: string;
+  overlapDays: number;
+  startDate: string;
+  endDate: string;
+}
+
+export interface AlternativeDateSuggestion {
+  startDate: string;
+  endDate: string;
+  reason: string;
+  confidence: number; // 0-1
+}
+
+export interface OptimalPlanningSuggestion {
+  suggestedStartDate?: string;
+  suggestedDuration: number;
+  confidence: number;
+  reasoning: string;
+}
+
+export interface PlanningOverlapsResponse {
+  overlaps: OverlapInfo[];
+  suggestions: AlternativeDateSuggestion[];
 }
 
 // Новые типы для календарного планирования
@@ -928,4 +976,42 @@ export const exportProductionTasks = async (filters?: any): Promise<void> => {
     console.error('Error exporting production tasks:', error);
     throw new Error('Ошибка при экспорте производственных заданий');
   }
+};
+
+// Новые API функции для планирования
+export const getOptimalPlanningSuggestions = async (
+  productId: number, 
+  quantity: number
+): Promise<OptimalPlanningSuggestion> => {
+  const token = getToken();
+  
+  const response = await axios.get(`${API_BASE_URL}/production/planning/suggest`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    params: { productId, quantity }
+  });
+  
+  return response.data.data;
+};
+
+export const checkPlanningOverlaps = async (
+  plannedStartDate: string,
+  plannedEndDate: string,
+  excludeTaskId?: number
+): Promise<PlanningOverlapsResponse> => {
+  const token = getToken();
+  
+  const response = await axios.get(`${API_BASE_URL}/production/planning/overlaps`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    params: { 
+      plannedStartDate, 
+      plannedEndDate, 
+      ...(excludeTaskId && { excludeTaskId }) 
+    }
+  });
+  
+  return response.data.data;
 }; 

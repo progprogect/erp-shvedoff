@@ -70,6 +70,7 @@ import {
 } from '../services/productionApi';
 import ProductionCalendar from '../components/ProductionCalendar';
 import ProductionStatistics from '../components/ProductionStatistics';
+import ProductionPlanningForm from '../components/ProductionPlanningForm';
 import { catalogApi } from '../services/catalogApi';
 import { useAuthStore } from '../stores/authStore';
 import usePermissions from '../hooks/usePermissions';
@@ -924,13 +925,33 @@ const ProductionTasks: React.FC = () => {
         taskData.orderId = values.orderId;
       }
 
-      // Добавляем планирование выполнения если указано
-      if (values.plannedDate) {
-        taskData.plannedDate = values.plannedDate.format('YYYY-MM-DD');
+      // Добавляем гибкое планирование если указано
+      if (values.plannedStartDate) {
+        taskData.plannedStartDate = values.plannedStartDate.format('YYYY-MM-DD');
       }
       
-      if (values.plannedStartTime) {
-        taskData.plannedStartTime = values.plannedStartTime;
+      if (values.plannedEndDate) {
+        taskData.plannedEndDate = values.plannedEndDate.format('YYYY-MM-DD');
+      }
+      
+      if (values.estimatedDurationDays) {
+        taskData.estimatedDurationDays = values.estimatedDurationDays;
+      }
+      
+      if (values.planningStatus) {
+        taskData.planningStatus = values.planningStatus;
+      }
+      
+      if (values.isFlexible !== undefined) {
+        taskData.isFlexible = values.isFlexible;
+      }
+      
+      if (values.autoAdjustEndDate !== undefined) {
+        taskData.autoAdjustEndDate = values.autoAdjustEndDate;
+      }
+      
+      if (values.planningNotes) {
+        taskData.planningNotes = values.planningNotes;
       }
 
       const result = await createProductionTask(taskData);
@@ -942,10 +963,16 @@ const ProductionTasks: React.FC = () => {
         loadTasks();
         
         // Если задание запланировано, показываем дополнительное сообщение
-        if (values.plannedDate) {
-          const dateStr = values.plannedDate.format('DD.MM.YYYY');
-          const timeStr = values.plannedStartTime ? ` в ${values.plannedStartTime}` : '';
-          message.info(`Задание запланировано на ${dateStr}${timeStr}`);
+        if (values.plannedStartDate) {
+          const startDateStr = values.plannedStartDate.format('DD.MM.YYYY');
+          if (values.plannedEndDate) {
+            const endDateStr = values.plannedEndDate.format('DD.MM.YYYY');
+            message.info(`Задание запланировано с ${startDateStr} по ${endDateStr}`);
+          } else {
+            message.info(`Задание запланировано на ${startDateStr}`);
+          }
+        } else if (values.estimatedDurationDays) {
+          message.info(`Задание запланировано на ${values.estimatedDurationDays} дней`);
         }
       } else {
         message.error(result.message || 'Ошибка создания задания');
@@ -2130,48 +2157,19 @@ const ProductionTasks: React.FC = () => {
 
           <Divider />
           
-          <Title level={5}>Планирование выполнения</Title>
-          
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="plannedDate"
-                label="Планируемая дата выполнения"
-                help="Задание будет отображено в календаре на выбранную дату"
-              >
-                <DatePicker 
-                  style={{ width: '100%' }}
-                  placeholder="Выберите дату"
-                  format="DD.MM.YYYY"
-                  disabledDate={(current: Dayjs) => {
-                    // Запрещаем выбор прошедших дат
-                    return current && current.isBefore(dayjs().startOf('day'));
-                  }}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="plannedStartTime"
-                label="Планируемое время начала"
-                help="Время в формате ЧЧ:ММ (необязательно)"
-              >
-                <Input 
-                  placeholder="09:00"
-                  style={{ width: '100%' }}
-                  maxLength={5}
-                  onChange={(e) => {
-                    // Автоформатирование ввода времени
-                    let value = e.target.value.replace(/[^\d]/g, '');
-                    if (value.length >= 2) {
-                      value = value.slice(0, 2) + ':' + value.slice(2, 4);
-                    }
-                    e.target.value = value;
-                  }}
-                />
-              </Form.Item>
-            </Col>
-          </Row>
+          {/* Умная форма планирования */}
+          <ProductionPlanningForm
+            productId={form.getFieldValue('productId')}
+            quantity={form.getFieldValue('requestedQuantity')}
+            onValuesChange={(values) => {
+              // Синхронизируем значения с основной формой
+              Object.keys(values).forEach(key => {
+                if (values[key] !== undefined) {
+                  form.setFieldValue(key, values[key]);
+                }
+              });
+            }}
+          />
 
           <Form.Item
             name="notes"
