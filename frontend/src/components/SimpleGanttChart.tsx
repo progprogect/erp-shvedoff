@@ -19,6 +19,8 @@ interface GanttTask {
   id: number;
   title: string;
   article?: string;
+  requestedQuantity: number;
+  qualityQuantity: number;
   orderNumber?: string;
   customerName?: string;
   startDate: Dayjs;
@@ -63,6 +65,8 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
             id: task.id,
             title: task.product?.name || 'Неизвестный товар',
             article: task.product?.article,
+            requestedQuantity: task.requestedQuantity,
+            qualityQuantity: task.qualityQuantity,
             orderNumber: task.order?.orderNumber,
             customerName: task.order?.customerName,
             startDate: dayjs(task.plannedStartDate),
@@ -514,22 +518,19 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
                     borderBottom: '1px solid #f0f0f0',
                     position: 'relative'
                   }}>
-                    {/* Название задания */}
+                    {/* Информация о задании */}
                     <div style={{ 
                       padding: '8px 12px',
                       borderRight: '1px solid #d9d9d9',
                       fontSize: '13px'
                     }}>
-                      <div>
-                        🎨 {task.title}
-                      </div>
                       {task.article && (
-                        <div style={{ fontSize: '11px', color: '#1890ff', marginTop: '2px' }}>
-                          Арт: {task.article}
+                        <div style={{ fontSize: '12px', color: '#1890ff', fontWeight: 'bold' }}>
+                          📋 {task.article}
                         </div>
                       )}
-                      <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
-                        Приоритет: {task.priority}
+                      <div style={{ fontSize: '11px', color: '#52c41a', marginTop: '4px', fontWeight: 'bold' }}>
+                        Сделано: {task.qualityQuantity}/{task.requestedQuantity} шт
                       </div>
                     </div>
                     

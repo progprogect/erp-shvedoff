@@ -497,6 +497,8 @@ router.get('/tasks', authenticateToken, requirePermission('production', 'view'),
           // Добавляем недостающие поля для отображения в UI
           columns: {
             article: true,
+            productType: true,
+            purNumber: true,
             pressType: true,
             grade: true,
             borderType: true,
@@ -2488,6 +2490,8 @@ router.get('/tasks/by-product/:productId', authenticateToken, requirePermission(
           // Добавляем недостающие поля для отображения в UI
           columns: {
             article: true,
+            productType: true,
+            purNumber: true,
             pressType: true,
             grade: true,
             borderType: true,
