@@ -493,6 +493,18 @@ router.get('/tasks', authenticateToken, requirePermission('production', 'view'),
                 fullName: true
               }
             }
+          },
+          // Добавляем недостающие поля для отображения в UI
+          columns: {
+            pressType: true,
+            grade: true,
+            borderType: true,
+            tags: true,
+            notes: true,
+            carpetEdgeType: true,
+            carpetEdgeSides: true,
+            carpetEdgeStrength: true,
+            puzzleSides: true
           }
         },
         createdByUser: {
@@ -807,6 +819,18 @@ router.get('/tasks/by-product', authenticateToken, requirePermission('production
                 }
               }
             }
+          },
+          // Добавляем недостающие поля для отображения в UI
+          columns: {
+            pressType: true,
+            grade: true,
+            borderType: true,
+            tags: true,
+            notes: true,
+            carpetEdgeType: true,
+            carpetEdgeSides: true,
+            carpetEdgeStrength: true,
+            puzzleSides: true
           }
         }
       },
@@ -2459,6 +2483,18 @@ router.get('/tasks/by-product/:productId', authenticateToken, requirePermission(
                 }
               }
             }
+          },
+          // Добавляем недостающие поля для отображения в UI
+          columns: {
+            pressType: true,
+            grade: true,
+            borderType: true,
+            tags: true,
+            notes: true,
+            carpetEdgeType: true,
+            carpetEdgeSides: true,
+            carpetEdgeStrength: true,
+            puzzleSides: true
           }
         },
         createdByUser: {
