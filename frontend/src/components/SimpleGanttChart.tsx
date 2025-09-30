@@ -1,10 +1,9 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Card, Row, Col, Button, Select, Space, Tooltip, message, DatePicker } from 'antd';
-import { LeftOutlined, RightOutlined, CalendarOutlined, FileWordOutlined } from '@ant-design/icons';
+import { LeftOutlined, RightOutlined, CalendarOutlined } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import 'dayjs/locale/ru';
 import { ProductionTask, updateProductionTask } from '../services/productionApi';
-import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType } from 'docx';
 
 // Устанавливаем русскую локаль для dayjs
 dayjs.locale('ru');
@@ -40,7 +39,6 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
   const [draggedTask, setDraggedTask] = useState<GanttTask | null>(null);
   const [dragStartX, setDragStartX] = useState<number>(0);
   const [resizeMode, setResizeMode] = useState<'start' | 'end' | null>(null);
-  const [exportDatePickerVisible, setExportDatePickerVisible] = useState<boolean>(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
 
@@ -163,213 +161,6 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
     }
   };
 
-  // Экспорт заданий в Word документ
-  const exportToWord = async (selectedDate: Dayjs) => {
-    try {
-      console.log('🔍 Начало экспорта в Word для даты:', selectedDate.format('DD.MM.YYYY'));
-      console.log('📊 Всего заданий:', tasks.length);
-      console.log('📋 Задания:', tasks.map(task => ({
-        id: task.id,
-        name: task.product?.name,
-        plannedStartDate: task.plannedStartDate,
-        plannedEndDate: task.plannedEndDate,
-        status: task.status
-      })));
-
-      // Фильтруем задания на выбранную дату
-      const tasksForDate = tasks.filter(task => {
-        if (!task.plannedStartDate || !task.plannedEndDate) {
-          console.log('❌ Задание без дат:', task.id, task.product?.name);
-          return false;
-        }
-        
-        const startDate = dayjs(task.plannedStartDate);
-        const endDate = dayjs(task.plannedEndDate);
-        
-        const isInRange = (selectedDate.isSame(startDate, 'day') || selectedDate.isAfter(startDate)) && 
-                         (selectedDate.isSame(endDate, 'day') || selectedDate.isBefore(endDate));
-        
-        if (isInRange) {
-          console.log('✅ Задание попадает в диапазон:', task.id, task.product?.name);
-        }
-        
-        return isInRange;
-      });
-
-      console.log('📊 Заданий на выбранную дату:', tasksForDate.length);
-
-      if (tasksForDate.length === 0) {
-        message.warning('На выбранную дату нет заданий для экспорта');
-        return;
-      }
-
-      // Создаем Word документ
-      const doc = new Document({
-        sections: [{
-          properties: {},
-          children: [
-            // Заголовок
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: "ЗАДАНИЕ НА ПРОИЗВОДСТВО",
-                  bold: true,
-                  size: 32
-                })
-              ],
-              alignment: "center",
-              spacing: { after: 400 }
-            }),
-            
-            // Дата
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: `Дата: ${selectedDate.format('DD.MM.YYYY')}`,
-                  bold: true,
-                  size: 24
-                })
-              ],
-              alignment: "center",
-              spacing: { after: 600 }
-            }),
-
-            // Таблица с заданиями
-            new Table({
-              width: {
-                size: 100,
-                type: WidthType.PERCENTAGE,
-              },
-              rows: [
-                // Заголовок таблицы
-                new TableRow({
-                  children: [
-                    new TableCell({
-                      children: [new Paragraph({
-                        children: [new TextRun({ text: "Заказ", bold: true })]
-                      })]
-                    }),
-                    new TableCell({
-                      children: [new Paragraph({
-                        children: [new TextRun({ text: "Товар", bold: true })]
-                      })]
-                    }),
-                    new TableCell({
-                      children: [new Paragraph({
-                        children: [new TextRun({ text: "Артикул", bold: true })]
-                      })]
-                    }),
-                    new TableCell({
-                      children: [new Paragraph({
-                        children: [new TextRun({ text: "Нужно", bold: true })]
-                      })]
-                    }),
-                    new TableCell({
-                      children: [new Paragraph({
-                        children: [new TextRun({ text: "Произведено", bold: true })]
-                      })]
-                    }),
-                    new TableCell({
-                      children: [new Paragraph({
-                        children: [new TextRun({ text: "Осталось", bold: true })]
-                      })]
-                    }),
-                    new TableCell({
-                      children: [new Paragraph({
-                        children: [new TextRun({ text: "Срок", bold: true })]
-                      })]
-                    })
-                  ]
-                }),
-                
-                // Строки с заданиями
-                ...tasksForDate.map(task => {
-                  const remaining = task.requestedQuantity - task.producedQuantity;
-                  const orderInfo = task.order ? 
-                    `№${task.order.orderNumber} - ${task.order.customerName}` : 
-                    'Задание на будущее';
-                  
-                  return new TableRow({
-                    children: [
-                      new TableCell({
-                        children: [new Paragraph({
-                          children: [new TextRun({ text: orderInfo })]
-                        })]
-                      }),
-                      new TableCell({
-                        children: [new Paragraph({
-                          children: [new TextRun({ text: task.product?.name || 'Неизвестный товар' })]
-                        })]
-                      }),
-                      new TableCell({
-                        children: [new Paragraph({
-                          children: [new TextRun({ text: task.product?.article || 'Не указан' })]
-                        })]
-                      }),
-                      new TableCell({
-                        children: [new Paragraph({
-                          children: [new TextRun({ text: `${task.requestedQuantity} шт.` })]
-                        })]
-                      }),
-                      new TableCell({
-                        children: [new Paragraph({
-                          children: [new TextRun({ text: `${task.producedQuantity} шт.` })]
-                        })]
-                      }),
-                      new TableCell({
-                        children: [new Paragraph({
-                          children: [new TextRun({ 
-                            text: `${remaining} шт.`,
-                            color: remaining > 0 ? 'FF0000' : '00AA00'
-                          })]
-                        })]
-                      }),
-                      new TableCell({
-                        children: [new Paragraph({
-                          children: [new TextRun({ 
-                            text: `${dayjs(task.plannedStartDate).format('DD.MM')} - ${dayjs(task.plannedEndDate).format('DD.MM')}`
-                          })]
-                        })]
-                      })
-                    ]
-                  });
-                })
-              ]
-            })
-          ]
-        }]
-      });
-
-      // Генерируем и скачиваем файл
-      console.log('📄 Создание Word документа...');
-      const blob = await Packer.toBlob(doc);
-      console.log('📦 Blob создан, размер:', blob.size, 'байт');
-      
-      const url = window.URL.createObjectURL(blob);
-      console.log('🔗 URL создан:', url);
-      
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `Задание_на_производство_${selectedDate.format('DD.MM.YYYY')}.docx`;
-      console.log('💾 Имя файла:', link.download);
-      
-      document.body.appendChild(link);
-      console.log('🖱️ Клик по ссылке...');
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-      console.log('✅ Экспорт завершен успешно');
-
-      message.success(`Экспортировано ${tasksForDate.length} заданий в Word документ`);
-
-    } catch (error) {
-      console.error('❌ Ошибка экспорта в Word:', error);
-      if (error instanceof Error) {
-        console.error('❌ Стек ошибки:', error.stack);
-      }
-      message.error('Ошибка при экспорте в Word документ');
-    }
-  };
 
   // Обработка скролла для навигации по диапазону дат
   useEffect(() => {
@@ -569,15 +360,6 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
                 size="small"
               >
                 След. период
-              </Button>
-              
-              <Button 
-                icon={<FileWordOutlined />} 
-                onClick={() => setExportDatePickerVisible(true)}
-                size="small"
-                type="primary"
-              >
-                Экспорт в Word
               </Button>
             </Space>
           </Col>
@@ -884,21 +666,6 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
           <span>Отменено</span>
         </div>
       </div>
-
-      {/* DatePicker для экспорта */}
-      <DatePicker
-        open={exportDatePickerVisible}
-        onOpenChange={setExportDatePickerVisible}
-        onChange={(date) => {
-          if (date) {
-            exportToWord(date);
-            setExportDatePickerVisible(false);
-          }
-        }}
-        placeholder="Выберите дату для экспорта"
-        format="DD.MM.YYYY"
-        style={{ display: 'none' }} // Скрываем, так как открывается программно
-      />
     </Card>
   );
 };

@@ -37,7 +37,8 @@ import {
   ExclamationCircleOutlined,
   QuestionCircleOutlined,
   InboxOutlined,
-  StopOutlined
+  StopOutlined,
+  FileWordOutlined
 } from '@ant-design/icons';
 
 import {
@@ -75,6 +76,7 @@ import { catalogApi } from '../services/catalogApi';
 import { useAuthStore } from '../stores/authStore';
 import usePermissions from '../hooks/usePermissions';
 import dayjs, { Dayjs } from 'dayjs';
+import { Document, Packer, Paragraph, TextRun, Table as DocxTable, TableRow as DocxTableRow, TableCell as DocxTableCell, WidthType } from 'docx';
 
 const { Title, Text } = Typography;
 // Убрали устаревший TabPane, теперь используем items
@@ -186,6 +188,7 @@ const ProductionTasks: React.FC = () => {
   
   // Состояние для экспорта (Задача 9.2)
   const [exportingTasks, setExportingTasks] = useState(false);
+  const [exportWordDatePickerVisible, setExportWordDatePickerVisible] = useState<boolean>(false);
   
   // Состояние для статистики
   const [stats, setStats] = useState({
@@ -1015,6 +1018,193 @@ const ProductionTasks: React.FC = () => {
     }
   };
 
+  // Функция экспорта заданий в Word документ
+  const handleExportToWord = async (selectedDate: Dayjs) => {
+    try {
+      console.log('🔍 Начало экспорта в Word для даты:', selectedDate.format('DD.MM.YYYY'));
+      console.log('📊 Всего заданий:', tasks.length);
+
+      // Фильтруем задания на выбранную дату
+      const tasksForDate = tasks.filter(task => {
+        if (!task.plannedStartDate || !task.plannedEndDate) {
+          return false;
+        }
+        
+        const startDate = dayjs(task.plannedStartDate);
+        const endDate = dayjs(task.plannedEndDate);
+        
+        return (selectedDate.isSame(startDate, 'day') || selectedDate.isAfter(startDate)) && 
+               (selectedDate.isSame(endDate, 'day') || selectedDate.isBefore(endDate));
+      });
+
+      console.log('📊 Заданий на выбранную дату:', tasksForDate.length);
+
+      if (tasksForDate.length === 0) {
+        message.warning('На выбранную дату нет заданий для экспорта');
+        return;
+      }
+
+      // Создаем Word документ
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: [
+            // Заголовок
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: "ЗАДАНИЕ НА ПРОИЗВОДСТВО",
+                  bold: true,
+                  size: 32
+                })
+              ],
+              spacing: { after: 400 }
+            }),
+            
+            // Дата
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: `Дата: ${selectedDate.format('DD.MM.YYYY')}`,
+                  bold: true,
+                  size: 24
+                })
+              ],
+              spacing: { after: 600 }
+            }),
+
+            // Таблица с заданиями
+            new DocxTable({
+              width: {
+                size: 100,
+                type: WidthType.PERCENTAGE,
+              },
+              rows: [
+                // Заголовок таблицы
+                new DocxTableRow({
+                  children: [
+                    new DocxTableCell({
+                      children: [new Paragraph({
+                        children: [new TextRun({ text: "Заказ", bold: true })]
+                      })]
+                    }),
+                    new DocxTableCell({
+                      children: [new Paragraph({
+                        children: [new TextRun({ text: "Товар", bold: true })]
+                      })]
+                    }),
+                    new DocxTableCell({
+                      children: [new Paragraph({
+                        children: [new TextRun({ text: "Артикул", bold: true })]
+                      })]
+                    }),
+                    new DocxTableCell({
+                      children: [new Paragraph({
+                        children: [new TextRun({ text: "Нужно", bold: true })]
+                      })]
+                    }),
+                    new DocxTableCell({
+                      children: [new Paragraph({
+                        children: [new TextRun({ text: "Произведено", bold: true })]
+                      })]
+                    }),
+                    new DocxTableCell({
+                      children: [new Paragraph({
+                        children: [new TextRun({ text: "Осталось", bold: true })]
+                      })]
+                    }),
+                    new DocxTableCell({
+                      children: [new Paragraph({
+                        children: [new TextRun({ text: "Срок", bold: true })]
+                      })]
+                    })
+                  ]
+                }),
+                
+                // Строки с заданиями
+                ...tasksForDate.map(task => {
+                  const remaining = task.requestedQuantity - task.producedQuantity;
+                  const orderInfo = task.order ? 
+                    `№${task.order.orderNumber} - ${task.order.customerName}` : 
+                    'Задание на будущее';
+                  
+                  return new DocxTableRow({
+                    children: [
+                      new DocxTableCell({
+                        children: [new Paragraph({
+                          children: [new TextRun({ text: orderInfo })]
+                        })]
+                      }),
+                      new DocxTableCell({
+                        children: [new Paragraph({
+                          children: [new TextRun({ text: task.product?.name || 'Неизвестный товар' })]
+                        })]
+                      }),
+                      new DocxTableCell({
+                        children: [new Paragraph({
+                          children: [new TextRun({ text: task.product?.article || 'Не указан' })]
+                        })]
+                      }),
+                      new DocxTableCell({
+                        children: [new Paragraph({
+                          children: [new TextRun({ text: `${task.requestedQuantity} шт.` })]
+                        })]
+                      }),
+                      new DocxTableCell({
+                        children: [new Paragraph({
+                          children: [new TextRun({ text: `${task.producedQuantity} шт.` })]
+                        })]
+                      }),
+                      new DocxTableCell({
+                        children: [new Paragraph({
+                          children: [new TextRun({ 
+                            text: `${remaining} шт.`,
+                            color: remaining > 0 ? 'FF0000' : '00AA00'
+                          })]
+                        })]
+                      }),
+                      new DocxTableCell({
+                        children: [new Paragraph({
+                          children: [new TextRun({ 
+                            text: `${dayjs(task.plannedStartDate).format('DD.MM')} - ${dayjs(task.plannedEndDate).format('DD.MM')}`
+                          })]
+                        })]
+                      })
+                    ]
+                  });
+                })
+              ]
+            })
+          ]
+        }]
+      });
+
+      // Генерируем и скачиваем файл
+      console.log('📄 Создание Word документа...');
+      const blob = await Packer.toBlob(doc);
+      console.log('📦 Blob создан, размер:', blob.size, 'байт');
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Задание_на_производство_${selectedDate.format('DD.MM.YYYY')}.docx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      console.log('✅ Экспорт завершен успешно');
+
+      message.success(`Экспортировано ${tasksForDate.length} заданий в Word документ`);
+
+    } catch (error) {
+      console.error('❌ Ошибка экспорта в Word:', error);
+      if (error instanceof Error) {
+        console.error('❌ Стек ошибки:', error.stack);
+      }
+      message.error('Ошибка при экспорте в Word документ');
+    }
+  };
+
   // Получение цвета статуса
   const getStatusColor = (status: string) => {
     const colors = {
@@ -1627,6 +1817,19 @@ const ProductionTasks: React.FC = () => {
             title="Экспорт текущего списка производственных заданий с примененными фильтрами"
           >
             📊 Экспорт заданий
+          </Button>
+          
+          {/* Кнопка экспорта в Word */}
+          <Button
+            icon={<FileWordOutlined />}
+            onClick={() => setExportWordDatePickerVisible(true)}
+            style={{
+              borderColor: '#1890ff',
+              color: '#1890ff'
+            }}
+            title="Экспорт заданий на выбранную дату в Word документ"
+          >
+            📄 Экспорт в Word
           </Button>
         </Space>
       </Card>
@@ -3738,6 +3941,21 @@ const ProductionTasks: React.FC = () => {
           </div>
         )}
       </Modal>
+
+      {/* DatePicker для экспорта в Word */}
+      <DatePicker
+        open={exportWordDatePickerVisible}
+        onOpenChange={setExportWordDatePickerVisible}
+        onChange={(date) => {
+          if (date) {
+            handleExportToWord(date);
+            setExportWordDatePickerVisible(false);
+          }
+        }}
+        placeholder="Выберите дату для экспорта"
+        format="DD.MM.YYYY"
+        style={{ position: 'absolute', left: '-9999px' }} // Скрываем, так как открывается программно
+      />
 
       </div>
     </App>
