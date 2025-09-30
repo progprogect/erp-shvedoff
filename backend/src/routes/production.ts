@@ -815,6 +815,10 @@ router.get('/tasks/by-product', authenticateToken, requirePermission('production
         product: {
           with: {
             category: true,
+            stock: true,
+            surface: true,
+            logo: true,
+            material: true,
             bottomType: true,
             puzzleType: true,
             rollComposition: {
@@ -826,10 +830,20 @@ router.get('/tasks/by-product', authenticateToken, requirePermission('production
                   }
                 }
               }
+            },
+            manager: {
+              columns: {
+                id: true,
+                username: true,
+                fullName: true
+              }
             }
           },
           // Добавляем недостающие поля для отображения в UI
           columns: {
+            article: true,
+            productType: true,
+            purNumber: true,
             pressType: true,
             grade: true,
             borderType: true,
@@ -838,7 +852,12 @@ router.get('/tasks/by-product', authenticateToken, requirePermission('production
             carpetEdgeType: true,
             carpetEdgeSides: true,
             carpetEdgeStrength: true,
-            puzzleSides: true
+            puzzleSides: true,
+            dimensions: true,
+            weight: true,
+            matArea: true,
+            characteristics: true,
+            puzzleOptions: true
           }
         }
       },

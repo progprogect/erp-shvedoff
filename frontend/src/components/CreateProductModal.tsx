@@ -1429,8 +1429,10 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                   placeholder="Выберите тип усиления"
                   onChange={handleCarpetEdgeStrengthChange}
                 >
-                  <Option value="normal">Усиленный</Option>
                   <Option value="weak">Не усиленный</Option>
+                  <Option value="normal">Обычный</Option>
+                  <Option value="strong">Усиленный</Option>
+                  <Option value="reinforced">Усиленный</Option>
                 </Select>
               </Form.Item>
             </Col>
