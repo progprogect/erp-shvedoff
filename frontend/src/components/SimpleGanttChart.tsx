@@ -164,14 +164,37 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
   // Экспорт заданий в Word документ
   const exportToWord = async (selectedDate: Dayjs) => {
     try {
+      console.log('🔍 Начало экспорта в Word для даты:', selectedDate.format('DD.MM.YYYY'));
+      console.log('📊 Всего заданий:', tasks.length);
+      console.log('📋 Задания:', tasks.map(task => ({
+        id: task.id,
+        name: task.product?.name,
+        plannedStartDate: task.plannedStartDate,
+        plannedEndDate: task.plannedEndDate,
+        status: task.status
+      })));
+
       // Фильтруем задания на выбранную дату
       const tasksForDate = tasks.filter(task => {
+        if (!task.plannedStartDate || !task.plannedEndDate) {
+          console.log('❌ Задание без дат:', task.id, task.product?.name);
+          return false;
+        }
+        
         const startDate = dayjs(task.plannedStartDate);
         const endDate = dayjs(task.plannedEndDate);
         
-        return (selectedDate.isSame(startDate, 'day') || selectedDate.isAfter(startDate)) && 
-               (selectedDate.isSame(endDate, 'day') || selectedDate.isBefore(endDate));
+        const isInRange = (selectedDate.isSame(startDate, 'day') || selectedDate.isAfter(startDate)) && 
+                         (selectedDate.isSame(endDate, 'day') || selectedDate.isBefore(endDate));
+        
+        if (isInRange) {
+          console.log('✅ Задание попадает в диапазон:', task.id, task.product?.name);
+        }
+        
+        return isInRange;
       });
+
+      console.log('📊 Заданий на выбранную дату:', tasksForDate.length);
 
       if (tasksForDate.length === 0) {
         message.warning('На выбранную дату нет заданий для экспорта');
@@ -316,20 +339,32 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
       });
 
       // Генерируем и скачиваем файл
+      console.log('📄 Создание Word документа...');
       const blob = await Packer.toBlob(doc);
+      console.log('📦 Blob создан, размер:', blob.size, 'байт');
+      
       const url = window.URL.createObjectURL(blob);
+      console.log('🔗 URL создан:', url);
+      
       const link = document.createElement('a');
       link.href = url;
       link.download = `Задание_на_производство_${selectedDate.format('DD.MM.YYYY')}.docx`;
+      console.log('💾 Имя файла:', link.download);
+      
       document.body.appendChild(link);
+      console.log('🖱️ Клик по ссылке...');
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
+      console.log('✅ Экспорт завершен успешно');
 
       message.success(`Экспортировано ${tasksForDate.length} заданий в Word документ`);
 
     } catch (error) {
-      console.error('Ошибка экспорта в Word:', error);
+      console.error('❌ Ошибка экспорта в Word:', error);
+      if (error instanceof Error) {
+        console.error('❌ Стек ошибки:', error.stack);
+      }
       message.error('Ошибка при экспорте в Word документ');
     }
   };

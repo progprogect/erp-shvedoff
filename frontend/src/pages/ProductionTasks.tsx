@@ -3075,33 +3075,45 @@ const ProductionTasks: React.FC = () => {
               <Col span={24}>
                 <Card title="🔧 Характеристики товара" size="small">
                   <Row gutter={[16, 8]}>
-                    {/* Основные характеристики */}
-                    {viewingTask.product?.surface && (
+                    {/* Основные характеристики - для всех типов товаров */}
+                    {viewingTask.product?.article && (
                       <Col span={8}>
-                        <strong>Поверхность:</strong>
+                        <strong>Артикул:</strong>
                         <div style={{ marginTop: 4 }}>
-                          {viewingTask.product.surface.name}
-                        </div>
-                      </Col>
-                    )}
-                    {viewingTask.product?.logo && (
-                      <Col span={8}>
-                        <strong>Логотип:</strong>
-                        <div style={{ marginTop: 4 }}>
-                          {viewingTask.product.logo.name}
-                        </div>
-                      </Col>
-                    )}
-                    {viewingTask.product?.material && (
-                      <Col span={8}>
-                        <strong>Материал:</strong>
-                        <div style={{ marginTop: 4 }}>
-                          {viewingTask.product.material.name}
+                          <Tag color="blue">{viewingTask.product.article}</Tag>
                         </div>
                       </Col>
                     )}
                     
-                    {/* Размеры и физические характеристики */}
+                    {/* Тип товара */}
+                    <Col span={8}>
+                      <strong>Тип товара:</strong>
+                      <div style={{ marginTop: 4 }}>
+                        {viewingTask.product?.productType === 'carpet' ? (
+                          <Tag color="blue" icon="🪄">Ковровое изделие</Tag>
+                        ) : viewingTask.product?.productType === 'other' ? (
+                          <Tag color="green" icon="📦">Другое</Tag>
+                        ) : viewingTask.product?.productType === 'pur' ? (
+                          <Tag color="orange" icon="🔧">ПУР</Tag>
+                        ) : viewingTask.product?.productType === 'roll_covering' ? (
+                          <Tag color="purple" icon="🏭">Рулонное покрытие</Tag>
+                        ) : (
+                          <Tag color="default">Не указан</Tag>
+                        )}
+                      </div>
+                    </Col>
+
+                    {/* Номер ПУР - только для товаров типа ПУР */}
+                    {viewingTask.product?.productType === 'pur' && (viewingTask.product as any)?.purNumber && (
+                      <Col span={8}>
+                        <strong>Номер ПУР:</strong>
+                        <div style={{ marginTop: 4 }}>
+                          <Tag color="orange">🔧 {(viewingTask.product as any).purNumber}</Tag>
+                        </div>
+                      </Col>
+                    )}
+                    
+                    {/* Размеры и физические характеристики - для всех типов */}
                     {viewingTask.product?.dimensions && (
                       <Col span={8}>
                         <strong>Размеры:</strong>
@@ -3136,70 +3148,205 @@ const ProductionTasks: React.FC = () => {
                       </Col>
                     )}
                     
-                    {/* Сорт и качество */}
-                    {viewingTask.product?.grade && (
-                      <Col span={8}>
-                        <strong>Сорт:</strong>
-                        <div style={{ marginTop: 4 }}>
-                          <Tag color={viewingTask.product.grade === 'premium' ? 'gold' : 'blue'}>
-                            {viewingTask.product.grade === 'premium' ? 'Премиум' : 'Обычный'}
-                          </Tag>
-                        </div>
-                      </Col>
-                    )}
-                    {viewingTask.product?.borderType && (
-                      <Col span={8}>
-                        <strong>Борт:</strong>
-                        <div style={{ marginTop: 4 }}>
-                          <Tag color={viewingTask.product.borderType === 'with_border' ? 'green' : 'default'}>
-                            {viewingTask.product.borderType === 'with_border' ? 'С бортом' : 'Без борта'}
-                          </Tag>
-                        </div>
-                      </Col>
+                    {/* Поверхности, логотип, материал, пресс - для ковров и рулонных покрытий */}
+                    {(viewingTask.product?.productType === 'carpet' || viewingTask.product?.productType === 'roll_covering') && (
+                      <>
+                        {/* Поверхности */}
+                        {(viewingTask.product as any)?.surfaces && (viewingTask.product as any).surfaces.length > 0 ? (
+                          <Col span={8}>
+                            <strong>Поверхности:</strong>
+                            <div style={{ marginTop: 4 }}>
+                              <Space wrap>
+                                {(viewingTask.product as any).surfaces.map((surface: any) => (
+                                  <Tag key={surface.id} color="blue">🎨 {surface.name}</Tag>
+                                ))}
+                              </Space>
+                            </div>
+                          </Col>
+                        ) : viewingTask.product?.surface ? (
+                          <Col span={8}>
+                            <strong>Поверхность:</strong>
+                            <div style={{ marginTop: 4 }}>
+                              <Tag color="blue">🎨 {viewingTask.product.surface.name}</Tag>
+                            </div>
+                          </Col>
+                        ) : null}
+                        
+                        {viewingTask.product?.logo && (
+                          <Col span={8}>
+                            <strong>Логотип:</strong>
+                            <div style={{ marginTop: 4 }}>
+                              <Tag color="cyan">🏷️ {viewingTask.product.logo.name}</Tag>
+                            </div>
+                          </Col>
+                        )}
+                        
+                        {viewingTask.product?.material && (
+                          <Col span={8}>
+                            <strong>Материал:</strong>
+                            <div style={{ marginTop: 4 }}>
+                              <Tag color="green">🧱 {viewingTask.product.material.name}</Tag>
+                            </div>
+                          </Col>
+                        )}
+                        
+                        {viewingTask.product?.pressType && (
+                          <Col span={8}>
+                            <strong>Тип пресса:</strong>
+                            <div style={{ marginTop: 4 }}>
+                              {(viewingTask.product.pressType as any) === 'not_selected' ? (
+                                <Tag color="default">➖ Не выбран</Tag>
+                              ) : (viewingTask.product.pressType as any) === 'ukrainian' ? (
+                                <Tag color="blue">🇺🇦 Украинский</Tag>
+                              ) : (viewingTask.product.pressType as any) === 'chinese' ? (
+                                <Tag color="red">🇨🇳 Китайский</Tag>
+                              ) : (
+                                <Tag color="default">{viewingTask.product.pressType}</Tag>
+                              )}
+                            </div>
+                          </Col>
+                        )}
+                      </>
                     )}
                     
-                    {/* Дополнительные характеристики для ковров */}
-                    {viewingTask.product?.carpetEdgeType && (
-                      <Col span={8}>
-                        <strong>Тип края ковра:</strong>
-                        <div style={{ marginTop: 4 }}>
-                          {viewingTask.product.carpetEdgeType === 'straight_cut' ? 'Прямой срез' :
-                           viewingTask.product.carpetEdgeType === 'overlock' ? 'Оверлок' :
-                           viewingTask.product.carpetEdgeType === 'binding' ? 'Обвязка' :
-                           viewingTask.product.carpetEdgeType === 'cast_puzzle' ? 'Литой пазл' :
-                           viewingTask.product.carpetEdgeType === 'puzzle' ? 'Пазл' :
-                           viewingTask.product.carpetEdgeType}
-                        </div>
-                      </Col>
-                    )}
-                    {viewingTask.product?.carpetEdgeSides && (
-                      <Col span={8}>
-                        <strong>Стороны края:</strong>
-                        <div style={{ marginTop: 4 }}>
-                          {viewingTask.product.carpetEdgeSides} сторона(ы)
-                        </div>
-                      </Col>
-                    )}
-                    {viewingTask.product?.carpetEdgeStrength && (
-                      <Col span={8}>
-                        <strong>Прочность края:</strong>
-                        <div style={{ marginTop: 4 }}>
-                          {viewingTask.product.carpetEdgeStrength === 'normal' ? 'Обычная' :
-                           viewingTask.product.carpetEdgeStrength === 'high' ? 'Высокая' :
-                           viewingTask.product.carpetEdgeStrength === 'low' ? 'Низкая' :
-                           viewingTask.product.carpetEdgeStrength === 'weak' ? 'Слабая' :
-                           viewingTask.product.carpetEdgeStrength === 'strong' ? 'Сильная' :
-                           viewingTask.product.carpetEdgeStrength}
-                        </div>
-                      </Col>
-                    )}
-                    {viewingTask.product?.bottomType && (
-                      <Col span={8}>
-                        <strong>Тип низа:</strong>
-                        <div style={{ marginTop: 4 }}>
-                          {viewingTask.product.bottomType.name}
-                        </div>
-                      </Col>
+                    {/* Характеристики только для ковров */}
+                    {viewingTask.product?.productType === 'carpet' && (
+                      <>
+                        {/* Сорт */}
+                        {viewingTask.product?.grade && (
+                          <Col span={8}>
+                            <strong>Сорт:</strong>
+                            <div style={{ marginTop: 4 }}>
+                              {(viewingTask.product.grade as any) === 'usual' ? (
+                                <Tag color="blue">Обычный</Tag>
+                              ) : (viewingTask.product.grade as any) === 'grade_2' ? (
+                                <Tag color="orange">⚠️ Второй сорт</Tag>
+                              ) : (viewingTask.product.grade as any) === 'telyatnik' ? (
+                                <Tag color="purple">🐄 Телятник</Tag>
+                              ) : (viewingTask.product.grade as any) === 'liber' ? (
+                                <Tag color="gold">🏆 Либер</Tag>
+                              ) : (
+                                <Tag color="default">{viewingTask.product.grade}</Tag>
+                              )}
+                            </div>
+                          </Col>
+                        )}
+                        
+                        {/* Тип борта */}
+                        {viewingTask.product?.borderType && (
+                          <Col span={8}>
+                            <strong>Тип борта:</strong>
+                            <div style={{ marginTop: 4 }}>
+                              {viewingTask.product.borderType === 'with_border' ? (
+                                <Tag color="green">✅ С бортом</Tag>
+                              ) : viewingTask.product.borderType === 'without_border' ? (
+                                <Tag color="default">❌ Без борта</Tag>
+                              ) : (
+                                <Tag color="default">{viewingTask.product.borderType}</Tag>
+                              )}
+                            </div>
+                          </Col>
+                        )}
+                        
+                        {/* Тип края ковра */}
+                        {viewingTask.product?.carpetEdgeType && (
+                          <Col span={8}>
+                            <strong>Тип края ковра:</strong>
+                            <div style={{ marginTop: 4 }}>
+                              {(viewingTask.product.carpetEdgeType as any) === 'straight_cut' ? (
+                                <Tag color="blue">Литой</Tag>
+                              ) : (viewingTask.product.carpetEdgeType as any) === 'direct_cut' ? (
+                                <Tag color="cyan">Прямой рез</Tag>
+                              ) : (viewingTask.product.carpetEdgeType as any) === 'puzzle' ? (
+                                <Tag color="purple">🧩 Пазл</Tag>
+                              ) : (viewingTask.product.carpetEdgeType as any) === 'sub_puzzle' ? (
+                                <Tag color="orange">Подпазл</Tag>
+                              ) : (viewingTask.product.carpetEdgeType as any) === 'cast_puzzle' ? (
+                                <Tag color="gold">Литой пазл</Tag>
+                              ) : (
+                                <Tag color="default">{viewingTask.product.carpetEdgeType}</Tag>
+                              )}
+                            </div>
+                          </Col>
+                        )}
+                        
+                        {/* Стороны края - только для паззловых типов */}
+                        {viewingTask.product?.carpetEdgeSides && 
+                         viewingTask.product.carpetEdgeType && 
+                         (viewingTask.product.carpetEdgeType as any) !== 'straight_cut' && 
+                         (viewingTask.product.carpetEdgeType as any) !== 'direct_cut' && (
+                          <Col span={8}>
+                            <strong>Стороны края:</strong>
+                            <div style={{ marginTop: 4 }}>
+                              <Tag color="blue">
+                                {viewingTask.product.carpetEdgeSides} 
+                                {viewingTask.product.carpetEdgeSides === 1 ? ' сторона' : 
+                                 viewingTask.product.carpetEdgeSides === 2 ? ' стороны' :
+                                 viewingTask.product.carpetEdgeSides === 3 ? ' стороны' :
+                                 ' сторон'}
+                              </Tag>
+                            </div>
+                          </Col>
+                        )}
+                        
+                        {/* Прочность края */}
+                        {viewingTask.product?.carpetEdgeStrength && (
+                          <Col span={8}>
+                            <strong>Прочность края:</strong>
+                            <div style={{ marginTop: 4 }}>
+                              {(viewingTask.product.carpetEdgeStrength as any) === 'normal' ? (
+                                <Tag color="blue">Обычная</Tag>
+                              ) : (viewingTask.product.carpetEdgeStrength as any) === 'reinforced' ? (
+                                <Tag color="orange">Усиленная</Tag>
+                              ) : (viewingTask.product.carpetEdgeStrength as any) === 'strong' ? (
+                                <Tag color="red">💪 Сильная</Tag>
+                              ) : (viewingTask.product.carpetEdgeStrength as any) === 'weak' ? (
+                                <Tag color="default">💔 Слабая</Tag>
+                              ) : (
+                                <Tag color="default">{viewingTask.product.carpetEdgeStrength}</Tag>
+                              )}
+                            </div>
+                          </Col>
+                        )}
+                        
+                        {/* Тип низа ковра */}
+                        {viewingTask.product?.bottomType && (
+                          <Col span={8}>
+                            <strong>Тип низа:</strong>
+                            <div style={{ marginTop: 4 }}>
+                              <Tag color="brown">🏠 {viewingTask.product.bottomType.name}</Tag>
+                            </div>
+                          </Col>
+                        )}
+                        
+                        {/* Тип паззла - только для паззловых типов */}
+                        {viewingTask.product?.puzzleType && 
+                         (viewingTask.product.carpetEdgeType as any) === 'puzzle' && (
+                          <Col span={8}>
+                            <strong>Тип паззла:</strong>
+                            <div style={{ marginTop: 4 }}>
+                              <Tag color="purple">🧩 {viewingTask.product.puzzleType.name}</Tag>
+                            </div>
+                          </Col>
+                        )}
+                        
+                        {/* Стороны паззла - только для паззловых типов */}
+                        {viewingTask.product?.puzzleSides && 
+                         (viewingTask.product.carpetEdgeType as any) === 'puzzle' && (
+                          <Col span={8}>
+                            <strong>Стороны паззла:</strong>
+                            <div style={{ marginTop: 4 }}>
+                              <Tag color="purple">
+                                {viewingTask.product.puzzleSides} 
+                                {viewingTask.product.puzzleSides === 1 ? ' сторона' : 
+                                 viewingTask.product.puzzleSides === 2 ? ' стороны' :
+                                 viewingTask.product.puzzleSides === 3 ? ' стороны' :
+                                 ' сторон'}
+                              </Tag>
+                            </div>
+                          </Col>
+                        )}
+                      </>
                     )}
                     
                     {/* Характеристики для рулонных покрытий */}
@@ -3211,7 +3358,7 @@ const ProductionTasks: React.FC = () => {
                             <div style={{ marginTop: 4 }}>
                               {viewingTask.product.rollComposition.map((item: any, index: number) => (
                                 <div key={index} style={{ marginBottom: 4 }}>
-                                  <Tag color="blue">{item.carpet.name}</Tag>
+                                  <Tag color="purple">{item.carpet.name}</Tag>
                                   <span style={{ marginLeft: 8 }}>
                                     {item.quantity} шт. (порядок: {item.sortOrder})
                                   </span>
@@ -3223,69 +3370,7 @@ const ProductionTasks: React.FC = () => {
                       </>
                     )}
                     
-                    {/* Опции паззла */}
-                    {viewingTask.product?.puzzleOptions && (
-                      <Col span={12}>
-                        <strong>Опции паззла:</strong>
-                        <div style={{ marginTop: 4 }}>
-                          {(() => {
-                            const puzzle = viewingTask.product.puzzleOptions;
-                            if (typeof puzzle === 'object' && puzzle !== null) {
-                              const { sides, type, enabled } = puzzle as any;
-                              if (!enabled) return 'Паззл отключен';
-                              const sidesText = sides === '1_side' ? '1 сторона' : 
-                                               sides === '2_sides' ? '2 стороны' : 
-                                               sides === '3_sides' ? '3 стороны' : 
-                                               sides === '4_sides' ? '4 стороны' : 
-                                               sides;
-                              const typeText = type === 'old' ? 'Старый' : 
-                                             type === 'new' ? 'Новый' : 
-                                             type === 'classic' ? 'Классический' :
-                                             type === 'modern' ? 'Современный' :
-                                             type;
-                              return `${sidesText}, ${typeText}`;
-                            }
-                            return 'Не настроено';
-                          })()}
-                        </div>
-                      </Col>
-                    )}
-                    
-                    {/* Тип паззла из БД */}
-                    {viewingTask.product?.puzzleType && (
-                      <Col span={8}>
-                        <strong>Тип паззла:</strong>
-                        <div style={{ marginTop: 4 }}>
-                          {viewingTask.product.puzzleType.name}
-                        </div>
-                      </Col>
-                    )}
-                    
-                    {/* Стороны паззла из БД */}
-                    {viewingTask.product?.puzzleSides && (
-                      <Col span={8}>
-                        <strong>Стороны паззла:</strong>
-                        <div style={{ marginTop: 4 }}>
-                          {viewingTask.product.puzzleSides} сторона(ы)
-                        </div>
-                      </Col>
-                    )}
-                    
-                    {/* Дополнительные поля */}
-                    {viewingTask.product?.pressType && (
-                      <Col span={8}>
-                        <strong>Тип пресса:</strong>
-                        <div style={{ marginTop: 4 }}>
-                          {viewingTask.product.pressType === 'not_selected' ? 'Не выбран' :
-                           viewingTask.product.pressType === 'hydraulic' ? 'Гидравлический' :
-                           viewingTask.product.pressType === 'mechanical' ? 'Механический' :
-                           viewingTask.product.pressType === 'ukrainian' ? 'Украинский' :
-                           viewingTask.product.pressType === 'german' ? 'Немецкий' :
-                           viewingTask.product.pressType === 'italian' ? 'Итальянский' :
-                           viewingTask.product.pressType}
-                        </div>
-                      </Col>
-                    )}
+                    {/* Дополнительные поля - для всех типов */}
                     {viewingTask.product?.tags && viewingTask.product.tags.length > 0 && (
                       <Col span={24}>
                         <strong>Теги:</strong>
@@ -3298,6 +3383,7 @@ const ProductionTasks: React.FC = () => {
                         </div>
                       </Col>
                     )}
+                    
                     {viewingTask.product?.notes && (
                       <Col span={24}>
                         <strong>Примечания к товару:</strong>
@@ -3307,11 +3393,14 @@ const ProductionTasks: React.FC = () => {
                       </Col>
                     )}
                   </Row>
-                  {(!viewingTask.product?.surface && !viewingTask.product?.logo && !viewingTask.product?.material && 
+                  {(!viewingTask.product?.article && !viewingTask.product?.productType && 
                     !viewingTask.product?.dimensions && !viewingTask.product?.weight && 
+                    !viewingTask.product?.matArea && !viewingTask.product?.surface && 
+                    !(viewingTask.product as any)?.surfaces && !viewingTask.product?.logo && 
+                    !viewingTask.product?.material && !viewingTask.product?.pressType &&
                     !viewingTask.product?.grade && !viewingTask.product?.borderType && 
-                    !viewingTask.product?.matArea && !viewingTask.product?.carpetEdgeType &&
-                    !viewingTask.product?.bottomType && !viewingTask.product?.pressType) && (
+                    !viewingTask.product?.carpetEdgeType && !viewingTask.product?.bottomType &&
+                    !viewingTask.product?.tags && !viewingTask.product?.notes) && (
                     <div style={{ textAlign: 'center', color: '#999', padding: '20px 0' }}>
                       <i>Характеристики товара не заполнены</i>
                     </div>

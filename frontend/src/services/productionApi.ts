@@ -49,6 +49,7 @@ export interface ProductionTask {
     code?: string;
     article?: string;
     productType?: 'carpet' | 'other' | 'pur' | 'roll_covering';
+    purNumber?: number; // номер ПУР (только для товаров типа pur)
     category: {
       id: number;
       name: string;
@@ -57,6 +58,10 @@ export interface ProductionTask {
       id: number;
       name: string;
     };
+    surfaces?: Array<{
+      id: number;
+      name: string;
+    }>;
     logo?: {
       id: number;
       name: string;
@@ -69,20 +74,21 @@ export interface ProductionTask {
       length?: number;
       width?: number;
       height?: number;
+      thickness?: number;
     };
     weight?: number;
-    grade?: 'usual' | 'premium';
+    grade?: 'usual' | 'grade_2' | 'telyatnik' | 'liber';
     borderType?: 'with_border' | 'without_border';
     matArea?: number;
     puzzleOptions?: {
-      sides?: '1_side' | '2_sides';
-      type?: 'old' | 'new';
+      sides?: '1_side' | '2_sides' | '3_sides' | '4_sides';
+      type?: 'old' | 'new' | 'classic' | 'modern';
       enabled?: boolean;
     };
     // Дополнительные характеристики для ковров
-    carpetEdgeType?: 'straight_cut' | 'overlock' | 'binding';
+    carpetEdgeType?: 'straight_cut' | 'direct_cut' | 'puzzle' | 'sub_puzzle' | 'cast_puzzle' | 'overlock' | 'binding';
     carpetEdgeSides?: number;
-    carpetEdgeStrength?: 'normal' | 'high' | 'low';
+    carpetEdgeStrength?: 'normal' | 'reinforced' | 'strong' | 'weak';
     bottomType?: {
       id: number;
       name: string;
@@ -97,7 +103,7 @@ export interface ProductionTask {
       sortOrder: number;
     }>;
     // Дополнительные поля
-    pressType?: 'not_selected' | 'hydraulic' | 'mechanical';
+    pressType?: 'not_selected' | 'ukrainian' | 'chinese';
     // Поля паззла из БД
     puzzleType?: {
       id: number;
