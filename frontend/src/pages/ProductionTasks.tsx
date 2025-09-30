@@ -643,7 +643,18 @@ const ProductionTasks: React.FC = () => {
     if (!editingTask) return;
 
     try {
-      await updateProductionTask(editingTask.id, values);
+      // Форматируем даты для API
+      const updateData: any = { ...values };
+      
+      if (values.plannedStartDate) {
+        updateData.plannedStartDate = values.plannedStartDate.format('YYYY-MM-DD');
+      }
+      
+      if (values.plannedEndDate) {
+        updateData.plannedEndDate = values.plannedEndDate.format('YYYY-MM-DD');
+      }
+
+      await updateProductionTask(editingTask.id, updateData);
       message.success('Задание обновлено');
       setEditModalVisible(false);
       setEditingTask(null);
@@ -2429,17 +2440,54 @@ const ProductionTasks: React.FC = () => {
               </Select>
             </Form.Item>
 
-            <Form.Item
-              name="plannedStartDate"
-              label="Планируемая дата начала"
-              help="Дата начала производства"
-            >
-              <DatePicker 
-                style={{ width: '100%' }}
-                placeholder="Выберите дату"
-                format="DD.MM.YYYY"
-              />
-            </Form.Item>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item
+                  name="plannedStartDate"
+                  label="Дата начала производства"
+                  help="Когда планируется начать производство"
+                  rules={[{ required: true, message: 'Выберите дату начала' }]}
+                >
+                  <DatePicker 
+                    style={{ width: '100%' }}
+                    placeholder="Выберите дату начала"
+                    format="DD.MM.YYYY"
+                    disabledDate={(current) => current && current.isBefore(dayjs().startOf('day'))}
+                  />
+                </Form.Item>
+              </Col>
+              
+              <Col span={12}>
+                <Form.Item
+                  name="plannedEndDate"
+                  label="Дата завершения производства"
+                  help="Когда планируется завершить производство (может быть одинаковой с датой начала)"
+                  dependencies={['plannedStartDate']}
+                  rules={[
+                    { required: true, message: 'Выберите дату завершения' },
+                    ({ getFieldValue }) => ({
+                      validator(_, value) {
+                        const startDate = getFieldValue('plannedStartDate');
+                        if (startDate && value && value.isBefore(startDate)) {
+                          return Promise.reject('Дата завершения не может быть раньше даты начала');
+                        }
+                        return Promise.resolve();
+                      },
+                    }),
+                  ]}
+                >
+                  <DatePicker 
+                    style={{ width: '100%' }}
+                    placeholder="Выберите дату завершения"
+                    format="DD.MM.YYYY"
+                    disabledDate={(current) => {
+                      const startDate = editForm.getFieldValue('plannedStartDate');
+                      return current && startDate && current.isBefore(startDate);
+                    }}
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
 
             <Form.Item
               name="notes"
