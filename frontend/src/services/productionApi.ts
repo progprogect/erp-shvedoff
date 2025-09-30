@@ -517,7 +517,12 @@ export const createProductionTask = async (data: CreateProductionTaskRequest): P
 
 // Редактировать производственное задание
 export const updateProductionTask = async (taskId: number, data: UpdateProductionTaskRequest): Promise<{ success: boolean; data: ProductionTask; message: string }> => {
-  const token = localStorage.getItem('token');
+  const token = getToken();
+  
+  if (!token) {
+    throw new Error('Нет токена авторизации');
+  }
+  
   const response = await fetch(`${API_BASE_URL}/production/tasks/${taskId}`, {
     method: 'PUT',
     headers: {

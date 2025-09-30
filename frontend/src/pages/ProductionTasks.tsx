@@ -70,6 +70,7 @@ import {
 } from '../services/productionApi';
 import ProductionCalendar from '../components/ProductionCalendar';
 import ProductionStatistics from '../components/ProductionStatistics';
+import SimpleGanttChart from '../components/SimpleGanttChart';
 import { catalogApi } from '../services/catalogApi';
 import { useAuthStore } from '../stores/authStore';
 import usePermissions from '../hooks/usePermissions';
@@ -512,7 +513,7 @@ const ProductionTasks: React.FC = () => {
     setActiveTab(key);
     if (key === 'by-product') {
       loadTasksByProduct();
-    } else if (key === 'list' || key === 'calendar') {
+    } else if (key === 'list' || key === 'calendar' || key === 'gantt') {
       loadTasks();
     }
     // Для статистики не нужно дополнительно загружать данные
@@ -1764,6 +1765,16 @@ const ProductionTasks: React.FC = () => {
               label: 'Календарь',
               children: (
                 <ProductionCalendar 
+                  tasks={tasks}
+                  onTaskUpdate={loadTasks}
+                />
+              )
+            },
+            {
+              key: 'gantt',
+              label: 'Диаграмма Ганта',
+              children: (
+                <SimpleGanttChart 
                   tasks={tasks}
                   onTaskUpdate={loadTasks}
                 />
