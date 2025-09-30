@@ -159,6 +159,15 @@ const ProductionTasks: React.FC = () => {
         max-width: 250px !important;
         word-break: break-word !important;
       }
+      
+      /* Специальные стили для колонки "Планируемая дата" */
+      .ant-table-tbody > tr > td:nth-child(8) {
+        min-width: 180px !important;
+        max-width: 180px !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+      }
     `;
     document.head.appendChild(style);
     return () => {
@@ -1076,6 +1085,7 @@ const ProductionTasks: React.FC = () => {
     {
       title: 'Количество',
       key: 'quantity',
+      width: 120,
       render: (record: ProductionTask) => {
         const requested = record.requestedQuantity;
         const produced = record.producedQuantity || 0;
@@ -1128,6 +1138,7 @@ const ProductionTasks: React.FC = () => {
       title: 'Статус',
       dataIndex: 'status',
       key: 'status',
+      width: 100,
       render: (status: string) => {
         const statusConfig = {
           pending: { color: 'blue', text: 'Ожидает' },
@@ -1144,6 +1155,7 @@ const ProductionTasks: React.FC = () => {
       title: 'Приоритет',
       dataIndex: 'priority',
       key: 'priority',
+      width: 80,
       render: (priority: number) => (
         <Tag color={priority <= 2 ? 'red' : priority <= 4 ? 'orange' : 'green'}>
           {priority}
@@ -1154,7 +1166,7 @@ const ProductionTasks: React.FC = () => {
       title: 'Планируемая дата',
       dataIndex: 'plannedStartDate',
       key: 'plannedStartDate',
-      width: 150,
+      width: 180,
       render: (plannedStartDate: string, record: any) => {
         if (!plannedStartDate && !record.plannedEndDate) {
           return <Text type="secondary" style={{ fontStyle: 'italic' }}>Не запланировано</Text>;
@@ -1164,15 +1176,32 @@ const ProductionTasks: React.FC = () => {
         const endDate = record.plannedEndDate ? dayjs(record.plannedEndDate) : null;
         
         if (startDate && endDate) {
+          // Если даты одинаковые - показываем только одну
+          if (startDate.isSame(endDate, 'day')) {
+            return (
+              <Text style={{ whiteSpace: 'nowrap' }}>
+                {startDate.format('DD.MM.YYYY')}
+              </Text>
+            );
+          }
+          // Если разные - показываем диапазон
           return (
-            <div>
-              <Text>{startDate.format('DD.MM')} - {endDate.format('DD.MM.YYYY')}</Text>
-            </div>
+            <Text style={{ whiteSpace: 'nowrap' }}>
+              {startDate.format('DD.MM')} - {endDate.format('DD.MM.YYYY')}
+            </Text>
           );
         } else if (startDate) {
-          return <Text>С {startDate.format('DD.MM.YYYY')}</Text>;
+          return (
+            <Text style={{ whiteSpace: 'nowrap' }}>
+              С {startDate.format('DD.MM.YYYY')}
+            </Text>
+          );
         } else if (endDate) {
-          return <Text>До {endDate.format('DD.MM.YYYY')}</Text>;
+          return (
+            <Text style={{ whiteSpace: 'nowrap' }}>
+              До {endDate.format('DD.MM.YYYY')}
+            </Text>
+          );
         }
         
         return null;
@@ -1181,6 +1210,7 @@ const ProductionTasks: React.FC = () => {
     {
       title: 'Действия',
       key: 'actions',
+      width: 200,
       render: (record: ProductionTask) => (
         <Space size="small">
           {record.status === 'pending' && (
