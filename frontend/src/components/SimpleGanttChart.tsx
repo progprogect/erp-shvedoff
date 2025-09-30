@@ -19,6 +19,7 @@ interface SimpleGanttChartProps {
 interface GanttTask {
   id: number;
   title: string;
+  article?: string;
   orderNumber?: string;
   customerName?: string;
   startDate: Dayjs;
@@ -63,6 +64,7 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
           grouped[orderKey].push({
             id: task.id,
             title: task.product?.name || 'Неизвестный товар',
+            article: task.product?.article,
             orderNumber: task.order?.orderNumber,
             customerName: task.order?.customerName,
             startDate: dayjs(task.plannedStartDate),
@@ -736,8 +738,15 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
                       borderRight: '1px solid #d9d9d9',
                       fontSize: '13px'
                     }}>
-                      🎨 {task.title}
-                      <div style={{ fontSize: '11px', color: '#666' }}>
+                      <div>
+                        🎨 {task.title}
+                      </div>
+                      {task.article && (
+                        <div style={{ fontSize: '11px', color: '#1890ff', marginTop: '2px' }}>
+                          Арт: {task.article}
+                        </div>
+                      )}
+                      <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
                         Приоритет: {task.priority}
                       </div>
                     </div>
