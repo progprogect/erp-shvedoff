@@ -16,7 +16,8 @@ import {
   validateProductionPlanning, 
   checkProductionOverlaps, 
   suggestAlternativeDates,
-  suggestOptimalPlanning 
+  suggestOptimalPlanning,
+  AlternativeDateSuggestion 
 } from '../utils/productionPlanning';
 
 const router = express.Router();
@@ -559,8 +560,8 @@ router.get('/tasks/calendar', authenticateToken, requirePermission('production',
 
     const tasks = await db.query.productionTasks.findMany({
       where: and(
-        sql`${schema.productionTasks.plannedDate} IS NOT NULL`,
-        sql`DATE(${schema.productionTasks.plannedDate}) BETWEEN ${startDate} AND ${endDate}`
+        sql`${schema.productionTasks.plannedStartDate} IS NOT NULL`,
+        sql`DATE(${schema.productionTasks.plannedStartDate}) BETWEEN ${startDate} AND ${endDate}`
       ),
       with: {
         product: {
@@ -579,16 +580,16 @@ router.get('/tasks/calendar', authenticateToken, requirePermission('production',
         }
       },
       orderBy: [
-        asc(schema.productionTasks.plannedDate),
-        asc(schema.productionTasks.plannedStartTime),
+        asc(schema.productionTasks.plannedStartDate),
+        asc(schema.productionTasks.plannedEndDate),
         desc(schema.productionTasks.priority)
       ]
     });
 
     const calendarTasks = tasks.map(task => ({
       id: task.id,
-      plannedDate: task.plannedDate,
-      plannedStartTime: task.plannedStartTime,
+      plannedStartDate: task.plannedStartDate,
+      plannedEndDate: task.plannedEndDate,
       productName: task.product.name,
       requestedQuantity: task.requestedQuantity,
       status: task.status,
@@ -718,7 +719,7 @@ router.get('/statistics/detailed', authenticateToken, requirePermission('product
 router.put('/tasks/:id/schedule', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
     const taskId = Number(req.params.id);
-    const { plannedDate, plannedStartTime } = req.body;
+    const { plannedStartDate, plannedEndDate } = req.body;
 
     const task = await db.query.productionTasks.findFirst({
       where: eq(schema.productionTasks.id, taskId)
@@ -731,8 +732,8 @@ router.put('/tasks/:id/schedule', authenticateToken, requirePermission('producti
     // Обновляем планирование
     const [updatedTask] = await db.update(schema.productionTasks)
       .set({
-        plannedDate: plannedDate ? new Date(plannedDate) : null,
-        plannedStartTime: plannedStartTime || null,
+        plannedStartDate: plannedStartDate ? new Date(plannedStartDate) : null,
+        plannedEndDate: plannedEndDate ? new Date(plannedEndDate) : null,
         updatedAt: new Date()
       })
       .where(eq(schema.productionTasks.id, taskId))
@@ -1572,11 +1573,11 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
             let aPlannedDate = Infinity;
             let bPlannedDate = Infinity;
             
-            if (a.plannedDate) {
-              aPlannedDate = new Date(a.plannedDate.toString()).getTime();
+            if (a.plannedStartDate) {
+              aPlannedDate = new Date(a.plannedStartDate.toString()).getTime();
             }
-            if (b.plannedDate) {
-              bPlannedDate = new Date(b.plannedDate.toString()).getTime();
+            if (b.plannedStartDate) {
+              bPlannedDate = new Date(b.plannedStartDate.toString()).getTime();
             }
             
             if (aPlannedDate !== bPlannedDate) {
@@ -2746,7 +2747,7 @@ router.get('/planning/overlaps', authenticateToken, requirePermission('productio
       plannedEndDate as string
     );
     
-    let suggestions = [];
+    let suggestions: AlternativeDateSuggestion[] = [];
     if (overlaps.length > 0) {
       suggestions = await suggestAlternativeDates(
         plannedStartDate as string,

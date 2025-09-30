@@ -1,0 +1,34 @@
+                   List of relations
+ Schema |           Name            | Type  |  Owner   
+--------+---------------------------+-------+----------
+ public | audit_log                 | table | postgres
+ public | bottom_types              | table | postgres
+ public | carpet_edge_types         | table | postgres
+ public | categories                | table | postgres
+ public | cutting_operations        | table | postgres
+ public | defect_products           | table | postgres
+ public | operation_reversals       | table | postgres
+ public | order_items               | table | postgres
+ public | order_messages            | table | postgres
+ public | orders                    | table | postgres
+ public | permissions               | table | postgres
+ public | product_logos             | table | postgres
+ public | product_materials         | table | postgres
+ public | product_relations         | table | postgres
+ public | product_surfaces          | table | postgres
+ public | production_queue          | table | postgres
+ public | production_task_extras    | table | postgres
+ public | production_tasks          | table | postgres
+ public | products                  | table | postgres
+ public | puzzle_types              | table | postgres
+ public | role_permissions          | table | postgres
+ public | roll_covering_composition | table | postgres
+ public | shipment_items            | table | postgres
+ public | shipment_orders           | table | postgres
+ public | shipments                 | table | postgres
+ public | stock                     | table | postgres
+ public | stock_movements           | table | postgres
+ public | user_permissions          | table | postgres
+ public | users                     | table | postgres
+(29 rows)
+

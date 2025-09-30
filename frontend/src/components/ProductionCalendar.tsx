@@ -57,7 +57,7 @@ const ProductionCalendar: React.FC<ProductionCalendarProps> = ({ tasks, onTaskUp
   const getTasksForDate = (date: Dayjs): CalendarTask[] => {
     const dateStr = date.format('YYYY-MM-DD');
     return calendarTasks.filter(task => 
-      dayjs(task.plannedDate).format('YYYY-MM-DD') === dateStr
+      dayjs(task.plannedStartDate).format('YYYY-MM-DD') === dateStr
     );
   };
 
@@ -112,7 +112,7 @@ const ProductionCalendar: React.FC<ProductionCalendarProps> = ({ tasks, onTaskUp
   const openScheduleModal = (task: ProductionTask) => {
     setSelectedTask(task);
     scheduleForm.setFieldsValue({
-      plannedDate: task.plannedDate ? dayjs(task.plannedDate) : null
+      plannedDate: task.plannedStartDate ? dayjs(task.plannedStartDate) : null
     });
     setScheduleModalVisible(true);
   };
@@ -124,7 +124,7 @@ const ProductionCalendar: React.FC<ProductionCalendarProps> = ({ tasks, onTaskUp
     setLoading(true);
     try {
       const scheduleData = {
-        plannedDate: values.plannedDate ? values.plannedDate.format('YYYY-MM-DD') : null
+        plannedStartDate: values.plannedDate ? values.plannedDate.format('YYYY-MM-DD') : null
       };
 
       await updateTaskSchedule(selectedTask.id, scheduleData);
@@ -206,9 +206,9 @@ const ProductionCalendar: React.FC<ProductionCalendarProps> = ({ tasks, onTaskUp
       width: 100,
       render: (record: CalendarTask) => (
         <div>
-          {record.plannedStartTime && (
+          {record.plannedStartDate && (
             <Tag icon={<ClockCircleOutlined />} color="blue">
-              {record.plannedStartTime}
+              {dayjs(record.plannedStartDate).format('DD.MM.YYYY')}
             </Tag>
           )}
         </div>

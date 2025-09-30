@@ -412,21 +412,36 @@ const ProductionTasks: React.FC = () => {
         return;
       }
 
-      if (!task.plannedDate) {
+      // Новая логика группировки с гибким планированием
+      if (!task.plannedStartDate && !task.plannedEndDate) {
         groups.unplanned.push(task);
         return;
       }
 
-      const plannedDate = dayjs(task.plannedDate).startOf('day');
+      const startDate = task.plannedStartDate ? dayjs(task.plannedStartDate).startOf('day') : null;
+      const endDate = task.plannedEndDate ? dayjs(task.plannedEndDate).startOf('day') : null;
       
-      if (plannedDate.isBefore(today)) {
-        groups.overdue.push(task);
-      } else if (plannedDate.isSame(today)) {
-        groups.today.push(task);
-      } else if (plannedDate.isSame(tomorrow)) {
-        groups.tomorrow.push(task);
-      } else {
-        groups.later.push(task);
+      if (startDate) {
+        if (startDate.isBefore(today)) {
+          groups.overdue.push(task);
+        } else if (startDate.isSame(today)) {
+          groups.today.push(task);
+        } else if (startDate.isSame(tomorrow)) {
+          groups.tomorrow.push(task);
+        } else {
+          groups.later.push(task);
+        }
+      } else if (endDate) {
+        // Если есть только дата завершения
+        if (endDate.isBefore(today)) {
+          groups.overdue.push(task);
+        } else if (endDate.isSame(today)) {
+          groups.today.push(task);
+        } else if (endDate.isSame(tomorrow)) {
+          groups.tomorrow.push(task);
+        } else {
+          groups.later.push(task);
+        }
       }
     });
 
@@ -565,7 +580,8 @@ const ProductionTasks: React.FC = () => {
       priority: task.priority,
       notes: task.notes,
       assignedTo: task.assignedTo,
-      plannedDate: task.plannedDate ? dayjs(task.plannedDate) : null
+      plannedStartDate: task.plannedStartDate ? dayjs(task.plannedStartDate) : null,
+      plannedEndDate: task.plannedEndDate ? dayjs(task.plannedEndDate) : null
     });
     setEditModalVisible(true);
   };
@@ -1162,42 +1178,30 @@ const ProductionTasks: React.FC = () => {
     },
     {
       title: 'Планируемая дата',
-      dataIndex: 'plannedDate',
-      key: 'plannedDate',
-      width: 120,
-      render: (plannedDate: string) => {
-        if (!plannedDate) {
+      dataIndex: 'plannedStartDate',
+      key: 'plannedStartDate',
+      width: 150,
+      render: (plannedStartDate: string, record: any) => {
+        if (!plannedStartDate && !record.plannedEndDate) {
           return <Text type="secondary" style={{ fontStyle: 'italic' }}>Не запланировано</Text>;
         }
-        const date = dayjs(plannedDate);
-        const today = dayjs().startOf('day');
-        const taskDate = date.startOf('day');
         
-        let color = '';
-        let icon = null;
+        const startDate = plannedStartDate ? dayjs(plannedStartDate) : null;
+        const endDate = record.plannedEndDate ? dayjs(record.plannedEndDate) : null;
         
-        if (taskDate.isBefore(today)) {
-          color = '#ff4d4f'; // красный для просроченных
-          icon = <ClockCircleOutlined style={{ color: '#ff4d4f', marginRight: 4 }} />;
-        } else if (taskDate.isSame(today)) {
-          color = '#1890ff'; // синий для сегодняшних
-          icon = <CalendarOutlined style={{ color: '#1890ff', marginRight: 4 }} />;
-        } else if (taskDate.isSame(today.add(1, 'day'))) {
-          color = '#faad14'; // оранжевый для завтрашних
-          icon = <CalendarOutlined style={{ color: '#faad14', marginRight: 4 }} />;
-        } else {
-          color = '#52c41a'; // зеленый для будущих
-          icon = <CalendarOutlined style={{ color: '#52c41a', marginRight: 4 }} />;
+        if (startDate && endDate) {
+          return (
+            <div>
+              <Text>{startDate.format('DD.MM')} - {endDate.format('DD.MM.YYYY')}</Text>
+            </div>
+          );
+        } else if (startDate) {
+          return <Text>С {startDate.format('DD.MM.YYYY')}</Text>;
+        } else if (endDate) {
+          return <Text>До {endDate.format('DD.MM.YYYY')}</Text>;
         }
         
-        return (
-          <div style={{ color }}>
-            {icon}
-            <span style={{ fontSize: '12px' }}>
-              {date.format('DD.MM.YYYY')}
-            </span>
-          </div>
-        );
+        return null;
       },
     },
     {
@@ -2159,13 +2163,11 @@ const ProductionTasks: React.FC = () => {
           
           {/* Умная форма планирования */}
           <ProductionPlanningForm
-            productId={form.getFieldValue('productId')}
-            quantity={form.getFieldValue('requestedQuantity')}
             onValuesChange={(values) => {
               // Синхронизируем значения с основной формой
               Object.keys(values).forEach(key => {
                 if (values[key] !== undefined) {
-                  form.setFieldValue(key, values[key]);
+                  // Значения будут обработаны в handleCreateTask
                 }
               });
             }}
@@ -2384,9 +2386,9 @@ const ProductionTasks: React.FC = () => {
             </Form.Item>
 
             <Form.Item
-              name="plannedDate"
-              label="Планируемая дата выполнения"
-              help="Дата планирования задания"
+              name="plannedStartDate"
+              label="Планируемая дата начала"
+              help="Дата начала производства"
             >
               <DatePicker 
                 style={{ width: '100%' }}
@@ -3425,11 +3427,16 @@ const ProductionTasks: React.FC = () => {
                         🔄 {dayjs(viewingTask.updatedAt).format('DD.MM.YYYY HH:mm')}
                       </div>
                     </Col>
-                    {viewingTask.plannedDate && (
+                    {(viewingTask.plannedStartDate || viewingTask.plannedEndDate) && (
                       <Col span={12}>
                         <strong>Планируемая дата:</strong>
                         <div style={{ marginTop: 4, color: '#1890ff' }}>
-                          🎯 {dayjs(viewingTask.plannedDate).format('DD.MM.YYYY')}
+                          🎯 {viewingTask.plannedStartDate && viewingTask.plannedEndDate 
+                            ? `${dayjs(viewingTask.plannedStartDate).format('DD.MM.YYYY')} - ${dayjs(viewingTask.plannedEndDate).format('DD.MM.YYYY')}`
+                            : viewingTask.plannedStartDate 
+                              ? `С ${dayjs(viewingTask.plannedStartDate).format('DD.MM.YYYY')}`
+                              : `До ${dayjs(viewingTask.plannedEndDate).format('DD.MM.YYYY')}`
+                          }
                         </div>
                       </Col>
                     )}

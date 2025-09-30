@@ -1,0 +1,37 @@
+                        List of relations
+ Schema |               Name               |   Type   |  Owner   
+--------+----------------------------------+----------+----------
+ public | audit_log_id_seq                 | sequence | postgres
+ public | bottom_types_id_seq              | sequence | postgres
+ public | carpet_edge_types_id_seq         | sequence | postgres
+ public | categories_id_seq                | sequence | postgres
+ public | cutting_operations_id_seq        | sequence | postgres
+ public | defect_products_id_seq           | sequence | postgres
+ public | operation_reversals_id_seq       | sequence | postgres
+ public | order_items_id_seq               | sequence | postgres
+ public | order_messages_id_seq            | sequence | postgres
+ public | order_number_seq                 | sequence | postgres
+ public | order_number_sequence            | sequence | postgres
+ public | orders_id_seq                    | sequence | postgres
+ public | permissions_id_seq               | sequence | postgres
+ public | product_logos_id_seq             | sequence | postgres
+ public | product_materials_id_seq         | sequence | postgres
+ public | product_relations_id_seq         | sequence | postgres
+ public | product_surfaces_id_seq          | sequence | postgres
+ public | production_queue_id_seq          | sequence | postgres
+ public | production_task_extras_id_seq    | sequence | postgres
+ public | production_tasks_id_seq          | sequence | postgres
+ public | products_id_seq                  | sequence | postgres
+ public | puzzle_types_id_seq              | sequence | postgres
+ public | role_permissions_id_seq          | sequence | postgres
+ public | roll_covering_composition_id_seq | sequence | postgres
+ public | shipment_items_id_seq            | sequence | postgres
+ public | shipment_orders_id_seq           | sequence | postgres
+ public | shipments_id_seq                 | sequence | postgres
+ public | stock_id_seq                     | sequence | postgres
+ public | stock_movements_id_seq           | sequence | postgres
+ public | telegram_notifications_id_seq    | sequence | postgres
+ public | user_permissions_id_seq          | sequence | postgres
+ public | users_id_seq                     | sequence | postgres
+(32 rows)
+

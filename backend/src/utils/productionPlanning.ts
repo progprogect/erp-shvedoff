@@ -1,5 +1,5 @@
 import { db, schema } from '../db';
-import { eq, and, or, gte, lte, ne } from 'drizzle-orm';
+import { eq, and, or, gte, lte, ne, isNotNull } from 'drizzle-orm';
 
 // Интерфейсы для планирования
 export interface ProductionPlanningData {
@@ -103,10 +103,14 @@ export async function checkProductionOverlaps(
         and(
           excludeTaskId ? ne(schema.productionTasks.id, excludeTaskId) : undefined,
           // Задание активно (не завершено и не отменено)
-          schema.productionTasks.status.in(['pending', 'in_progress', 'paused']),
+          or(
+            eq(schema.productionTasks.status, 'pending'),
+            eq(schema.productionTasks.status, 'in_progress'),
+            eq(schema.productionTasks.status, 'paused')
+          ),
           // Есть планирование
-          schema.productionTasks.plannedStartDate.isNotNull(),
-          schema.productionTasks.plannedEndDate.isNotNull(),
+          isNotNull(schema.productionTasks.plannedStartDate),
+          isNotNull(schema.productionTasks.plannedEndDate),
           // Перекрытие дат
           or(
             // Новое задание начинается внутри существующего
@@ -282,8 +286,8 @@ export async function suggestOptimalPlanning(
       .where(
         and(
           eq(schema.productionTasks.productId, productId),
-          schema.productionTasks.status.eq('completed'),
-          schema.productionTasks.estimatedDurationDays.isNotNull()
+          eq(schema.productionTasks.status, 'completed'),
+          isNotNull(schema.productionTasks.estimatedDurationDays)
         )
       )
       .orderBy(schema.productionTasks.completedAt)

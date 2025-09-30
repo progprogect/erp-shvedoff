@@ -289,8 +289,8 @@ export interface DayStatistics {
 
 export interface CalendarTask {
   id: number;
-  plannedDate: string;
-  plannedStartTime?: string;
+  plannedStartDate?: string;
+  plannedEndDate?: string;
   productName: string;
   requestedQuantity: number;
   status: string;
@@ -863,8 +863,13 @@ export const getDayStatistics = async (startDate: string, endDate: string): Prom
 
 // Обновить календарное планирование задания
 export const updateTaskSchedule = async (taskId: number, scheduleData: {
-  plannedDate?: string;
-  plannedStartTime?: string;
+  plannedStartDate?: string;
+  plannedEndDate?: string;
+  estimatedDurationDays?: number;
+  planningStatus?: string;
+  isFlexible?: boolean;
+  autoAdjustEndDate?: boolean;
+  planningNotes?: string;
 }): Promise<{ success: boolean; data: ProductionTask }> => {
   const token = localStorage.getItem('token');
   const response = await fetch(`${API_BASE_URL}/production/tasks/${taskId}/schedule`, {
