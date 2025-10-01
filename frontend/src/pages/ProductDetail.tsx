@@ -1508,7 +1508,6 @@ const ProductDetail: React.FC = () => {
             <Col span={8}>
               <Form.Item name="carpetEdgeStrength" label="Усиленный край">
                 <Select placeholder="Выберите тип усиления">
-                  <Option value="">Не выбран</Option>
                   <Option value="normal">Не усиленный</Option>
                   <Option value="reinforced">Усиленный</Option>
                 </Select>

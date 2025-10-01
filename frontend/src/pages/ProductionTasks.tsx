@@ -1123,7 +1123,6 @@ const ProductionTasks: React.FC = () => {
       // Край (прочность)
       if (product.carpetEdgeStrength) {
         const strengthNames = {
-          '': 'Не выбран',
           'normal': 'Не усиленный',
           'reinforced': 'Усиленный'
         };
@@ -3717,9 +3716,7 @@ const ProductionTasks: React.FC = () => {
                           <Col span={8}>
                             <strong>Край:</strong>
                             <div style={{ marginTop: 4 }}>
-                              {(viewingTask.product.carpetEdgeStrength as any) === '' ? (
-                                <Tag color="default">Не выбран</Tag>
-                              ) : (viewingTask.product.carpetEdgeStrength as any) === 'normal' ? (
+                              {(viewingTask.product.carpetEdgeStrength as any) === 'normal' ? (
                                 <Tag color="blue">Не усиленный</Tag>
                               ) : (viewingTask.product.carpetEdgeStrength as any) === 'reinforced' ? (
                                 <Tag color="orange">Усиленный</Tag>

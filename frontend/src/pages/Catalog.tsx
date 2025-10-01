@@ -1265,7 +1265,6 @@ const Catalog: React.FC = () => {
                             placeholder="Выберите усиление"
                             style={{ width: '100%' }}
                           >
-                            <Option value="">Не выбран</Option>
                             <Option value="normal">⚪ Не усиленный</Option>
                             <Option value="reinforced">🔒 Усиленный</Option>
                           </Select>
