@@ -1421,9 +1421,9 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
               <Form.Item
                 name="carpetEdgeStrength"
                 label="Усиленный край"
-                rules={[{ required: true, message: 'Выберите тип усиления' }]}
-                initialValue="normal"
-                help="По умолчанию: Усиленный"
+                rules={[{ required: false }]}
+                initialValue=""
+                help="По умолчанию: Не выбран"
               >
                 <Select 
                   placeholder="Выберите тип усиления"
