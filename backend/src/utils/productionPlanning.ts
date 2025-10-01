@@ -98,22 +98,28 @@ export async function checkProductionOverlaps(
           // Есть планирование
           isNotNull(schema.productionTasks.plannedStartDate),
           isNotNull(schema.productionTasks.plannedEndDate),
-          // Перекрытие дат
+          // Перекрытие дат (исключаем одинаковые даты)
           or(
-            // Новое задание начинается внутри существующего
+            // Новое задание начинается внутри существующего (но не в тот же день)
             and(
               gte(schema.productionTasks.plannedStartDate, startDate),
-              lte(schema.productionTasks.plannedStartDate, endDate)
+              lte(schema.productionTasks.plannedStartDate, endDate),
+              ne(schema.productionTasks.plannedStartDate, startDate)
             ),
-            // Новое задание заканчивается внутри существующего
+            // Новое задание заканчивается внутри существующего (но не в тот же день)
             and(
               gte(schema.productionTasks.plannedEndDate, startDate),
-              lte(schema.productionTasks.plannedEndDate, endDate)
+              lte(schema.productionTasks.plannedEndDate, endDate),
+              ne(schema.productionTasks.plannedEndDate, endDate)
             ),
-            // Новое задание полностью охватывает существующее
+            // Новое задание полностью охватывает существующее (но не идентично)
             and(
               lte(schema.productionTasks.plannedStartDate, startDate),
-              gte(schema.productionTasks.plannedEndDate, endDate)
+              gte(schema.productionTasks.plannedEndDate, endDate),
+              or(
+                ne(schema.productionTasks.plannedStartDate, startDate),
+                ne(schema.productionTasks.plannedEndDate, endDate)
+              )
             )
           )
         )
