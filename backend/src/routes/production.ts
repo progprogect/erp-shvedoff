@@ -13,11 +13,7 @@ import {
 } from '../utils/productionSynchronizer';
 import { ExcelExporter } from '../utils/excelExporter';
 import { 
-  validateProductionPlanning, 
-  checkProductionOverlaps, 
-  suggestAlternativeDates,
-  suggestOptimalPlanning,
-  AlternativeDateSuggestion 
+  validateProductionPlanning
 } from '../utils/productionPlanning';
 
 const router = express.Router();
@@ -1427,18 +1423,7 @@ router.put('/tasks/:id', authenticateToken, requirePermission('production', 'man
         return next(createError(planningValidation.error || 'Некорректные данные планирования', 400));
       }
 
-      // Проверка перекрытий при изменении дат
-      if (plannedStartDate && plannedEndDate) {
-        const overlaps = await checkProductionOverlaps(taskId, plannedStartDate, plannedEndDate);
-        if (overlaps.length > 0) {
-          return res.status(409).json({
-            success: false,
-            error: 'Обнаружены перекрытия с существующими заданиями',
-            overlaps: overlaps,
-            suggestions: await suggestAlternativeDates(plannedStartDate, plannedEndDate)
-          });
-        }
-      }
+      // Проверка перекрытий отключена - разрешены параллельные задания
     }
 
     if (plannedStartDate !== undefined) {
@@ -2244,18 +2229,7 @@ router.post('/tasks/suggest', authenticateToken, requirePermission('production',
       return next(createError(planningValidation.error || 'Некорректные данные планирования', 400));
     }
 
-    // Проверка перекрытий (если указаны даты)
-    if (plannedStartDate && plannedEndDate) {
-      const overlaps = await checkProductionOverlaps(null, plannedStartDate, plannedEndDate);
-      if (overlaps.length > 0) {
-        return res.status(409).json({
-          success: false,
-          error: 'Обнаружены перекрытия с существующими заданиями',
-          overlaps: overlaps,
-          suggestions: await suggestAlternativeDates(plannedStartDate, plannedEndDate)
-        });
-      }
-    }
+    // Проверка перекрытий отключена - разрешены параллельные задания
 
     // Создаем производственное задание
     const taskData: any = {
@@ -2819,11 +2793,12 @@ router.get('/planning/suggest', authenticateToken, requirePermission('production
       return next(createError('Необходимо указать productId и quantity', 400));
     }
     
-    const suggestions = await suggestOptimalPlanning(Number(productId), Number(quantity));
-    
+    // Оптимальное планирование отключено - разрешены параллельные задания
     res.json({
       success: true,
-      data: suggestions
+      data: {
+        message: 'Планирование отключено - можно создавать задания с любыми датами'
+      }
     });
   } catch (error) {
     next(error);
@@ -2839,25 +2814,12 @@ router.get('/planning/overlaps', authenticateToken, requirePermission('productio
       return next(createError('Необходимо указать plannedStartDate и plannedEndDate', 400));
     }
     
-    const overlaps = await checkProductionOverlaps(
-      excludeTaskId ? Number(excludeTaskId) : null,
-      plannedStartDate as string,
-      plannedEndDate as string
-    );
-    
-    let suggestions: AlternativeDateSuggestion[] = [];
-    if (overlaps.length > 0) {
-      suggestions = await suggestAlternativeDates(
-        plannedStartDate as string,
-        plannedEndDate as string
-      );
-    }
-    
+    // Проверка перекрытий отключена - разрешены параллельные задания
     res.json({
       success: true,
       data: {
-        overlaps,
-        suggestions
+        overlaps: [],
+        suggestions: []
       }
     });
   } catch (error) {
