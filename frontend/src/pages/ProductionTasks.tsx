@@ -1243,11 +1243,6 @@ const ProductionTasks: React.FC = () => {
                     }),
                     new DocxTableCell({
                       children: [new Paragraph({
-                        children: [new TextRun({ text: "Товар", bold: true })]
-                      })]
-                    }),
-                    new DocxTableCell({
-                      children: [new Paragraph({
                         children: [new TextRun({ text: "Артикул", bold: true })]
                       })]
                     }),
@@ -1279,7 +1274,6 @@ const ProductionTasks: React.FC = () => {
                   const remaining = task.requestedQuantity - task.qualityQuantity;
                   const orderNumber = task.order ? task.order.orderNumber : 'Задание на будущее';
                   const customerName = task.order ? task.order.customerName : '-';
-                  const productName = task.product?.name || 'Не указан';
                   
                   return new DocxTableRow({
                     children: [
@@ -1291,11 +1285,6 @@ const ProductionTasks: React.FC = () => {
                       new DocxTableCell({
                         children: [new Paragraph({
                           children: [new TextRun({ text: customerName })]
-                        })]
-                      }),
-                      new DocxTableCell({
-                        children: [new Paragraph({
-                          children: [new TextRun({ text: productName })]
                         })]
                       }),
                       new DocxTableCell({
