@@ -2876,7 +2876,7 @@ const ProductionTasks: React.FC = () => {
                   name="plannedStartDate"
                   label="Дата начала производства"
                   help="Когда планируется начать производство"
-                  rules={[{ required: true, message: 'Выберите дату начала' }]}
+                  rules={[]}
                 >
                   <DatePicker 
                     style={{ width: '100%' }}
@@ -2894,7 +2894,6 @@ const ProductionTasks: React.FC = () => {
                   help="Когда планируется завершить производство (может быть одинаковой с датой начала)"
                   dependencies={['plannedStartDate']}
                   rules={[
-                    { required: true, message: 'Выберите дату завершения' },
                     ({ getFieldValue }) => ({
                       validator(_, value) {
                         const startDate = getFieldValue('plannedStartDate');

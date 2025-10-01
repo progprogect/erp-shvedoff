@@ -87,7 +87,8 @@ export async function checkProductionOverlaps(
       .innerJoin(schema.products, eq(schema.productionTasks.productId, schema.products.id))
       .where(
         and(
-          excludeTaskId ? ne(schema.productionTasks.id, excludeTaskId) : undefined,
+          // Всегда исключаем собственное задание
+          ne(schema.productionTasks.id, excludeTaskId || -1),
           // Задание активно (не завершено и не отменено)
           or(
             eq(schema.productionTasks.status, 'pending'),
