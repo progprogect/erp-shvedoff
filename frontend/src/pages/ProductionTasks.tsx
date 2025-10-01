@@ -393,7 +393,9 @@ const ProductionTasks: React.FC = () => {
 
   // Обновление статистики
   const updateStats = (tasksList: ProductionTask[]) => {
+    const activeTasks = tasksList.filter(t => t.status !== 'cancelled');
     const newStats = {
+      total: activeTasks.length, // Только активные задания
       pending: tasksList.filter(t => t.status === 'pending').length,
       inProgress: tasksList.filter(t => t.status === 'in_progress').length,
       paused: tasksList.filter(t => t.status === 'paused').length,
@@ -421,6 +423,11 @@ const ProductionTasks: React.FC = () => {
       // Завершенные задания всегда идут в отдельную группу
       if (task.status === 'completed') {
         groups.completed.push(task);
+        return;
+      }
+
+      // Отмененные задания исключаем из всех групп
+      if (task.status === 'cancelled') {
         return;
       }
 
@@ -1163,6 +1170,11 @@ const ProductionTasks: React.FC = () => {
 
       // Фильтруем задания на выбранную дату
       const tasksForDate = tasks.filter(task => {
+        // Исключаем отмененные и завершенные задания
+        if (task.status === 'cancelled' || task.status === 'completed') {
+          return false;
+        }
+        
         if (!task.plannedStartDate || !task.plannedEndDate) {
           return false;
         }
@@ -1942,6 +1954,22 @@ const ProductionTasks: React.FC = () => {
       {/* Фильтры по статусу */}
       <Card style={{ marginBottom: '16px' }}>
         <Title level={5}>Фильтры</Title>
+        
+        {/* Простое уведомление об отмененных заданиях */}
+        {stats.cancelled > 0 && (
+          <div style={{ 
+            marginBottom: '12px', 
+            padding: '8px 12px', 
+            backgroundColor: '#f6f8fa', 
+            border: '1px solid #d1d9e0',
+            borderRadius: '6px',
+            fontSize: '13px',
+            color: '#6a737d'
+          }}>
+            ℹ️ {stats.cancelled} отмененных заданий исключены из планирования
+          </div>
+        )}
+        
         <Space wrap>
           <Button
             type={statusFilter === 'all' ? 'primary' : 'default'}
