@@ -88,7 +88,7 @@ export interface ProductionTask {
     // Дополнительные характеристики для ковров
     carpetEdgeType?: 'straight_cut' | 'direct_cut' | 'puzzle' | 'sub_puzzle' | 'cast_puzzle' | 'overlock' | 'binding';
     carpetEdgeSides?: number;
-    carpetEdgeStrength?: 'normal' | 'reinforced' | 'strong' | 'weak';
+    carpetEdgeStrength?: 'normal' | 'reinforced';
     bottomType?: {
       id: number;
       name: string;

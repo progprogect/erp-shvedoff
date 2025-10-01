@@ -269,9 +269,11 @@ function formatAdditionalCharacteristics(
     characteristics.push('СБорт');
   }
 
-  // Усиление (только если не усиленный)
-  if (edgeStrength === 'weak') {
-    characteristics.push('НеУсил');
+  // Усиление края
+  if (edgeStrength === 'normal') {
+    characteristics.push('НеУс');
+  } else if (edgeStrength === 'reinforced') {
+    characteristics.push('Усил');
   }
 
   // Пресс (только если выбран)

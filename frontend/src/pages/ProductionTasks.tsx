@@ -1118,9 +1118,7 @@ const ProductionTasks: React.FC = () => {
         const strengthNames = {
           '': 'Не выбран',
           'normal': 'Не усиленный',
-          'reinforced': 'Усиленный',
-          'weak': 'Не усиленный',    // старое значение
-          'strong': 'Усиленный'      // старое значение
+          'reinforced': 'Усиленный'
         };
         characteristics.push(`Край: ${strengthNames[product.carpetEdgeStrength as keyof typeof strengthNames] || product.carpetEdgeStrength}`);
       }
@@ -3696,10 +3694,6 @@ const ProductionTasks: React.FC = () => {
                               ) : (viewingTask.product.carpetEdgeStrength as any) === 'normal' ? (
                                 <Tag color="blue">Не усиленный</Tag>
                               ) : (viewingTask.product.carpetEdgeStrength as any) === 'reinforced' ? (
-                                <Tag color="orange">Усиленный</Tag>
-                              ) : (viewingTask.product.carpetEdgeStrength as any) === 'weak' ? (
-                                <Tag color="blue">Не усиленный</Tag>
-                              ) : (viewingTask.product.carpetEdgeStrength as any) === 'strong' ? (
                                 <Tag color="orange">Усиленный</Tag>
                               ) : (
                                 <Tag color="default">{viewingTask.product.carpetEdgeStrength}</Tag>

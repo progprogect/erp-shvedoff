@@ -703,9 +703,6 @@ const ProductDetail: React.FC = () => {
                       <Descriptions.Item label="Усиленный край">
                         {product?.carpetEdgeStrength === 'normal' ? 'Не усиленный' :
                          product?.carpetEdgeStrength === 'reinforced' ? 'Усиленный' :
-                         product?.carpetEdgeStrength === 'weak' ? 'Не усиленный' :
-                         product?.carpetEdgeStrength === 'strong' ? 'Усиленный' :
-                         product?.carpetEdgeStrength === '' ? 'Не выбран' :
                          'Не указано'}
                       </Descriptions.Item>
                       
