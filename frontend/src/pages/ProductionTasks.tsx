@@ -939,7 +939,7 @@ const ProductionTasks: React.FC = () => {
       const result = await completeTasksByProduct(requestData);
       
       if (result.success) {
-        message.success(`Произведено ${producedQuantity} шт. товара "${selectedProductForCompletion.product.name}"`);
+        message.success(`Произведено ${qualityQuantity} шт качественных товара "${selectedProductForCompletion.product.name}"`);
       } else {
         message.error(result.message || 'Ошибка завершения заданий');
         return;
@@ -1505,7 +1505,7 @@ const ProductionTasks: React.FC = () => {
             {produced > 0 && (
               <>
                 <div style={{ color: '#52c41a' }}>
-                  <strong>Произведено:</strong> {produced} шт ({progressPercent}%)
+                  <strong>Произведено:</strong> {quality} шт качественных ({progressPercent}%)
                 </div>
                 {record.defectQuantity > 0 && (
                   <div style={{ color: '#ff7875' }}>
@@ -2957,7 +2957,7 @@ const ProductionTasks: React.FC = () => {
                 <div>
                   <strong>Задание:</strong> {selectedTask.product.name}<br/>
                   <strong>Запрошено:</strong> {selectedTask.requestedQuantity} шт.<br/>
-                  <strong>Уже произведено:</strong> {selectedTask.producedQuantity || 0} шт.<br/>
+                  <strong>Уже произведено:</strong> {selectedTask.qualityQuantity || 0} шт качественных<br/>
                   {(() => {
                     const requested = selectedTask.requestedQuantity;
                     const produced = selectedTask.producedQuantity || 0;
@@ -4089,7 +4089,7 @@ const ProductionTasks: React.FC = () => {
                   )}
                   {(selectedTask.status === 'in_progress' || selectedTask.status === 'paused') && (
                     <div>
-                      <p>Произведенная продукция ({selectedTask.producedQuantity || 0} шт.) останется на складе.</p>
+                      <p>Произведенная продукция ({selectedTask.qualityQuantity || 0} шт качественных) останется на складе.</p>
                       {selectedTask.qualityQuantity > 0 && (
                         <p>Качественных изделий: {selectedTask.qualityQuantity} шт.</p>
                       )}
