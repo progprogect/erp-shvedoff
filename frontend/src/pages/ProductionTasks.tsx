@@ -657,6 +657,20 @@ const ProductionTasks: React.FC = () => {
       // Форматируем даты для API
       const updateData: any = { ...values };
       
+      // Конвертируем строки в числа для числовых полей
+      if (values.qualityQuantity !== undefined) {
+        updateData.qualityQuantity = Number(values.qualityQuantity);
+      }
+      if (values.requestedQuantity !== undefined) {
+        updateData.requestedQuantity = Number(values.requestedQuantity);
+      }
+      if (values.priority !== undefined) {
+        updateData.priority = Number(values.priority);
+      }
+      if (values.assignedTo !== undefined && values.assignedTo !== null) {
+        updateData.assignedTo = Number(values.assignedTo);
+      }
+      
       if (values.plannedStartDate) {
         updateData.plannedStartDate = values.plannedStartDate.format('YYYY-MM-DD');
       }
@@ -665,6 +679,7 @@ const ProductionTasks: React.FC = () => {
         updateData.plannedEndDate = values.plannedEndDate.format('YYYY-MM-DD');
       }
 
+      console.log('[DEBUG] Sending update data:', updateData);
       await updateProductionTask(editingTask.id, updateData);
       message.success('Задание обновлено');
       setEditModalVisible(false);
@@ -742,9 +757,9 @@ const ProductionTasks: React.FC = () => {
 
       // Подготовка данных для отправки
       await completeTask(selectedTask.id, {
-        producedQuantity: produced,
-        qualityQuantity: quality,
-        defectQuantity: defect,
+        producedQuantity: Number(produced),
+        qualityQuantity: Number(quality),
+        defectQuantity: Number(defect),
         notes: values.notes
       });
 
@@ -816,9 +831,9 @@ const ProductionTasks: React.FC = () => {
 
       // Подготовка данных для отправки
       const result = await partialCompleteTask(selectedTask.id, {
-        producedQuantity: produced,
-        qualityQuantity: quality,
-        defectQuantity: defect,
+        producedQuantity: Number(produced),
+        qualityQuantity: Number(quality),
+        defectQuantity: Number(defect),
         notes: values.notes
       });
 
@@ -889,9 +904,9 @@ const ProductionTasks: React.FC = () => {
       const requestData = {
         items: validItems.map(item => ({
           article: item.article.trim(),
-          producedQuantity: item.producedQuantity,
-          qualityQuantity: item.qualityQuantity,
-          defectQuantity: item.defectQuantity
+          producedQuantity: Number(item.producedQuantity),
+          qualityQuantity: Number(item.qualityQuantity),
+          defectQuantity: Number(item.defectQuantity)
         })),
         productionDate: values.productionDate?.format ? values.productionDate.format('YYYY-MM-DD') : undefined,
         notes: values.notes?.trim() || undefined
