@@ -768,6 +768,23 @@ const ProductionTasks: React.FC = () => {
       return;
     }
 
+    // Проверка на отрицательные значения (корректировка)
+    if (partialCompleteFormValues.producedQuantity < 0) {
+      const currentProduced = selectedTask.producedQuantity || 0;
+      const maxRemovable = currentProduced;
+      if (Math.abs(partialCompleteFormValues.producedQuantity) > maxRemovable) {
+        message.error(
+          `Максимум можно убрать: ${maxRemovable} шт. Текущее количество: ${currentProduced} шт.`
+        );
+        return;
+      }
+      
+      // Предупреждение о корректировке
+      message.warning(
+        `Корректировка: будет убрано ${Math.abs(partialCompleteFormValues.producedQuantity)} шт из задания. Товар будет списан со склада.`
+      );
+    }
+
     try {
       // Автоматический пересчет качественных если не указано
       if (!partialCompleteFormValues.qualityQuantity && !partialCompleteFormValues.defectQuantity) {
@@ -840,9 +857,18 @@ const ProductionTasks: React.FC = () => {
         return;
       }
 
+      // Проверка на отрицательные значения (корректировка)
+      const hasNegativeValues = bulkRegisterItems.some(item => 
+        item.producedQuantity < 0 || item.qualityQuantity < 0
+      );
+      
+      if (hasNegativeValues) {
+        message.warning('Отрицательные значения используются для корректировки. Товар будет списан со склада.');
+      }
+
       // Валидация: все строки должны быть заполнены
       const validItems = bulkRegisterItems.filter(item => 
-        item.article.trim() !== '' && item.producedQuantity > 0
+        item.article.trim() !== '' && item.producedQuantity !== 0
       );
 
       if (validItems.length === 0) {
@@ -3005,10 +3031,10 @@ const ProductionTasks: React.FC = () => {
                 <Form.Item
                   name="producedQuantity"
                   label="Произведено (шт)"
-                  help="Можно указать любое количество. Если больше запланированного - излишки добавятся в остатки"
+                  help="Можно указать любое количество. Положительные значения добавляют продукцию, отрицательные убирают (корректировка)"
                   rules={[
                     { required: true, message: 'Укажите количество' },
-                    { type: 'number', min: 0, message: 'Не может быть отрицательным' }
+                    { type: 'number', message: 'Введите число' }
                   ]}
                 >
                   <InputNumber
@@ -3050,9 +3076,9 @@ const ProductionTasks: React.FC = () => {
                       setPartialCompleteFormValues(prev => ({
                         ...prev,
                         qualityQuantity: quality,
-                        defectQuantity: Math.max(0, defect)
+                        defectQuantity: defect
                       }));
-                      partialCompleteForm.setFieldValue('defectQuantity', Math.max(0, defect));
+                      partialCompleteForm.setFieldValue('defectQuantity', defect);
                     }}
                     min={0}
                     max={partialCompleteFormValues.producedQuantity}
@@ -3077,9 +3103,9 @@ const ProductionTasks: React.FC = () => {
                       setPartialCompleteFormValues(prev => ({
                         ...prev,
                         defectQuantity: defect,
-                        qualityQuantity: Math.max(0, quality)
+                        qualityQuantity: quality
                       }));
-                      partialCompleteForm.setFieldValue('qualityQuantity', Math.max(0, quality));
+                      partialCompleteForm.setFieldValue('qualityQuantity', quality);
                     }}
                     min={0}
                     max={partialCompleteFormValues.producedQuantity}
@@ -3313,7 +3339,7 @@ const ProductionTasks: React.FC = () => {
                         newItems[index] = {
                           ...item,
                           qualityQuantity: quality,
-                          defectQuantity: Math.max(0, defect)
+                          defectQuantity: defect
                         };
                         setBulkRegisterItems(newItems);
                       }}
@@ -3332,7 +3358,7 @@ const ProductionTasks: React.FC = () => {
                         newItems[index] = {
                           ...item,
                           defectQuantity: defect,
-                          qualityQuantity: Math.max(0, quality)
+                          qualityQuantity: quality
                         };
                         setBulkRegisterItems(newItems);
                       }}

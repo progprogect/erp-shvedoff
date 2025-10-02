@@ -12,6 +12,7 @@ import {
   getSyncStatistics 
 } from '../utils/productionSynchronizer';
 import { ExcelExporter } from '../utils/excelExporter';
+import { performStockOperation, getStockInfo } from '../utils/stockManager';
 import { 
   validateProductionPlanning
 } from '../utils/productionPlanning';
@@ -1844,9 +1845,20 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
       return next(createError('Можно регистрировать выпуск только для активных заданий', 400));
     }
 
-    // Валидация
-    if (producedQuantity <= 0 || qualityQuantity < 0 || defectQuantity < 0) {
-      return next(createError('Количество не может быть отрицательным или нулевым', 400));
+    // Валидация - разрешаем отрицательные значения для корректировки
+    if (qualityQuantity < 0 || defectQuantity < 0) {
+      return next(createError('Количество качественных и брака не может быть отрицательным', 400));
+    }
+
+    // Проверка корректировки (отрицательные значения)
+    if (producedQuantity < 0) {
+      const currentProduced = task.producedQuantity || 0;
+      if (currentProduced + producedQuantity < 0) {
+        return next(createError(
+          `Недостаточно продукции для корректировки. Доступно: ${currentProduced} шт, пытаетесь убрать: ${Math.abs(producedQuantity)} шт`, 
+          400
+        ));
+      }
     }
 
     if (qualityQuantity + defectQuantity !== producedQuantity) {
@@ -1872,6 +1884,20 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
     
     // Обновляем общее количество БЕЗ ограничений - отражаем фактически произведенное
     const newTotalProduced = currentProduced + producedQuantity;
+
+    // Обработка отрицательных значений (корректировка)
+    if (producedQuantity < 0) {
+      const quantityToRemove = Math.abs(producedQuantity);
+      
+      // Проверяем достаточность на складе
+      const stockInfo = await getStockInfo(task.productId);
+      if (stockInfo.currentStock < quantityToRemove) {
+        return next(createError(
+          `Недостаточно товара на складе для корректировки. На складе: ${stockInfo.currentStock} шт, требуется убрать: ${quantityToRemove} шт`, 
+          400
+        ));
+      }
+    }
 
     // Используем транзакцию для атомарности операций
     const result = await db.transaction(async (tx) => {
@@ -1899,40 +1925,55 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
         .where(eq(schema.productionTasks.id, taskId))
         .returning();
 
-      // Добавляем годные изделия на склад
-      if (qualityQuantity > 0) {
-        await tx.update(schema.stock)
-          .set({
-            currentStock: sql`${schema.stock.currentStock} + ${qualityQuantity}`,
-            updatedAt: new Date()
-          })
-          .where(eq(schema.stock.productId, task.productId));
+      // Обрабатываем складские операции
+      if (producedQuantity > 0) {
+        // Положительное количество - добавляем на склад
+        if (qualityQuantity > 0) {
+          await tx.update(schema.stock)
+            .set({
+              currentStock: sql`${schema.stock.currentStock} + ${qualityQuantity}`,
+              updatedAt: new Date()
+            })
+            .where(eq(schema.stock.productId, task.productId));
 
-        // Логируем движение товара от задания (только то что идет на выполнение плана)
-        if (taskQualityQuantity > 0) {
-          await tx.insert(schema.stockMovements).values({
-            productId: task.productId,
-            movementType: 'incoming',
-            quantity: taskQualityQuantity,
-            referenceId: taskId,
-            referenceType: 'production_task',
-            comment: `Производство по заданию #${taskId}${isCompleted ? ' (завершено)' : ''}`,
-            userId
-          });
+          // Логируем движение товара от задания (только то что идет на выполнение плана)
+          if (taskQualityQuantity > 0) {
+            await tx.insert(schema.stockMovements).values({
+              productId: task.productId,
+              movementType: 'incoming',
+              quantity: taskQualityQuantity,
+              referenceId: taskId,
+              referenceType: 'production_task',
+              comment: `Производство по заданию #${taskId}${isCompleted ? ' (завершено)' : ''}`,
+              userId
+            });
+          }
+          
+          // Логируем сверхплановое производство отдельно
+          if (overproductionQuality > 0) {
+            await tx.insert(schema.stockMovements).values({
+              productId: task.productId,
+              movementType: 'incoming',
+              quantity: overproductionQuality,
+              referenceId: taskId,
+              referenceType: 'overproduction',
+              comment: `Сверхплановое производство (задание #${taskId})`,
+              userId
+            });
+          }
         }
+      } else if (producedQuantity < 0) {
+        // Отрицательное количество - убираем со склада используя существующую логику корректировки
+        const quantityToRemove = Math.abs(producedQuantity);
         
-        // Логируем сверхплановое производство отдельно
-        if (overproductionQuality > 0) {
-          await tx.insert(schema.stockMovements).values({
-            productId: task.productId,
-            movementType: 'incoming',
-            quantity: overproductionQuality,
-            referenceId: taskId,
-            referenceType: 'overproduction',
-            comment: `Сверхплановое производство (задание #${taskId})`,
-            userId
-          });
-        }
+        // Используем performStockOperation для корректировки
+        await performStockOperation({
+          productId: task.productId,
+          type: 'adjustment',
+          quantity: producedQuantity, // Отрицательное значение
+          userId: userId,
+          comment: `Корректировка задания #${taskId}: убрано ${quantityToRemove} шт`
+        });
       }
 
       // Аудит лог
@@ -1955,7 +1996,16 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
     });
 
     let message = '';
-    if (result.wasCompleted) {
+    if (producedQuantity < 0) {
+      // Корректировка
+      const quantityRemoved = Math.abs(producedQuantity);
+      message = `Корректировка: убрано ${quantityRemoved} шт из задания. Товар списан со склада.`;
+      if (result.wasCompleted) {
+        message += ` Задание завершено: ${newTotalProduced} из ${task.requestedQuantity} шт.`;
+      } else {
+        message += ` Осталось произвести: ${result.remainingQuantity} шт.`;
+      }
+    } else if (result.wasCompleted) {
       if (result.overproductionQuantity > 0) {
         message = `Задание завершено! Произведено ${newTotalProduced} из ${task.requestedQuantity} шт. + ${result.overproductionQuantity} шт. сверх плана`;
       } else {
