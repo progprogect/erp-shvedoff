@@ -599,6 +599,7 @@ const ProductionTasks: React.FC = () => {
       priority: task.priority,
       notes: task.notes,
       assignedTo: task.assignedTo,
+      qualityQuantity: task.qualityQuantity || 0, // Инициализируем текущий прогресс
       plannedStartDate: task.plannedStartDate ? dayjs(task.plannedStartDate) : null,
       plannedEndDate: task.plannedEndDate ? dayjs(task.plannedEndDate) : null
     });
@@ -2887,14 +2888,27 @@ const ProductionTasks: React.FC = () => {
             <Form.Item
               name="qualityQuantity"
               label="Текущий прогресс (без складских операций)"
-              help="Указывает количество выполненных качественных изделий для статистики. Не влияет на складские остатки."
+              help="Текущее количество выполненных качественных изделий. Введите новое абсолютное значение (не приращение). Не влияет на складские остатки."
             >
               <div>
+                {editingTask && (
+                  <div style={{ 
+                    marginBottom: 8, 
+                    padding: 8, 
+                    backgroundColor: '#f5f5f5', 
+                    borderRadius: 4,
+                    fontSize: '12px'
+                  }}>
+                    <Text type="secondary">
+                      Текущее значение: <strong>{editingTask.qualityQuantity || 0} шт</strong>
+                    </Text>
+                  </div>
+                )}
                 <InputNumber 
                   min={0} 
                   max={editingTask?.requestedQuantity || 999999}
                   style={{ width: '100%' }}
-                  placeholder="Введите количество"
+                  placeholder="Введите новое значение"
                   onChange={(value) => {
                     if (value && editingTask?.requestedQuantity) {
                       const progress = Math.round((value / editingTask.requestedQuantity) * 100);
