@@ -205,6 +205,7 @@ export interface UpdateProductionTaskRequest {
   priority?: number;
   notes?: string;
   assignedTo?: number;
+  qualityQuantity?: number; // Текущий прогресс без складских операций
   // Планирование производства
   plannedStartDate?: string; // дата начала производства
   plannedEndDate?: string; // дата завершения производства
