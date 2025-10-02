@@ -3064,25 +3064,11 @@ const ProductionTasks: React.FC = () => {
                 <div>
                   <strong>Задание:</strong> {selectedTask.product.name}<br/>
                   <strong>Запрошено:</strong> {selectedTask.requestedQuantity} шт.<br/>
-                  <strong>Уже произведено:</strong> {selectedTask.qualityQuantity || 0} шт качественных<br/>
-                  {(() => {
-                    const requested = selectedTask.requestedQuantity;
-                    const produced = selectedTask.producedQuantity || 0;
-                    const remaining = Math.max(0, requested - produced);
-                    const isOverproduced = produced > requested;
-                    const overproduction = isOverproduced ? produced - requested : 0;
-                    
-                    if (isOverproduced) {
-                      return <><strong>✅ Выполнено полностью + {overproduction} шт сверх плана</strong></>;
-                    } else if (remaining > 0) {
-                      return <><strong>Осталось произвести:</strong> {remaining} шт.</>;
-                    } else {
-                      return <><strong>✅ Выполнено полностью</strong></>;
-                    }
-                  })()}
+                  <strong>Уже произведено качественных:</strong> {selectedTask.qualityQuantity || 0} шт.<br/>
+                  <strong>Уже произведено брака:</strong> {selectedTask.defectQuantity || 0} шт.
                 </div>
               }
-              description="Вы можете произвести любое количество. Если больше чем нужно - излишки добавятся в остатки товара."
+              description="Вы можете произвести любое количество. Положительные значения добавляют продукцию, отрицательные убирают (корректировка)."
               type="info"
               showIcon
             />
@@ -3108,7 +3094,7 @@ const ProductionTasks: React.FC = () => {
                     style={{ width: '100%' }}
                     value={partialCompleteFormValues.producedQuantity}
                     onChange={(value) => {
-                      const produced = value || 0;
+                      const produced = value ?? 0;
                       setPartialCompleteFormValues(prev => ({
                         ...prev,
                         producedQuantity: produced,
@@ -3120,7 +3106,6 @@ const ProductionTasks: React.FC = () => {
                         defectQuantity: 0
                       });
                     }}
-                    min={0}
                     placeholder="Укажите количество"
                   />
                 </Form.Item>
