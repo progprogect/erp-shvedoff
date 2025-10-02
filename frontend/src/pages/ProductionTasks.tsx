@@ -2359,18 +2359,19 @@ const ProductionTasks: React.FC = () => {
                 <Form.Item
                   name="qualityQuantity"
                   label="Качественных"
+                  help="Можно указать любое количество. Положительные значения добавляют продукцию, отрицательные убирают (корректировка)"
                   rules={[
                     { required: true, message: 'Введите количество' },
-                    { type: 'number', min: 0, message: 'Количество не может быть отрицательным' }
+                    { type: 'number', message: 'Введите число' }
                   ]}
                 >
                   <InputNumber 
-                    min={0} 
                     style={{ width: '100%' }}
                     placeholder="Годных изделий"
                     onChange={(value) => {
                       const defect = completeFormValues.defectQuantity || 0;
-                      completeForm.setFieldsValue({ producedQuantity: (value || 0) + defect });
+                      const qualityValue = typeof value === 'number' ? value : 0;
+                      completeForm.setFieldsValue({ producedQuantity: qualityValue + defect });
                     }}
                   />
                 </Form.Item>
@@ -2379,18 +2380,19 @@ const ProductionTasks: React.FC = () => {
                 <Form.Item
                   name="defectQuantity"
                   label="Бракованных"
+                  help="Можно указать любое количество. Положительные значения добавляют продукцию, отрицательные убирают (корректировка)"
                   rules={[
                     { required: true, message: 'Введите количество' },
-                    { type: 'number', min: 0, message: 'Количество не может быть отрицательным' }
+                    { type: 'number', message: 'Введите число' }
                   ]}
                 >
                   <InputNumber 
-                    min={0} 
                     style={{ width: '100%' }}
                     placeholder="Количество брака"
                     onChange={(value) => {
                       const quality = completeFormValues.qualityQuantity || 0;
-                      completeForm.setFieldsValue({ producedQuantity: quality + (value || 0) });
+                      const defectValue = typeof value === 'number' ? value : 0;
+                      completeForm.setFieldsValue({ producedQuantity: quality + defectValue });
                     }}
                   />
                 </Form.Item>
@@ -3128,16 +3130,17 @@ const ProductionTasks: React.FC = () => {
                 <Form.Item
                   name="qualityQuantity"
                   label="Годных (шт)"
+                  help="Можно указать любое количество. Положительные значения добавляют продукцию, отрицательные убирают (корректировка)"
                   rules={[
                     { required: true, message: 'Укажите количество годных' },
-                    { type: 'number', min: 0, message: 'Не может быть отрицательным' }
+                    { type: 'number', message: 'Введите число' }
                   ]}
                 >
                   <InputNumber
                     style={{ width: '100%' }}
                     value={partialCompleteFormValues.qualityQuantity}
                     onChange={(value) => {
-                      const quality = value || 0;
+                      const quality = value ?? 0;
                       const defect = partialCompleteFormValues.producedQuantity - quality;
                       setPartialCompleteFormValues(prev => ({
                         ...prev,
@@ -3146,7 +3149,6 @@ const ProductionTasks: React.FC = () => {
                       }));
                       partialCompleteForm.setFieldValue('defectQuantity', defect);
                     }}
-                    min={0}
                     max={partialCompleteFormValues.producedQuantity}
                   />
                 </Form.Item>
@@ -3155,16 +3157,17 @@ const ProductionTasks: React.FC = () => {
                 <Form.Item
                   name="defectQuantity"
                   label="Брак (шт)"
+                  help="Можно указать любое количество. Положительные значения добавляют продукцию, отрицательные убирают (корректировка)"
                   rules={[
                     { required: true, message: 'Укажите количество брака' },
-                    { type: 'number', min: 0, message: 'Не может быть отрицательным' }
+                    { type: 'number', message: 'Введите число' }
                   ]}
                 >
                   <InputNumber
                     style={{ width: '100%' }}
                     value={partialCompleteFormValues.defectQuantity}
                     onChange={(value) => {
-                      const defect = value || 0;
+                      const defect = value ?? 0;
                       const quality = partialCompleteFormValues.producedQuantity - defect;
                       setPartialCompleteFormValues(prev => ({
                         ...prev,
@@ -3173,7 +3176,6 @@ const ProductionTasks: React.FC = () => {
                       }));
                       partialCompleteForm.setFieldValue('qualityQuantity', quality);
                     }}
-                    min={0}
                     max={partialCompleteFormValues.producedQuantity}
                   />
                 </Form.Item>
