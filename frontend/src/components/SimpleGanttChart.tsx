@@ -129,11 +129,12 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
     // Вычисляем позицию в днях относительно начала диапазона
     const startDay = taskStart.diff(rangeStart, 'day');
     const duration = taskEnd.diff(taskStart, 'day') + 1;
-    const totalDays = rangeEnd.diff(rangeStart, 'day') + 1;
     
+    // Используем индексы колонок вместо процентных значений
+    // Это обеспечивает точное соответствие с grid-колонками
     return {
-      left: `${(startDay / totalDays) * 100}%`,
-      width: `${(duration / totalDays) * 100}%`
+      gridColumnStart: startDay + 1, // +1 потому что grid-column-start начинается с 1
+      gridColumnEnd: startDay + duration + 1
     };
   };
 
@@ -335,7 +336,8 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
       const taskElement = document.querySelector(`[data-task-id="${draggedTask.id}"]`) as HTMLElement;
       if (taskElement) {
         const originalPosition = getTaskPosition(draggedTask.startDate, draggedTask.endDate);
-        taskElement.style.left = originalPosition.left;
+        taskElement.style.gridColumnStart = originalPosition.gridColumnStart.toString();
+        taskElement.style.gridColumnEnd = originalPosition.gridColumnEnd.toString();
       }
     } finally {
       setDraggedTask(null);
@@ -411,8 +413,7 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
         style={{ 
           border: '1px solid #d9d9d9', 
           borderRadius: '6px',
-          overflow: 'hidden',
-          overflowX: 'auto'
+          overflow: 'hidden'
         }}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -443,7 +444,7 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
               display: 'grid',
               gridTemplateColumns: `repeat(${visibleDays.length}, minmax(80px, 1fr))`,
               textAlign: 'center',
-              overflowX: 'auto'
+              minWidth: `${visibleDays.length * 80}px`
             }}
           >
             {visibleDays.map((day, index) => (
@@ -467,7 +468,7 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
         </div>
 
         {/* Задания */}
-        <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
+        <div style={{ maxHeight: '500px', overflowY: 'auto', overflowX: 'auto' }}>
           {Object.entries(groupedTasks).map(([orderKey, orderTasks]) => (
             <div key={orderKey}>
               {/* Заголовок заказа */}
@@ -496,7 +497,8 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
                   style={{ 
                     display: 'grid',
                     gridTemplateColumns: `repeat(${visibleDays.length}, minmax(80px, 1fr))`,
-                    height: '40px'
+                    height: '40px',
+                    minWidth: `${visibleDays.length * 80}px`
                   }}
                 >
                   {visibleDays.map((_, index) => (
@@ -546,7 +548,8 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
                       display: 'grid',
                       gridTemplateColumns: `repeat(${visibleDays.length}, minmax(80px, 1fr))`,
                       height: '40px',
-                      position: 'relative'
+                      position: 'relative',
+                      minWidth: `${visibleDays.length * 80}px`
                     }}>
                       {visibleDays.map((_, index) => (
                         <div 
@@ -564,10 +567,9 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
                         <div
                           data-task-id={task.id}
                           style={{
-                            position: 'absolute',
-                            top: '4px',
-                            left: position.left,
-                            width: position.width,
+                            gridColumnStart: position.gridColumnStart,
+                            gridColumnEnd: position.gridColumnEnd,
+                            margin: '4px 2px',
                             height: '32px',
                             backgroundColor: getStatusColor(task.status),
                             borderRadius: '4px',
