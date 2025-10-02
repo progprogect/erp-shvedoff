@@ -77,7 +77,12 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
         }
       });
     
-    return grouped;
+    // Фильтруем пустые группы - показываем только заказы с планом
+    const filteredGrouped = Object.fromEntries(
+      Object.entries(grouped).filter(([_, tasks]) => tasks.length > 0)
+    );
+    
+    return filteredGrouped;
   }, [tasks, statusFilter]);
 
   // Получение дней в выбранном диапазоне для отображения
@@ -406,7 +411,8 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
         style={{ 
           border: '1px solid #d9d9d9', 
           borderRadius: '6px',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          overflowX: 'auto'
         }}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -435,8 +441,9 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
             className="timeline-area"
             style={{ 
               display: 'grid',
-              gridTemplateColumns: `repeat(${visibleDays.length}, 1fr)`,
-              textAlign: 'center'
+              gridTemplateColumns: `repeat(${visibleDays.length}, minmax(80px, 1fr))`,
+              textAlign: 'center',
+              overflowX: 'auto'
             }}
           >
             {visibleDays.map((day, index) => (
@@ -488,7 +495,7 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
                   className="timeline-area"
                   style={{ 
                     display: 'grid',
-                    gridTemplateColumns: `repeat(${visibleDays.length}, 1fr)`,
+                    gridTemplateColumns: `repeat(${visibleDays.length}, minmax(80px, 1fr))`,
                     height: '40px'
                   }}
                 >
@@ -537,7 +544,7 @@ const SimpleGanttChart: React.FC<SimpleGanttChartProps> = ({
                     {/* Область для полосы */}
                     <div style={{ 
                       display: 'grid',
-                      gridTemplateColumns: `repeat(${visibleDays.length}, 1fr)`,
+                      gridTemplateColumns: `repeat(${visibleDays.length}, minmax(80px, 1fr))`,
                       height: '40px',
                       position: 'relative'
                     }}>
