@@ -2885,6 +2885,73 @@ const ProductionTasks: React.FC = () => {
             </Form.Item>
 
             <Form.Item
+              name="qualityQuantity"
+              label="Текущий прогресс (без складских операций)"
+              help="Указывает количество выполненных качественных изделий для статистики. Не влияет на складские остатки."
+            >
+              <div>
+                <InputNumber 
+                  min={0} 
+                  max={editingTask?.requestedQuantity || 999999}
+                  style={{ width: '100%' }}
+                  placeholder="Введите количество"
+                  onChange={(value) => {
+                    if (value && editingTask?.requestedQuantity) {
+                      const progress = Math.round((value / editingTask.requestedQuantity) * 100);
+                      // Индикатор прогресса будет обновлен автоматически через form values
+                    }
+                  }}
+                />
+                {editingTask && (
+                  <Form.Item shouldUpdate={(prevValues, currentValues) => 
+                    prevValues.qualityQuantity !== currentValues.qualityQuantity
+                  }>
+                    {({ getFieldValue }) => {
+                      const currentProgress = getFieldValue('qualityQuantity') || 0;
+                      const progress = editingTask.requestedQuantity > 0 
+                        ? Math.round((currentProgress / editingTask.requestedQuantity) * 100)
+                        : 0;
+                      const isCompleted = currentProgress >= editingTask.requestedQuantity;
+                      
+                      return (
+                        <div style={{ marginTop: 8, fontSize: '12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ 
+                              width: '100%', 
+                              height: 6, 
+                              backgroundColor: '#f0f0f0', 
+                              borderRadius: 3,
+                              overflow: 'hidden'
+                            }}>
+                              <div style={{
+                                width: `${Math.min(progress, 100)}%`,
+                                height: '100%',
+                                backgroundColor: isCompleted ? '#52c41a' : '#1890ff',
+                                transition: 'all 0.3s ease'
+                              }} />
+                            </div>
+                            <span style={{ 
+                              color: isCompleted ? '#52c41a' : '#1890ff',
+                              fontWeight: 'bold',
+                              minWidth: '40px'
+                            }}>
+                              {progress}%
+                            </span>
+                          </div>
+                          {isCompleted && (
+                            <div style={{ color: '#52c41a', marginTop: 4, fontWeight: 'bold' }}>
+                              ✅ Задание будет автоматически завершено
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }}
+                  </Form.Item>
+                )}
+              </div>
+            </Form.Item>
+
+            <Form.Item
               name="assignedTo"
               label="Назначить на"
             >
