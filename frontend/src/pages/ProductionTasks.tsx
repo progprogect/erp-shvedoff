@@ -244,7 +244,7 @@ const ProductionTasks: React.FC = () => {
     producedQuantity: number;
     qualityQuantity: number;
     defectQuantity: number;
-  }>>([{ id: 1, article: '', producedQuantity: 10, qualityQuantity: 10, defectQuantity: 0 }]);
+  }>>([{ id: 1, article: '', producedQuantity: 0, qualityQuantity: 0, defectQuantity: 0 }]);
 
   // Состояние для поиска товаров в массовой регистрации
   const [bulkRegisterProducts, setBulkRegisterProducts] = useState<Product[]>([]);
@@ -762,6 +762,12 @@ const ProductionTasks: React.FC = () => {
   const handlePartialCompleteTask = async (values: any) => {
     if (!selectedTask) return;
 
+    // Проверка на нулевые значения
+    if (partialCompleteFormValues.producedQuantity === 0) {
+      message.warning('Количество не может быть 0. Укажите положительное число.');
+      return;
+    }
+
     try {
       // Автоматический пересчет качественных если не указано
       if (!partialCompleteFormValues.qualityQuantity && !partialCompleteFormValues.defectQuantity) {
@@ -824,6 +830,16 @@ const ProductionTasks: React.FC = () => {
   // Массовая регистрация выпуска продукции (WBS 2 - Adjustments Задача 4.2)
   const handleBulkRegister = async (values: any) => {
     try {
+      // Проверка на нулевые значения
+      const hasZeroValues = bulkRegisterItems.some(item => 
+        item.producedQuantity === 0 || item.qualityQuantity === 0
+      );
+      
+      if (hasZeroValues) {
+        message.warning('Количество не может быть 0. Укажите положительные числа.');
+        return;
+      }
+
       // Валидация: все строки должны быть заполнены
       const validItems = bulkRegisterItems.filter(item => 
         item.article.trim() !== '' && item.producedQuantity > 0
@@ -887,7 +903,7 @@ const ProductionTasks: React.FC = () => {
 
         setBulkRegisterModalVisible(false);
         bulkRegisterForm.resetFields();
-        setBulkRegisterItems([{ id: 1, article: '', producedQuantity: 10, qualityQuantity: 10, defectQuantity: 0 }]);
+        setBulkRegisterItems([{ id: 1, article: '', producedQuantity: 0, qualityQuantity: 0, defectQuantity: 0 }]);
         loadTasks();
         loadTasksByProduct();
       } else {
@@ -1667,7 +1683,7 @@ const ProductionTasks: React.FC = () => {
                   setSelectedTask(record);
                   const currentProduced = record.producedQuantity || 0;
                   const remainingQuantity = record.requestedQuantity - currentProduced;
-                  const defaultProduced = Math.min(remainingQuantity, 10); // По умолчанию 10 или остаток
+                  const defaultProduced = 0; // По умолчанию 0, пользователь сам введет
                   setPartialCompleteFormValues({
                     producedQuantity: defaultProduced,
                     qualityQuantity: defaultProduced,
@@ -1730,7 +1746,7 @@ const ProductionTasks: React.FC = () => {
                   setSelectedTask(record);
                   const currentProduced = record.producedQuantity || 0;
                   const remainingQuantity = record.requestedQuantity - currentProduced;
-                  const defaultProduced = Math.min(remainingQuantity, 10); // По умолчанию 10 или остаток
+                  const defaultProduced = 0; // По умолчанию 0, пользователь сам введет
                   setPartialCompleteFormValues({
                     producedQuantity: defaultProduced,
                     qualityQuantity: defaultProduced,
@@ -2715,7 +2731,7 @@ const ProductionTasks: React.FC = () => {
                   initialValue={selectedProductForCompletion.totalQuantity}
                 >
                   <InputNumber 
-                    min={1} 
+                    min={0} 
                     style={{ width: '100%' }}
                     placeholder="Общее количество"
                   />
@@ -2992,7 +3008,7 @@ const ProductionTasks: React.FC = () => {
                   help="Можно указать любое количество. Если больше запланированного - излишки добавятся в остатки"
                   rules={[
                     { required: true, message: 'Укажите количество' },
-                    { type: 'number', min: 1, message: 'Минимум 1 шт' }
+                    { type: 'number', min: 0, message: 'Не может быть отрицательным' }
                   ]}
                 >
                   <InputNumber
@@ -3011,7 +3027,7 @@ const ProductionTasks: React.FC = () => {
                         defectQuantity: 0
                       });
                     }}
-                    min={1}
+                    min={0}
                     placeholder="Укажите количество"
                   />
                 </Form.Item>
@@ -3132,7 +3148,7 @@ const ProductionTasks: React.FC = () => {
         onCancel={() => {
           setBulkRegisterModalVisible(false);
           bulkRegisterForm.resetFields();
-          setBulkRegisterItems([{ id: 1, article: '', producedQuantity: 10, qualityQuantity: 10, defectQuantity: 0 }]);
+          setBulkRegisterItems([{ id: 1, article: '', producedQuantity: 0, qualityQuantity: 0, defectQuantity: 0 }]);
         }}
         footer={null}
         width={1000}
@@ -3163,8 +3179,8 @@ const ProductionTasks: React.FC = () => {
                   setBulkRegisterItems([...bulkRegisterItems, {
                     id: newId,
                     article: '',
-                    producedQuantity: 10,
-                    qualityQuantity: 10,
+                    producedQuantity: 0,
+                    qualityQuantity: 0,
                     defectQuantity: 0
                   }]);
                 }}
@@ -3269,7 +3285,7 @@ const ProductionTasks: React.FC = () => {
                   <div style={{ flex: 2, paddingRight: 8, display: 'flex', alignItems: 'center' }}>
                     <InputNumber
                       style={{ width: '100%', height: '50px' }}
-                      min={1}
+                      min={0}
                       value={item.producedQuantity}
                       onChange={(value) => {
                         const produced = value || 0;
@@ -3387,7 +3403,7 @@ const ProductionTasks: React.FC = () => {
                 onClick={() => {
                   setBulkRegisterModalVisible(false);
                   bulkRegisterForm.resetFields();
-                  setBulkRegisterItems([{ id: 1, article: '', producedQuantity: 10, qualityQuantity: 10, defectQuantity: 0 }]);
+                  setBulkRegisterItems([{ id: 1, article: '', producedQuantity: 0, qualityQuantity: 0, defectQuantity: 0 }]);
                 }}
               >
                 Отмена
