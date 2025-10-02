@@ -2603,14 +2603,13 @@ const ProductionTasks: React.FC = () => {
               <Form.Item
                 name="plannedStartDate"
                 label="Дата начала производства"
-                help="Когда планируется начать производство"
+                help="Когда планируется начать производство (можно указать любую дату, включая прошлые)"
                 rules={[{ required: true, message: 'Выберите дату начала' }]}
               >
                 <DatePicker 
                   style={{ width: '100%' }}
                   placeholder="Выберите дату начала"
                   format="DD.MM.YYYY"
-                  disabledDate={(current) => current && current.isBefore(dayjs().startOf('day'))}
                 />
               </Form.Item>
             </Col>
@@ -2871,7 +2870,6 @@ const ProductionTasks: React.FC = () => {
                     style={{ width: '100%' }}
                     placeholder="Выберите дату начала"
                     format="DD.MM.YYYY"
-                    disabledDate={(current) => current && current.isBefore(dayjs().startOf('day'))}
                   />
                 </Form.Item>
               </Col>
