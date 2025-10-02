@@ -1359,6 +1359,7 @@ router.put('/tasks/:id', authenticateToken, requirePermission('production', 'man
       priority, 
       notes, 
       assignedTo,
+      qualityQuantity, // Поле для статистики прогресса без складских операций
       // Поля планирования
       plannedStartDate,
       plannedEndDate
@@ -1413,6 +1414,31 @@ router.put('/tasks/:id', authenticateToken, requirePermission('production', 'man
       updateData.assignedTo = assignedTo; // Устанавливаем assignedTo (может быть null)
     }
 
+    // Обработка поля прогресса без складских операций
+    if (qualityQuantity !== undefined) {
+      if (!Number.isInteger(qualityQuantity) || qualityQuantity < 0) {
+        return next(createError('Прогресс должен быть неотрицательным целым числом', 400));
+      }
+      
+      // Проверяем, что прогресс не превышает запрошенное количество
+      const maxQuantity = task.requestedQuantity;
+      if (qualityQuantity > maxQuantity) {
+        return next(createError(`Прогресс не может превышать запрошенное количество (${maxQuantity} шт)`, 400));
+      }
+      
+      updateData.qualityQuantity = qualityQuantity;
+      
+      console.log(`[DEBUG] Updating qualityQuantity for task ${taskId}: ${qualityQuantity}`);
+      
+      // Автоматически определяем статус задания
+      const isCompleted = qualityQuantity >= task.requestedQuantity;
+      if (isCompleted && task.status !== 'completed') {
+        updateData.status = 'completed';
+        updateData.completedAt = new Date();
+        updateData.completedBy = userId;
+      }
+    }
+
     // Валидация и обновление полей планирования
     if (plannedStartDate !== undefined || plannedEndDate !== undefined) {
       const planningValidation = validateProductionPlanning({
@@ -1436,10 +1462,12 @@ router.put('/tasks/:id', authenticateToken, requirePermission('production', 'man
     }
 
     // Обновляем задание
+    console.log(`[DEBUG] Update data for task ${taskId}:`, updateData);
     const updatedTask = await db.update(schema.productionTasks)
       .set(updateData)
       .where(eq(schema.productionTasks.id, taskId))
       .returning();
+    console.log(`[DEBUG] Updated task ${taskId}:`, updatedTask[0]);
 
     // Получаем полную информацию о задании
     const fullTask = await db.query.productionTasks.findFirst({
@@ -1487,11 +1515,17 @@ router.put('/tasks/:id', authenticateToken, requirePermission('production', 'man
         }
       }
     });
+    
+    console.log(`[DEBUG] Full task ${taskId} after query:`, fullTask?.qualityQuantity);
 
     res.json({
       success: true,
       data: fullTask,
-      message: 'Задание обновлено'
+      message: 'Задание обновлено',
+      debug: {
+        updatedTask: updatedTask[0],
+        qualityQuantityUpdated: qualityQuantity !== undefined
+      }
     });
   } catch (error) {
     next(error);
@@ -1846,9 +1880,7 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
     }
 
     // Валидация - разрешаем отрицательные значения для корректировки
-    if (qualityQuantity < 0 || defectQuantity < 0) {
-      return next(createError('Количество качественных и брака не может быть отрицательным', 400));
-    }
+    // Убрали блокировку отрицательных значений для qualityQuantity и defectQuantity
 
     // Проверка корректировки (отрицательные значения)
     if (producedQuantity < 0) {
@@ -1904,6 +1936,20 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
       // Обновляем счетчики задания
       const newQualityQuantity = (task.qualityQuantity || 0) + qualityQuantity; // записываем ВСЕ качественное количество
       const newDefectQuantity = (task.defectQuantity || 0) + defectQuantity; // весь брак записываем в задание
+      
+      // Проверяем, что итоговые значения не станут отрицательными
+      if (newQualityQuantity < 0) {
+        return next(createError(
+          `Недостаточно качественной продукции в задании для корректировки. Доступно: ${task.qualityQuantity || 0} шт, пытаетесь убрать: ${Math.abs(qualityQuantity)} шт`, 
+          400
+        ));
+      }
+      if (newDefectQuantity < 0) {
+        return next(createError(
+          `Недостаточно бракованной продукции в задании для корректировки. Доступно: ${task.defectQuantity || 0} шт, пытаетесь убрать: ${Math.abs(defectQuantity)} шт`, 
+          400
+        ));
+      }
       
       // Определяем новый статус - готово только если качественных >= запрошенного
       const isCompleted = newQualityQuantity >= task.requestedQuantity;
@@ -2000,27 +2046,27 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
       // Корректировка
       const quantityRemoved = Math.abs(producedQuantity);
       message = `Корректировка: убрано ${quantityRemoved} шт из задания. Товар списан со склада.`;
-      if (result.wasCompleted) {
+      if (result && result.wasCompleted) {
         message += ` Задание завершено: ${newTotalProduced} из ${task.requestedQuantity} шт.`;
       } else {
-        message += ` Осталось произвести: ${result.remainingQuantity} шт.`;
+        message += ` Осталось произвести: ${result?.remainingQuantity || 0} шт.`;
       }
-    } else if (result.wasCompleted) {
+    } else if (result && result.wasCompleted) {
       if (result.overproductionQuantity > 0) {
         message = `Задание завершено! Произведено ${newTotalProduced} из ${task.requestedQuantity} шт. + ${result.overproductionQuantity} шт. сверх плана`;
       } else {
         message = `Задание завершено! Произведено ${newTotalProduced} из ${task.requestedQuantity} шт.`;
       }
     } else {
-      message = `Зарегистрировано ${producedQuantity} шт. Осталось произвести: ${result.remainingQuantity} шт.`;
-      if (result.overproductionQuantity > 0) {
+      message = `Зарегистрировано ${producedQuantity} шт. Осталось произвести: ${result?.remainingQuantity || 0} шт.`;
+      if (result && result.overproductionQuantity > 0) {
         message += ` + ${result.overproductionQuantity} шт. сверх плана`;
       }
     }
 
     res.json({
       success: true,
-      data: result.task,
+      data: result?.task || task,
       message: message
     });
 
@@ -2058,13 +2104,25 @@ router.post('/tasks/:id/complete', authenticateToken, requirePermission('product
       return next(createError('Можно завершить только задания в работе', 400));
     }
 
-    // Валидация
-    if (producedQuantity < 0 || qualityQuantity < 0 || defectQuantity < 0) {
-      return next(createError('Количество не может быть отрицательным', 400));
-    }
+    // Валидация - разрешаем отрицательные значения для корректировки
+    // Убрали блокировку отрицательных значений
 
     if (qualityQuantity + defectQuantity !== producedQuantity) {
       return next(createError('Сумма годных и брака должна равняться произведенному количеству', 400));
+    }
+
+    // Проверяем, что итоговые значения не станут отрицательными
+    if (qualityQuantity < 0 && (task.qualityQuantity || 0) + qualityQuantity < 0) {
+      return next(createError(
+        `Недостаточно качественной продукции в задании для корректировки. Доступно: ${task.qualityQuantity || 0} шт, пытаетесь убрать: ${Math.abs(qualityQuantity)} шт`, 
+        400
+      ));
+    }
+    if (defectQuantity < 0 && (task.defectQuantity || 0) + defectQuantity < 0) {
+      return next(createError(
+        `Недостаточно бракованной продукции в задании для корректировки. Доступно: ${task.defectQuantity || 0} шт, пытаетесь убрать: ${Math.abs(defectQuantity)} шт`, 
+        400
+      ));
     }
 
     // Используем транзакцию для атомарности операций
