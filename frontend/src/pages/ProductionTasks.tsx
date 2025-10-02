@@ -2359,7 +2359,6 @@ const ProductionTasks: React.FC = () => {
                 <Form.Item
                   name="qualityQuantity"
                   label="Качественных"
-                  help="Можно указать любое количество. Положительные значения добавляют продукцию, отрицательные убирают (корректировка)"
                   rules={[
                     { required: true, message: 'Введите количество' },
                     { type: 'number', message: 'Введите число' }
@@ -2380,7 +2379,6 @@ const ProductionTasks: React.FC = () => {
                 <Form.Item
                   name="defectQuantity"
                   label="Бракованных"
-                  help="Можно указать любое количество. Положительные значения добавляют продукцию, отрицательные убирают (корректировка)"
                   rules={[
                     { required: true, message: 'Введите количество' },
                     { type: 'number', message: 'Введите число' }
@@ -3130,7 +3128,6 @@ const ProductionTasks: React.FC = () => {
                 <Form.Item
                   name="qualityQuantity"
                   label="Годных (шт)"
-                  help="Можно указать любое количество. Положительные значения добавляют продукцию, отрицательные убирают (корректировка)"
                   rules={[
                     { required: true, message: 'Укажите количество годных' },
                     { type: 'number', message: 'Введите число' }
@@ -3157,7 +3154,6 @@ const ProductionTasks: React.FC = () => {
                 <Form.Item
                   name="defectQuantity"
                   label="Брак (шт)"
-                  help="Можно указать любое количество. Положительные значения добавляют продукцию, отрицательные убирают (корректировка)"
                   rules={[
                     { required: true, message: 'Укажите количество брака' },
                     { type: 'number', message: 'Введите число' }
