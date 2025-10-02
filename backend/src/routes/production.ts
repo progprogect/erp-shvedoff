@@ -1692,29 +1692,24 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
         }
 
         // Распределяем произведенное количество по заданиям
-        let remainingProduced = producedQuantity;
+        // Сначала закрываем задания качественными товарами, брак игнорируем
         let remainingQuality = qualityQuantity;
-        let remainingDefect = defectQuantity;
         const completedTasks = [];
 
         for (const task of activeTasks) {
-          if (remainingProduced <= 0) break;
+          if (remainingQuality <= 0) break;
 
-          const currentProduced = task.producedQuantity || 0;
-          const taskNeeded = task.requestedQuantity - currentProduced;
+          const currentQuality = task.qualityQuantity || 0;
+          const taskQualityNeeded = task.requestedQuantity - currentQuality;
           
-          if (taskNeeded <= 0) continue; // Задание уже выполнено
+          if (taskQualityNeeded <= 0) continue; // Задание уже выполнено
 
-          const taskProduced = Math.min(remainingProduced, taskNeeded);
-          
-          // Пропорционально распределяем качественные и брак
-          const taskQuality = Math.min(remainingQuality, Math.round((taskProduced / producedQuantity) * qualityQuantity));
-          const taskDefect = taskProduced - taskQuality;
+          // Даем ровно столько качественных, сколько нужно для закрытия задания
+          const taskQualityToGive = Math.min(remainingQuality, taskQualityNeeded);
 
           // Обновляем задание
-          const newTotalProduced = currentProduced + taskProduced;
-          const newTotalQuality = (task.qualityQuantity || 0) + taskQuality;
-          const newTotalDefect = (task.defectQuantity || 0) + taskDefect;
+          const newTotalQuality = currentQuality + taskQualityToGive;
+          const newTotalProduced = (task.producedQuantity || 0) + taskQualityToGive;
           
           // Определяем новый статус - готово только если качественных >= запрошенного
           const isCompleted = newTotalQuality >= task.requestedQuantity;
@@ -1725,7 +1720,7 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
               status: newStatus,
               producedQuantity: newTotalProduced,
               qualityQuantity: newTotalQuality,
-              defectQuantity: newTotalDefect,
+              // defectQuantity НЕ обновляем - брак игнорируем
               startedAt: task.startedAt || completionDate,
               startedBy: task.startedBy || userId,
               completedAt: isCompleted ? completionDate : task.completedAt,
@@ -1738,17 +1733,15 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
 
           completedTasks.push(updatedTask[0]);
 
-          // Обновляем остатки
-          remainingProduced -= taskProduced;
-          remainingQuality -= taskQuality;
-          remainingDefect -= taskDefect;
+          // Обновляем остатки качественных товаров
+          remainingQuality -= taskQualityToGive;
 
           // Логируем движение товара (только годные)
-          if (taskQuality > 0) {
+          if (taskQualityToGive > 0) {
             await tx.insert(schema.stockMovements).values({
               productId: product.id,
               movementType: 'incoming',
-              quantity: taskQuality,
+              quantity: taskQualityToGive,
               referenceId: task.id,
               referenceType: 'production_task',
               comment: `Массовая регистрация производства (задание #${task.id})`,
@@ -1757,43 +1750,58 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
           }
         }
 
-        // Добавляем годные изделия на склад
-        if (qualityQuantity > 0) {
+        // Добавляем остаток качественных товаров на склад (если есть)
+        if (remainingQuality > 0) {
           await tx.update(schema.stock)
             .set({
-              currentStock: sql`${schema.stock.currentStock} + ${qualityQuantity}`,
+              currentStock: sql`${schema.stock.currentStock} + ${remainingQuality}`,
               updatedAt: new Date()
             })
             .where(eq(schema.stock.productId, product.id));
-        }
 
-        // Если остались произведенные товары без заданий (сверхплановое производство)
-        if (remainingProduced > 0) {
-          // Логируем сверхплановое производство
+          // Логируем остаток качественных товаров
           await tx.insert(schema.stockMovements).values({
             productId: product.id,
             movementType: 'incoming',
-            quantity: Math.min(remainingQuality, remainingProduced),
+            quantity: remainingQuality,
             referenceType: 'overproduction',
-            comment: `Сверхплановое производство (артикул: ${article})`,
+            comment: `Остаток качественных товаров (артикул: ${article})`,
             userId
           });
+        }
 
-          results.push({
-            article,
-            status: 'warning',
-            message: `Произведено ${producedQuantity} шт., из них ${remainingProduced} шт. сверх плана`,
-            tasksCompleted: completedTasks.length,
-            overproduction: remainingProduced
-          });
-        } else {
-          results.push({
-            article,
-            status: 'success',
-            message: `Произведено ${producedQuantity} шт., распределено по ${completedTasks.length} заданиям`,
-            tasksCompleted: completedTasks.length
+        // Добавляем весь брак на склад (если есть)
+        if (defectQuantity > 0) {
+          await tx.insert(schema.stockMovements).values({
+            productId: product.id,
+            movementType: 'incoming',
+            quantity: defectQuantity,
+            referenceType: 'defect_production',
+            comment: `Брак производства (артикул: ${article})`,
+            userId
           });
         }
+
+        // Определяем статус результата
+        const totalDistributed = qualityQuantity - remainingQuality;
+        const hasOverproduction = remainingQuality > 0;
+        const hasDefect = defectQuantity > 0;
+
+        let resultMessage = `Распределено ${totalDistributed} шт. качественных товаров между ${completedTasks.length} заданиями`;
+        if (hasOverproduction) {
+          resultMessage += `. Остаток: ${remainingQuality} шт. качественных`;
+        }
+        if (hasDefect) {
+          resultMessage += `. Брак: ${defectQuantity} шт.`;
+        }
+
+        results.push({
+          article,
+          status: hasOverproduction || hasDefect ? 'warning' : 'success',
+          message: resultMessage,
+          tasksCompleted: completedTasks.length,
+          overproduction: remainingQuality
+        });
       }
     });
 
