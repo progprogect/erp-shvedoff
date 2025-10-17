@@ -116,7 +116,7 @@ BEGIN
             user_id
         ) VALUES (
             _target_product_id,
-            CASE WHEN _product_diff > 0 THEN 'cutting_in' ELSE 'outgoing' END,
+            (CASE WHEN _product_diff > 0 THEN 'cutting_in' ELSE 'outgoing' END)::movement_type,
             ABS(_product_diff),
             NEW.operation_id,
             'cutting_progress',
@@ -169,7 +169,7 @@ BEGIN
             user_id
         ) VALUES (
             _second_grade_product_id,
-            CASE WHEN _second_grade_diff > 0 THEN 'cutting_in' ELSE 'outgoing' END,
+            (CASE WHEN _second_grade_diff > 0 THEN 'cutting_in' ELSE 'outgoing' END)::movement_type,
             ABS(_second_grade_diff),
             NEW.operation_id,
             'cutting_progress',
