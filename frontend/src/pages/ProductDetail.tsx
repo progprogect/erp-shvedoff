@@ -395,11 +395,16 @@ const ProductDetail: React.FC = () => {
       key: 'quantity',
       width: 100,
       align: 'center' as const,
-      render: (quantity: number) => (
-        <Text strong style={{ color: quantity > 0 ? '#52c41a' : '#ff4d4f' }}>
-          {quantity > 0 ? '+' : ''}{quantity} шт
-        </Text>
-      )
+      render: (quantity: number, record: any) => {
+        // Определяем знак по типу движения, а не по количеству
+        const isPositive = ['incoming', 'cutting_in', 'release_reservation'].includes(record.movementType);
+        const displayQuantity = isPositive ? quantity : -quantity;
+        return (
+          <Text strong style={{ color: isPositive ? '#52c41a' : '#ff4d4f' }}>
+            {isPositive ? '+' : ''}{displayQuantity} шт
+          </Text>
+        );
+      }
     },
     {
       title: 'Пользователь',

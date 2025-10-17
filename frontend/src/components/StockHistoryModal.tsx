@@ -103,7 +103,9 @@ const StockHistoryModal: React.FC<StockHistoryModalProps> = ({
       width: 100,
       align: 'center' as const,
       render: (quantity: number, record: StockMovement) => {
-        const isPositive = quantity > 0;
+        // Определяем знак по типу движения, а не по количеству
+        const isPositive = ['incoming', 'cutting_in', 'release_reservation'].includes(record.movementType);
+        const displayQuantity = isPositive ? quantity : -quantity;
         return (
           <Text 
             strong 
@@ -112,7 +114,7 @@ const StockHistoryModal: React.FC<StockHistoryModalProps> = ({
               fontSize: 16 
             }}
           >
-            {isPositive ? '+' : ''}{quantity} шт
+            {isPositive ? '+' : ''}{displayQuantity} шт
           </Text>
         );
       }
