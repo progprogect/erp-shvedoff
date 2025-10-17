@@ -440,7 +440,7 @@ export const CuttingOperations: React.FC = () => {
       title: 'Планируемые даты',
       key: 'plannedDates',
       width: 150,
-      render: (_, record: CuttingOperation) => {
+      render: (_: any, record: CuttingOperation) => {
         const { plannedStartDate, plannedEndDate, plannedDate } = record;
         
         // Если есть новые поля диапазона дат
