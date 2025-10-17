@@ -66,16 +66,20 @@ COMMENT ON VIEW cutting_operations_with_progress IS 'Операции резки
 CREATE OR REPLACE FUNCTION update_stock_from_cutting_progress()
 RETURNS TRIGGER AS $$
 DECLARE
+    _source_product_id INTEGER;
     _target_product_id INTEGER;
     _second_grade_product_id INTEGER;
     _target_product_name VARCHAR;
     _product_diff INTEGER;
     _second_grade_diff INTEGER;
+    _waste_diff INTEGER;
+    _total_produced_diff INTEGER;
+    _source_quantity INTEGER;
     _user_id INTEGER;
 BEGIN
     -- Получаем информацию об операции резки
-    SELECT co.target_product_id, co.operator_id, p.name 
-    INTO _target_product_id, _user_id, _target_product_name
+    SELECT co.source_product_id, co.target_product_id, co.source_quantity, co.operator_id, p.name 
+    INTO _source_product_id, _target_product_id, _source_quantity, _user_id, _target_product_name
     FROM cutting_operations co
     LEFT JOIN products p ON p.id = co.target_product_id
     WHERE co.id = NEW.operation_id;
@@ -89,12 +93,46 @@ BEGIN
     IF TG_OP = 'INSERT' THEN
         _product_diff := NEW.product_quantity;
         _second_grade_diff := NEW.second_grade_quantity;
+        _waste_diff := NEW.waste_quantity;
     ELSIF TG_OP = 'UPDATE' THEN
         _product_diff := NEW.product_quantity - OLD.product_quantity;
         _second_grade_diff := NEW.second_grade_quantity - OLD.second_grade_quantity;
+        _waste_diff := NEW.waste_quantity - OLD.waste_quantity;
     ELSE -- DELETE
         _product_diff := -OLD.product_quantity;
         _second_grade_diff := -OLD.second_grade_quantity;
+        _waste_diff := -OLD.waste_quantity;
+    END IF;
+
+    -- Вычисляем общее количество произведенного товара (готовый + 2 сорт + брак)
+    _total_produced_diff := _product_diff + _second_grade_diff + _waste_diff;
+
+    -- Списываем исходный товар пропорционально произведенному количеству
+    IF _total_produced_diff != 0 THEN
+        UPDATE stock 
+        SET 
+            current_stock = current_stock - _total_produced_diff,
+            updated_at = NOW()
+        WHERE product_id = _source_product_id;
+
+        -- Логируем списание исходного товара
+        INSERT INTO stock_movements (
+            product_id, 
+            movement_type, 
+            quantity, 
+            reference_id, 
+            reference_type, 
+            comment, 
+            user_id
+        ) VALUES (
+            _source_product_id,
+            'cutting_out'::movement_type,
+            ABS(_total_produced_diff),
+            NEW.operation_id,
+            'cutting_progress',
+            'Списание исходного товара по операции резки #' || NEW.operation_id || ' (прогресс: товар=' || _product_diff || ', 2сорт=' || _second_grade_diff || ', брак=' || _waste_diff || ')',
+            _user_id
+        );
     END IF;
 
     -- Обновляем остатки для готового товара
