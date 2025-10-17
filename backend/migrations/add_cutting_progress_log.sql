@@ -66,11 +66,8 @@ COMMENT ON VIEW cutting_operations_with_progress IS 'Операции резки
 CREATE OR REPLACE FUNCTION update_cutting_operation_on_progress()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- Обновляем время изменения операции резки
-    UPDATE cutting_operations 
-    SET updated_at = NOW() 
-    WHERE id = NEW.operation_id;
-    
+    -- Просто возвращаем NEW без обновления updated_at, так как этой колонки нет в cutting_operations
+    -- В будущем можно добавить колонку updated_at в таблицу cutting_operations если потребуется
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
