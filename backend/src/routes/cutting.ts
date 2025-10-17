@@ -57,9 +57,29 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
       offset: Number(offset)
     });
 
+    // Получаем прогресс для каждой операции
+    const operationsWithProgress = await Promise.all(
+      operations.map(async (operation) => {
+        const progress = await db
+          .select({
+            totalProduct: sql<number>`COALESCE(SUM(${schema.cuttingProgressLog.productQuantity}), 0)`,
+            totalSecondGrade: sql<number>`COALESCE(SUM(${schema.cuttingProgressLog.secondGradeQuantity}), 0)`,
+            totalWaste: sql<number>`COALESCE(SUM(${schema.cuttingProgressLog.wasteQuantity}), 0)`,
+            lastUpdated: sql<Date>`MAX(${schema.cuttingProgressLog.enteredAt})`
+          })
+          .from(schema.cuttingProgressLog)
+          .where(eq(schema.cuttingProgressLog.operationId, operation.id));
+
+        return {
+          ...operation,
+          progress: progress[0]
+        };
+      })
+    );
+
     res.json({
       success: true,
-      data: operations
+      data: operationsWithProgress
     });
   } catch (error) {
     next(error);
@@ -910,6 +930,174 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
   }
 });
 
+// POST /api/cutting/:id/progress - Add progress entry for cutting operation
+router.post('/:id/progress', authenticateToken, requirePermission('cutting', 'edit'), async (req: AuthRequest, res, next) => {
+  try {
+    const operationId = Number(req.params.id);
+    const { productQuantity, secondGradeQuantity, wasteQuantity } = req.body;
+    const userId = req.user!.id;
+
+    if (operationId && isNaN(operationId)) {
+      return next(createError('Некорректный ID операции', 400));
+    }
+
+    // Проверяем существование операции
+    const operation = await db.query.cuttingOperations.findFirst({
+      where: eq(schema.cuttingOperations.id, operationId),
+      with: {
+        sourceProduct: true,
+        targetProduct: true
+      }
+    });
+
+    if (!operation) {
+      return next(createError('Операция резки не найдена', 404));
+    }
+
+    // Можно добавлять прогресс только для незавершенных операций
+    if (operation.status === 'completed') {
+      return next(createError('Нельзя добавлять прогресс для завершенной операции', 400));
+    }
+
+    // Валидация входных данных
+    if (productQuantity === undefined && secondGradeQuantity === undefined && wasteQuantity === undefined) {
+      return next(createError('Необходимо указать хотя бы одно количество', 400));
+    }
+
+    // Проверяем, что все значения являются числами
+    const quantities = {
+      productQuantity: productQuantity !== undefined ? Number(productQuantity) : 0,
+      secondGradeQuantity: secondGradeQuantity !== undefined ? Number(secondGradeQuantity) : 0,
+      wasteQuantity: wasteQuantity !== undefined ? Number(wasteQuantity) : 0
+    };
+
+    // Проверяем, что все значения являются валидными числами
+    if (isNaN(quantities.productQuantity) || isNaN(quantities.secondGradeQuantity) || isNaN(quantities.wasteQuantity)) {
+      return next(createError('Все значения должны быть числами', 400));
+    }
+
+    // Проверяем, что хотя бы одно значение не равно нулю
+    if (quantities.productQuantity === 0 && quantities.secondGradeQuantity === 0 && quantities.wasteQuantity === 0) {
+      return next(createError('Хотя бы одно количество должно быть отличным от нуля', 400));
+    }
+
+    // Добавляем прогресс в транзакции
+    const result = await db.transaction(async (tx) => {
+      // Создаем запись прогресса
+      const [progressEntry] = await tx.insert(schema.cuttingProgressLog).values({
+        operationId,
+        productQuantity: quantities.productQuantity,
+        secondGradeQuantity: quantities.secondGradeQuantity,
+        wasteQuantity: quantities.wasteQuantity,
+        enteredBy: userId
+      }).returning();
+
+      // Получаем текущий прогресс операции
+      const currentProgress = await tx
+        .select({
+          totalProduct: sql<number>`COALESCE(SUM(${schema.cuttingProgressLog.productQuantity}), 0)`,
+          totalSecondGrade: sql<number>`COALESCE(SUM(${schema.cuttingProgressLog.secondGradeQuantity}), 0)`,
+          totalWaste: sql<number>`COALESCE(SUM(${schema.cuttingProgressLog.wasteQuantity}), 0)`
+        })
+        .from(schema.cuttingProgressLog)
+        .where(eq(schema.cuttingProgressLog.operationId, operationId));
+
+      // Логируем добавление прогресса
+      await tx.insert(schema.auditLog).values({
+        tableName: 'cutting_progress_log',
+        recordId: progressEntry.id,
+        operation: 'INSERT',
+        newValues: progressEntry,
+        userId
+      });
+
+      return {
+        progressEntry,
+        currentProgress: currentProgress[0]
+      };
+    });
+
+    // Формируем сообщение с информацией о введенных количествах
+    const messages = [];
+    if (quantities.productQuantity !== 0) {
+      const sign = quantities.productQuantity > 0 ? '+' : '';
+      messages.push(`Товар: ${sign}${quantities.productQuantity} шт.`);
+    }
+    if (quantities.secondGradeQuantity !== 0) {
+      const sign = quantities.secondGradeQuantity > 0 ? '+' : '';
+      messages.push(`2 сорт: ${sign}${quantities.secondGradeQuantity} шт.`);
+    }
+    if (quantities.wasteQuantity !== 0) {
+      const sign = quantities.wasteQuantity > 0 ? '+' : '';
+      messages.push(`Брак: ${sign}${quantities.wasteQuantity} шт.`);
+    }
+
+    res.status(201).json({
+      success: true,
+      data: result,
+      message: `Прогресс добавлен: ${messages.join(', ')}`
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/cutting/:id/progress - Get progress entries for cutting operation
+router.get('/:id/progress', authenticateToken, async (req: AuthRequest, res, next) => {
+  try {
+    const operationId = Number(req.params.id);
+
+    if (!operationId || isNaN(operationId)) {
+      return next(createError('Некорректный ID операции', 400));
+    }
+
+    // Проверяем существование операции
+    const operation = await db.query.cuttingOperations.findFirst({
+      where: eq(schema.cuttingOperations.id, operationId)
+    });
+
+    if (!operation) {
+      return next(createError('Операция резки не найдена', 404));
+    }
+
+    // Получаем записи прогресса
+    const progressEntries = await db.query.cuttingProgressLog.findMany({
+      where: eq(schema.cuttingProgressLog.operationId, operationId),
+      with: {
+        enteredByUser: {
+          columns: {
+            id: true,
+            username: true,
+            fullName: true
+          }
+        }
+      },
+      orderBy: desc(schema.cuttingProgressLog.enteredAt)
+    });
+
+    // Получаем текущий прогресс
+    const currentProgress = await db
+      .select({
+        totalProduct: sql<number>`COALESCE(SUM(${schema.cuttingProgressLog.productQuantity}), 0)`,
+        totalSecondGrade: sql<number>`COALESCE(SUM(${schema.cuttingProgressLog.secondGradeQuantity}), 0)`,
+        totalWaste: sql<number>`COALESCE(SUM(${schema.cuttingProgressLog.wasteQuantity}), 0)`
+      })
+      .from(schema.cuttingProgressLog)
+      .where(eq(schema.cuttingProgressLog.operationId, operationId));
+
+    res.json({
+      success: true,
+      data: {
+        operation,
+        progressEntries,
+        currentProgress: currentProgress[0]
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // PUT /api/cutting/:id - Update cutting operation details
 router.put('/:id', authenticateToken, requirePermission('cutting', 'edit'), async (req: AuthRequest, res, next) => {
   try {
@@ -946,7 +1134,7 @@ router.put('/:id', authenticateToken, requirePermission('cutting', 'edit'), asyn
 
     // Можно редактировать только незавершенные операции
     const editableStatuses = ['in_progress', 'paused', 'cancelled'];
-    if (!editableStatuses.includes(operation.status)) {
+    if (!operation.status || !editableStatuses.includes(operation.status)) {
       return next(createError('Можно редактировать только незавершенные операции (в процессе, на паузе, отмененные)', 400));
     }
 

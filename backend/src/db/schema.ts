@@ -333,6 +333,17 @@ export const cuttingOperations = pgTable('cutting_operations', {
   createdAt: timestamp('created_at').defaultNow()
 });
 
+// Cutting progress log - для промежуточных результатов резки
+export const cuttingProgressLog = pgTable('cutting_progress_log', {
+  id: serial('id').primaryKey(),
+  operationId: integer('operation_id').notNull().references(() => cuttingOperations.id, { onDelete: 'cascade' }),
+  productQuantity: integer('product_quantity').default(0), // Количество готового товара (может быть отрицательным)
+  secondGradeQuantity: integer('second_grade_quantity').default(0), // Количество товара 2-го сорта (может быть отрицательным)
+  wasteQuantity: integer('waste_quantity').default(0), // Количество брака (может быть отрицательным)
+  enteredAt: timestamp('entered_at').defaultNow(),
+  enteredBy: integer('entered_by').notNull().references(() => users.id)
+});
+
 // Shipments - FR-006
 export const shipments = pgTable('shipments', {
   id: serial('id').primaryKey(),
@@ -461,7 +472,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   tasksCompleted: many(productionTasks, { relationName: 'tasksCompleted' }),
   tasksCancelled: many(productionTasks, { relationName: 'tasksCancelled' }),
   cuttingOperator: many(cuttingOperations, { relationName: 'cuttingOperator' }),
-  cuttingAssigned: many(cuttingOperations, { relationName: 'cuttingAssigned' })
+  cuttingAssigned: many(cuttingOperations, { relationName: 'cuttingAssigned' }),
+  cuttingProgressEntries: many(cuttingProgressLog)
 }));
 
 export const categoriesRelations = relations(categories, ({ one, many }) => ({
@@ -572,11 +584,18 @@ export const productionTaskExtrasRelations = relations(productionTaskExtras, ({ 
 }));
 
 // Relations для операций резки
-export const cuttingOperationsRelations = relations(cuttingOperations, ({ one }) => ({
+export const cuttingOperationsRelations = relations(cuttingOperations, ({ one, many }) => ({
   sourceProduct: one(products, { fields: [cuttingOperations.sourceProductId], references: [products.id], relationName: 'sourceCuttingOperations' }),
   targetProduct: one(products, { fields: [cuttingOperations.targetProductId], references: [products.id], relationName: 'targetCuttingOperations' }),
   operator: one(users, { fields: [cuttingOperations.operatorId], references: [users.id], relationName: 'cuttingOperator' }),
-  assignedToUser: one(users, { fields: [cuttingOperations.assignedTo], references: [users.id], relationName: 'cuttingAssigned' })
+  assignedToUser: one(users, { fields: [cuttingOperations.assignedTo], references: [users.id], relationName: 'cuttingAssigned' }),
+  progressLog: many(cuttingProgressLog)
+}));
+
+// Relations для лога прогресса резки
+export const cuttingProgressLogRelations = relations(cuttingProgressLog, ({ one }) => ({
+  operation: one(cuttingOperations, { fields: [cuttingProgressLog.operationId], references: [cuttingOperations.id] }),
+  enteredByUser: one(users, { fields: [cuttingProgressLog.enteredBy], references: [users.id] })
 }));
 
 // Relations для отгрузок

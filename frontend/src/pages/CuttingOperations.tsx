@@ -38,7 +38,8 @@ import cuttingApi, {
   CreateCuttingOperationRequest, 
   UpdateCuttingOperationRequest,
   CompleteCuttingOperationRequest,
-  CuttingOperationDetails
+  CuttingOperationDetails,
+  AddProgressRequest
 } from '../services/cuttingApi';
 import { catalogApi } from '../services/catalogApi';
 import dayjs from 'dayjs';
@@ -94,6 +95,7 @@ export const CuttingOperations: React.FC = () => {
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [completeModalVisible, setCompleteModalVisible] = useState(false);
   const [detailsModalVisible, setDetailsModalVisible] = useState(false);
+  const [progressModalVisible, setProgressModalVisible] = useState(false);
   
   // Данные для модальных окон
   const [selectedOperation, setSelectedOperation] = useState<CuttingOperation | null>(null);
@@ -103,6 +105,7 @@ export const CuttingOperations: React.FC = () => {
   const [createForm] = Form.useForm();
   const [editForm] = Form.useForm();
   const [completeForm] = Form.useForm();
+  const [progressForm] = Form.useForm();
   
   // Фильтры
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -420,6 +423,40 @@ export const CuttingOperations: React.FC = () => {
     }
   };
 
+  // Открытие модального окна для ввода прогресса
+  const handleAddProgress = (operation: CuttingOperation) => {
+    setSelectedOperation(operation);
+    progressForm.resetFields();
+    setProgressModalVisible(true);
+  };
+
+  // Добавление прогресса
+  const handleSubmitProgress = async (values: any) => {
+    if (!selectedOperation) return;
+
+    try {
+      setActionLoading(true);
+      
+      const request: AddProgressRequest = {
+        productQuantity: values.productQuantity || 0,
+        secondGradeQuantity: values.secondGradeQuantity || 0,
+        wasteQuantity: values.wasteQuantity || 0
+      };
+      
+      await cuttingApi.addProgress(selectedOperation.id, request);
+      message.success('Прогресс добавлен');
+      
+      setProgressModalVisible(false);
+      progressForm.resetFields();
+      setSelectedOperation(null);
+      loadData();
+    } catch (error: any) {
+      message.error(error.response?.data?.message || 'Ошибка добавления прогресса');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Колонки таблицы
   const columns = [
     {
@@ -468,6 +505,48 @@ export const CuttingOperations: React.FC = () => {
           {waste} шт.
         </span>
       )
+    },
+    {
+      title: 'Прогресс',
+      key: 'progress',
+      width: 150,
+      render: (record: CuttingOperation) => {
+        const { progress } = record;
+        if (!progress) {
+          return <span style={{ color: '#999' }}>Нет данных</span>;
+        }
+
+        const { totalProduct, totalSecondGrade, totalWaste } = progress;
+        const hasProgress = totalProduct !== 0 || totalSecondGrade !== 0 || totalWaste !== 0;
+
+        if (!hasProgress) {
+          return <span style={{ color: '#999' }}>Нет прогресса</span>;
+        }
+
+        return (
+          <div style={{ fontSize: '12px' }}>
+            <div style={{ marginBottom: '2px' }}>
+              <span style={{ color: '#52c41a', fontWeight: '500' }}>
+                Товар: {totalProduct}
+              </span>
+            </div>
+            {totalSecondGrade > 0 && (
+              <div style={{ marginBottom: '2px' }}>
+                <span style={{ color: '#faad14', fontWeight: '500' }}>
+                  2 сорт: {totalSecondGrade}
+                </span>
+              </div>
+            )}
+            {totalWaste > 0 && (
+              <div>
+                <span style={{ color: '#ff4d4f', fontWeight: '500' }}>
+                  Брак: {totalWaste}
+                </span>
+              </div>
+            )}
+          </div>
+        );
+      }
     },
     {
       title: 'Статус',
@@ -581,6 +660,18 @@ export const CuttingOperations: React.FC = () => {
                   type="text" 
                   icon={<EditOutlined />} 
                   onClick={() => handleEditOperation(record)}
+                />
+              </Tooltip>
+            )}
+
+            {/* Кнопка ввода прогресса (только для незавершенных операций) */}
+            {record.status !== 'completed' && (
+              <Tooltip title="Ввести результаты">
+                <Button 
+                  type="text" 
+                  icon={<CheckOutlined />} 
+                  onClick={() => handleAddProgress(record)}
+                  style={{ color: '#52c41a' }}
                 />
               </Tooltip>
             )}
@@ -1518,6 +1609,156 @@ export const CuttingOperations: React.FC = () => {
               </>
             )}
           </div>
+        )}
+      </Modal>
+
+      {/* Модальное окно для ввода прогресса */}
+      <Modal
+        title="Ввести результаты резки"
+        open={progressModalVisible}
+        onCancel={() => {
+          setProgressModalVisible(false);
+          progressForm.resetFields();
+          setSelectedOperation(null);
+        }}
+        footer={null}
+        width={600}
+      >
+        {selectedOperation && (
+          <>
+            <div style={{ 
+              marginBottom: '24px', 
+              padding: '16px', 
+              backgroundColor: '#f8f9fa', 
+              borderRadius: '8px',
+              border: '1px solid #e9ecef'
+            }}>
+              <div style={{ marginBottom: '8px' }}>
+                <strong>Операция:</strong>
+                <div style={{ marginTop: '4px' }}>
+                  <div style={{ marginBottom: '4px' }}>
+                    <span style={{ fontWeight: '500' }}>{selectedOperation.sourceProduct.name}</span>
+                    {selectedOperation.sourceProduct.article && (
+                      <span style={{ 
+                        fontSize: '12px', 
+                        color: '#666', 
+                        fontFamily: 'monospace',
+                        marginLeft: '8px'
+                      }}>
+                        (Арт: {selectedOperation.sourceProduct.article})
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ textAlign: 'center', margin: '4px 0' }}>↓</div>
+                  <div>
+                    <span style={{ fontWeight: '500' }}>{selectedOperation.targetProduct.name}</span>
+                    {selectedOperation.targetProduct.article && (
+                      <span style={{ 
+                        fontSize: '12px', 
+                        color: '#666', 
+                        fontFamily: 'monospace',
+                        marginLeft: '8px'
+                      }}>
+                        (Арт: {selectedOperation.targetProduct.article})
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div style={{ marginBottom: '8px' }}>
+                <strong>Планировалось:</strong> {selectedOperation.targetQuantity} шт.
+              </div>
+              <div>
+                <strong>Текущий прогресс:</strong>
+                {selectedOperation.progress ? (
+                  <div style={{ marginTop: '4px', fontSize: '12px' }}>
+                    <div>Товар: {selectedOperation.progress.totalProduct} шт.</div>
+                    <div>2 сорт: {selectedOperation.progress.totalSecondGrade} шт.</div>
+                    <div>Брак: {selectedOperation.progress.totalWaste} шт.</div>
+                  </div>
+                ) : (
+                  <span style={{ color: '#999' }}> Нет данных</span>
+                )}
+              </div>
+            </div>
+            
+            <Form
+              form={progressForm}
+              layout="vertical"
+              onFinish={handleSubmitProgress}
+            >
+              <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#fff7e6', borderRadius: '6px', border: '1px solid #ffd591' }}>
+                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                  <WarningOutlined style={{ color: '#fa8c16', marginRight: '8px' }} />
+                  <strong style={{ color: '#fa8c16' }}>Внимание!</strong>
+                </div>
+                <div style={{ fontSize: '13px', color: '#8c4a00' }}>
+                  • Положительные значения добавляют к результатам<br/>
+                  • Отрицательные значения отнимают от результатов (для корректировки)<br/>
+                  • Можно оставить поля пустыми (будут считаться как 0)
+                </div>
+              </div>
+
+              <Form.Item
+                name="productQuantity"
+                label="Готовый товар"
+                extra="Положительное значение добавляет на склад, отрицательное отнимает"
+              >
+                <InputNumber
+                  style={{ width: '100%' }}
+                  placeholder="Количество готового товара"
+                  size="large"
+                />
+              </Form.Item>
+
+              <Form.Item
+                name="secondGradeQuantity"
+                label="Товар 2-го сорта"
+                extra="Положительное значение добавляет на склад, отрицательное отнимает"
+              >
+                <InputNumber
+                  style={{ width: '100%' }}
+                  placeholder="Количество товара 2-го сорта"
+                  size="large"
+                />
+              </Form.Item>
+
+              <Form.Item
+                name="wasteQuantity"
+                label="Брак"
+                extra="Положительное значение добавляет к статистике брака, отрицательное отнимает"
+              >
+                <InputNumber
+                  style={{ width: '100%' }}
+                  placeholder="Количество брака"
+                  size="large"
+                />
+              </Form.Item>
+
+              <Form.Item>
+                <Space>
+                  <Button 
+                    type="primary" 
+                    htmlType="submit" 
+                    loading={actionLoading}
+                    size="large"
+                  >
+                    Добавить результаты
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      setProgressModalVisible(false);
+                      progressForm.resetFields();
+                      setSelectedOperation(null);
+                    }}
+                    size="large"
+                  >
+                    Отмена
+                  </Button>
+                </Space>
+              </Form.Item>
+            </Form>
+          </>
         )}
       </Modal>
     </div>

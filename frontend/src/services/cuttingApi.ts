@@ -51,6 +51,13 @@ export interface CuttingOperation {
   };
   assignedTo?: number;
   notes?: string;
+  // Информация о прогрессе
+  progress?: {
+    totalProduct: number;
+    totalSecondGrade: number;
+    totalWaste: number;
+    lastUpdated?: Date;
+  };
 }
 
 export interface CreateCuttingOperationRequest {
@@ -82,6 +89,38 @@ export interface CompleteCuttingOperationRequest {
   actualSecondGradeQuantity?: number;
   actualDefectQuantity?: number;
   notes?: string;
+}
+
+// Интерфейсы для работы с прогрессом резки
+export interface CuttingProgressEntry {
+  id: number;
+  operationId: number;
+  productQuantity: number;
+  secondGradeQuantity: number;
+  wasteQuantity: number;
+  enteredAt: string;
+  enteredBy: number;
+  enteredByUser: {
+    id: number;
+    username: string;
+    fullName?: string;
+  };
+}
+
+export interface AddProgressRequest {
+  productQuantity?: number;
+  secondGradeQuantity?: number;
+  wasteQuantity?: number;
+}
+
+export interface CuttingOperationProgress {
+  operation: CuttingOperation;
+  progressEntries: CuttingProgressEntry[];
+  currentProgress: {
+    totalProduct: number;
+    totalSecondGrade: number;
+    totalWaste: number;
+  };
 }
 
 export interface CuttingOperationDetails extends CuttingOperation {
@@ -159,6 +198,29 @@ class CuttingApiService {
   // Изменить статус операции резки (новый метод)
   async changeOperationStatus(id: number, status: string): Promise<CuttingOperation> {
     const response = await axios.put(`${API_BASE_URL}/cutting/${id}/status`, { status }, {
+      headers: this.getAuthHeaders()
+    });
+    return response.data.data;
+  }
+
+  // Добавить прогресс для операции резки
+  async addProgress(id: number, data: AddProgressRequest): Promise<{
+    progressEntry: CuttingProgressEntry;
+    currentProgress: {
+      totalProduct: number;
+      totalSecondGrade: number;
+      totalWaste: number;
+    };
+  }> {
+    const response = await axios.post(`${API_BASE_URL}/cutting/${id}/progress`, data, {
+      headers: this.getAuthHeaders()
+    });
+    return response.data.data;
+  }
+
+  // Получить прогресс операции резки
+  async getOperationProgress(id: number): Promise<CuttingOperationProgress> {
+    const response = await axios.get(`${API_BASE_URL}/cutting/${id}/progress`, {
       headers: this.getAuthHeaders()
     });
     return response.data.data;
