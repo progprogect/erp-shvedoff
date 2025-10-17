@@ -326,7 +326,9 @@ export const cuttingOperations = pgTable('cutting_operations', {
   status: cuttingStatusEnum('status').default('in_progress'),
   operatorId: integer('operator_id').references(() => users.id),
   assignedTo: integer('assigned_to').references(() => users.id), // на кого назначена операция
-  plannedDate: timestamp('planned_date'),
+  plannedDate: timestamp('planned_date'), // Оставляем для обратной совместимости
+  plannedStartDate: timestamp('planned_start_date'), // Новая дата начала операции
+  plannedEndDate: timestamp('planned_end_date'), // Новая дата окончания операции
   completedAt: timestamp('completed_at'),
   createdAt: timestamp('created_at').defaultNow()
 });

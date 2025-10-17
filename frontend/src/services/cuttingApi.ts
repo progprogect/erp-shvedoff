@@ -13,7 +13,9 @@ export interface CuttingOperation {
   actualDefectQuantity?: number;
   status: 'in_progress' | 'paused' | 'completed' | 'cancelled'; // Добавлен статус paused
   operatorId?: number;
-  plannedDate?: string;
+  plannedDate?: string; // Оставляем для обратной совместимости
+  plannedStartDate?: string; // Новая дата начала
+  plannedEndDate?: string; // Новая дата окончания
   completedAt?: string;
   createdAt: string;
   sourceProduct: {
@@ -54,7 +56,9 @@ export interface CreateCuttingOperationRequest {
   targetProductId: number;
   sourceQuantity: number;
   targetQuantity: number;
-  plannedDate?: string;
+  plannedDate?: string; // Оставляем для обратной совместимости
+  plannedStartDate?: string; // Новая дата начала
+  plannedEndDate?: string; // Новая дата окончания
   notes?: string;
   assignedTo?: number;
 }

@@ -196,7 +196,8 @@ export const CuttingOperations: React.FC = () => {
         targetProductId: values.targetProductId,
         sourceQuantity: values.sourceQuantity,
         targetQuantity: values.targetQuantity,
-        plannedDate: values.plannedDate ? values.plannedDate.toISOString() : undefined,
+        plannedStartDate: values.plannedStartDate ? values.plannedStartDate.toISOString() : undefined,
+        plannedEndDate: values.plannedEndDate ? values.plannedEndDate.toISOString() : undefined,
         notes: values.notes,
         assignedTo: values.assignedTo
       };
@@ -436,11 +437,68 @@ export const CuttingOperations: React.FC = () => {
       ),
     },
     {
-      title: 'Плановая дата',
-      dataIndex: 'plannedDate',
-      key: 'plannedDate',
-      width: 120,
-      render: (date: string) => date ? dayjs(date).format('DD.MM.YYYY') : '-',
+      title: 'Планируемые даты',
+      key: 'plannedDates',
+      width: 150,
+      render: (_, record: CuttingOperation) => {
+        const { plannedStartDate, plannedEndDate, plannedDate } = record;
+        
+        // Если есть новые поля диапазона дат
+        if (plannedStartDate && plannedEndDate) {
+          const start = dayjs(plannedStartDate);
+          const end = dayjs(plannedEndDate);
+          const days = end.diff(start, 'day') + 1;
+          
+          return (
+            <div style={{ fontSize: '12px' }}>
+              <div style={{ fontWeight: '500' }}>
+                {start.format('DD.MM.YYYY')} - {end.format('DD.MM.YYYY')}
+              </div>
+              <div style={{ color: '#666' }}>
+                {days} дн.
+              </div>
+            </div>
+          );
+        }
+        
+        // Если есть только дата начала
+        if (plannedStartDate) {
+          return (
+            <div style={{ fontSize: '12px' }}>
+              <div style={{ fontWeight: '500' }}>
+                С: {dayjs(plannedStartDate).format('DD.MM.YYYY')}
+              </div>
+            </div>
+          );
+        }
+        
+        // Если есть только дата окончания
+        if (plannedEndDate) {
+          return (
+            <div style={{ fontSize: '12px' }}>
+              <div style={{ fontWeight: '500' }}>
+                До: {dayjs(plannedEndDate).format('DD.MM.YYYY')}
+              </div>
+            </div>
+          );
+        }
+        
+        // Fallback на старое поле plannedDate для обратной совместимости
+        if (plannedDate) {
+          return (
+            <div style={{ fontSize: '12px' }}>
+              <div style={{ fontWeight: '500' }}>
+                {dayjs(plannedDate).format('DD.MM.YYYY')}
+              </div>
+              <div style={{ color: '#999' }}>
+                (старая версия)
+              </div>
+            </div>
+          );
+        }
+        
+        return '-';
+      },
     },
     {
       title: 'Действия',
@@ -756,17 +814,56 @@ export const CuttingOperations: React.FC = () => {
             </Col>
           </Row>
 
-          <Form.Item
-            name="plannedDate"
-            label="Планируемая дата выполнения"
-          >
-            <DatePicker 
-              style={{ width: '100%' }}
-              format="DD.MM.YYYY"
-              placeholder="Выберите дату"
-              size="large"
-            />
-          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="plannedStartDate"
+                label="Дата начала"
+                rules={[
+                  ({ getFieldValue }) => ({
+                    validator(_, value) {
+                      const endDate = getFieldValue('plannedEndDate');
+                      if (value && endDate && value > endDate) {
+                        return Promise.reject(new Error('Дата начала не может быть позже даты окончания'));
+                      }
+                      return Promise.resolve();
+                    },
+                  }),
+                ]}
+              >
+                <DatePicker 
+                  style={{ width: '100%' }}
+                  format="DD.MM.YYYY"
+                  placeholder="Выберите дату начала"
+                  size="large"
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="plannedEndDate"
+                label="Дата окончания"
+                rules={[
+                  ({ getFieldValue }) => ({
+                    validator(_, value) {
+                      const startDate = getFieldValue('plannedStartDate');
+                      if (value && startDate && startDate > value) {
+                        return Promise.reject(new Error('Дата окончания не может быть раньше даты начала'));
+                      }
+                      return Promise.resolve();
+                    },
+                  }),
+                ]}
+              >
+                <DatePicker 
+                  style={{ width: '100%' }}
+                  format="DD.MM.YYYY"
+                  placeholder="Выберите дату окончания"
+                  size="large"
+                />
+              </Form.Item>
+            </Col>
+          </Row>
 
           <Form.Item
             name="assignedTo"
@@ -968,8 +1065,40 @@ export const CuttingOperations: React.FC = () => {
                 }
               </Descriptions.Item>
               <Descriptions.Item label="Создано">{dayjs(operationDetails.createdAt).format('DD.MM.YYYY HH:mm')}</Descriptions.Item>
-              <Descriptions.Item label="Планируемая дата">
-                {operationDetails.plannedDate ? dayjs(operationDetails.plannedDate).format('DD.MM.YYYY') : 'Не указана'}
+              <Descriptions.Item label="Планируемые даты">
+                {operationDetails.plannedStartDate && operationDetails.plannedEndDate ? (
+                  <div>
+                    <div style={{ fontWeight: '500' }}>
+                      {dayjs(operationDetails.plannedStartDate).format('DD.MM.YYYY')} - {dayjs(operationDetails.plannedEndDate).format('DD.MM.YYYY')}
+                    </div>
+                    <div style={{ color: '#666', fontSize: '12px' }}>
+                      Продолжительность: {dayjs(operationDetails.plannedEndDate).diff(dayjs(operationDetails.plannedStartDate), 'day') + 1} дн.
+                    </div>
+                  </div>
+                ) : operationDetails.plannedStartDate ? (
+                  <div>
+                    <div style={{ fontWeight: '500' }}>
+                      Начало: {dayjs(operationDetails.plannedStartDate).format('DD.MM.YYYY')}
+                    </div>
+                  </div>
+                ) : operationDetails.plannedEndDate ? (
+                  <div>
+                    <div style={{ fontWeight: '500' }}>
+                      Окончание: {dayjs(operationDetails.plannedEndDate).format('DD.MM.YYYY')}
+                    </div>
+                  </div>
+                ) : operationDetails.plannedDate ? (
+                  <div>
+                    <div style={{ fontWeight: '500' }}>
+                      {dayjs(operationDetails.plannedDate).format('DD.MM.YYYY')}
+                    </div>
+                    <div style={{ color: '#999', fontSize: '12px' }}>
+                      (старая версия)
+                    </div>
+                  </div>
+                ) : (
+                  'Не указана'
+                )}
               </Descriptions.Item>
               {operationDetails.completedAt && (
                 <Descriptions.Item label="Завершено" span={2}>
