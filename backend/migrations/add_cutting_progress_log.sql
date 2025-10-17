@@ -62,6 +62,126 @@ LEFT JOIN LATERAL get_cutting_operation_progress(co.id) as progress ON true;
 -- Добавляем комментарий к представлению
 COMMENT ON VIEW cutting_operations_with_progress IS 'Операции резки с информацией о текущем прогрессе';
 
+-- Создаем триггер для автоматического обновления остатков на складе при добавлении прогресса
+CREATE OR REPLACE FUNCTION update_stock_from_cutting_progress()
+RETURNS TRIGGER AS $$
+DECLARE
+    _target_product_id INTEGER;
+    _second_grade_product_id INTEGER;
+    _target_product_name VARCHAR;
+    _product_diff INTEGER;
+    _second_grade_diff INTEGER;
+    _user_id INTEGER;
+BEGIN
+    -- Получаем информацию об операции резки
+    SELECT co.target_product_id, co.operator_id, p.name 
+    INTO _target_product_id, _user_id, _target_product_name
+    FROM cutting_operations co
+    LEFT JOIN products p ON p.id = co.target_product_id
+    WHERE co.id = NEW.operation_id;
+
+    -- Определяем ID товара 2-го сорта (если он существует)
+    SELECT p.id INTO _second_grade_product_id
+    FROM products p
+    WHERE p.name = _target_product_name AND p.grade = 'grade_2' AND p.is_active = TRUE;
+
+    -- Вычисляем разность для обновления остатков
+    IF TG_OP = 'INSERT' THEN
+        _product_diff := NEW.product_quantity;
+        _second_grade_diff := NEW.second_grade_quantity;
+    ELSIF TG_OP = 'UPDATE' THEN
+        _product_diff := NEW.product_quantity - OLD.product_quantity;
+        _second_grade_diff := NEW.second_grade_quantity - OLD.second_grade_quantity;
+    ELSE -- DELETE
+        _product_diff := -OLD.product_quantity;
+        _second_grade_diff := -OLD.second_grade_quantity;
+    END IF;
+
+    -- Обновляем остатки для готового товара
+    IF _product_diff != 0 THEN
+        UPDATE stock 
+        SET 
+            current_stock = current_stock + _product_diff,
+            updated_at = NOW()
+        WHERE product_id = _target_product_id;
+
+        -- Логируем движение товара
+        INSERT INTO stock_movements (
+            product_id, 
+            movement_type, 
+            quantity, 
+            reference_id, 
+            reference_type, 
+            comment, 
+            user_id
+        ) VALUES (
+            _target_product_id,
+            CASE WHEN _product_diff > 0 THEN 'cutting_in' ELSE 'outgoing' END,
+            ABS(_product_diff),
+            NEW.operation_id,
+            'cutting_progress',
+            'Корректировка готового товара по операции резки #' || NEW.operation_id || ' (прогресс)',
+            _user_id
+        );
+    END IF;
+
+    -- Обновляем остатки для товара 2-го сорта
+    IF _second_grade_diff != 0 THEN
+        -- Если товара 2-го сорта нет, создаем его
+        IF _second_grade_product_id IS NULL THEN
+            INSERT INTO products (
+                name, 
+                article, 
+                category_id, 
+                product_type, 
+                grade, 
+                is_active, 
+                notes
+            ) VALUES (
+                _target_product_name, 
+                '2S-' || _target_product_name, 
+                (SELECT category_id FROM products WHERE id = _target_product_id), 
+                (SELECT product_type FROM products WHERE id = _target_product_id), 
+                'grade_2', 
+                TRUE, 
+                'Автоматически создан для 2-го сорта по операции резки #' || NEW.operation_id
+            ) RETURNING id INTO _second_grade_product_id;
+
+            -- Создаем запись остатков для нового товара
+            INSERT INTO stock (product_id, current_stock, reserved_stock)
+            VALUES (_second_grade_product_id, 0, 0);
+        END IF;
+
+        UPDATE stock 
+        SET 
+            current_stock = current_stock + _second_grade_diff,
+            updated_at = NOW()
+        WHERE product_id = _second_grade_product_id;
+
+        -- Логируем движение товара 2-го сорта
+        INSERT INTO stock_movements (
+            product_id, 
+            movement_type, 
+            quantity, 
+            reference_id, 
+            reference_type, 
+            comment, 
+            user_id
+        ) VALUES (
+            _second_grade_product_id,
+            CASE WHEN _second_grade_diff > 0 THEN 'cutting_in' ELSE 'outgoing' END,
+            ABS(_second_grade_diff),
+            NEW.operation_id,
+            'cutting_progress',
+            'Корректировка 2-го сорта по операции резки #' || NEW.operation_id || ' (прогресс)',
+            _user_id
+        );
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- Создаем триггер для автоматического обновления времени изменения операции при добавлении прогресса
 CREATE OR REPLACE FUNCTION update_cutting_operation_on_progress()
 RETURNS TRIGGER AS $$
@@ -76,6 +196,11 @@ CREATE TRIGGER trigger_update_cutting_operation_on_progress
     AFTER INSERT ON cutting_progress_log
     FOR EACH ROW
     EXECUTE FUNCTION update_cutting_operation_on_progress();
+
+CREATE TRIGGER trigger_update_stock_from_cutting_progress
+    AFTER INSERT OR UPDATE OR DELETE ON cutting_progress_log
+    FOR EACH ROW
+    EXECUTE FUNCTION update_stock_from_cutting_progress();
 
 -- Создаем функцию для валидации прогресса (проверка, что операция не завершена)
 CREATE OR REPLACE FUNCTION validate_cutting_progress()
