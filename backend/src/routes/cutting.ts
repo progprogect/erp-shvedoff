@@ -910,7 +910,7 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
   }
 });
 
-// PUT /api/cutting/:id - Update cutting operation details (only before approval)
+// PUT /api/cutting/:id - Update cutting operation details
 router.put('/:id', authenticateToken, requirePermission('cutting', 'edit'), async (req: AuthRequest, res, next) => {
   try {
     const operationId = Number(req.params.id);
@@ -919,7 +919,9 @@ router.put('/:id', authenticateToken, requirePermission('cutting', 'edit'), asyn
       targetProductId, 
       sourceQuantity, 
       targetQuantity, 
-      plannedDate,
+      plannedDate, // Оставляем для обратной совместимости
+      plannedStartDate, // Новая дата начала
+      plannedEndDate, // Новая дата окончания
       notes,
       assignedTo
     } = req.body;
@@ -942,9 +944,10 @@ router.put('/:id', authenticateToken, requirePermission('cutting', 'edit'), asyn
       return next(createError('Операция резки не найдена', 404));
     }
 
-    // Можно редактировать только запланированные операции
-    if (operation.status !== 'planned') {
-      return next(createError('Можно редактировать только запланированные операции', 400));
+    // Можно редактировать только незавершенные операции
+    const editableStatuses = ['in_progress', 'paused', 'cancelled'];
+    if (!editableStatuses.includes(operation.status)) {
+      return next(createError('Можно редактировать только незавершенные операции (в процессе, на паузе, отмененные)', 400));
     }
 
     // Подготавливаем данные для обновления
@@ -999,8 +1002,33 @@ router.put('/:id', authenticateToken, requirePermission('cutting', 'edit'), asyn
       updateData.targetQuantity = Number(targetQuantity);
     }
 
+    // Обработка дат
     if (plannedDate !== undefined) {
       updateData.plannedDate = plannedDate ? new Date(plannedDate) : null;
+    }
+
+    if (plannedStartDate !== undefined) {
+      updateData.plannedStartDate = plannedStartDate ? new Date(plannedStartDate) : null;
+    }
+
+    if (plannedEndDate !== undefined) {
+      updateData.plannedEndDate = plannedEndDate ? new Date(plannedEndDate) : null;
+    }
+
+    // Валидация диапазона дат
+    if (updateData.plannedStartDate && updateData.plannedEndDate) {
+      const startDate = new Date(updateData.plannedStartDate);
+      const endDate = new Date(updateData.plannedEndDate);
+      
+      if (startDate > endDate) {
+        return next(createError('Дата начала не может быть позже даты окончания', 400));
+      }
+      
+      // Проверка на разумный диапазон (не более 30 дней)
+      const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysDiff > 30) {
+        return next(createError('Диапазон дат не может превышать 30 дней', 400));
+      }
     }
 
     if (assignedTo !== undefined) {
@@ -1014,6 +1042,10 @@ router.put('/:id', authenticateToken, requirePermission('cutting', 'edit'), asyn
         }
       }
       updateData.assignedTo = assignedTo || null;
+    }
+
+    if (notes !== undefined) {
+      updateData.notes = notes || null;
     }
 
     // Пересчитываем отходы если изменились количества

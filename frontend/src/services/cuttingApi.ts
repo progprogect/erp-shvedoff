@@ -49,6 +49,8 @@ export interface CuttingOperation {
     username: string;
     fullName?: string;
   };
+  assignedTo?: number;
+  notes?: string;
 }
 
 export interface CreateCuttingOperationRequest {
@@ -56,6 +58,18 @@ export interface CreateCuttingOperationRequest {
   targetProductId: number;
   sourceQuantity: number;
   targetQuantity: number;
+  plannedDate?: string; // Оставляем для обратной совместимости
+  plannedStartDate?: string; // Новая дата начала
+  plannedEndDate?: string; // Новая дата окончания
+  notes?: string;
+  assignedTo?: number;
+}
+
+export interface UpdateCuttingOperationRequest {
+  sourceProductId?: number;
+  targetProductId?: number;
+  sourceQuantity?: number;
+  targetQuantity?: number;
   plannedDate?: string; // Оставляем для обратной совместимости
   plannedStartDate?: string; // Новая дата начала
   plannedEndDate?: string; // Новая дата окончания
@@ -126,8 +140,8 @@ class CuttingApiService {
     return response.data.data;
   }
 
-  // Обновить операцию резки (только до утверждения)
-  async updateCuttingOperation(id: number, data: Partial<CreateCuttingOperationRequest>): Promise<CuttingOperation> {
+  // Обновить операцию резки
+  async updateCuttingOperation(id: number, data: UpdateCuttingOperationRequest): Promise<CuttingOperation> {
     const response = await axios.put(`${API_BASE_URL}/cutting/${id}`, data, {
       headers: this.getAuthHeaders()
     });

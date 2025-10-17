@@ -27,6 +27,7 @@ import {
   StopOutlined,
   DeleteOutlined,
   EyeOutlined,
+  EditOutlined,
   ScissorOutlined,
   WarningOutlined
 } from '@ant-design/icons';
@@ -35,6 +36,7 @@ import usePermissions from '../hooks/usePermissions';
 import cuttingApi, { 
   CuttingOperation, 
   CreateCuttingOperationRequest, 
+  UpdateCuttingOperationRequest,
   CompleteCuttingOperationRequest,
   CuttingOperationDetails
 } from '../services/cuttingApi';
@@ -83,11 +85,13 @@ export const CuttingOperations: React.FC = () => {
   }, []);
   const [operations, setOperations] = useState<CuttingOperation[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [users, setUsers] = useState<Array<{ id: number; username: string; fullName: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   
   // Модальные окна
   const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
   const [completeModalVisible, setCompleteModalVisible] = useState(false);
   const [detailsModalVisible, setDetailsModalVisible] = useState(false);
   
@@ -97,6 +101,7 @@ export const CuttingOperations: React.FC = () => {
   
   // Формы
   const [createForm] = Form.useForm();
+  const [editForm] = Form.useForm();
   const [completeForm] = Form.useForm();
   
   // Фильтры
@@ -113,9 +118,6 @@ export const CuttingOperations: React.FC = () => {
     totalWaste: 0
   });
   
-  // Пользователи для назначения
-  const [users, setUsers] = useState<Array<{ id: number; username: string; fullName: string }>>([]);
-
   // Загрузка данных
   useEffect(() => {
     loadData();
@@ -281,6 +283,57 @@ export const CuttingOperations: React.FC = () => {
       message.error('Ошибка загрузки деталей операции');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Открытие модального окна редактирования
+  const handleEditOperation = (operation: CuttingOperation) => {
+    setSelectedOperation(operation);
+    
+    // Заполняем форму текущими данными операции
+    editForm.setFieldsValue({
+      sourceProductId: operation.sourceProductId,
+      targetProductId: operation.targetProductId,
+      sourceQuantity: operation.sourceQuantity,
+      targetQuantity: operation.targetQuantity,
+      plannedStartDate: operation.plannedStartDate ? dayjs(operation.plannedStartDate) : null,
+      plannedEndDate: operation.plannedEndDate ? dayjs(operation.plannedEndDate) : null,
+      assignedTo: operation.assignedTo,
+      notes: operation.notes
+    });
+    
+    setEditModalVisible(true);
+  };
+
+  // Сохранение изменений операции
+  const handleUpdateOperation = async (values: any) => {
+    if (!selectedOperation) return;
+
+    try {
+      setActionLoading(true);
+      
+      const request = {
+        sourceProductId: values.sourceProductId,
+        targetProductId: values.targetProductId,
+        sourceQuantity: values.sourceQuantity,
+        targetQuantity: values.targetQuantity,
+        plannedStartDate: values.plannedStartDate ? values.plannedStartDate.toISOString() : undefined,
+        plannedEndDate: values.plannedEndDate ? values.plannedEndDate.toISOString() : undefined,
+        notes: values.notes,
+        assignedTo: values.assignedTo
+      };
+      
+      await cuttingApi.updateCuttingOperation(selectedOperation.id, request);
+      message.success('Операция резки обновлена');
+      
+      setEditModalVisible(false);
+      editForm.resetFields();
+      setSelectedOperation(null);
+      loadData();
+    } catch (error: any) {
+      message.error(error.response?.data?.message || 'Ошибка обновления операции');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -508,6 +561,9 @@ export const CuttingOperations: React.FC = () => {
         const userRole = user?.role || '';
         const validNextStatuses = cuttingApi.getValidNextStatuses(record.status);
         
+        // Проверяем, можно ли редактировать операцию
+        const canEdit = ['in_progress', 'paused', 'cancelled'].includes(record.status);
+        
         return (
           <Space size="small">
             <Tooltip title="Просмотр">
@@ -517,6 +573,17 @@ export const CuttingOperations: React.FC = () => {
                 onClick={() => handleViewDetails(record)}
               />
             </Tooltip>
+
+            {/* Кнопка редактирования (только для редактируемых статусов) */}
+            {canEdit && (
+              <Tooltip title="Редактировать">
+                <Button 
+                  type="text" 
+                  icon={<EditOutlined />} 
+                  onClick={() => handleEditOperation(record)}
+                />
+              </Tooltip>
+            )}
 
             {/* Управление статусом через Select (кроме завершенных операций) */}
             {record.status !== 'completed' && validNextStatuses.length > 0 && (
@@ -896,6 +963,289 @@ export const CuttingOperations: React.FC = () => {
               placeholder="Дополнительная информация об операции резки..."
               style={{ resize: 'vertical' }}
             />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Модальное окно редактирования операции */}
+      <Modal
+        title="Редактировать операцию резки"
+        open={editModalVisible}
+        onCancel={() => {
+          setEditModalVisible(false);
+          editForm.resetFields();
+          setSelectedOperation(null);
+        }}
+        footer={null}
+        width={800}
+      >
+        <Form
+          form={editForm}
+          layout="vertical"
+          onFinish={handleUpdateOperation}
+        >
+          <Form.Item
+            name="sourceProductId"
+            label="Исходный товар"
+            rules={[{ required: true, message: 'Выберите исходный товар' }]}
+          >
+            <Select
+              showSearch
+              placeholder="Выберите товар для резки"
+              optionFilterProp="label"
+              filterOption={(input, option) =>
+                (option?.label?.toString().toLowerCase().includes(input.toLowerCase())) ?? false
+              }
+              style={{ width: '100%' }}
+              size="large"
+              dropdownStyle={{ maxHeight: 400, overflowY: 'auto' }}
+              optionLabelProp="label"
+              labelInValue={false}
+              getPopupContainer={(trigger) => trigger.parentElement}
+              className="centered-select"
+            >
+              {products.map(product => {
+                const available = getAvailableStock(product);
+                const isDisabled = available <= 0;
+                const label = product.article || product.name;
+                
+                return (
+                  <Option 
+                    key={product.id} 
+                    value={product.id} 
+                    disabled={isDisabled}
+                    label={label}
+                  >
+                    <div style={{ 
+                      padding: '4px 0',
+                      opacity: isDisabled ? 0.5 : 1 
+                    }}>
+                      <div style={{ 
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '2px'
+                      }}>
+                        {product.article && (
+                          <div style={{
+                            fontSize: '14px',
+                            color: '#1890ff',
+                            fontFamily: 'monospace',
+                            fontWeight: '500'
+                          }}>
+                            {product.article}
+                          </div>
+                        )}
+                        <div style={{ 
+                          display: 'flex',
+                          justifyContent: 'flex-end'
+                        }}>
+                          <span style={{ 
+                            color: isDisabled ? '#ff4d4f' : '#52c41a',
+                            fontWeight: '600',
+                            fontSize: '12px'
+                          }}>
+                            {available > 0 ? `✅ ${available} шт.` : '❌ Нет в наличии'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </Option>
+                );
+              })}
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="targetProductId"
+            label="Целевой товар"
+            rules={[{ required: true, message: 'Выберите целевой товар' }]}
+          >
+            <Select
+              showSearch
+              placeholder="Выберите товар для получения"
+              optionFilterProp="label"
+              filterOption={(input, option) =>
+                (option?.label?.toString().toLowerCase().includes(input.toLowerCase())) ?? false
+              }
+              style={{ width: '100%' }}
+              size="large"
+              dropdownStyle={{ maxHeight: 400, overflowY: 'auto' }}
+              optionLabelProp="label"
+              labelInValue={false}
+              getPopupContainer={(trigger) => trigger.parentElement}
+              className="centered-select"
+            >
+              {getAvailableTargetProducts(editForm.getFieldValue('sourceProductId')).map(product => {
+                const label = product.article || product.name;
+                
+                return (
+                  <Option 
+                    key={product.id} 
+                    value={product.id}
+                    label={label}
+                  >
+                    <div style={{ padding: '4px 0' }}>
+                      <div style={{ 
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '2px'
+                      }}>
+                        {product.article && (
+                          <div style={{
+                            fontSize: '14px',
+                            color: '#1890ff',
+                            fontFamily: 'monospace',
+                            fontWeight: '500'
+                          }}>
+                            {product.article}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </Option>
+                );
+              })}
+            </Select>
+          </Form.Item>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="sourceQuantity"
+                label="Количество исходного товара"
+                rules={[
+                  { required: true, message: 'Укажите количество' },
+                  { validator: validateSourceQuantity }
+                ]}
+              >
+                <InputNumber
+                  min={1}
+                  style={{ width: '100%' }}
+                  placeholder="Количество для резки"
+                  size="large"
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="targetQuantity"
+                label="Ожидаемое количество готового товара"
+                rules={[{ required: true, message: 'Укажите ожидаемое количество' }]}
+              >
+                <InputNumber
+                  min={1}
+                  style={{ width: '100%' }}
+                  placeholder="Ожидаемый выход"
+                  size="large"
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="plannedStartDate"
+                label="Дата начала"
+                rules={[
+                  ({ getFieldValue }) => ({
+                    validator(_, value) {
+                      const endDate = getFieldValue('plannedEndDate');
+                      if (value && endDate && value > endDate) {
+                        return Promise.reject(new Error('Дата начала не может быть позже даты окончания'));
+                      }
+                      return Promise.resolve();
+                    },
+                  }),
+                ]}
+              >
+                <DatePicker 
+                  style={{ width: '100%' }}
+                  format="DD.MM.YYYY"
+                  placeholder="Выберите дату начала"
+                  size="large"
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="plannedEndDate"
+                label="Дата окончания"
+                rules={[
+                  ({ getFieldValue }) => ({
+                    validator(_, value) {
+                      const startDate = getFieldValue('plannedStartDate');
+                      if (value && startDate && startDate > value) {
+                        return Promise.reject(new Error('Дата окончания не может быть раньше даты начала'));
+                      }
+                      return Promise.resolve();
+                    },
+                  }),
+                ]}
+              >
+                <DatePicker 
+                  style={{ width: '100%' }}
+                  format="DD.MM.YYYY"
+                  placeholder="Выберите дату окончания"
+                  size="large"
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Form.Item
+            name="assignedTo"
+            label="Назначить на"
+          >
+            <Select
+              placeholder="Выберите исполнителя"
+              allowClear
+              size="large"
+              style={{ width: '100%' }}
+            >
+              {users.map(user => (
+                <Option key={user.id} value={user.id}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontWeight: '500' }}>{user.fullName}</span>
+                    <span style={{ color: '#666', fontSize: '12px' }}>@{user.username}</span>
+                  </div>
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="notes"
+            label="Примечания"
+          >
+            <TextArea 
+              rows={4} 
+              placeholder="Дополнительная информация об операции резки..."
+              size="large"
+            />
+          </Form.Item>
+
+          <Form.Item>
+            <Space>
+              <Button 
+                type="primary" 
+                htmlType="submit" 
+                loading={actionLoading}
+                size="large"
+              >
+                Сохранить изменения
+              </Button>
+              <Button 
+                onClick={() => {
+                  setEditModalVisible(false);
+                  editForm.resetFields();
+                  setSelectedOperation(null);
+                }}
+                size="large"
+              >
+                Отмена
+              </Button>
+            </Space>
           </Form.Item>
         </Form>
       </Modal>
