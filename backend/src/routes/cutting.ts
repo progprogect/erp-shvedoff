@@ -10,7 +10,7 @@ import { ExcelExporter } from '../utils/excelExporter';
 const router = express.Router();
 
 // GET /api/cutting - Get cutting operations list
-router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
+router.get('/', authenticateToken, requirePermission('cutting', 'view'), async (req: AuthRequest, res, next) => {
   try {
     const { status, limit = 50, offset = 0 } = req.query;
 
@@ -866,7 +866,7 @@ router.delete('/:id', authenticateToken, requirePermission('cutting', 'delete'),
 });
 
 // GET /api/cutting/:id - Get cutting operation details
-router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
+router.get('/:id', authenticateToken, requirePermission('cutting', 'view'), async (req: AuthRequest, res, next) => {
   try {
     const operationId = Number(req.params.id);
 
@@ -1043,7 +1043,7 @@ router.post('/:id/progress', authenticateToken, requirePermission('cutting', 'ed
 });
 
 // GET /api/cutting/:id/progress - Get progress entries for cutting operation
-router.get('/:id/progress', authenticateToken, async (req: AuthRequest, res, next) => {
+router.get('/:id/progress', authenticateToken, requirePermission('cutting', 'view'), async (req: AuthRequest, res, next) => {
   try {
     const operationId = Number(req.params.id);
 

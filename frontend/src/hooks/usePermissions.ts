@@ -128,6 +128,100 @@ const getLegacyPermissions = (role: string): MenuPermissions => {
       }
     };
   }
+
+  // Исправляем legacy логику согласно реальным permissions из backend
+  if (role === 'manager') {
+    return {
+      ...basePermissions,
+      actions: {
+        catalog_create: true, catalog_edit: true, catalog_delete: false,
+        stock_edit: false, stock_manage: false,
+        orders_create: true, orders_edit: true, orders_delete: true,
+        production_create: false, production_manage: false,
+        cutting_create: true, cutting_execute: false, // Менеджер может создавать операции резки
+        shipments_create: true, shipments_edit: true, shipments_delete: true, shipments_manage: true,
+        users_manage: false,
+      }
+    };
+  }
+
+  if (role === 'production') {
+    return {
+      ...basePermissions,
+      actions: {
+        catalog_create: false, catalog_edit: false, catalog_delete: false,
+        stock_edit: false, stock_manage: false,
+        orders_create: false, orders_edit: false, orders_delete: false,
+        production_create: true, production_manage: true,
+        cutting_create: false, cutting_execute: true, // Производство может выполнять операции резки
+        shipments_create: false, shipments_edit: false, shipments_delete: false, shipments_manage: false,
+        users_manage: false,
+      }
+    };
+  }
+
+  if (role === 'warehouse') {
+    return {
+      ...basePermissions,
+      actions: {
+        catalog_create: false, catalog_edit: false, catalog_delete: false,
+        stock_edit: true, stock_manage: false,
+        orders_create: false, orders_edit: false, orders_delete: false,
+        production_create: false, production_manage: false,
+        cutting_create: false, cutting_execute: false,
+        shipments_create: true, shipments_edit: true, shipments_delete: true, shipments_manage: true,
+        users_manage: false,
+      }
+    };
+  }
+
+  return basePermissions;
+};
+
+export default usePermissions;
+      ...basePermissions,
+      actions: {
+        catalog_create: true, catalog_edit: true, catalog_delete: false,
+        stock_edit: false, stock_manage: false,
+        orders_create: true, orders_edit: true, orders_delete: true,
+        production_create: false, production_manage: false,
+        cutting_create: true, cutting_execute: false, // Менеджер может создавать операции резки
+        shipments_create: true, shipments_edit: true, shipments_delete: true, shipments_manage: true,
+        users_manage: false,
+      }
+    };
+  }
+
+  if (role === 'production') {
+    return {
+      ...basePermissions,
+      actions: {
+        catalog_create: false, catalog_edit: false, catalog_delete: false,
+        stock_edit: false, stock_manage: false,
+        orders_create: false, orders_edit: false, orders_delete: false,
+        production_create: true, production_manage: true,
+        cutting_create: false, cutting_execute: true, // Производство может выполнять операции резки
+        shipments_create: false, shipments_edit: false, shipments_delete: false, shipments_manage: false,
+        users_manage: false,
+      }
+    };
+  }
+
+  if (role === 'warehouse') {
+    return {
+      ...basePermissions,
+      actions: {
+        catalog_create: false, catalog_edit: false, catalog_delete: false,
+        stock_edit: true, stock_manage: false,
+        orders_create: false, orders_edit: false, orders_delete: false,
+        production_create: false, production_manage: false,
+        cutting_create: false, cutting_execute: false,
+        shipments_create: true, shipments_edit: true, shipments_delete: true, shipments_manage: true,
+        users_manage: false,
+      }
+    };
+  }
+
   return basePermissions;
 };
 
