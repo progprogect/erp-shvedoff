@@ -1309,6 +1309,9 @@ router.post('/:id/progress', authenticateToken, requirePermission('cutting', 'ed
             reservedStock: 0,
             updatedAt: new Date()
           });
+
+          // Обновляем переменную для дальнейшего использования
+          existingSecondGrade = newSecondGradeProduct;
         } else {
           // Проверяем, есть ли запись в stock для существующего товара
           const existingStock = await tx.query.stock.findFirst({
@@ -1462,6 +1465,9 @@ router.post('/:id/progress', authenticateToken, requirePermission('cutting', 'ed
             reservedStock: 0,
             updatedAt: new Date()
           });
+
+          // Обновляем переменную для дальнейшего использования
+          existingLibertyGrade = newLibertyGradeProduct;
         } else {
           // Проверяем, есть ли запись в stock для существующего товара
           const existingStock = await tx.query.stock.findFirst({
