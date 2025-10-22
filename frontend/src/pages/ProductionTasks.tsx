@@ -3584,7 +3584,7 @@ const ProductionTasks: React.FC = () => {
                               display: 'block',
                               width: '100%'
                             }}
-                            onClick={() => navigate(`/catalog/products/${viewingTask.productId}`)}
+                            onClick={() => window.open(`/catalog/products/${viewingTask.productId}`, '_blank')}
                           >
                             {viewingTask.product?.article || viewingTask.product?.code}
                           </Button>

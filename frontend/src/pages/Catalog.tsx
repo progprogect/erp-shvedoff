@@ -359,10 +359,10 @@ const Catalog: React.FC = () => {
     if (selectedKeys.length > 0) {
       const selectedKey = selectedKeys[0];
       
-      // Если это товар - переходим к его карточке
+      // Если это товар - открываем в новой вкладке
       if (selectedKey.toString().startsWith('product-')) {
         const productId = selectedKey.replace('product-', '');
-        navigate(`/catalog/products/${productId}`);
+        window.open(`/catalog/products/${productId}`, '_blank');
       }
     }
   };
@@ -1761,7 +1761,7 @@ const Catalog: React.FC = () => {
                       <Space size="small">
                         <Button 
                           size="small"
-                          onClick={() => navigate(`/catalog/products/${product.id}`)}
+                          onClick={() => window.open(`/catalog/products/${product.id}`, '_blank')}
                         >
                           Детали
                         </Button>

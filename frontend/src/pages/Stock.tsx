@@ -221,7 +221,7 @@ const Stock: React.FC = () => {
               cursor: 'pointer',
               transition: 'color 0.3s ease'
             }}
-            onClick={() => navigate(`/catalog/products/${record.productId}`)}
+            onClick={() => window.open(`/catalog/products/${record.productId}`, '_blank')}
             onMouseEnter={(e) => {
               e.currentTarget.style.color = '#096dd9';
               e.currentTarget.style.textDecoration = 'underline';
