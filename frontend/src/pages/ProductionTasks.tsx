@@ -1561,52 +1561,44 @@ const ProductionTasks: React.FC = () => {
       ),
     },
     {
-      title: 'Количество',
+      title: 'Требуемое / Прогресс',
       key: 'quantity',
-      width: 120,
+      width: 200,
       render: (record: ProductionTask) => {
         const requested = record.requestedQuantity;
-        const produced = record.producedQuantity || 0;
         const quality = record.qualityQuantity || 0;
-        const remaining = Math.max(0, requested - quality); // остается только по качественной продукции
-        const isOverproduced = produced > requested;
-        const overproduction = isOverproduced ? produced - requested : 0;
-        const progressPercent = Math.round((quality / requested) * 100); // прогресс по качественной продукции
+        const secondGrade = record.secondGradeQuantity || 0;
+        const libertyGrade = record.libertyGradeQuantity || 0;
+        const defect = record.defectQuantity || 0;
+        const progressPercent = Math.round((quality / requested) * 100);
         
         return (
           <div>
-            <div>
-              <strong>Запрошено:</strong> {requested} шт
+            <div style={{ marginBottom: 4 }}>
+              <Tag color="blue">Требуется: {requested}</Tag>
             </div>
-            {produced > 0 && (
-              <>
-                <div style={{ color: '#52c41a' }}>
-                  <strong>Произведено:</strong> {quality} шт качественных ({progressPercent}%)
-                </div>
-                {record.defectQuantity > 0 && (
-                  <div style={{ color: '#ff7875' }}>
-                    <strong>Брак:</strong> {record.defectQuantity} шт
-                  </div>
-                )}
-                {remaining > 0 && (
-                  <div style={{ color: '#faad14' }}>
-                    <strong>Осталось:</strong> {remaining} шт
-                  </div>
-                )}
-                {quality >= requested && (
-                  <div style={{ color: '#52c41a', fontWeight: 'bold' }}>
-                    ✅ Выполнено полностью
-                    {overproduction > 0 && (
-                      <span style={{ marginLeft: 4 }}>+ {overproduction} шт сверх плана</span>
-                    )}
-                  </div>
-                )}
-              </>
+            {quality > 0 && (
+              <div style={{ marginBottom: 2 }}>
+                <Tag color="green">Годных: {quality} ({progressPercent}%)</Tag>
+              </div>
             )}
-            {produced === 0 && (
-              <Text type="secondary" style={{ fontStyle: 'italic' }}>
-                Производство не начато
-              </Text>
+            {secondGrade > 0 && (
+              <div style={{ marginBottom: 2 }}>
+                <Tag color="orange">2 сорт: {secondGrade}</Tag>
+              </div>
+            )}
+            {libertyGrade > 0 && (
+              <div style={{ marginBottom: 2 }}>
+                <Tag color="purple">Либерти: {libertyGrade}</Tag>
+              </div>
+            )}
+            {defect > 0 && (
+              <div style={{ marginBottom: 2 }}>
+                <Tag color="red">Брак: {defect}</Tag>
+              </div>
+            )}
+            {quality === 0 && secondGrade === 0 && libertyGrade === 0 && defect === 0 && (
+              <Text type="secondary" style={{ fontSize: '12px' }}>Не начато</Text>
             )}
           </div>
         );
@@ -1628,17 +1620,6 @@ const ProductionTasks: React.FC = () => {
         const config = statusConfig[status as keyof typeof statusConfig];
         return <Tag color={config?.color}>{config?.text || status}</Tag>;
       },
-    },
-    {
-      title: 'Приоритет',
-      dataIndex: 'priority',
-      key: 'priority',
-      width: 80,
-      render: (priority: number) => (
-        <Tag color={priority <= 2 ? 'red' : priority <= 4 ? 'orange' : 'green'}>
-          {priority}
-        </Tag>
-      ),
     },
     {
       title: 'Планируемая дата',
@@ -4199,6 +4180,32 @@ const ProductionTasks: React.FC = () => {
                       />
                     </Col>
                   </Row>
+                  
+                  {/* Дополнительные сорта */}
+                  {((viewingTask.secondGradeQuantity || 0) > 0 || (viewingTask.libertyGradeQuantity || 0) > 0) && (
+                    <Row gutter={[16, 8]} style={{ marginTop: 16 }}>
+                      {(viewingTask.secondGradeQuantity || 0) > 0 && (
+                        <Col span={12}>
+                          <Statistic
+                            title="2-й сорт"
+                            value={viewingTask.secondGradeQuantity || 0}
+                            suffix="шт"
+                            valueStyle={{ color: '#faad14' }}
+                          />
+                        </Col>
+                      )}
+                      {(viewingTask.libertyGradeQuantity || 0) > 0 && (
+                        <Col span={12}>
+                          <Statistic
+                            title="Либерти"
+                            value={viewingTask.libertyGradeQuantity || 0}
+                            suffix="шт"
+                            valueStyle={{ color: '#722ed1' }}
+                          />
+                        </Col>
+                      )}
+                    </Row>
+                  )}
                   <Divider />
                   <Row>
                     <Col span={24}>
