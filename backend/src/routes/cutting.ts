@@ -1169,10 +1169,14 @@ router.post('/:id/progress', authenticateToken, requirePermission('cutting', 'ed
 
     // Добавляем прогресс в транзакции
     const result = await db.transaction(async (tx) => {
+      // Объявляем переменные для товаров 2-го сорта и Либерти
+      let existingSecondGrade: any = null;
+      let existingLibertyGrade: any = null;
+
       // Проверяем и создаем товары 2-го сорта и Либерти если их нет
       if (quantities.secondGradeQuantity !== 0) {
         // Проверяем, существует ли товар 2-го сорта с теми же характеристиками
-        const existingSecondGrade = await tx.query.products.findFirst({
+        existingSecondGrade = await tx.query.products.findFirst({
           where: and(
             // Основные параметры
             operation.targetProduct.categoryId ? eq(schema.products.categoryId, operation.targetProduct.categoryId) : undefined,
@@ -1325,7 +1329,7 @@ router.post('/:id/progress', authenticateToken, requirePermission('cutting', 'ed
 
       if (quantities.libertyGradeQuantity !== 0) {
         // Проверяем, существует ли товар сорта Либерти с теми же характеристиками
-        const existingLibertyGrade = await tx.query.products.findFirst({
+        existingLibertyGrade = await tx.query.products.findFirst({
           where: and(
             // Основные параметры
             operation.targetProduct.categoryId ? eq(schema.products.categoryId, operation.targetProduct.categoryId) : undefined,
@@ -1474,6 +1478,48 @@ router.post('/:id/progress', authenticateToken, requirePermission('cutting', 'ed
             });
           }
         }
+      }
+
+      // Обновляем остатки для товара 2-го сорта (если количество не нулевое)
+      if (quantities.secondGradeQuantity !== 0 && existingSecondGrade) {
+        await tx.update(schema.stock)
+          .set({
+            currentStock: sql`current_stock + ${quantities.secondGradeQuantity}`,
+            updatedAt: new Date()
+          })
+          .where(eq(schema.stock.productId, existingSecondGrade.id));
+
+        // Логируем движение товара
+        await tx.insert(schema.stockMovements).values({
+          productId: existingSecondGrade.id,
+          movementType: quantities.secondGradeQuantity > 0 ? 'cutting_in' : 'outgoing',
+          quantity: Math.abs(quantities.secondGradeQuantity),
+          referenceId: operationId,
+          referenceType: 'cutting_progress',
+          comment: `Корректировка 2-го сорта по операции резки #${operationId} (прогресс)`,
+          userId
+        });
+      }
+
+      // Обновляем остатки для товара Либерти (если количество не нулевое)
+      if (quantities.libertyGradeQuantity !== 0 && existingLibertyGrade) {
+        await tx.update(schema.stock)
+          .set({
+            currentStock: sql`current_stock + ${quantities.libertyGradeQuantity}`,
+            updatedAt: new Date()
+          })
+          .where(eq(schema.stock.productId, existingLibertyGrade.id));
+
+        // Логируем движение товара
+        await tx.insert(schema.stockMovements).values({
+          productId: existingLibertyGrade.id,
+          movementType: quantities.libertyGradeQuantity > 0 ? 'cutting_in' : 'outgoing',
+          quantity: Math.abs(quantities.libertyGradeQuantity),
+          referenceId: operationId,
+          referenceType: 'cutting_progress',
+          comment: `Корректировка сорта Либерти по операции резки #${operationId} (прогресс)`,
+          userId
+        });
       }
 
       // Создаем запись прогресса
