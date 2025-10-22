@@ -448,9 +448,12 @@ export const CuttingOperations: React.FC = () => {
       await cuttingApi.addProgress(selectedOperation.id, request);
       message.success('Прогресс добавлен');
       
+      // Обновляем прогресс в selectedOperation
+      const updatedOperation = await cuttingApi.getCuttingOperation(selectedOperation.id);
+      setSelectedOperation(updatedOperation);
+      
       setProgressModalVisible(false);
       progressForm.resetFields();
-      setSelectedOperation(null);
       loadData();
     } catch (error: any) {
       message.error(error.response?.data?.message || 'Ошибка добавления прогресса');
@@ -498,17 +501,6 @@ export const CuttingOperations: React.FC = () => {
       ),
     },
     {
-      title: 'Брак',
-      dataIndex: 'wasteQuantity',
-      key: 'wasteQuantity',
-      width: 100,
-      render: (waste: number) => (
-        <span style={{ color: waste > 0 ? '#ff4d4f' : '#52c41a' }}>
-          {waste} шт.
-        </span>
-      )
-    },
-    {
       title: 'Прогресс',
       key: 'progress',
       width: 150,
@@ -543,6 +535,13 @@ export const CuttingOperations: React.FC = () => {
               <div style={{ marginBottom: '2px' }}>
                 <span style={{ color: '#722ed1', fontWeight: '500' }}>
                   Либерти: {totalLibertyGrade}
+                </span>
+              </div>
+            )}
+            {totalWaste > 0 && (
+              <div style={{ marginBottom: '2px' }}>
+                <span style={{ color: '#ff4d4f', fontWeight: '500' }}>
+                  Брак: {totalWaste}
                 </span>
               </div>
             )}
