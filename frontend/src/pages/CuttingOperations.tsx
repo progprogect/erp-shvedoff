@@ -360,6 +360,7 @@ export const CuttingOperations: React.FC = () => {
       const request: CompleteCuttingOperationRequest = {
         actualTargetQuantity: values.actualTargetQuantity,
         actualSecondGradeQuantity: values.actualSecondGradeQuantity,
+        actualLibertyGradeQuantity: values.actualLibertyGradeQuantity,
         actualDefectQuantity: values.actualDefectQuantity,
         notes: values.notes
       };
@@ -440,6 +441,7 @@ export const CuttingOperations: React.FC = () => {
       const request: AddProgressRequest = {
         productQuantity: values.productQuantity || 0,
         secondGradeQuantity: values.secondGradeQuantity || 0,
+        libertyGradeQuantity: values.libertyGradeQuantity || 0,
         wasteQuantity: values.wasteQuantity || 0
       };
       
@@ -516,8 +518,8 @@ export const CuttingOperations: React.FC = () => {
           return <span style={{ color: '#999' }}>Нет данных</span>;
         }
 
-        const { totalProduct, totalSecondGrade, totalWaste } = progress;
-        const hasProgress = totalProduct !== 0 || totalSecondGrade !== 0 || totalWaste !== 0;
+        const { totalProduct, totalSecondGrade, totalLibertyGrade, totalWaste } = progress;
+        const hasProgress = totalProduct !== 0 || totalSecondGrade !== 0 || totalLibertyGrade !== 0 || totalWaste !== 0;
 
         if (!hasProgress) {
           return <span style={{ color: '#999' }}>Нет прогресса</span>;
@@ -534,6 +536,13 @@ export const CuttingOperations: React.FC = () => {
               <div style={{ marginBottom: '2px' }}>
                 <span style={{ color: '#faad14', fontWeight: '500' }}>
                   2 сорт: {totalSecondGrade}
+                </span>
+              </div>
+            )}
+            {totalLibertyGrade > 0 && (
+              <div style={{ marginBottom: '2px' }}>
+                <span style={{ color: '#722ed1', fontWeight: '500' }}>
+                  Либерти: {totalLibertyGrade}
                 </span>
               </div>
             )}
@@ -1434,6 +1443,18 @@ export const CuttingOperations: React.FC = () => {
               </Form.Item>
 
               <Form.Item
+                name="actualLibertyGradeQuantity"
+                label="Либерти (идёт в остатки товара сорта Либерти)"
+              >
+                <InputNumber
+                  min={0}
+                  style={{ width: '100%' }}
+                  placeholder="Количество товара сорта Либерти"
+                  size="large"
+                />
+              </Form.Item>
+
+              <Form.Item
                 name="actualDefectQuantity"
                 label="Брак (списывается)"
               >
@@ -1497,6 +1518,9 @@ export const CuttingOperations: React.FC = () => {
               <Descriptions.Item label="Выход продукции">{operationDetails.targetQuantity} шт.</Descriptions.Item>
               <Descriptions.Item label="Товар 2-го сорта">
                 {operationDetails.actualSecondGradeQuantity || 0} шт.
+              </Descriptions.Item>
+              <Descriptions.Item label="Товар сорта Либерти">
+                {operationDetails.actualLibertyGradeQuantity || 0} шт.
               </Descriptions.Item>
               <Descriptions.Item label="Отходы">{operationDetails.wasteQuantity} шт.</Descriptions.Item>
               <Descriptions.Item label="Оператор">
@@ -1674,6 +1698,7 @@ export const CuttingOperations: React.FC = () => {
                   <div style={{ marginTop: '4px', fontSize: '12px' }}>
                     <div>Товар: {selectedOperation.progress.totalProduct} шт.</div>
                     <div>2 сорт: {selectedOperation.progress.totalSecondGrade} шт.</div>
+                    <div>Либерти: {selectedOperation.progress.totalLibertyGrade} шт.</div>
                     <div>Брак: {selectedOperation.progress.totalWaste} шт.</div>
                   </div>
                 ) : (
@@ -1719,6 +1744,18 @@ export const CuttingOperations: React.FC = () => {
                 <InputNumber
                   style={{ width: '100%' }}
                   placeholder="Количество товара 2-го сорта"
+                  size="large"
+                />
+              </Form.Item>
+
+              <Form.Item
+                name="libertyGradeQuantity"
+                label="Товар сорта Либерти"
+                extra="Положительное значение добавляет на склад, отрицательное отнимает"
+              >
+                <InputNumber
+                  style={{ width: '100%' }}
+                  placeholder="Количество товара сорта Либерти"
                   size="large"
                 />
               </Form.Item>

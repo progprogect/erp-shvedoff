@@ -341,7 +341,7 @@ router.put('/:id/start', authenticateToken, requirePermission('cutting', 'manage
 router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edit'), async (req: AuthRequest, res, next) => {
   try {
     const operationId = Number(req.params.id);
-    const { actualTargetQuantity, actualSecondGradeQuantity, actualDefectQuantity, notes } = req.body;
+    const { actualTargetQuantity, actualSecondGradeQuantity, actualLibertyGradeQuantity, actualDefectQuantity, notes } = req.body;
     const userId = req.user!.id;
 
     if (actualTargetQuantity === undefined || actualTargetQuantity < 0) {
@@ -385,6 +385,7 @@ router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edi
           targetQuantity: Number(actualTargetQuantity), // Update with actual quantity
           wasteQuantity: Math.max(0, actualDefect), // Используем старое поле для совместимости, но теперь это "брак"
           actualSecondGradeQuantity: Number(actualSecondGradeQuantity) || 0, // Сохраняем количество товара 2-го сорта
+          actualLibertyGradeQuantity: Number(actualLibertyGradeQuantity) || 0, // Сохраняем количество товара сорта Либерти
           completedAt: new Date()
         })
         .where(eq(schema.cuttingOperations.id, operationId))
@@ -567,6 +568,163 @@ router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edi
           .where(eq(schema.stock.productId, secondGradeProductId));
       }
 
+      // 5. Обрабатываем товар сорта Либерти (если указан)
+      let libertyGradeProductId = null;
+      console.log('🔍 Debug: actualLibertyGradeQuantity =', actualLibertyGradeQuantity);
+      if (actualLibertyGradeQuantity && actualLibertyGradeQuantity > 0) {
+        // Ищем товар сорта Либерти с теми же параметрами
+        const libertyGradeProduct = await tx.query.products.findFirst({
+          where: and(
+            // Основные параметры
+            operation.targetProduct.categoryId ? eq(schema.products.categoryId, operation.targetProduct.categoryId) : undefined,
+            eq(schema.products.name, operation.targetProduct.name),
+            eq(schema.products.productType, operation.targetProduct.productType),
+            eq(schema.products.grade, 'liber'),
+            eq(schema.products.isActive, true),
+            
+            // Размеры (для ковров и рулонных покрытий)
+            operation.targetProduct.dimensions ? eq(schema.products.dimensions, operation.targetProduct.dimensions) : undefined,
+            
+            // Поверхности (массив ID поверхностей)
+            operation.targetProduct.surfaceIds ? eq(schema.products.surfaceIds, operation.targetProduct.surfaceIds) : undefined,
+            
+            // Логотип
+            operation.targetProduct.logoId ? eq(schema.products.logoId, operation.targetProduct.logoId) : 
+            (!operation.targetProduct.logoId ? isNull(schema.products.logoId) : undefined),
+            
+            // Материал
+            operation.targetProduct.materialId ? eq(schema.products.materialId, operation.targetProduct.materialId) : 
+            (!operation.targetProduct.materialId ? isNull(schema.products.materialId) : undefined),
+            
+            // Низ ковра
+            operation.targetProduct.bottomTypeId ? eq(schema.products.bottomTypeId, operation.targetProduct.bottomTypeId) : 
+            (!operation.targetProduct.bottomTypeId ? isNull(schema.products.bottomTypeId) : undefined),
+            
+            // Паззл
+            operation.targetProduct.puzzleTypeId ? eq(schema.products.puzzleTypeId, operation.targetProduct.puzzleTypeId) : 
+            (!operation.targetProduct.puzzleTypeId ? isNull(schema.products.puzzleTypeId) : undefined),
+            
+            operation.targetProduct.puzzleSides ? eq(schema.products.puzzleSides, operation.targetProduct.puzzleSides) : undefined,
+            
+            // Пресс
+            operation.targetProduct.pressType ? eq(schema.products.pressType, operation.targetProduct.pressType) : 
+            (!operation.targetProduct.pressType ? isNull(schema.products.pressType) : undefined),
+            
+            // Края ковра
+            operation.targetProduct.carpetEdgeType ? eq(schema.products.carpetEdgeType, operation.targetProduct.carpetEdgeType) : 
+            (!operation.targetProduct.carpetEdgeType ? isNull(schema.products.carpetEdgeType) : undefined),
+            
+            operation.targetProduct.carpetEdgeSides ? eq(schema.products.carpetEdgeSides, operation.targetProduct.carpetEdgeSides) : undefined,
+            
+            operation.targetProduct.carpetEdgeStrength ? eq(schema.products.carpetEdgeStrength, operation.targetProduct.carpetEdgeStrength) : 
+            (!operation.targetProduct.carpetEdgeStrength ? isNull(schema.products.carpetEdgeStrength) : undefined),
+            
+            // Площадь мата (для рулонных покрытий)
+            operation.targetProduct.matArea ? eq(schema.products.matArea, operation.targetProduct.matArea) : 
+            (!operation.targetProduct.matArea ? isNull(schema.products.matArea) : undefined),
+            
+            // Вес
+            operation.targetProduct.weight ? eq(schema.products.weight, operation.targetProduct.weight) : 
+            (!operation.targetProduct.weight ? isNull(schema.products.weight) : undefined),
+            
+            // Борт
+            operation.targetProduct.borderType ? eq(schema.products.borderType, operation.targetProduct.borderType) : 
+            (!operation.targetProduct.borderType ? isNull(schema.products.borderType) : undefined)
+          )
+        });
+
+        if (libertyGradeProduct) {
+          // Товар сорта Либерти уже существует
+          libertyGradeProductId = libertyGradeProduct.id;
+        } else {
+          // Создаем новый товар сорта Либерти
+          // Получаем связанные данные для генерации артикула
+          const [surfaces, logo, material, bottomType, puzzleType] = await Promise.all([
+            operation.targetProduct.surfaceIds && operation.targetProduct.surfaceIds.length > 0 
+              ? tx.query.productSurfaces.findMany({ where: inArray(schema.productSurfaces.id, operation.targetProduct.surfaceIds) })
+              : [],
+            operation.targetProduct.logoId 
+              ? tx.query.productLogos.findFirst({ where: eq(schema.productLogos.id, operation.targetProduct.logoId) })
+              : null,
+            operation.targetProduct.materialId 
+              ? tx.query.productMaterials.findFirst({ where: eq(schema.productMaterials.id, operation.targetProduct.materialId) })
+              : null,
+            operation.targetProduct.bottomTypeId 
+              ? tx.query.bottomTypes.findFirst({ where: eq(schema.bottomTypes.id, operation.targetProduct.bottomTypeId) })
+              : null,
+            operation.targetProduct.puzzleTypeId 
+              ? tx.query.puzzleTypes.findFirst({ where: eq(schema.puzzleTypes.id, operation.targetProduct.puzzleTypeId) })
+              : null
+          ]);
+
+          // Генерируем артикул для товара сорта Либерти
+          const { generateArticle } = await import('../utils/articleGenerator');
+          const libertyGradeProductData = {
+            name: operation.targetProduct.name,
+            dimensions: operation.targetProduct.dimensions as { length?: number; width?: number; thickness?: number },
+            surfaces: surfaces.length > 0 ? surfaces.map(s => ({ name: s.name })) : undefined,
+            logo: logo ? { name: logo.name } : undefined,
+            material: material ? { name: material.name } : undefined,
+            bottomType: bottomType ? { code: bottomType.code } : undefined,
+            puzzleType: puzzleType ? { name: puzzleType.name } : undefined,
+            pressType: operation.targetProduct.pressType,
+            borderType: operation.targetProduct.borderType,
+            carpetEdgeType: operation.targetProduct.carpetEdgeType,
+            carpetEdgeSides: operation.targetProduct.carpetEdgeSides,
+            carpetEdgeStrength: operation.targetProduct.carpetEdgeStrength,
+            grade: 'liber' as const,
+            pressType: operation.targetProduct.pressType || 'not_selected'
+          };
+
+          const libertyGradeArticle = generateArticle(libertyGradeProductData);
+
+          // Создаем товар сорта Либерти
+          const [newLibertyGradeProduct] = await tx.insert(schema.products).values({
+            name: operation.targetProduct.name,
+            article: libertyGradeArticle,
+            productType: operation.targetProduct.productType,
+            categoryId: operation.targetProduct.categoryId,
+            surfaceIds: operation.targetProduct.surfaceIds,
+            logoId: operation.targetProduct.logoId,
+            materialId: operation.targetProduct.materialId,
+            pressType: operation.targetProduct.pressType,
+            dimensions: operation.targetProduct.dimensions,
+            matArea: operation.targetProduct.matArea,
+            weight: operation.targetProduct.weight,
+            grade: 'liber',
+            borderType: operation.targetProduct.borderType,
+            carpetEdgeType: operation.targetProduct.carpetEdgeType,
+            carpetEdgeSides: operation.targetProduct.carpetEdgeSides,
+            carpetEdgeStrength: operation.targetProduct.carpetEdgeStrength,
+            bottomTypeId: operation.targetProduct.bottomTypeId,
+            puzzleTypeId: operation.targetProduct.puzzleTypeId,
+            puzzleSides: operation.targetProduct.puzzleSides,
+            isActive: true,
+            notes: `Автоматически создан для сорта Либерти по операции резки #${operationId}`,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          }).returning();
+
+          libertyGradeProductId = newLibertyGradeProduct.id;
+
+          // Создаем запись остатков для нового товара
+          await tx.insert(schema.stock).values({
+            productId: libertyGradeProductId,
+            currentStock: 0,
+            reservedStock: 0,
+            updatedAt: new Date()
+          });
+        }
+
+        // Добавляем товар сорта Либерти на склад (движение будет создано в массиве stockMovements ниже)
+        await tx.update(schema.stock)
+          .set({
+            currentStock: sql`current_stock + ${Number(actualLibertyGradeQuantity)}`,
+            updatedAt: new Date()
+          })
+          .where(eq(schema.stock.productId, libertyGradeProductId));
+      }
+
       // Log completion
       await tx.insert(schema.auditLog).values({
         tableName: 'cutting_operations',
@@ -626,6 +784,19 @@ router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edi
         });
       }
 
+      // Добавляем движение для товара сорта Либерти (если есть)
+      if (libertyGradeProductId && actualLibertyGradeQuantity > 0) {
+        stockMovements.push({
+          productId: libertyGradeProductId,
+          movementType: 'cutting_in',
+          quantity: Number(actualLibertyGradeQuantity),
+          referenceId: operationId,
+          referenceType: 'cutting',
+          comment: `Поступление сорта Либерти от резки #${operationId}: ${operation.sourceProduct.name} → ${operation.targetProduct.name} (Либерти)`,
+          userId
+        });
+      }
+
       await tx.insert(schema.stockMovements).values(stockMovements);
 
       // Пересчитываем статусы заказов после завершения резки
@@ -680,11 +851,12 @@ router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edi
 
     const defectMessage = actualDefect > 0 ? ` Брак: ${actualDefect} шт.` : '';
     const secondGradeMessage = actualSecondGradeQuantity > 0 ? ` 2 сорт: ${actualSecondGradeQuantity} шт.` : '';
+    const libertyGradeMessage = actualLibertyGradeQuantity > 0 ? ` Либерти: ${actualLibertyGradeQuantity} шт.` : '';
     
     res.json({
       success: true,
       data: result,
-      message: `Операция резки завершена. Готово: ${actualTargetQuantity} шт.${secondGradeMessage}${defectMessage}`
+      message: `Операция резки завершена. Готово: ${actualTargetQuantity} шт.${secondGradeMessage}${libertyGradeMessage}${defectMessage}`
     });
   } catch (error) {
     next(error);
@@ -934,7 +1106,7 @@ router.get('/:id', authenticateToken, requirePermission('cutting', 'view'), asyn
 router.post('/:id/progress', authenticateToken, requirePermission('cutting', 'edit'), async (req: AuthRequest, res, next) => {
   try {
     const operationId = Number(req.params.id);
-    const { productQuantity, secondGradeQuantity, wasteQuantity } = req.body;
+    const { productQuantity, secondGradeQuantity, libertyGradeQuantity, wasteQuantity } = req.body;
     const userId = req.user!.id;
 
     if (operationId && isNaN(operationId)) {
@@ -960,7 +1132,7 @@ router.post('/:id/progress', authenticateToken, requirePermission('cutting', 'ed
     }
 
     // Валидация входных данных
-    if (productQuantity === undefined && secondGradeQuantity === undefined && wasteQuantity === undefined) {
+    if (productQuantity === undefined && secondGradeQuantity === undefined && libertyGradeQuantity === undefined && wasteQuantity === undefined) {
       return next(createError('Необходимо указать хотя бы одно количество', 400));
     }
 
@@ -968,16 +1140,17 @@ router.post('/:id/progress', authenticateToken, requirePermission('cutting', 'ed
     const quantities = {
       productQuantity: productQuantity !== undefined ? Number(productQuantity) : 0,
       secondGradeQuantity: secondGradeQuantity !== undefined ? Number(secondGradeQuantity) : 0,
+      libertyGradeQuantity: libertyGradeQuantity !== undefined ? Number(libertyGradeQuantity) : 0,
       wasteQuantity: wasteQuantity !== undefined ? Number(wasteQuantity) : 0
     };
 
     // Проверяем, что все значения являются валидными числами
-    if (isNaN(quantities.productQuantity) || isNaN(quantities.secondGradeQuantity) || isNaN(quantities.wasteQuantity)) {
+    if (isNaN(quantities.productQuantity) || isNaN(quantities.secondGradeQuantity) || isNaN(quantities.libertyGradeQuantity) || isNaN(quantities.wasteQuantity)) {
       return next(createError('Все значения должны быть числами', 400));
     }
 
     // Проверяем, что хотя бы одно значение не равно нулю
-    if (quantities.productQuantity === 0 && quantities.secondGradeQuantity === 0 && quantities.wasteQuantity === 0) {
+    if (quantities.productQuantity === 0 && quantities.secondGradeQuantity === 0 && quantities.libertyGradeQuantity === 0 && quantities.wasteQuantity === 0) {
       return next(createError('Хотя бы одно количество должно быть отличным от нуля', 400));
     }
 
@@ -988,6 +1161,7 @@ router.post('/:id/progress', authenticateToken, requirePermission('cutting', 'ed
         operationId,
         productQuantity: quantities.productQuantity,
         secondGradeQuantity: quantities.secondGradeQuantity,
+        libertyGradeQuantity: quantities.libertyGradeQuantity,
         wasteQuantity: quantities.wasteQuantity,
         enteredBy: userId
       }).returning();
@@ -997,6 +1171,7 @@ router.post('/:id/progress', authenticateToken, requirePermission('cutting', 'ed
         .select({
           totalProduct: sql<number>`COALESCE(SUM(${schema.cuttingProgressLog.productQuantity}), 0)`,
           totalSecondGrade: sql<number>`COALESCE(SUM(${schema.cuttingProgressLog.secondGradeQuantity}), 0)`,
+          totalLibertyGrade: sql<number>`COALESCE(SUM(${schema.cuttingProgressLog.libertyGradeQuantity}), 0)`,
           totalWaste: sql<number>`COALESCE(SUM(${schema.cuttingProgressLog.wasteQuantity}), 0)`
         })
         .from(schema.cuttingProgressLog)

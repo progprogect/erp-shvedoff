@@ -323,6 +323,7 @@ export const cuttingOperations = pgTable('cutting_operations', {
   targetQuantity: integer('target_quantity').notNull(),
   wasteQuantity: integer('waste_quantity').default(0),
   actualSecondGradeQuantity: integer('actual_second_grade_quantity').default(0), // Фактическое количество товара 2-го сорта
+  actualLibertyGradeQuantity: integer('actual_liberty_grade_quantity').default(0), // Фактическое количество товара сорта Либерти
   status: cuttingStatusEnum('status').default('in_progress'),
   operatorId: integer('operator_id').references(() => users.id),
   assignedTo: integer('assigned_to').references(() => users.id), // на кого назначена операция
@@ -339,6 +340,7 @@ export const cuttingProgressLog = pgTable('cutting_progress_log', {
   operationId: integer('operation_id').notNull().references(() => cuttingOperations.id, { onDelete: 'cascade' }),
   productQuantity: integer('product_quantity').default(0), // Количество готового товара (может быть отрицательным)
   secondGradeQuantity: integer('second_grade_quantity').default(0), // Количество товара 2-го сорта (может быть отрицательным)
+  libertyGradeQuantity: integer('liberty_grade_quantity').default(0), // Количество товара сорта Либерти (может быть отрицательным)
   wasteQuantity: integer('waste_quantity').default(0), // Количество брака (может быть отрицательным)
   enteredAt: timestamp('entered_at').defaultNow(),
   enteredBy: integer('entered_by').notNull().references(() => users.id)

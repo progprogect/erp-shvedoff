@@ -10,6 +10,7 @@ export interface CuttingOperation {
   wasteQuantity: number;
   actualTargetQuantity?: number;
   actualSecondGradeQuantity?: number;
+  actualLibertyGradeQuantity?: number;
   actualDefectQuantity?: number;
   status: 'in_progress' | 'paused' | 'completed' | 'cancelled'; // Добавлен статус paused
   operatorId?: number;
@@ -55,6 +56,7 @@ export interface CuttingOperation {
   progress?: {
     totalProduct: number;
     totalSecondGrade: number;
+    totalLibertyGrade: number;
     totalWaste: number;
     lastUpdated?: Date;
   };
@@ -87,6 +89,7 @@ export interface UpdateCuttingOperationRequest {
 export interface CompleteCuttingOperationRequest {
   actualTargetQuantity: number;
   actualSecondGradeQuantity?: number;
+  actualLibertyGradeQuantity?: number;
   actualDefectQuantity?: number;
   notes?: string;
 }
@@ -97,6 +100,7 @@ export interface CuttingProgressEntry {
   operationId: number;
   productQuantity: number;
   secondGradeQuantity: number;
+  libertyGradeQuantity: number;
   wasteQuantity: number;
   enteredAt: string;
   enteredBy: number;
@@ -110,6 +114,7 @@ export interface CuttingProgressEntry {
 export interface AddProgressRequest {
   productQuantity?: number;
   secondGradeQuantity?: number;
+  libertyGradeQuantity?: number;
   wasteQuantity?: number;
 }
 
@@ -119,6 +124,7 @@ export interface CuttingOperationProgress {
   currentProgress: {
     totalProduct: number;
     totalSecondGrade: number;
+    totalLibertyGrade: number;
     totalWaste: number;
   };
 }
@@ -209,6 +215,7 @@ class CuttingApiService {
     currentProgress: {
       totalProduct: number;
       totalSecondGrade: number;
+      totalLibertyGrade: number;
       totalWaste: number;
     };
   }> {
