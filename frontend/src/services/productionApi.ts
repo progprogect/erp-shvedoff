@@ -25,6 +25,8 @@ export interface ProductionTask {
   completedAt?: string;
   producedQuantity: number;
   qualityQuantity: number;
+  secondGradeQuantity: number;
+  libertyGradeQuantity: number;
   defectQuantity: number;
   createdBy?: number;
   assignedTo?: number;
@@ -214,6 +216,8 @@ export interface UpdateProductionTaskRequest {
 export interface CompleteTaskRequest {
   producedQuantity: number;
   qualityQuantity: number;
+  secondGradeQuantity?: number;
+  libertyGradeQuantity?: number;
   defectQuantity: number;
   notes?: string;
 }
@@ -222,6 +226,8 @@ export interface CompleteTasksByProductRequest {
   productId: number;
   producedQuantity: number;
   qualityQuantity: number;
+  secondGradeQuantity?: number;
+  libertyGradeQuantity?: number;
   defectQuantity: number;
   productionDate?: string;
   notes?: string;

@@ -976,16 +976,25 @@ router.get('/tasks/by-product', authenticateToken, requirePermission('production
 // POST /api/production/tasks/complete-by-product - Массовое завершение заданий по товару
 router.post('/tasks/complete-by-product', authenticateToken, requirePermission('production', 'manage'), async (req: AuthRequest, res, next) => {
   try {
-    const { productId, producedQuantity, qualityQuantity, defectQuantity, productionDate, notes } = req.body;
+    const { productId, producedQuantity, qualityQuantity, secondGradeQuantity = 0, libertyGradeQuantity = 0, defectQuantity, productionDate, notes } = req.body;
     const userId = req.user!.id;
 
     if (!productId || !producedQuantity || producedQuantity <= 0) {
       return next(createError('Необходимо указать товар и положительное количество произведенного', 400));
     }
 
-    // Валидация: произведенное = качественных + брак
-    if (qualityQuantity + defectQuantity !== producedQuantity) {
-      return next(createError('Сумма годных и брака должна равняться произведенному количеству', 400));
+    // Получаем информацию о продукте
+    const product = await db.query.products.findFirst({
+      where: eq(schema.products.id, productId)
+    });
+
+    if (!product) {
+      return next(createError('Товар не найден', 404));
+    }
+
+    // Валидация: произведенное = качественных + второй сорт + Либерти + брак
+    if (qualityQuantity + secondGradeQuantity + libertyGradeQuantity + defectQuantity !== producedQuantity) {
+      return next(createError('Сумма годных, второго сорта, Либерти и брака должна равняться произведенному количеству', 400));
     }
 
     // Получаем активные задания для этого товара, отсортированные по приоритету
@@ -1048,6 +1057,8 @@ router.post('/tasks/complete-by-product', authenticateToken, requirePermission('
     const result = await db.transaction(async (tx) => {
       let remainingProduced = producedQuantity;
       let remainingQuality = qualityQuantity;
+      let remainingSecondGrade = secondGradeQuantity;
+      let remainingLibertyGrade = libertyGradeQuantity;
       let remainingDefect = defectQuantity;
       const completedTasks = [];
       const updatedOrders = new Set<number>();
@@ -1059,9 +1070,11 @@ router.post('/tasks/complete-by-product', authenticateToken, requirePermission('
         const taskNeeded = task.requestedQuantity;
         const taskProduced = Math.min(remainingProduced, taskNeeded);
         
-        // Пропорционально распределяем качественные и брак
+        // Пропорционально распределяем качественные, второй сорт, Либерти и брак
         const taskQuality = Math.min(remainingQuality, Math.round((taskProduced / producedQuantity) * qualityQuantity));
-        const taskDefect = taskProduced - taskQuality;
+        const taskSecondGrade = Math.min(remainingSecondGrade, Math.round((taskProduced / producedQuantity) * secondGradeQuantity));
+        const taskLibertyGrade = Math.min(remainingLibertyGrade, Math.round((taskProduced / producedQuantity) * libertyGradeQuantity));
+        const taskDefect = taskProduced - taskQuality - taskSecondGrade - taskLibertyGrade;
 
         // Обновляем задание
         const completedTask = await tx.update(schema.productionTasks)
@@ -1069,6 +1082,8 @@ router.post('/tasks/complete-by-product', authenticateToken, requirePermission('
             status: 'completed',
             producedQuantity: taskProduced,
             qualityQuantity: taskQuality,
+            secondGradeQuantity: taskSecondGrade,
+            libertyGradeQuantity: taskLibertyGrade,
             defectQuantity: taskDefect,
             completedAt: completionDate,
             completedBy: userId,
@@ -1083,6 +1098,8 @@ router.post('/tasks/complete-by-product', authenticateToken, requirePermission('
         // Обновляем остатки
         remainingProduced -= taskProduced;
         remainingQuality -= taskQuality;
+        remainingSecondGrade -= taskSecondGrade;
+        remainingLibertyGrade -= taskLibertyGrade;
         remainingDefect -= taskDefect;
 
         // Добавляем товары на склад (только качественные)
@@ -1107,6 +1124,120 @@ router.post('/tasks/complete-by-product', authenticateToken, requirePermission('
               currentStock: sql`${schema.stock.currentStock} + ${taskQuality}`,
               updatedAt: new Date()
             }
+          });
+        }
+
+        // Добавляем товар второго сорта на склад
+        if (taskSecondGrade > 0) {
+          // Находим или создаем товар второго сорта
+          let secondGradeProductId = null;
+          const secondGradeProduct = await tx.query.products.findFirst({
+            where: and(
+              eq(schema.products.name, product.name),
+              eq(schema.products.grade, 'grade_2'),
+              eq(schema.products.isActive, true)
+            )
+          });
+
+          if (secondGradeProduct) {
+            secondGradeProductId = secondGradeProduct.id;
+          } else {
+            // Создаем новый товар второго сорта
+            const secondGradeProductData = {
+              name: product.name,
+              article: `2-${product.name}`,
+              categoryId: product.categoryId,
+              productType: product.productType,
+              grade: 'grade_2' as const,
+              isActive: true,
+              notes: `Автоматически создан для 2-го сорта по заданию #${task.id}`
+            };
+            
+            const [newSecondGradeProduct] = await tx.insert(schema.products)
+              .values(secondGradeProductData)
+              .returning();
+            
+            secondGradeProductId = newSecondGradeProduct.id;
+          }
+
+          // Обновляем остатки товара второго сорта
+          await tx.insert(schema.stock).values({
+            productId: secondGradeProductId,
+            currentStock: taskSecondGrade
+          }).onConflictDoUpdate({
+            target: schema.stock.productId,
+            set: {
+              currentStock: sql`${schema.stock.currentStock} + ${taskSecondGrade}`,
+              updatedAt: new Date()
+            }
+          });
+
+          // Логируем движение товара
+          await tx.insert(schema.stockMovements).values({
+            productId: secondGradeProductId,
+            movementType: 'incoming',
+            quantity: taskSecondGrade,
+            referenceId: task.id,
+            referenceType: 'production_task',
+            comment: `Производство 2-го сорта. Задание #${task.id}${task.order ? `, заказ #${task.order.orderNumber}` : ''}`,
+            userId
+          });
+        }
+
+        // Добавляем товар сорта Либерти на склад
+        if (taskLibertyGrade > 0) {
+          // Находим или создаем товар сорта Либерти
+          let libertyGradeProductId = null;
+          const libertyGradeProduct = await tx.query.products.findFirst({
+            where: and(
+              eq(schema.products.name, product.name),
+              eq(schema.products.grade, 'liber'),
+              eq(schema.products.isActive, true)
+            )
+          });
+
+          if (libertyGradeProduct) {
+            libertyGradeProductId = libertyGradeProduct.id;
+          } else {
+            // Создаем новый товар сорта Либерти
+            const libertyGradeProductData = {
+              name: product.name,
+              article: `Либер-${product.name}`,
+              categoryId: product.categoryId,
+              productType: product.productType,
+              grade: 'liber' as const,
+              isActive: true,
+              notes: `Автоматически создан для сорта Либерти по заданию #${task.id}`
+            };
+            
+            const [newLibertyGradeProduct] = await tx.insert(schema.products)
+              .values(libertyGradeProductData)
+              .returning();
+            
+            libertyGradeProductId = newLibertyGradeProduct.id;
+          }
+
+          // Обновляем остатки товара сорта Либерти
+          await tx.insert(schema.stock).values({
+            productId: libertyGradeProductId,
+            currentStock: taskLibertyGrade
+          }).onConflictDoUpdate({
+            target: schema.stock.productId,
+            set: {
+              currentStock: sql`${schema.stock.currentStock} + ${taskLibertyGrade}`,
+              updatedAt: new Date()
+            }
+          });
+
+          // Логируем движение товара
+          await tx.insert(schema.stockMovements).values({
+            productId: libertyGradeProductId,
+            movementType: 'incoming',
+            quantity: taskLibertyGrade,
+            referenceId: task.id,
+            referenceType: 'production_task',
+            comment: `Производство сорта Либерти. Задание #${task.id}${task.order ? `, заказ #${task.order.orderNumber}` : ''}`,
+            userId
           });
         }
 
@@ -1204,6 +1335,8 @@ router.post('/tasks/complete-by-product', authenticateToken, requirePermission('
         completedTasks,
         totalProduced: producedQuantity,
         totalQuality: qualityQuantity,
+        totalSecondGrade: secondGradeQuantity,
+        totalLibertyGrade: libertyGradeQuantity,
         totalDefect: defectQuantity,
         tasksCompleted: completedTasks.length,
         surplus: remainingProduced,
@@ -1226,7 +1359,7 @@ router.post('/tasks/complete-by-product', authenticateToken, requirePermission('
     res.json({
       success: true,
       data: result,
-      message: `Завершено ${result.tasksCompleted} заданий. Произведено: ${result.totalProduced} шт. (${result.totalQuality} годных, ${result.totalDefect} брак)${result.surplus > 0 ? `. Излишки: ${result.surplus} шт.` : ''}`
+      message: `Завершено ${result.tasksCompleted} заданий. Произведено: ${result.totalProduced} шт. (${result.totalQuality} годных${result.totalSecondGrade > 0 ? `, ${result.totalSecondGrade} 2-й сорт` : ''}${result.totalLibertyGrade > 0 ? `, ${result.totalLibertyGrade} Либерти` : ''}, ${result.totalDefect} брак)${result.surplus > 0 ? `. Излишки: ${result.surplus} шт.` : ''}`
     });
   } catch (error) {
     next(error);
@@ -2082,6 +2215,8 @@ router.post('/tasks/:id/complete', authenticateToken, requirePermission('product
     const { 
       producedQuantity, 
       qualityQuantity, 
+      secondGradeQuantity = 0,
+      libertyGradeQuantity = 0,
       defectQuantity, 
       extraProducts = [],
       notes 
@@ -2107,8 +2242,8 @@ router.post('/tasks/:id/complete', authenticateToken, requirePermission('product
     // Валидация - разрешаем отрицательные значения для корректировки
     // Убрали блокировку отрицательных значений
 
-    if (qualityQuantity + defectQuantity !== producedQuantity) {
-      return next(createError('Сумма годных и брака должна равняться произведенному количеству', 400));
+    if (qualityQuantity + secondGradeQuantity + libertyGradeQuantity + defectQuantity !== producedQuantity) {
+      return next(createError('Сумма годных, второго сорта, Либерти и брака должна равняться произведенному количеству', 400));
     }
 
     // Проверяем, что итоговые значения не станут отрицательными
@@ -2124,6 +2259,18 @@ router.post('/tasks/:id/complete', authenticateToken, requirePermission('product
         400
       ));
     }
+    if (secondGradeQuantity < 0 && (task.secondGradeQuantity || 0) + secondGradeQuantity < 0) {
+      return next(createError(
+        `Недостаточно товара 2-го сорта в задании для корректировки. Доступно: ${task.secondGradeQuantity || 0} шт, пытаетесь убрать: ${Math.abs(secondGradeQuantity)} шт`, 
+        400
+      ));
+    }
+    if (libertyGradeQuantity < 0 && (task.libertyGradeQuantity || 0) + libertyGradeQuantity < 0) {
+      return next(createError(
+        `Недостаточно товара сорта Либерти в задании для корректировки. Доступно: ${task.libertyGradeQuantity || 0} шт, пытаетесь убрать: ${Math.abs(libertyGradeQuantity)} шт`, 
+        400
+      ));
+    }
 
     // Используем транзакцию для атомарности операций
     const result = await db.transaction(async (tx) => {
@@ -2133,6 +2280,8 @@ router.post('/tasks/:id/complete', authenticateToken, requirePermission('product
           status: 'completed',
           producedQuantity,
           qualityQuantity,
+          secondGradeQuantity,
+          libertyGradeQuantity,
           defectQuantity,
           completedBy: userId,
           completedAt: new Date(),
@@ -2161,6 +2310,130 @@ router.post('/tasks/:id/complete', authenticateToken, requirePermission('product
           comment: `Производство завершено (задание #${taskId})`,
           userId
         });
+      }
+
+      // Обрабатываем товар второго сорта
+      if (secondGradeQuantity !== 0) {
+        // Находим или создаем товар второго сорта
+        let secondGradeProductId = null;
+        const secondGradeProduct = await tx.query.products.findFirst({
+          where: and(
+            eq(schema.products.name, task.product.name),
+            eq(schema.products.grade, 'grade_2'),
+            eq(schema.products.isActive, true)
+          )
+        });
+
+        if (secondGradeProduct) {
+          secondGradeProductId = secondGradeProduct.id;
+        } else if (secondGradeQuantity > 0) {
+          // Создаем новый товар второго сорта
+          const secondGradeProductData = {
+            name: task.product.name,
+            article: `2-${task.product.name}`,
+            categoryId: task.product.categoryId,
+            productType: task.product.productType,
+            grade: 'grade_2' as const,
+            isActive: true,
+            notes: `Автоматически создан для 2-го сорта по заданию #${taskId}`
+          };
+          
+          const [newSecondGradeProduct] = await tx.insert(schema.products)
+            .values(secondGradeProductData)
+            .returning();
+          
+          secondGradeProductId = newSecondGradeProduct.id;
+          
+          // Создаем запись в stock
+          await tx.insert(schema.stock).values({
+            productId: secondGradeProductId,
+            currentStock: 0,
+            reservedStock: 0
+          });
+        }
+
+        // Обновляем остатки товара второго сорта
+        if (secondGradeProductId) {
+          await tx.update(schema.stock)
+            .set({
+              currentStock: sql`current_stock + ${secondGradeQuantity}`,
+              updatedAt: new Date()
+            })
+            .where(eq(schema.stock.productId, secondGradeProductId));
+
+          // Логируем движение товара
+          await tx.insert(schema.stockMovements).values({
+            productId: secondGradeProductId,
+            movementType: secondGradeQuantity > 0 ? 'incoming' : 'outgoing',
+            quantity: Math.abs(secondGradeQuantity),
+            referenceId: taskId,
+            referenceType: 'production_task',
+            comment: `Корректировка 2-го сорта по заданию #${taskId}`,
+            userId
+          });
+        }
+      }
+
+      // Обрабатываем товар сорта Либерти
+      if (libertyGradeQuantity !== 0) {
+        // Находим или создаем товар сорта Либерти
+        let libertyGradeProductId = null;
+        const libertyGradeProduct = await tx.query.products.findFirst({
+          where: and(
+            eq(schema.products.name, task.product.name),
+            eq(schema.products.grade, 'liber'),
+            eq(schema.products.isActive, true)
+          )
+        });
+
+        if (libertyGradeProduct) {
+          libertyGradeProductId = libertyGradeProduct.id;
+        } else if (libertyGradeQuantity > 0) {
+          // Создаем новый товар сорта Либерти
+          const libertyGradeProductData = {
+            name: task.product.name,
+            article: `Либер-${task.product.name}`,
+            categoryId: task.product.categoryId,
+            productType: task.product.productType,
+            grade: 'liber' as const,
+            isActive: true,
+            notes: `Автоматически создан для сорта Либерти по заданию #${taskId}`
+          };
+          
+          const [newLibertyGradeProduct] = await tx.insert(schema.products)
+            .values(libertyGradeProductData)
+            .returning();
+          
+          libertyGradeProductId = newLibertyGradeProduct.id;
+          
+          // Создаем запись в stock
+          await tx.insert(schema.stock).values({
+            productId: libertyGradeProductId,
+            currentStock: 0,
+            reservedStock: 0
+          });
+        }
+
+        // Обновляем остатки товара сорта Либерти
+        if (libertyGradeProductId) {
+          await tx.update(schema.stock)
+            .set({
+              currentStock: sql`current_stock + ${libertyGradeQuantity}`,
+              updatedAt: new Date()
+            })
+            .where(eq(schema.stock.productId, libertyGradeProductId));
+
+          // Логируем движение товара
+          await tx.insert(schema.stockMovements).values({
+            productId: libertyGradeProductId,
+            movementType: libertyGradeQuantity > 0 ? 'incoming' : 'outgoing',
+            quantity: Math.abs(libertyGradeQuantity),
+            referenceId: taskId,
+            referenceType: 'production_task',
+            comment: `Корректировка сорта Либерти по заданию #${taskId}`,
+            userId
+          });
+        }
       }
 
       // Обрабатываем дополнительные товары
@@ -2284,10 +2557,14 @@ router.post('/tasks/:id/complete', authenticateToken, requirePermission('product
       return updatedTask[0];
     });
 
+    const secondGradeMessage = secondGradeQuantity > 0 ? ` 2-й сорт: ${secondGradeQuantity} шт.` : '';
+    const libertyGradeMessage = libertyGradeQuantity > 0 ? ` Либерти: ${libertyGradeQuantity} шт.` : '';
+    const defectMessage = defectQuantity > 0 ? ` Брак: ${defectQuantity} шт.` : '';
+    
     res.json({
       success: true,
       data: result,
-      message: 'Задание успешно завершено, статус заказа обновлен'
+      message: `Задание успешно завершено. Произведено: ${producedQuantity} шт. (${qualityQuantity} годных${secondGradeMessage}${libertyGradeMessage}${defectMessage}), статус заказа обновлен`
     });
   } catch (error) {
     next(error);

@@ -289,6 +289,8 @@ export const productionTasks = pgTable('production_tasks', {
   // Результаты выполнения
   producedQuantity: integer('produced_quantity').default(0), // фактически произведено
   qualityQuantity: integer('quality_quantity').default(0),   // годных изделий
+  secondGradeQuantity: integer('second_grade_quantity').default(0), // товар 2-го сорта
+  libertyGradeQuantity: integer('liberty_grade_quantity').default(0), // товар сорта Либерти
   defectQuantity: integer('defect_quantity').default(0),     // брак
   
   // Метаданные

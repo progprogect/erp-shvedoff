@@ -225,15 +225,19 @@ const ProductionTasks: React.FC = () => {
   const [completeFormValues, setCompleteFormValues] = useState<{
     producedQuantity: number;
     qualityQuantity: number;
+    secondGradeQuantity: number;
+    libertyGradeQuantity: number;
     defectQuantity: number;
-  }>({ producedQuantity: 0, qualityQuantity: 0, defectQuantity: 0 });
+  }>({ producedQuantity: 0, qualityQuantity: 0, secondGradeQuantity: 0, libertyGradeQuantity: 0, defectQuantity: 0 });
 
   // Состояние для формы частичного выполнения (WBS 2 - Adjustments Задача 4.1)
   const [partialCompleteFormValues, setPartialCompleteFormValues] = useState<{
     producedQuantity: number;
     qualityQuantity: number;
+    secondGradeQuantity: number;
+    libertyGradeQuantity: number;
     defectQuantity: number;
-  }>({ producedQuantity: 0, qualityQuantity: 0, defectQuantity: 0 });
+  }>({ producedQuantity: 0, qualityQuantity: 0, secondGradeQuantity: 0, libertyGradeQuantity: 0, defectQuantity: 0 });
 
   // Состояние для формы массовой регистрации (WBS 2 - Adjustments Задача 4.2)
   const [bulkRegisterItems, setBulkRegisterItems] = useState<Array<{
@@ -243,8 +247,10 @@ const ProductionTasks: React.FC = () => {
     productName?: string;
     producedQuantity: number;
     qualityQuantity: number;
+    secondGradeQuantity: number;
+    libertyGradeQuantity: number;
     defectQuantity: number;
-  }>>([{ id: 1, article: '', producedQuantity: 0, qualityQuantity: 0, defectQuantity: 0 }]);
+  }>>([{ id: 1, article: '', producedQuantity: 0, qualityQuantity: 0, secondGradeQuantity: 0, libertyGradeQuantity: 0, defectQuantity: 0 }]);
 
   // Состояние для поиска товаров в массовой регистрации
   const [bulkRegisterProducts, setBulkRegisterProducts] = useState<Product[]>([]);
@@ -737,21 +743,25 @@ const ProductionTasks: React.FC = () => {
 
     try {
       // Автоматический пересчет качественных если не указано
-      if (!completeFormValues.qualityQuantity && !completeFormValues.defectQuantity) {
+      if (!completeFormValues.qualityQuantity && !completeFormValues.defectQuantity && !completeFormValues.secondGradeQuantity && !completeFormValues.libertyGradeQuantity) {
         setCompleteFormValues(prev => ({
           ...prev,
           qualityQuantity: completeFormValues.producedQuantity,
+          secondGradeQuantity: 0,
+          libertyGradeQuantity: 0,
           defectQuantity: 0
         }));
       }
 
       const produced = completeFormValues.producedQuantity;
       const quality = completeFormValues.qualityQuantity;
+      const secondGrade = completeFormValues.secondGradeQuantity || 0;
+      const libertyGrade = completeFormValues.libertyGradeQuantity || 0;
       const defect = completeFormValues.defectQuantity;
 
       // Валидация суммы
-      if (quality + defect !== produced) {
-        message.error('Сумма годных и брака должна равняться произведенному количеству');
+      if (quality + secondGrade + libertyGrade + defect !== produced) {
+        message.error('Сумма годных, второго сорта, Либерти и брака должна равняться произведенному количеству');
         return;
       }
 
@@ -759,6 +769,8 @@ const ProductionTasks: React.FC = () => {
       await completeTask(selectedTask.id, {
         producedQuantity: Number(produced),
         qualityQuantity: Number(quality),
+        secondGradeQuantity: Number(secondGrade),
+        libertyGradeQuantity: Number(libertyGrade),
         defectQuantity: Number(defect),
         notes: values.notes
       });
@@ -852,7 +864,7 @@ const ProductionTasks: React.FC = () => {
       setPartialCompleteModalVisible(false);
       setSelectedTask(null);
       partialCompleteForm.resetFields();
-      setPartialCompleteFormValues({ producedQuantity: 0, qualityQuantity: 0, defectQuantity: 0 });
+      setPartialCompleteFormValues({ producedQuantity: 0, qualityQuantity: 0, secondGradeQuantity: 0, libertyGradeQuantity: 0, defectQuantity: 0 });
       loadTasks();
       loadTasksByProduct();
     } catch (error) {
@@ -945,7 +957,7 @@ const ProductionTasks: React.FC = () => {
 
         setBulkRegisterModalVisible(false);
         bulkRegisterForm.resetFields();
-        setBulkRegisterItems([{ id: 1, article: '', producedQuantity: 0, qualityQuantity: 0, defectQuantity: 0 }]);
+        setBulkRegisterItems([{ id: 1, article: '', producedQuantity: 0, qualityQuantity: 0, secondGradeQuantity: 0, libertyGradeQuantity: 0, defectQuantity: 0 }]);
         loadTasks();
         loadTasksByProduct();
       } else {
@@ -975,11 +987,11 @@ const ProductionTasks: React.FC = () => {
     if (!selectedProductForCompletion) return;
 
     try {
-      const { producedQuantity, qualityQuantity, defectQuantity, productionDate, notes } = values;
+      const { producedQuantity, qualityQuantity, secondGradeQuantity = 0, libertyGradeQuantity = 0, defectQuantity, productionDate, notes } = values;
 
       // Валидация суммы
-      if (qualityQuantity + defectQuantity !== producedQuantity) {
-        message.error('Сумма годных и брака должна равняться произведенному количеству');
+      if (qualityQuantity + secondGradeQuantity + libertyGradeQuantity + defectQuantity !== producedQuantity) {
+        message.error('Сумма годных, второго сорта, Либерти и брака должна равняться произведенному количеству');
         return;
       }
 
@@ -988,6 +1000,8 @@ const ProductionTasks: React.FC = () => {
         productId: selectedProductForCompletion.product.id,
         producedQuantity,
         qualityQuantity,
+        secondGradeQuantity,
+        libertyGradeQuantity,
         defectQuantity,
         productionDate: productionDate?.format ? productionDate.format('YYYY-MM-DD') : productionDate,
         notes
@@ -1729,11 +1743,15 @@ const ProductionTasks: React.FC = () => {
                   setPartialCompleteFormValues({
                     producedQuantity: defaultProduced,
                     qualityQuantity: defaultProduced,
+                    secondGradeQuantity: 0,
+                    libertyGradeQuantity: 0,
                     defectQuantity: 0
                   });
                   partialCompleteForm.setFieldsValue({
                     producedQuantity: defaultProduced,
                     qualityQuantity: defaultProduced,
+                    secondGradeQuantity: 0,
+                    libertyGradeQuantity: 0,
                     defectQuantity: 0
                   });
                   setPartialCompleteModalVisible(true);
@@ -1792,11 +1810,15 @@ const ProductionTasks: React.FC = () => {
                   setPartialCompleteFormValues({
                     producedQuantity: defaultProduced,
                     qualityQuantity: defaultProduced,
+                    secondGradeQuantity: 0,
+                    libertyGradeQuantity: 0,
                     defectQuantity: 0
                   });
                   partialCompleteForm.setFieldsValue({
                     producedQuantity: defaultProduced,
                     qualityQuantity: defaultProduced,
+                    secondGradeQuantity: 0,
+                    libertyGradeQuantity: 0,
                     defectQuantity: 0
                   });
                   setPartialCompleteModalVisible(true);
@@ -2340,7 +2362,7 @@ const ProductionTasks: React.FC = () => {
           setCompleteModalVisible(false);
           setSelectedTask(null);
           completeForm.resetFields();
-          setCompleteFormValues({ producedQuantity: 0, qualityQuantity: 0, defectQuantity: 0 });
+          setCompleteFormValues({ producedQuantity: 0, qualityQuantity: 0, secondGradeQuantity: 0, libertyGradeQuantity: 0, defectQuantity: 0 });
         }}
         footer={null}
         width={700}
@@ -2362,7 +2384,7 @@ const ProductionTasks: React.FC = () => {
             </div>
 
             <Alert 
-              message="Важно: Произведено = Качественных + Бракованных" 
+              message="Важно: Произведено = Качественных + 2-й сорт + Либерти + Бракованных" 
               description="Поля автоматически пересчитываются для соблюдения этого правила"
               type="info" 
               showIcon 
@@ -2384,8 +2406,10 @@ const ProductionTasks: React.FC = () => {
                     placeholder="Годных изделий"
                     onChange={(value) => {
                       const defect = completeFormValues.defectQuantity || 0;
+                      const secondGrade = completeFormValues.secondGradeQuantity || 0;
+                      const libertyGrade = completeFormValues.libertyGradeQuantity || 0;
                       const qualityValue = typeof value === 'number' ? value : 0;
-                      completeForm.setFieldsValue({ producedQuantity: qualityValue + defect });
+                      completeForm.setFieldsValue({ producedQuantity: qualityValue + secondGrade + libertyGrade + defect });
                     }}
                   />
                 </Form.Item>
@@ -2404,8 +2428,10 @@ const ProductionTasks: React.FC = () => {
                     placeholder="Количество брака"
                     onChange={(value) => {
                       const quality = completeFormValues.qualityQuantity || 0;
+                      const secondGrade = completeFormValues.secondGradeQuantity || 0;
+                      const libertyGrade = completeFormValues.libertyGradeQuantity || 0;
                       const defectValue = typeof value === 'number' ? value : 0;
-                      completeForm.setFieldsValue({ producedQuantity: quality + defectValue });
+                      completeForm.setFieldsValue({ producedQuantity: quality + secondGrade + libertyGrade + defectValue });
                     }}
                   />
                 </Form.Item>
@@ -2425,7 +2451,46 @@ const ProductionTasks: React.FC = () => {
               </Col>
             </Row>
 
-            {/* Блок проверки готовности */}
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item
+                  name="secondGradeQuantity"
+                  label="2-й сорт (идёт в остатки товара 2-го сорта)"
+                  extra="Положительное значение добавляет на склад, отрицательное отнимает (для корректировки)"
+                >
+                  <InputNumber 
+                    style={{ width: '100%' }}
+                    placeholder="Количество товара 2-го сорта"
+                    onChange={(value) => {
+                      const quality = completeFormValues.qualityQuantity || 0;
+                      const libertyGrade = completeFormValues.libertyGradeQuantity || 0;
+                      const defect = completeFormValues.defectQuantity || 0;
+                      const secondGradeValue = typeof value === 'number' ? value : 0;
+                      completeForm.setFieldsValue({ producedQuantity: quality + secondGradeValue + libertyGrade + defect });
+                    }}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item
+                  name="libertyGradeQuantity"
+                  label="Либерти (идёт в остатки товара сорта Либерти)"
+                  extra="Положительное значение добавляет на склад, отрицательное отнимает (для корректировки)"
+                >
+                  <InputNumber 
+                    style={{ width: '100%' }}
+                    placeholder="Количество товара сорта Либерти"
+                    onChange={(value) => {
+                      const quality = completeFormValues.qualityQuantity || 0;
+                      const secondGrade = completeFormValues.secondGradeQuantity || 0;
+                      const defect = completeFormValues.defectQuantity || 0;
+                      const libertyGradeValue = typeof value === 'number' ? value : 0;
+                      completeForm.setFieldsValue({ producedQuantity: quality + secondGrade + libertyGradeValue + defect });
+                    }}
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
             <div style={{ marginBottom: 16, padding: 12, backgroundColor: '#f5f5f5', borderRadius: 6, border: '1px solid #d9d9d9' }}>
               <Text strong>Проверка готовности:</Text>
               <br />
@@ -2437,7 +2502,7 @@ const ProductionTasks: React.FC = () => {
               </Text>
               <br />
               <Text type="secondary">
-                Произведено всего: {completeFormValues.qualityQuantity || 0} + {completeFormValues.defectQuantity || 0} = {completeFormValues.producedQuantity || 0}
+                Произведено всего: {completeFormValues.qualityQuantity || 0} + {completeFormValues.secondGradeQuantity || 0} + {completeFormValues.libertyGradeQuantity || 0} + {completeFormValues.defectQuantity || 0} = {completeFormValues.producedQuantity || 0}
               </Text>
             </div>
 
@@ -2543,7 +2608,7 @@ const ProductionTasks: React.FC = () => {
                   setCompleteModalVisible(false);
                   setSelectedTask(null);
                   completeForm.resetFields();
-                  setCompleteFormValues({ producedQuantity: 0, qualityQuantity: 0, defectQuantity: 0 });
+                  setCompleteFormValues({ producedQuantity: 0, qualityQuantity: 0, secondGradeQuantity: 0, libertyGradeQuantity: 0, defectQuantity: 0 });
                 }}>
                   Отмена
                 </Button>
@@ -2810,6 +2875,35 @@ const ProductionTasks: React.FC = () => {
                     min={0} 
                     style={{ width: '100%' }}
                     placeholder="Количество брака"
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item
+                  name="secondGradeQuantity"
+                  label="2-й сорт (идёт в остатки товара 2-го сорта)"
+                  extra="Положительное значение добавляет на склад, отрицательное отнимает (для корректировки)"
+                  initialValue={0}
+                >
+                  <InputNumber 
+                    style={{ width: '100%' }}
+                    placeholder="Количество товара 2-го сорта"
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item
+                  name="libertyGradeQuantity"
+                  label="Либерти (идёт в остатки товара сорта Либерти)"
+                  extra="Положительное значение добавляет на склад, отрицательное отнимает (для корректировки)"
+                  initialValue={0}
+                >
+                  <InputNumber 
+                    style={{ width: '100%' }}
+                    placeholder="Количество товара сорта Либерти"
                   />
                 </Form.Item>
               </Col>
@@ -3082,7 +3176,7 @@ const ProductionTasks: React.FC = () => {
             setPartialCompleteModalVisible(false);
             setSelectedTask(null);
             partialCompleteForm.resetFields();
-            setPartialCompleteFormValues({ producedQuantity: 0, qualityQuantity: 0, defectQuantity: 0 });
+            setPartialCompleteFormValues({ producedQuantity: 0, qualityQuantity: 0, secondGradeQuantity: 0, libertyGradeQuantity: 0, defectQuantity: 0 });
           }}
           footer={null}
           width={600}
@@ -3222,7 +3316,7 @@ const ProductionTasks: React.FC = () => {
                     setPartialCompleteModalVisible(false);
                     setSelectedTask(null);
                     partialCompleteForm.resetFields();
-                    setPartialCompleteFormValues({ producedQuantity: 0, qualityQuantity: 0, defectQuantity: 0 });
+                    setPartialCompleteFormValues({ producedQuantity: 0, qualityQuantity: 0, secondGradeQuantity: 0, libertyGradeQuantity: 0, defectQuantity: 0 });
                   }}
                 >
                   Отмена
@@ -3253,7 +3347,7 @@ const ProductionTasks: React.FC = () => {
         onCancel={() => {
           setBulkRegisterModalVisible(false);
           bulkRegisterForm.resetFields();
-          setBulkRegisterItems([{ id: 1, article: '', producedQuantity: 0, qualityQuantity: 0, defectQuantity: 0 }]);
+          setBulkRegisterItems([{ id: 1, article: '', producedQuantity: 0, qualityQuantity: 0, secondGradeQuantity: 0, libertyGradeQuantity: 0, defectQuantity: 0 }]);
         }}
         footer={null}
         width={1000}
@@ -3286,6 +3380,8 @@ const ProductionTasks: React.FC = () => {
                     article: '',
                     producedQuantity: 0,
                     qualityQuantity: 0,
+                    secondGradeQuantity: 0,
+                    libertyGradeQuantity: 0,
                     defectQuantity: 0
                   }]);
                 }}
@@ -3508,7 +3604,7 @@ const ProductionTasks: React.FC = () => {
                 onClick={() => {
                   setBulkRegisterModalVisible(false);
                   bulkRegisterForm.resetFields();
-                  setBulkRegisterItems([{ id: 1, article: '', producedQuantity: 0, qualityQuantity: 0, defectQuantity: 0 }]);
+                  setBulkRegisterItems([{ id: 1, article: '', producedQuantity: 0, qualityQuantity: 0, secondGradeQuantity: 0, libertyGradeQuantity: 0, defectQuantity: 0 }]);
                 }}
               >
                 Отмена
