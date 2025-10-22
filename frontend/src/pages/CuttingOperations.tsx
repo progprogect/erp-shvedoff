@@ -546,13 +546,6 @@ export const CuttingOperations: React.FC = () => {
                 </span>
               </div>
             )}
-            {totalWaste > 0 && (
-              <div>
-                <span style={{ color: '#ff4d4f', fontWeight: '500' }}>
-                  Брак: {totalWaste}
-                </span>
-              </div>
-            )}
           </div>
         );
       }
