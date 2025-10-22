@@ -1669,9 +1669,9 @@ const ProductionTasks: React.FC = () => {
     {
       title: 'Действия',
       key: 'actions',
-      width: 200,
+      width: 300,
       render: (record: ProductionTask) => (
-        <Space size="small">
+        <Space size="small" wrap>
           {record.status === 'pending' && (
             <>
               <Tooltip title="Просмотр деталей">
@@ -1849,6 +1849,35 @@ const ProductionTasks: React.FC = () => {
                 onClick={() => handleResumeTask(record)}
               >
                 Возобновить
+              </Button>
+              <Button
+                type="default"
+                size="small"
+                icon={<PlusOutlined />}
+                onClick={() => {
+                  setSelectedTask(record);
+                  const currentProduced = record.producedQuantity || 0;
+                  const remainingQuantity = record.requestedQuantity - currentProduced;
+                  const defaultProduced = 0; // По умолчанию 0, пользователь сам введет
+                  setPartialCompleteFormValues({
+                    producedQuantity: defaultProduced,
+                    qualityQuantity: defaultProduced,
+                    secondGradeQuantity: 0,
+                    libertyGradeQuantity: 0,
+                    defectQuantity: 0
+                  });
+                  partialCompleteForm.setFieldsValue({
+                    producedQuantity: defaultProduced,
+                    qualityQuantity: defaultProduced,
+                    secondGradeQuantity: 0,
+                    libertyGradeQuantity: 0,
+                    defectQuantity: 0
+                  });
+                  setPartialCompleteModalVisible(true);
+                }}
+                style={{ marginLeft: 8 }}
+              >
+                Зарегистрировать выпуск
               </Button>
             </>
           )}
