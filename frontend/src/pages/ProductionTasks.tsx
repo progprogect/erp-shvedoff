@@ -3192,6 +3192,8 @@ const ProductionTasks: React.FC = () => {
                   <strong>Задание:</strong> {selectedTask.product.name}<br/>
                   <strong>Запрошено:</strong> {selectedTask.requestedQuantity} шт.<br/>
                   <strong>Уже произведено качественных:</strong> {selectedTask.qualityQuantity || 0} шт.<br/>
+                  <strong>Уже произведено 2-го сорта:</strong> {selectedTask.secondGradeQuantity || 0} шт.<br/>
+                  <strong>Уже произведено Либерти:</strong> {selectedTask.libertyGradeQuantity || 0} шт.<br/>
                   <strong>Уже произведено брака:</strong> {selectedTask.defectQuantity || 0} шт.
                 </div>
               }
@@ -3207,37 +3209,7 @@ const ProductionTasks: React.FC = () => {
             onFinish={handlePartialCompleteTask}
           >
             <Row gutter={16}>
-              <Col span={8}>
-                <Form.Item
-                  name="producedQuantity"
-                  label="Произведено (шт)"
-                  help="Можно указать любое количество. Положительные значения добавляют продукцию, отрицательные убирают (корректировка)"
-                  rules={[
-                    { required: true, message: 'Укажите количество' },
-                    { type: 'number', message: 'Введите число' }
-                  ]}
-                >
-                  <InputNumber
-                    style={{ width: '100%' }}
-                    value={partialCompleteFormValues.producedQuantity}
-                    onChange={(value) => {
-                      const produced = value ?? 0;
-                      setPartialCompleteFormValues(prev => ({
-                        ...prev,
-                        producedQuantity: produced,
-                        qualityQuantity: produced,
-                        defectQuantity: 0
-                      }));
-                      partialCompleteForm.setFieldsValue({
-                        qualityQuantity: produced,
-                        defectQuantity: 0
-                      });
-                    }}
-                    placeholder="Укажите количество"
-                  />
-                </Form.Item>
-              </Col>
-              <Col span={8}>
+              <Col span={12}>
                 <Form.Item
                   name="qualityQuantity"
                   label="Годных (шт)"
@@ -3248,22 +3220,23 @@ const ProductionTasks: React.FC = () => {
                 >
                   <InputNumber
                     style={{ width: '100%' }}
-                    value={partialCompleteFormValues.qualityQuantity}
+                    placeholder="Количество годных"
                     onChange={(value) => {
-                      const quality = value ?? 0;
-                      const defect = partialCompleteFormValues.producedQuantity - quality;
+                      const quality = typeof value === 'number' ? value : 0;
+                      const secondGrade = partialCompleteFormValues.secondGradeQuantity || 0;
+                      const libertyGrade = partialCompleteFormValues.libertyGradeQuantity || 0;
+                      const defect = partialCompleteFormValues.defectQuantity || 0;
                       setPartialCompleteFormValues(prev => ({
                         ...prev,
                         qualityQuantity: quality,
-                        defectQuantity: defect
+                        producedQuantity: quality + secondGrade + libertyGrade + defect
                       }));
-                      partialCompleteForm.setFieldValue('defectQuantity', defect);
+                      partialCompleteForm.setFieldValue('producedQuantity', quality + secondGrade + libertyGrade + defect);
                     }}
-                    max={partialCompleteFormValues.producedQuantity}
                   />
                 </Form.Item>
               </Col>
-              <Col span={8}>
+              <Col span={12}>
                 <Form.Item
                   name="defectQuantity"
                   label="Брак (шт)"
@@ -3274,18 +3247,85 @@ const ProductionTasks: React.FC = () => {
                 >
                   <InputNumber
                     style={{ width: '100%' }}
-                    value={partialCompleteFormValues.defectQuantity}
+                    placeholder="Количество брака"
                     onChange={(value) => {
-                      const defect = value ?? 0;
-                      const quality = partialCompleteFormValues.producedQuantity - defect;
+                      const defect = typeof value === 'number' ? value : 0;
+                      const quality = partialCompleteFormValues.qualityQuantity || 0;
+                      const secondGrade = partialCompleteFormValues.secondGradeQuantity || 0;
+                      const libertyGrade = partialCompleteFormValues.libertyGradeQuantity || 0;
                       setPartialCompleteFormValues(prev => ({
                         ...prev,
                         defectQuantity: defect,
-                        qualityQuantity: quality
+                        producedQuantity: quality + secondGrade + libertyGrade + defect
                       }));
-                      partialCompleteForm.setFieldValue('qualityQuantity', quality);
+                      partialCompleteForm.setFieldValue('producedQuantity', quality + secondGrade + libertyGrade + defect);
                     }}
-                    max={partialCompleteFormValues.producedQuantity}
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item
+                  name="secondGradeQuantity"
+                  label="2-й сорт (шт)"
+                  extra="Положительное значение добавляет на склад, отрицательное отнимает (для корректировки)"
+                >
+                  <InputNumber
+                    style={{ width: '100%' }}
+                    placeholder="Количество 2-го сорта"
+                    onChange={(value) => {
+                      const secondGrade = typeof value === 'number' ? value : 0;
+                      const quality = partialCompleteFormValues.qualityQuantity || 0;
+                      const libertyGrade = partialCompleteFormValues.libertyGradeQuantity || 0;
+                      const defect = partialCompleteFormValues.defectQuantity || 0;
+                      setPartialCompleteFormValues(prev => ({
+                        ...prev,
+                        secondGradeQuantity: secondGrade,
+                        producedQuantity: quality + secondGrade + libertyGrade + defect
+                      }));
+                      partialCompleteForm.setFieldValue('producedQuantity', quality + secondGrade + libertyGrade + defect);
+                    }}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item
+                  name="libertyGradeQuantity"
+                  label="Либерти (шт)"
+                  extra="Положительное значение добавляет на склад, отрицательное отнимает (для корректировки)"
+                >
+                  <InputNumber
+                    style={{ width: '100%' }}
+                    placeholder="Количество Либерти"
+                    onChange={(value) => {
+                      const libertyGrade = typeof value === 'number' ? value : 0;
+                      const quality = partialCompleteFormValues.qualityQuantity || 0;
+                      const secondGrade = partialCompleteFormValues.secondGradeQuantity || 0;
+                      const defect = partialCompleteFormValues.defectQuantity || 0;
+                      setPartialCompleteFormValues(prev => ({
+                        ...prev,
+                        libertyGradeQuantity: libertyGrade,
+                        producedQuantity: quality + secondGrade + libertyGrade + defect
+                      }));
+                      partialCompleteForm.setFieldValue('producedQuantity', quality + secondGrade + libertyGrade + defect);
+                    }}
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Row gutter={16}>
+              <Col span={24}>
+                <Form.Item
+                  name="producedQuantity"
+                  label="Произведено (шт)"
+                >
+                  <InputNumber
+                    style={{ width: '100%' }}
+                    placeholder="Автоматически"
+                    disabled
                   />
                 </Form.Item>
               </Col>
@@ -3294,10 +3334,7 @@ const ProductionTasks: React.FC = () => {
             <Row>
               <Col span={24}>
                 <div style={{ marginBottom: 8, fontSize: '14px', color: '#666' }}>
-                  Проверка: {partialCompleteFormValues.qualityQuantity + partialCompleteFormValues.defectQuantity === partialCompleteFormValues.producedQuantity ? 
-                    '✅ Сумма сходится' : 
-                    '❌ Сумма годных и брака должна равняться произведенному количеству'
-                  }
+                  Проверка: ✅ Произведено всего: {partialCompleteFormValues.qualityQuantity || 0} + {partialCompleteFormValues.secondGradeQuantity || 0} + {partialCompleteFormValues.libertyGradeQuantity || 0} + {partialCompleteFormValues.defectQuantity || 0} = {partialCompleteFormValues.producedQuantity || 0}
                 </div>
               </Col>
             </Row>

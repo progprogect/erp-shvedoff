@@ -2447,7 +2447,9 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
     const taskId = Number(req.params.id);
     const { 
       producedQuantity, 
-      qualityQuantity, 
+      qualityQuantity,
+      secondGradeQuantity = 0,
+      libertyGradeQuantity = 0,
       defectQuantity, 
       notes 
     } = req.body;
@@ -2483,8 +2485,8 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
       }
     }
 
-    if (qualityQuantity + defectQuantity !== producedQuantity) {
-      return next(createError('Сумма годных и брака должна равняться произведенному количеству', 400));
+    if (qualityQuantity + secondGradeQuantity + libertyGradeQuantity + defectQuantity !== producedQuantity) {
+      return next(createError('Сумма годных, 2-го сорта, Либерти и брака должна равняться произведенному количеству', 400));
     }
 
     // Обработка сверхпланового производства (исправленная логика)
@@ -2525,12 +2527,26 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
     const result = await db.transaction(async (tx) => {
       // Обновляем счетчики задания
       const newQualityQuantity = (task.qualityQuantity || 0) + qualityQuantity; // записываем ВСЕ качественное количество
+      const newSecondGradeQuantity = (task.secondGradeQuantity || 0) + secondGradeQuantity; // 2-й сорт
+      const newLibertyGradeQuantity = (task.libertyGradeQuantity || 0) + libertyGradeQuantity; // Либерти
       const newDefectQuantity = (task.defectQuantity || 0) + defectQuantity; // весь брак записываем в задание
       
       // Проверяем, что итоговые значения не станут отрицательными
       if (newQualityQuantity < 0) {
         return next(createError(
           `Недостаточно качественной продукции в задании для корректировки. Доступно: ${task.qualityQuantity || 0} шт, пытаетесь убрать: ${Math.abs(qualityQuantity)} шт`, 
+          400
+        ));
+      }
+      if (newSecondGradeQuantity < 0) {
+        return next(createError(
+          `Недостаточно продукции 2-го сорта в задании для корректировки. Доступно: ${task.secondGradeQuantity || 0} шт, пытаетесь убрать: ${Math.abs(secondGradeQuantity)} шт`, 
+          400
+        ));
+      }
+      if (newLibertyGradeQuantity < 0) {
+        return next(createError(
+          `Недостаточно продукции сорта Либерти в задании для корректировки. Доступно: ${task.libertyGradeQuantity || 0} шт, пытаетесь убрать: ${Math.abs(libertyGradeQuantity)} шт`, 
           400
         ));
       }
@@ -2550,6 +2566,8 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
           status: newStatus,
           producedQuantity: newTotalProduced,
           qualityQuantity: newQualityQuantity,
+          secondGradeQuantity: newSecondGradeQuantity,
+          libertyGradeQuantity: newLibertyGradeQuantity,
           defectQuantity: newDefectQuantity,
           startedAt: task.startedAt || new Date(), // Автоматически запускаем если еще не запущено
           startedBy: task.startedBy || userId,
@@ -2594,6 +2612,84 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
               referenceId: taskId,
               referenceType: 'overproduction',
               comment: `Сверхплановое производство (задание #${taskId})`,
+              userId
+            });
+          }
+        }
+
+        // Обрабатываем товар 2-го сорта (если есть)
+        if (secondGradeQuantity !== 0) {
+          // Находим или создаем товар 2-го сорта с теми же характеристиками
+          let secondGradeProduct = await tx.query.products.findFirst({
+            where: and(
+              eq(schema.products.name, task.product.name),
+              eq(schema.products.grade, 'grade_2'),
+              eq(schema.products.isActive, true)
+            )
+          });
+
+          if (!secondGradeProduct && secondGradeQuantity > 0) {
+            // Создаем товар 2-го сорта (упрощенная логика, можно расширить)
+            // Для полноценного создания с характеристиками используйте логику из массовой регистрации
+            console.warn('Товар 2-го сорта не найден. Рекомендуется использовать функцию "Завершить задание" для создания товаров с полными характеристиками.');
+          }
+
+          if (secondGradeProduct) {
+            // Обновляем остатки
+            await tx.update(schema.stock)
+              .set({
+                currentStock: sql`current_stock + ${secondGradeQuantity}`,
+                updatedAt: new Date()
+              })
+              .where(eq(schema.stock.productId, secondGradeProduct.id));
+
+            // Логируем движение
+            await tx.insert(schema.stockMovements).values({
+              productId: secondGradeProduct.id,
+              movementType: secondGradeQuantity > 0 ? 'incoming' : 'outgoing',
+              quantity: Math.abs(secondGradeQuantity),
+              referenceId: taskId,
+              referenceType: 'production_task',
+              comment: `${secondGradeQuantity > 0 ? 'Производство' : 'Корректировка'} 2-го сорта по заданию #${taskId}`,
+              userId
+            });
+          }
+        }
+
+        // Обрабатываем товар сорта Либерти (если есть)
+        if (libertyGradeQuantity !== 0) {
+          // Находим или создаем товар сорта Либерти с теми же характеристиками
+          let libertyGradeProduct = await tx.query.products.findFirst({
+            where: and(
+              eq(schema.products.name, task.product.name),
+              eq(schema.products.grade, 'liber'),
+              eq(schema.products.isActive, true)
+            )
+          });
+
+          if (!libertyGradeProduct && libertyGradeQuantity > 0) {
+            // Создаем товар сорта Либерти (упрощенная логика, можно расширить)
+            // Для полноценного создания с характеристиками используйте логику из массовой регистрации
+            console.warn('Товар сорта Либерти не найден. Рекомендуется использовать функцию "Завершить задание" для создания товаров с полными характеристиками.');
+          }
+
+          if (libertyGradeProduct) {
+            // Обновляем остатки
+            await tx.update(schema.stock)
+              .set({
+                currentStock: sql`current_stock + ${libertyGradeQuantity}`,
+                updatedAt: new Date()
+              })
+              .where(eq(schema.stock.productId, libertyGradeProduct.id));
+
+            // Логируем движение
+            await tx.insert(schema.stockMovements).values({
+              productId: libertyGradeProduct.id,
+              movementType: libertyGradeQuantity > 0 ? 'incoming' : 'outgoing',
+              quantity: Math.abs(libertyGradeQuantity),
+              referenceId: taskId,
+              referenceType: 'production_task',
+              comment: `${libertyGradeQuantity > 0 ? 'Производство' : 'Корректировка'} сорта Либерти по заданию #${taskId}`,
               userId
             });
           }
