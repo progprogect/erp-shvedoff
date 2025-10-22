@@ -1564,6 +1564,60 @@ export const CuttingOperations: React.FC = () => {
               )}
             </Descriptions>
 
+            {/* Отображение текущего прогресса */}
+            {operationDetails.progress && (
+              <>
+                <Divider>Текущий прогресс</Divider>
+                <div style={{ 
+                  padding: '16px', 
+                  backgroundColor: '#f8f9fa', 
+                  borderRadius: '8px',
+                  border: '1px solid #e9ecef',
+                  marginBottom: '16px'
+                }}>
+                  <Row gutter={16}>
+                    <Col span={6}>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#52c41a' }}>
+                          {operationDetails.progress.totalProduct}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#666' }}>Товар</div>
+                      </div>
+                    </Col>
+                    <Col span={6}>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#faad14' }}>
+                          {operationDetails.progress.totalSecondGrade}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#666' }}>2 сорт</div>
+                      </div>
+                    </Col>
+                    <Col span={6}>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#722ed1' }}>
+                          {operationDetails.progress.totalLibertyGrade}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#666' }}>Либерти</div>
+                      </div>
+                    </Col>
+                    <Col span={6}>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#ff4d4f' }}>
+                          {operationDetails.progress.totalWaste}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#666' }}>Брак</div>
+                      </div>
+                    </Col>
+                  </Row>
+                  {operationDetails.progress.lastUpdated && (
+                    <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '12px', color: '#999' }}>
+                      Последнее обновление: {dayjs(operationDetails.progress.lastUpdated).format('DD.MM.YYYY HH:mm')}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
             {operationDetails.movements && operationDetails.movements.length > 0 && (
               <>
                 <Divider>История движений товаров</Divider>

@@ -1090,11 +1090,24 @@ router.get('/:id', authenticateToken, requirePermission('cutting', 'view'), asyn
       orderBy: desc(schema.stockMovements.createdAt)
     });
 
+    // Get progress for this operation
+    const progress = await db
+      .select({
+        totalProduct: sql<number>`COALESCE(SUM(${schema.cuttingProgressLog.productQuantity}), 0)`,
+        totalSecondGrade: sql<number>`COALESCE(SUM(${schema.cuttingProgressLog.secondGradeQuantity}), 0)`,
+        totalLibertyGrade: sql<number>`COALESCE(SUM(${schema.cuttingProgressLog.libertyGradeQuantity}), 0)`,
+        totalWaste: sql<number>`COALESCE(SUM(${schema.cuttingProgressLog.wasteQuantity}), 0)`,
+        lastUpdated: sql<Date>`MAX(${schema.cuttingProgressLog.enteredAt})`
+      })
+      .from(schema.cuttingProgressLog)
+      .where(eq(schema.cuttingProgressLog.operationId, operationId));
+
     res.json({
       success: true,
       data: {
         ...operation,
-        movements
+        movements,
+        progress: progress[0]
       }
     });
   } catch (error) {
