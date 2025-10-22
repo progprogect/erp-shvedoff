@@ -1169,8 +1169,8 @@ router.post('/:id/progress', authenticateToken, requirePermission('cutting', 'ed
 
     // Добавляем прогресс в транзакции
     const result = await db.transaction(async (tx) => {
-      // Создаем товары 2-го сорта и Либерти если их нет (только при положительных количествах)
-      if (quantities.secondGradeQuantity > 0) {
+      // Проверяем и создаем товары 2-го сорта и Либерти если их нет
+      if (quantities.secondGradeQuantity !== 0) {
         // Проверяем, существует ли товар 2-го сорта
         const existingSecondGrade = await tx.query.products.findFirst({
           where: and(
@@ -1253,10 +1253,25 @@ router.post('/:id/progress', authenticateToken, requirePermission('cutting', 'ed
             reservedStock: 0,
             updatedAt: new Date()
           });
+        } else {
+          // Проверяем, есть ли запись в stock для существующего товара
+          const existingStock = await tx.query.stock.findFirst({
+            where: eq(schema.stock.productId, existingSecondGrade.id)
+          });
+
+          if (!existingStock) {
+            // Создаем запись остатков для существующего товара
+            await tx.insert(schema.stock).values({
+              productId: existingSecondGrade.id,
+              currentStock: 0,
+              reservedStock: 0,
+              updatedAt: new Date()
+            });
+          }
         }
       }
 
-      if (quantities.libertyGradeQuantity > 0) {
+      if (quantities.libertyGradeQuantity !== 0) {
         // Проверяем, существует ли товар сорта Либерти
         const existingLibertyGrade = await tx.query.products.findFirst({
           where: and(
@@ -1339,6 +1354,21 @@ router.post('/:id/progress', authenticateToken, requirePermission('cutting', 'ed
             reservedStock: 0,
             updatedAt: new Date()
           });
+        } else {
+          // Проверяем, есть ли запись в stock для существующего товара
+          const existingStock = await tx.query.stock.findFirst({
+            where: eq(schema.stock.productId, existingLibertyGrade.id)
+          });
+
+          if (!existingStock) {
+            // Создаем запись остатков для существующего товара
+            await tx.insert(schema.stock).values({
+              productId: existingLibertyGrade.id,
+              currentStock: 0,
+              reservedStock: 0,
+              updatedAt: new Date()
+            });
+          }
         }
       }
 
