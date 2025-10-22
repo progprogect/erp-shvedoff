@@ -1,6 +1,6 @@
 import express from 'express';
 import { db, schema } from '../db';
-import { eq, and, sql, desc, asc, inArray } from 'drizzle-orm';
+import { eq, and, sql, desc, asc, inArray, isNull } from 'drizzle-orm';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
 import { requireExportPermission } from '../middleware/permissions';
@@ -2049,78 +2049,350 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
 
         // Обрабатываем товар 2-го сорта (если есть)
         if (secondGradeQuantity > 0) {
-          // Находим или создаем товар 2-го сорта
+          // Находим или создаем товар 2-го сорта с теми же характеристиками
           let secondGradeProduct = await tx.query.products.findFirst({
             where: and(
+              // Основные параметры
+              product.categoryId ? eq(schema.products.categoryId, product.categoryId) : undefined,
               eq(schema.products.name, product.name),
+              eq(schema.products.productType, product.productType),
               eq(schema.products.grade, 'grade_2'),
-              eq(schema.products.isActive, true)
+              eq(schema.products.isActive, true),
+              
+              // Размеры
+              product.dimensions ? eq(schema.products.dimensions, product.dimensions) : undefined,
+              
+              // Поверхности
+              product.surfaceIds ? eq(schema.products.surfaceIds, product.surfaceIds) : undefined,
+              
+              // Логотип
+              product.logoId ? eq(schema.products.logoId, product.logoId) : 
+              (!product.logoId ? isNull(schema.products.logoId) : undefined),
+              
+              // Материал
+              product.materialId ? eq(schema.products.materialId, product.materialId) : 
+              (!product.materialId ? isNull(schema.products.materialId) : undefined),
+              
+              // Низ ковра
+              product.bottomTypeId ? eq(schema.products.bottomTypeId, product.bottomTypeId) : 
+              (!product.bottomTypeId ? isNull(schema.products.bottomTypeId) : undefined),
+              
+              // Паззл
+              product.puzzleTypeId ? eq(schema.products.puzzleTypeId, product.puzzleTypeId) : 
+              (!product.puzzleTypeId ? isNull(schema.products.puzzleTypeId) : undefined),
+              
+              product.puzzleSides ? eq(schema.products.puzzleSides, product.puzzleSides) : undefined,
+              
+              // Пресс
+              product.pressType ? eq(schema.products.pressType, product.pressType) : 
+              (!product.pressType ? isNull(schema.products.pressType) : undefined),
+              
+              // Края ковра
+              product.carpetEdgeType ? eq(schema.products.carpetEdgeType, product.carpetEdgeType) : 
+              (!product.carpetEdgeType ? isNull(schema.products.carpetEdgeType) : undefined),
+              
+              product.carpetEdgeSides ? eq(schema.products.carpetEdgeSides, product.carpetEdgeSides) : undefined,
+              
+              product.carpetEdgeStrength ? eq(schema.products.carpetEdgeStrength, product.carpetEdgeStrength) : 
+              (!product.carpetEdgeStrength ? isNull(schema.products.carpetEdgeStrength) : undefined),
+              
+              // Площадь мата
+              product.matArea ? eq(schema.products.matArea, product.matArea) : 
+              (!product.matArea ? isNull(schema.products.matArea) : undefined),
+              
+              // Вес
+              product.weight ? eq(schema.products.weight, product.weight) : 
+              (!product.weight ? isNull(schema.products.weight) : undefined),
+              
+              // Борт
+              product.borderType ? eq(schema.products.borderType, product.borderType) : 
+              (!product.borderType ? isNull(schema.products.borderType) : undefined)
             )
           });
 
-          if (secondGradeProduct) {
-            // Обновляем остатки
-            await tx.update(schema.stock)
-              .set({
-                currentStock: sql`current_stock + ${secondGradeQuantity}`,
-                updatedAt: new Date()
-              })
-              .where(eq(schema.stock.productId, secondGradeProduct.id));
+          if (!secondGradeProduct) {
+            // Создаем новый товар 2-го сорта с полным артикулом
+            const { generateArticle } = await import('../utils/articleGenerator');
+            
+            // Получаем связанные данные для генерации артикула
+            const [surfaces, logo, material, bottomType, puzzleType] = await Promise.all([
+              product.surfaceIds && product.surfaceIds.length > 0 
+                ? tx.query.productSurfaces.findMany({ where: inArray(schema.productSurfaces.id, product.surfaceIds) })
+                : [],
+              product.logoId 
+                ? tx.query.productLogos.findFirst({ where: eq(schema.productLogos.id, product.logoId) })
+                : null,
+              product.materialId 
+                ? tx.query.productMaterials.findFirst({ where: eq(schema.productMaterials.id, product.materialId) })
+                : null,
+              product.bottomTypeId 
+                ? tx.query.bottomTypes.findFirst({ where: eq(schema.bottomTypes.id, product.bottomTypeId) })
+                : null,
+              product.puzzleTypeId 
+                ? tx.query.puzzleTypes.findFirst({ where: eq(schema.puzzleTypes.id, product.puzzleTypeId) })
+                : null
+            ]);
+
+            const secondGradeProductData = {
+              name: product.name,
+              dimensions: product.dimensions as { length?: number; width?: number; thickness?: number },
+              surfaces: surfaces.length > 0 ? surfaces.map((s: any) => ({ name: s.name })) : undefined,
+              logo: logo ? { name: logo.name } : undefined,
+              material: material ? { name: material.name } : undefined,
+              bottomType: bottomType ? { code: bottomType.code } : undefined,
+              puzzleType: puzzleType ? { name: puzzleType.name } : undefined,
+              carpetEdgeType: product.carpetEdgeType || undefined,
+              carpetEdgeSides: product.carpetEdgeSides || undefined,
+              carpetEdgeStrength: product.carpetEdgeStrength || undefined,
+              pressType: product.pressType || 'not_selected',
+              borderType: product.borderType || 'without_border',
+              grade: 'grade_2' as const
+            };
+            
+            const secondGradeArticle = generateArticle(secondGradeProductData);
+            
+            const [newSecondGradeProduct] = await tx.insert(schema.products).values({
+              name: product.name,
+              article: secondGradeArticle,
+              categoryId: product.categoryId,
+              productType: product.productType,
+              dimensions: product.dimensions,
+              surfaceIds: product.surfaceIds,
+              logoId: product.logoId,
+              materialId: product.materialId,
+              bottomTypeId: product.bottomTypeId,
+              puzzleTypeId: product.puzzleTypeId,
+              puzzleSides: product.puzzleSides,
+              carpetEdgeType: product.carpetEdgeType,
+              carpetEdgeSides: product.carpetEdgeSides,
+              carpetEdgeStrength: product.carpetEdgeStrength,
+              matArea: product.matArea,
+              weight: product.weight,
+              pressType: product.pressType,
+              borderType: product.borderType,
+              grade: 'grade_2',
+              normStock: 0,
+              isActive: true,
+              notes: `Автоматически создан для 2-го сорта из массовой регистрации (артикул: ${article})`
+            }).returning();
+
+            // Создаем запись остатков для нового товара
+            await tx.insert(schema.stock).values({
+              productId: newSecondGradeProduct.id,
+              currentStock: 0,
+              reservedStock: 0,
+              updatedAt: new Date()
+            });
+
+            secondGradeProduct = newSecondGradeProduct;
           } else {
-            // Создаем новый товар 2-го сорта (будет создан с полным артикулом через API /complete или /complete-by-product)
-            // Пока просто логируем, что товар не найден
-            console.warn(`Товар 2-го сорта для ${product.name} не найден. Создайте его вручную или через завершение задания.`);
+            // Проверяем, есть ли запись в stock для существующего товара
+            const existingStock = await tx.query.stock.findFirst({
+              where: eq(schema.stock.productId, secondGradeProduct.id)
+            });
+
+            if (!existingStock) {
+              // Создаем запись остатков для существующего товара
+              await tx.insert(schema.stock).values({
+                productId: secondGradeProduct.id,
+                currentStock: 0,
+                reservedStock: 0,
+                updatedAt: new Date()
+              });
+            }
           }
 
+          // Обновляем остатки
+          await tx.update(schema.stock)
+            .set({
+              currentStock: sql`current_stock + ${secondGradeQuantity}`,
+              updatedAt: new Date()
+            })
+            .where(eq(schema.stock.productId, secondGradeProduct.id));
+
           // Логируем движение товара 2-го сорта
-          if (secondGradeProduct) {
-            await tx.insert(schema.stockMovements).values({
-              productId: secondGradeProduct.id,
-              movementType: 'incoming',
-              quantity: secondGradeQuantity,
-              referenceType: 'production',
-              comment: `2-й сорт из массовой регистрации (артикул: ${article})`,
-              userId
-            });
-          }
+          await tx.insert(schema.stockMovements).values({
+            productId: secondGradeProduct.id,
+            movementType: 'incoming',
+            quantity: secondGradeQuantity,
+            referenceType: 'production',
+            comment: `2-й сорт из массовой регистрации (артикул: ${article})`,
+            userId
+          });
         }
 
         // Обрабатываем товар сорта Либерти (если есть)
         if (libertyGradeQuantity > 0) {
-          // Находим или создаем товар сорта Либерти
+          // Находим или создаем товар сорта Либерти с теми же характеристиками
           let libertyGradeProduct = await tx.query.products.findFirst({
             where: and(
+              // Основные параметры
+              product.categoryId ? eq(schema.products.categoryId, product.categoryId) : undefined,
               eq(schema.products.name, product.name),
+              eq(schema.products.productType, product.productType),
               eq(schema.products.grade, 'liber'),
-              eq(schema.products.isActive, true)
+              eq(schema.products.isActive, true),
+              
+              // Размеры
+              product.dimensions ? eq(schema.products.dimensions, product.dimensions) : undefined,
+              
+              // Поверхности
+              product.surfaceIds ? eq(schema.products.surfaceIds, product.surfaceIds) : undefined,
+              
+              // Логотип
+              product.logoId ? eq(schema.products.logoId, product.logoId) : 
+              (!product.logoId ? isNull(schema.products.logoId) : undefined),
+              
+              // Материал
+              product.materialId ? eq(schema.products.materialId, product.materialId) : 
+              (!product.materialId ? isNull(schema.products.materialId) : undefined),
+              
+              // Низ ковра
+              product.bottomTypeId ? eq(schema.products.bottomTypeId, product.bottomTypeId) : 
+              (!product.bottomTypeId ? isNull(schema.products.bottomTypeId) : undefined),
+              
+              // Паззл
+              product.puzzleTypeId ? eq(schema.products.puzzleTypeId, product.puzzleTypeId) : 
+              (!product.puzzleTypeId ? isNull(schema.products.puzzleTypeId) : undefined),
+              
+              product.puzzleSides ? eq(schema.products.puzzleSides, product.puzzleSides) : undefined,
+              
+              // Пресс
+              product.pressType ? eq(schema.products.pressType, product.pressType) : 
+              (!product.pressType ? isNull(schema.products.pressType) : undefined),
+              
+              // Края ковра
+              product.carpetEdgeType ? eq(schema.products.carpetEdgeType, product.carpetEdgeType) : 
+              (!product.carpetEdgeType ? isNull(schema.products.carpetEdgeType) : undefined),
+              
+              product.carpetEdgeSides ? eq(schema.products.carpetEdgeSides, product.carpetEdgeSides) : undefined,
+              
+              product.carpetEdgeStrength ? eq(schema.products.carpetEdgeStrength, product.carpetEdgeStrength) : 
+              (!product.carpetEdgeStrength ? isNull(schema.products.carpetEdgeStrength) : undefined),
+              
+              // Площадь мата
+              product.matArea ? eq(schema.products.matArea, product.matArea) : 
+              (!product.matArea ? isNull(schema.products.matArea) : undefined),
+              
+              // Вес
+              product.weight ? eq(schema.products.weight, product.weight) : 
+              (!product.weight ? isNull(schema.products.weight) : undefined),
+              
+              // Борт
+              product.borderType ? eq(schema.products.borderType, product.borderType) : 
+              (!product.borderType ? isNull(schema.products.borderType) : undefined)
             )
           });
 
-          if (libertyGradeProduct) {
-            // Обновляем остатки
-            await tx.update(schema.stock)
-              .set({
-                currentStock: sql`current_stock + ${libertyGradeQuantity}`,
-                updatedAt: new Date()
-              })
-              .where(eq(schema.stock.productId, libertyGradeProduct.id));
+          if (!libertyGradeProduct) {
+            // Создаем новый товар сорта Либерти с полным артикулом
+            const { generateArticle } = await import('../utils/articleGenerator');
+            
+            // Получаем связанные данные для генерации артикула
+            const [surfaces, logo, material, bottomType, puzzleType] = await Promise.all([
+              product.surfaceIds && product.surfaceIds.length > 0 
+                ? tx.query.productSurfaces.findMany({ where: inArray(schema.productSurfaces.id, product.surfaceIds) })
+                : [],
+              product.logoId 
+                ? tx.query.productLogos.findFirst({ where: eq(schema.productLogos.id, product.logoId) })
+                : null,
+              product.materialId 
+                ? tx.query.productMaterials.findFirst({ where: eq(schema.productMaterials.id, product.materialId) })
+                : null,
+              product.bottomTypeId 
+                ? tx.query.bottomTypes.findFirst({ where: eq(schema.bottomTypes.id, product.bottomTypeId) })
+                : null,
+              product.puzzleTypeId 
+                ? tx.query.puzzleTypes.findFirst({ where: eq(schema.puzzleTypes.id, product.puzzleTypeId) })
+                : null
+            ]);
+
+            const libertyGradeProductData = {
+              name: product.name,
+              dimensions: product.dimensions as { length?: number; width?: number; thickness?: number },
+              surfaces: surfaces.length > 0 ? surfaces.map((s: any) => ({ name: s.name })) : undefined,
+              logo: logo ? { name: logo.name } : undefined,
+              material: material ? { name: material.name } : undefined,
+              bottomType: bottomType ? { code: bottomType.code } : undefined,
+              puzzleType: puzzleType ? { name: puzzleType.name } : undefined,
+              carpetEdgeType: product.carpetEdgeType || undefined,
+              carpetEdgeSides: product.carpetEdgeSides || undefined,
+              carpetEdgeStrength: product.carpetEdgeStrength || undefined,
+              pressType: product.pressType || 'not_selected',
+              borderType: product.borderType || 'without_border',
+              grade: 'liber' as const
+            };
+            
+            const libertyGradeArticle = generateArticle(libertyGradeProductData);
+            
+            const [newLibertyGradeProduct] = await tx.insert(schema.products).values({
+              name: product.name,
+              article: libertyGradeArticle,
+              categoryId: product.categoryId,
+              productType: product.productType,
+              dimensions: product.dimensions,
+              surfaceIds: product.surfaceIds,
+              logoId: product.logoId,
+              materialId: product.materialId,
+              bottomTypeId: product.bottomTypeId,
+              puzzleTypeId: product.puzzleTypeId,
+              puzzleSides: product.puzzleSides,
+              carpetEdgeType: product.carpetEdgeType,
+              carpetEdgeSides: product.carpetEdgeSides,
+              carpetEdgeStrength: product.carpetEdgeStrength,
+              matArea: product.matArea,
+              weight: product.weight,
+              pressType: product.pressType,
+              borderType: product.borderType,
+              grade: 'liber',
+              normStock: 0,
+              isActive: true,
+              notes: `Автоматически создан для сорта Либерти из массовой регистрации (артикул: ${article})`
+            }).returning();
+
+            // Создаем запись остатков для нового товара
+            await tx.insert(schema.stock).values({
+              productId: newLibertyGradeProduct.id,
+              currentStock: 0,
+              reservedStock: 0,
+              updatedAt: new Date()
+            });
+
+            libertyGradeProduct = newLibertyGradeProduct;
           } else {
-            // Создаем новый товар сорта Либерти (будет создан с полным артикулом через API /complete или /complete-by-product)
-            // Пока просто логируем, что товар не найден
-            console.warn(`Товар сорта Либерти для ${product.name} не найден. Создайте его вручную или через завершение задания.`);
+            // Проверяем, есть ли запись в stock для существующего товара
+            const existingStock = await tx.query.stock.findFirst({
+              where: eq(schema.stock.productId, libertyGradeProduct.id)
+            });
+
+            if (!existingStock) {
+              // Создаем запись остатков для существующего товара
+              await tx.insert(schema.stock).values({
+                productId: libertyGradeProduct.id,
+                currentStock: 0,
+                reservedStock: 0,
+                updatedAt: new Date()
+              });
+            }
           }
 
+          // Обновляем остатки
+          await tx.update(schema.stock)
+            .set({
+              currentStock: sql`current_stock + ${libertyGradeQuantity}`,
+              updatedAt: new Date()
+            })
+            .where(eq(schema.stock.productId, libertyGradeProduct.id));
+
           // Логируем движение товара сорта Либерти
-          if (libertyGradeProduct) {
-            await tx.insert(schema.stockMovements).values({
-              productId: libertyGradeProduct.id,
-              movementType: 'incoming',
-              quantity: libertyGradeQuantity,
-              referenceType: 'production',
-              comment: `Либерти из массовой регистрации (артикул: ${article})`,
-              userId
-            });
-          }
+          await tx.insert(schema.stockMovements).values({
+            productId: libertyGradeProduct.id,
+            movementType: 'incoming',
+            quantity: libertyGradeQuantity,
+            referenceType: 'production',
+            comment: `Либерти из массовой регистрации (артикул: ${article})`,
+            userId
+          });
         }
 
         // Добавляем весь брак на склад (если есть)
