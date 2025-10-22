@@ -906,8 +906,10 @@ const ProductionTasks: React.FC = () => {
 
       // Валидация сумм для каждого товара
       for (const item of validItems) {
-        if (item.qualityQuantity + item.defectQuantity !== item.producedQuantity) {
-          message.error(`Для артикула ${item.article}: сумма годных и брака должна равняться произведенному количеству`);
+        const secondGrade = item.secondGradeQuantity || 0;
+        const libertyGrade = item.libertyGradeQuantity || 0;
+        if (item.qualityQuantity + secondGrade + libertyGrade + item.defectQuantity !== item.producedQuantity) {
+          message.error(`Для артикула ${item.article}: сумма годных, 2-го сорта, Либерти и брака должна равняться произведенному количеству`);
           return;
         }
       }
@@ -918,6 +920,8 @@ const ProductionTasks: React.FC = () => {
           article: item.article.trim(),
           producedQuantity: Number(item.producedQuantity),
           qualityQuantity: Number(item.qualityQuantity),
+          secondGradeQuantity: Number(item.secondGradeQuantity || 0),
+          libertyGradeQuantity: Number(item.libertyGradeQuantity || 0),
           defectQuantity: Number(item.defectQuantity)
         })),
         productionDate: values.productionDate?.format ? values.productionDate.format('YYYY-MM-DD') : undefined,
@@ -3393,9 +3397,11 @@ const ProductionTasks: React.FC = () => {
             <div style={{ border: '1px solid #d9d9d9', borderRadius: 6 }}>
               <div style={{ display: 'flex', backgroundColor: '#fafafa', padding: '8px 12px', fontWeight: 'bold', borderBottom: '1px solid #d9d9d9' }}>
                 <div style={{ flex: 3, paddingRight: 8 }}>Артикул</div>
-                <div style={{ flex: 2, textAlign: 'center', paddingRight: 8 }}>Произведено</div>
-                <div style={{ flex: 2, textAlign: 'center', paddingRight: 8 }}>Годных</div>
-                <div style={{ flex: 2, textAlign: 'center', paddingRight: 8 }}>Брак</div>
+                <div style={{ flex: 1.5, textAlign: 'center', paddingRight: 8 }}>Произведено</div>
+                <div style={{ flex: 1.5, textAlign: 'center', paddingRight: 8 }}>Годных</div>
+                <div style={{ flex: 1.5, textAlign: 'center', paddingRight: 8 }}>2 сорт</div>
+                <div style={{ flex: 1.5, textAlign: 'center', paddingRight: 8 }}>Либерти</div>
+                <div style={{ flex: 1.5, textAlign: 'center', paddingRight: 8 }}>Брак</div>
                 <div style={{ flex: 1, textAlign: 'center' }}>Действия</div>
               </div>
 
@@ -3483,57 +3489,93 @@ const ProductionTasks: React.FC = () => {
                       })}
                     </Select>
                   </div>
-                  <div style={{ flex: 2, paddingRight: 8, display: 'flex', alignItems: 'center' }}>
+                  <div style={{ flex: 1.5, paddingRight: 8, display: 'flex', alignItems: 'center' }}>
                     <InputNumber
                       style={{ width: '100%', height: '50px' }}
                       min={0}
                       value={item.producedQuantity}
-                      onChange={(value) => {
-                        const produced = value || 0;
-                        const newItems = [...bulkRegisterItems];
-                        newItems[index] = {
-                          ...item,
-                          producedQuantity: produced,
-                          qualityQuantity: produced,
-                          defectQuantity: 0
-                        };
-                        setBulkRegisterItems(newItems);
-                      }}
+                      disabled
+                      placeholder="Авто"
                     />
                   </div>
-                  <div style={{ flex: 2, paddingRight: 8, display: 'flex', alignItems: 'center' }}>
+                  <div style={{ flex: 1.5, paddingRight: 8, display: 'flex', alignItems: 'center' }}>
                     <InputNumber
                       style={{ width: '100%', height: '50px' }}
                       min={0}
-                      max={item.producedQuantity}
                       value={item.qualityQuantity}
                       onChange={(value) => {
                         const quality = value || 0;
-                        const defect = item.producedQuantity - quality;
+                        const secondGrade = item.secondGradeQuantity || 0;
+                        const libertyGrade = item.libertyGradeQuantity || 0;
+                        const defect = item.defectQuantity || 0;
                         const newItems = [...bulkRegisterItems];
                         newItems[index] = {
                           ...item,
                           qualityQuantity: quality,
-                          defectQuantity: defect
+                          producedQuantity: quality + secondGrade + libertyGrade + defect
                         };
                         setBulkRegisterItems(newItems);
                       }}
                     />
                   </div>
-                  <div style={{ flex: 2, paddingRight: 8, display: 'flex', alignItems: 'center' }}>
+                  <div style={{ flex: 1.5, paddingRight: 8, display: 'flex', alignItems: 'center' }}>
                     <InputNumber
                       style={{ width: '100%', height: '50px' }}
                       min={0}
-                      max={item.producedQuantity}
+                      value={item.secondGradeQuantity}
+                      placeholder="0"
+                      onChange={(value) => {
+                        const secondGrade = value || 0;
+                        const quality = item.qualityQuantity || 0;
+                        const libertyGrade = item.libertyGradeQuantity || 0;
+                        const defect = item.defectQuantity || 0;
+                        const newItems = [...bulkRegisterItems];
+                        newItems[index] = {
+                          ...item,
+                          secondGradeQuantity: secondGrade,
+                          producedQuantity: quality + secondGrade + libertyGrade + defect
+                        };
+                        setBulkRegisterItems(newItems);
+                      }}
+                    />
+                  </div>
+                  <div style={{ flex: 1.5, paddingRight: 8, display: 'flex', alignItems: 'center' }}>
+                    <InputNumber
+                      style={{ width: '100%', height: '50px' }}
+                      min={0}
+                      value={item.libertyGradeQuantity}
+                      placeholder="0"
+                      onChange={(value) => {
+                        const libertyGrade = value || 0;
+                        const quality = item.qualityQuantity || 0;
+                        const secondGrade = item.secondGradeQuantity || 0;
+                        const defect = item.defectQuantity || 0;
+                        const newItems = [...bulkRegisterItems];
+                        newItems[index] = {
+                          ...item,
+                          libertyGradeQuantity: libertyGrade,
+                          producedQuantity: quality + secondGrade + libertyGrade + defect
+                        };
+                        setBulkRegisterItems(newItems);
+                      }}
+                    />
+                  </div>
+                  <div style={{ flex: 1.5, paddingRight: 8, display: 'flex', alignItems: 'center' }}>
+                    <InputNumber
+                      style={{ width: '100%', height: '50px' }}
+                      min={0}
                       value={item.defectQuantity}
+                      placeholder="0"
                       onChange={(value) => {
                         const defect = value || 0;
-                        const quality = item.producedQuantity - defect;
+                        const quality = item.qualityQuantity || 0;
+                        const secondGrade = item.secondGradeQuantity || 0;
+                        const libertyGrade = item.libertyGradeQuantity || 0;
                         const newItems = [...bulkRegisterItems];
                         newItems[index] = {
                           ...item,
                           defectQuantity: defect,
-                          qualityQuantity: quality
+                          producedQuantity: quality + secondGrade + libertyGrade + defect
                         };
                         setBulkRegisterItems(newItems);
                       }}
@@ -3559,14 +3601,16 @@ const ProductionTasks: React.FC = () => {
             {/* Валидация сумм */}
             <div style={{ marginTop: 8, fontSize: '12px', color: '#666' }}>
               {bulkRegisterItems.map((item, index) => {
-                const isValid = item.qualityQuantity + item.defectQuantity === item.producedQuantity;
+                const secondGrade = item.secondGradeQuantity || 0;
+                const libertyGrade = item.libertyGradeQuantity || 0;
+                const isValid = item.qualityQuantity + secondGrade + libertyGrade + item.defectQuantity === item.producedQuantity;
                 const hasArticle = item.article.trim() !== '';
                 
                 if (!hasArticle || isValid) return null;
                 
                 return (
                   <div key={item.id} style={{ color: '#ff4d4f' }}>
-                    Строка {index + 1}: Сумма годных и брака должна равняться произведенному количеству
+                    Строка {index + 1}: Сумма годных, 2-го сорта, Либерти и брака должна равняться произведенному количеству ({item.qualityQuantity} + {secondGrade} + {libertyGrade} + {item.defectQuantity} = {item.qualityQuantity + secondGrade + libertyGrade + item.defectQuantity}, должно быть {item.producedQuantity})
                   </div>
                 );
               })}

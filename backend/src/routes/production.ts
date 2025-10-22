@@ -1808,8 +1808,10 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
       if (!item.article || !item.producedQuantity || item.producedQuantity <= 0) {
         return next(createError('Каждый товар должен иметь артикул и положительное количество', 400));
       }
-      if ((item.qualityQuantity || 0) + (item.defectQuantity || 0) !== item.producedQuantity) {
-        return next(createError(`Для товара ${item.article}: сумма годных и брака должна равняться произведенному количеству`, 400));
+      const secondGrade = item.secondGradeQuantity || 0;
+      const libertyGrade = item.libertyGradeQuantity || 0;
+      if ((item.qualityQuantity || 0) + secondGrade + libertyGrade + (item.defectQuantity || 0) !== item.producedQuantity) {
+        return next(createError(`Для товара ${item.article}: сумма годных, 2-го сорта, Либерти и брака должна равняться произведенному количеству`, 400));
       }
     }
 
@@ -1825,7 +1827,14 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
     // Обрабатываем каждый товар в транзакции
     await db.transaction(async (tx) => {
       for (const item of items) {
-        const { article, producedQuantity, qualityQuantity = producedQuantity, defectQuantity = 0 } = item;
+        const { 
+          article, 
+          producedQuantity, 
+          qualityQuantity = producedQuantity, 
+          secondGradeQuantity = 0,
+          libertyGradeQuantity = 0,
+          defectQuantity = 0 
+        } = item;
 
         // Находим товар по артикулу
         const product = await tx.query.products.findFirst({
@@ -2036,6 +2045,82 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
             comment: `Остаток качественных товаров (артикул: ${article})`,
             userId
           });
+        }
+
+        // Обрабатываем товар 2-го сорта (если есть)
+        if (secondGradeQuantity > 0) {
+          // Находим или создаем товар 2-го сорта
+          let secondGradeProduct = await tx.query.products.findFirst({
+            where: and(
+              eq(schema.products.name, product.name),
+              eq(schema.products.grade, 'grade_2'),
+              eq(schema.products.isActive, true)
+            )
+          });
+
+          if (secondGradeProduct) {
+            // Обновляем остатки
+            await tx.update(schema.stock)
+              .set({
+                currentStock: sql`current_stock + ${secondGradeQuantity}`,
+                updatedAt: new Date()
+              })
+              .where(eq(schema.stock.productId, secondGradeProduct.id));
+          } else {
+            // Создаем новый товар 2-го сорта (будет создан с полным артикулом через API /complete или /complete-by-product)
+            // Пока просто логируем, что товар не найден
+            console.warn(`Товар 2-го сорта для ${product.name} не найден. Создайте его вручную или через завершение задания.`);
+          }
+
+          // Логируем движение товара 2-го сорта
+          if (secondGradeProduct) {
+            await tx.insert(schema.stockMovements).values({
+              productId: secondGradeProduct.id,
+              movementType: 'incoming',
+              quantity: secondGradeQuantity,
+              referenceType: 'production',
+              comment: `2-й сорт из массовой регистрации (артикул: ${article})`,
+              userId
+            });
+          }
+        }
+
+        // Обрабатываем товар сорта Либерти (если есть)
+        if (libertyGradeQuantity > 0) {
+          // Находим или создаем товар сорта Либерти
+          let libertyGradeProduct = await tx.query.products.findFirst({
+            where: and(
+              eq(schema.products.name, product.name),
+              eq(schema.products.grade, 'liber'),
+              eq(schema.products.isActive, true)
+            )
+          });
+
+          if (libertyGradeProduct) {
+            // Обновляем остатки
+            await tx.update(schema.stock)
+              .set({
+                currentStock: sql`current_stock + ${libertyGradeQuantity}`,
+                updatedAt: new Date()
+              })
+              .where(eq(schema.stock.productId, libertyGradeProduct.id));
+          } else {
+            // Создаем новый товар сорта Либерти (будет создан с полным артикулом через API /complete или /complete-by-product)
+            // Пока просто логируем, что товар не найден
+            console.warn(`Товар сорта Либерти для ${product.name} не найден. Создайте его вручную или через завершение задания.`);
+          }
+
+          // Логируем движение товара сорта Либерти
+          if (libertyGradeProduct) {
+            await tx.insert(schema.stockMovements).values({
+              productId: libertyGradeProduct.id,
+              movementType: 'incoming',
+              quantity: libertyGradeQuantity,
+              referenceType: 'production',
+              comment: `Либерти из массовой регистрации (артикул: ${article})`,
+              userId
+            });
+          }
         }
 
         // Добавляем весь брак на склад (если есть)
