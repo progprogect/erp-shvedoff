@@ -1142,20 +1142,70 @@ router.post('/tasks/complete-by-product', authenticateToken, requirePermission('
           if (secondGradeProduct) {
             secondGradeProductId = secondGradeProduct.id;
           } else {
-            // Создаем новый товар второго сорта
+            // Создаем новый товар второго сорта с полным артикулом
+            const { generateArticle } = await import('../utils/articleGenerator');
+            
+            // Получаем связанные данные для генерации артикула
+            const [surfaces, logo, material, bottomType, puzzleType] = await Promise.all([
+              product.surfaceIds && product.surfaceIds.length > 0 
+                ? tx.query.productSurfaces.findMany({ where: inArray(schema.productSurfaces.id, product.surfaceIds) })
+                : [],
+              product.logoId 
+                ? tx.query.productLogos.findFirst({ where: eq(schema.productLogos.id, product.logoId) })
+                : null,
+              product.materialId 
+                ? tx.query.productMaterials.findFirst({ where: eq(schema.productMaterials.id, product.materialId) })
+                : null,
+              product.bottomTypeId 
+                ? tx.query.bottomTypes.findFirst({ where: eq(schema.bottomTypes.id, product.bottomTypeId) })
+                : null,
+              product.puzzleTypeId 
+                ? tx.query.puzzleTypes.findFirst({ where: eq(schema.puzzleTypes.id, product.puzzleTypeId) })
+                : null
+            ]);
+
             const secondGradeProductData = {
               name: product.name,
-              article: `2-${product.name}`,
-              categoryId: product.categoryId,
-              productType: product.productType,
-              grade: 'grade_2' as const,
-              isActive: true,
-              notes: `Автоматически создан для 2-го сорта по заданию #${task.id}`
+              dimensions: product.dimensions as { length?: number; width?: number; thickness?: number },
+              surfaces: surfaces.length > 0 ? surfaces.map((s: any) => ({ name: s.name })) : undefined,
+              logo: logo ? { name: logo.name } : undefined,
+              material: material ? { name: material.name } : undefined,
+              bottomType: bottomType ? { code: bottomType.code } : undefined,
+              puzzleType: puzzleType ? { name: puzzleType.name } : undefined,
+              carpetEdgeType: product.carpetEdgeType || undefined,
+              carpetEdgeSides: product.carpetEdgeSides || undefined,
+              carpetEdgeStrength: product.carpetEdgeStrength || undefined,
+              pressType: product.pressType || 'not_selected',
+              borderType: product.borderType || 'without_border',
+              grade: 'grade_2' as const
             };
             
-            const [newSecondGradeProduct] = await tx.insert(schema.products)
-              .values(secondGradeProductData)
-              .returning();
+            const secondGradeArticle = generateArticle(secondGradeProductData);
+
+            const [newSecondGradeProduct] = await tx.insert(schema.products).values({
+              name: product.name,
+              article: secondGradeArticle,
+              categoryId: product.categoryId,
+              productType: product.productType,
+              dimensions: product.dimensions,
+              surfaceIds: product.surfaceIds,
+              logoId: product.logoId,
+              materialId: product.materialId,
+              bottomTypeId: product.bottomTypeId,
+              puzzleTypeId: product.puzzleTypeId,
+              puzzleSides: product.puzzleSides,
+              carpetEdgeType: product.carpetEdgeType,
+              carpetEdgeSides: product.carpetEdgeSides,
+              carpetEdgeStrength: product.carpetEdgeStrength,
+              matArea: product.matArea,
+              weight: product.weight,
+              pressType: product.pressType,
+              borderType: product.borderType,
+              grade: 'grade_2',
+              normStock: 0,
+              isActive: true,
+              notes: `Автоматически создан для 2-го сорта по заданию #${task.id}`
+            }).returning();
             
             secondGradeProductId = newSecondGradeProduct.id;
           }
@@ -1199,20 +1249,70 @@ router.post('/tasks/complete-by-product', authenticateToken, requirePermission('
           if (libertyGradeProduct) {
             libertyGradeProductId = libertyGradeProduct.id;
           } else {
-            // Создаем новый товар сорта Либерти
+            // Создаем новый товар сорта Либерти с полным артикулом
+            const { generateArticle } = await import('../utils/articleGenerator');
+            
+            // Получаем связанные данные для генерации артикула
+            const [surfaces, logo, material, bottomType, puzzleType] = await Promise.all([
+              product.surfaceIds && product.surfaceIds.length > 0 
+                ? tx.query.productSurfaces.findMany({ where: inArray(schema.productSurfaces.id, product.surfaceIds) })
+                : [],
+              product.logoId 
+                ? tx.query.productLogos.findFirst({ where: eq(schema.productLogos.id, product.logoId) })
+                : null,
+              product.materialId 
+                ? tx.query.productMaterials.findFirst({ where: eq(schema.productMaterials.id, product.materialId) })
+                : null,
+              product.bottomTypeId 
+                ? tx.query.bottomTypes.findFirst({ where: eq(schema.bottomTypes.id, product.bottomTypeId) })
+                : null,
+              product.puzzleTypeId 
+                ? tx.query.puzzleTypes.findFirst({ where: eq(schema.puzzleTypes.id, product.puzzleTypeId) })
+                : null
+            ]);
+
             const libertyGradeProductData = {
               name: product.name,
-              article: `Либер-${product.name}`,
-              categoryId: product.categoryId,
-              productType: product.productType,
-              grade: 'liber' as const,
-              isActive: true,
-              notes: `Автоматически создан для сорта Либерти по заданию #${task.id}`
+              dimensions: product.dimensions as { length?: number; width?: number; thickness?: number },
+              surfaces: surfaces.length > 0 ? surfaces.map((s: any) => ({ name: s.name })) : undefined,
+              logo: logo ? { name: logo.name } : undefined,
+              material: material ? { name: material.name } : undefined,
+              bottomType: bottomType ? { code: bottomType.code } : undefined,
+              puzzleType: puzzleType ? { name: puzzleType.name } : undefined,
+              carpetEdgeType: product.carpetEdgeType || undefined,
+              carpetEdgeSides: product.carpetEdgeSides || undefined,
+              carpetEdgeStrength: product.carpetEdgeStrength || undefined,
+              pressType: product.pressType || 'not_selected',
+              borderType: product.borderType || 'without_border',
+              grade: 'liber' as const
             };
             
-            const [newLibertyGradeProduct] = await tx.insert(schema.products)
-              .values(libertyGradeProductData)
-              .returning();
+            const libertyGradeArticle = generateArticle(libertyGradeProductData);
+
+            const [newLibertyGradeProduct] = await tx.insert(schema.products).values({
+              name: product.name,
+              article: libertyGradeArticle,
+              categoryId: product.categoryId,
+              productType: product.productType,
+              dimensions: product.dimensions,
+              surfaceIds: product.surfaceIds,
+              logoId: product.logoId,
+              materialId: product.materialId,
+              bottomTypeId: product.bottomTypeId,
+              puzzleTypeId: product.puzzleTypeId,
+              puzzleSides: product.puzzleSides,
+              carpetEdgeType: product.carpetEdgeType,
+              carpetEdgeSides: product.carpetEdgeSides,
+              carpetEdgeStrength: product.carpetEdgeStrength,
+              matArea: product.matArea,
+              weight: product.weight,
+              pressType: product.pressType,
+              borderType: product.borderType,
+              grade: 'liber',
+              normStock: 0,
+              isActive: true,
+              notes: `Автоматически создан для сорта Либерти по заданию #${task.id}`
+            }).returning();
             
             libertyGradeProductId = newLibertyGradeProduct.id;
           }
@@ -2327,29 +2427,93 @@ router.post('/tasks/:id/complete', authenticateToken, requirePermission('product
         if (secondGradeProduct) {
           secondGradeProductId = secondGradeProduct.id;
         } else if (secondGradeQuantity > 0) {
-          // Создаем новый товар второго сорта
+          // Создаем новый товар второго сорта с полным артикулом
+          const { generateArticle } = await import('../utils/articleGenerator');
+          
+          // Получаем связанные данные для генерации артикула
+          const [surfaces, logo, material, bottomType, puzzleType] = await Promise.all([
+            task.product.surfaceIds && task.product.surfaceIds.length > 0 
+              ? tx.query.productSurfaces.findMany({ where: inArray(schema.productSurfaces.id, task.product.surfaceIds) })
+              : [],
+            task.product.logoId 
+              ? tx.query.productLogos.findFirst({ where: eq(schema.productLogos.id, task.product.logoId) })
+              : null,
+            task.product.materialId 
+              ? tx.query.productMaterials.findFirst({ where: eq(schema.productMaterials.id, task.product.materialId) })
+              : null,
+            task.product.bottomTypeId 
+              ? tx.query.bottomTypes.findFirst({ where: eq(schema.bottomTypes.id, task.product.bottomTypeId) })
+              : null,
+            task.product.puzzleTypeId 
+              ? tx.query.puzzleTypes.findFirst({ where: eq(schema.puzzleTypes.id, task.product.puzzleTypeId) })
+              : null
+          ]);
+
           const secondGradeProductData = {
             name: task.product.name,
-            article: `2-${task.product.name}`,
-            categoryId: task.product.categoryId,
-            productType: task.product.productType,
-            grade: 'grade_2' as const,
-            isActive: true,
-            notes: `Автоматически создан для 2-го сорта по заданию #${taskId}`
+            dimensions: task.product.dimensions as { length?: number; width?: number; thickness?: number },
+            surfaces: surfaces.length > 0 ? surfaces.map((s: any) => ({ name: s.name })) : undefined,
+            logo: logo ? { name: logo.name } : undefined,
+            material: material ? { name: material.name } : undefined,
+            bottomType: bottomType ? { code: bottomType.code } : undefined,
+            puzzleType: puzzleType ? { name: puzzleType.name } : undefined,
+            carpetEdgeType: task.product.carpetEdgeType || undefined,
+            carpetEdgeSides: task.product.carpetEdgeSides || undefined,
+            carpetEdgeStrength: task.product.carpetEdgeStrength || undefined,
+            pressType: task.product.pressType || 'not_selected',
+            borderType: task.product.borderType || 'without_border',
+            grade: 'grade_2' as const
           };
           
-          const [newSecondGradeProduct] = await tx.insert(schema.products)
-            .values(secondGradeProductData)
-            .returning();
-          
+          const secondGradeArticle = generateArticle(secondGradeProductData);
+
+          const [newSecondGradeProduct] = await tx.insert(schema.products).values({
+            name: task.product.name,
+            article: secondGradeArticle,
+            categoryId: task.product.categoryId,
+            productType: task.product.productType,
+            dimensions: task.product.dimensions,
+            surfaceIds: task.product.surfaceIds,
+            logoId: task.product.logoId,
+            materialId: task.product.materialId,
+            bottomTypeId: task.product.bottomTypeId,
+            puzzleTypeId: task.product.puzzleTypeId,
+            puzzleSides: task.product.puzzleSides,
+            carpetEdgeType: task.product.carpetEdgeType,
+            carpetEdgeSides: task.product.carpetEdgeSides,
+            carpetEdgeStrength: task.product.carpetEdgeStrength,
+            matArea: task.product.matArea,
+            weight: task.product.weight,
+            pressType: task.product.pressType,
+            borderType: task.product.borderType,
+            grade: 'grade_2',
+            normStock: 0,
+            isActive: true,
+            notes: `Автоматически создан для 2-го сорта по заданию #${taskId}`
+          }).returning();
+
           secondGradeProductId = newSecondGradeProduct.id;
-          
+
           // Создаем запись в stock
           await tx.insert(schema.stock).values({
             productId: secondGradeProductId,
             currentStock: 0,
             reservedStock: 0
           });
+        } else if (secondGradeProduct !== null && secondGradeQuantity < 0) {
+          // Проверяем, есть ли запись в stock для существующего товара
+          const existingStock = await tx.query.stock.findFirst({
+            where: eq(schema.stock.productId, secondGradeProduct!.id)
+          });
+
+          if (!existingStock) {
+            // Создаем запись остатков для существующего товара
+            await tx.insert(schema.stock).values({
+              productId: secondGradeProduct!.id,
+              currentStock: 0,
+              reservedStock: 0
+            });
+          }
         }
 
         // Обновляем остатки товара второго сорта
@@ -2389,29 +2553,93 @@ router.post('/tasks/:id/complete', authenticateToken, requirePermission('product
         if (libertyGradeProduct) {
           libertyGradeProductId = libertyGradeProduct.id;
         } else if (libertyGradeQuantity > 0) {
-          // Создаем новый товар сорта Либерти
+          // Создаем новый товар сорта Либерти с полным артикулом
+          const { generateArticle } = await import('../utils/articleGenerator');
+          
+          // Получаем связанные данные для генерации артикула
+          const [surfaces, logo, material, bottomType, puzzleType] = await Promise.all([
+            task.product.surfaceIds && task.product.surfaceIds.length > 0 
+              ? tx.query.productSurfaces.findMany({ where: inArray(schema.productSurfaces.id, task.product.surfaceIds) })
+              : [],
+            task.product.logoId 
+              ? tx.query.productLogos.findFirst({ where: eq(schema.productLogos.id, task.product.logoId) })
+              : null,
+            task.product.materialId 
+              ? tx.query.productMaterials.findFirst({ where: eq(schema.productMaterials.id, task.product.materialId) })
+              : null,
+            task.product.bottomTypeId 
+              ? tx.query.bottomTypes.findFirst({ where: eq(schema.bottomTypes.id, task.product.bottomTypeId) })
+              : null,
+            task.product.puzzleTypeId 
+              ? tx.query.puzzleTypes.findFirst({ where: eq(schema.puzzleTypes.id, task.product.puzzleTypeId) })
+              : null
+          ]);
+
           const libertyGradeProductData = {
             name: task.product.name,
-            article: `Либер-${task.product.name}`,
-            categoryId: task.product.categoryId,
-            productType: task.product.productType,
-            grade: 'liber' as const,
-            isActive: true,
-            notes: `Автоматически создан для сорта Либерти по заданию #${taskId}`
+            dimensions: task.product.dimensions as { length?: number; width?: number; thickness?: number },
+            surfaces: surfaces.length > 0 ? surfaces.map((s: any) => ({ name: s.name })) : undefined,
+            logo: logo ? { name: logo.name } : undefined,
+            material: material ? { name: material.name } : undefined,
+            bottomType: bottomType ? { code: bottomType.code } : undefined,
+            puzzleType: puzzleType ? { name: puzzleType.name } : undefined,
+            carpetEdgeType: task.product.carpetEdgeType || undefined,
+            carpetEdgeSides: task.product.carpetEdgeSides || undefined,
+            carpetEdgeStrength: task.product.carpetEdgeStrength || undefined,
+            pressType: task.product.pressType || 'not_selected',
+            borderType: task.product.borderType || 'without_border',
+            grade: 'liber' as const
           };
           
-          const [newLibertyGradeProduct] = await tx.insert(schema.products)
-            .values(libertyGradeProductData)
-            .returning();
-          
+          const libertyGradeArticle = generateArticle(libertyGradeProductData);
+
+          const [newLibertyGradeProduct] = await tx.insert(schema.products).values({
+            name: task.product.name,
+            article: libertyGradeArticle,
+            categoryId: task.product.categoryId,
+            productType: task.product.productType,
+            dimensions: task.product.dimensions,
+            surfaceIds: task.product.surfaceIds,
+            logoId: task.product.logoId,
+            materialId: task.product.materialId,
+            bottomTypeId: task.product.bottomTypeId,
+            puzzleTypeId: task.product.puzzleTypeId,
+            puzzleSides: task.product.puzzleSides,
+            carpetEdgeType: task.product.carpetEdgeType,
+            carpetEdgeSides: task.product.carpetEdgeSides,
+            carpetEdgeStrength: task.product.carpetEdgeStrength,
+            matArea: task.product.matArea,
+            weight: task.product.weight,
+            pressType: task.product.pressType,
+            borderType: task.product.borderType,
+            grade: 'liber',
+            normStock: 0,
+            isActive: true,
+            notes: `Автоматически создан для сорта Либерти по заданию #${taskId}`
+          }).returning();
+
           libertyGradeProductId = newLibertyGradeProduct.id;
-          
+
           // Создаем запись в stock
           await tx.insert(schema.stock).values({
             productId: libertyGradeProductId,
             currentStock: 0,
             reservedStock: 0
           });
+        } else if (libertyGradeProduct !== null && libertyGradeQuantity < 0) {
+          // Проверяем, есть ли запись в stock для существующего товара
+          const existingStock = await tx.query.stock.findFirst({
+            where: eq(schema.stock.productId, libertyGradeProduct!.id)
+          });
+
+          if (!existingStock) {
+            // Создаем запись остатков для существующего товара
+            await tx.insert(schema.stock).values({
+              productId: libertyGradeProduct!.id,
+              currentStock: 0,
+              reservedStock: 0
+            });
+          }
         }
 
         // Обновляем остатки товара сорта Либерти
