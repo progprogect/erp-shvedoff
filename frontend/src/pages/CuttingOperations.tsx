@@ -1433,9 +1433,9 @@ export const CuttingOperations: React.FC = () => {
               <Form.Item
                 name="actualSecondGradeQuantity"
                 label="2 сорт (идёт в остатки товара 2-го сорта)"
+                extra="Положительное значение добавляет на склад, отрицательное отнимает (для корректировки)"
               >
                 <InputNumber
-                  min={0}
                   style={{ width: '100%' }}
                   placeholder="Количество товара 2-го сорта"
                   size="large"
@@ -1445,9 +1445,9 @@ export const CuttingOperations: React.FC = () => {
               <Form.Item
                 name="actualLibertyGradeQuantity"
                 label="Либерти (идёт в остатки товара сорта Либерти)"
+                extra="Положительное значение добавляет на склад, отрицательное отнимает (для корректировки)"
               >
                 <InputNumber
-                  min={0}
                   style={{ width: '100%' }}
                   placeholder="Количество товара сорта Либерти"
                   size="large"
