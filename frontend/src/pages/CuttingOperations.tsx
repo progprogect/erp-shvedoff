@@ -711,38 +711,6 @@ export const CuttingOperations: React.FC = () => {
         </h1>
       </div>
 
-      {/* Статистика */}
-      <Row gutter={16} style={{ marginBottom: '24px' }}>
-        <Col span={6}>
-          <Card>
-            <Statistic title="Всего операций" value={statistics.total} />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic title="За текущий месяц" value={statistics.thisMonth} />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic 
-              title="Активных операций" 
-              value={statistics.byStatus['planned'] + statistics.byStatus['approved'] + statistics.byStatus['in_progress'] || 0} 
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic 
-              title="Общий объем брака" 
-              value={statistics.totalWaste} 
-              suffix="шт."
-              valueStyle={{ color: '#ff4d4f' }}
-            />
-          </Card>
-        </Col>
-      </Row>
-
       {/* Управление */}
       <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Space>
@@ -1507,14 +1475,34 @@ export const CuttingOperations: React.FC = () => {
                 {operationDetails.targetProduct.article && ` (${operationDetails.targetProduct.article})`}
               </Descriptions.Item>
               <Descriptions.Item label="Расход материала">{operationDetails.sourceQuantity} шт.</Descriptions.Item>
-              <Descriptions.Item label="Выход продукции">{operationDetails.targetQuantity} шт.</Descriptions.Item>
+              <Descriptions.Item label="Выход продукции">
+                {operationDetails.status === 'completed' 
+                  ? (operationDetails.actualTargetQuantity || 0)
+                  : (operationDetails.progress?.totalProduct || 0)
+                } шт.
+                {operationDetails.status !== 'completed' && ' (промежуточный)'}
+              </Descriptions.Item>
               <Descriptions.Item label="Товар 2-го сорта">
-                {operationDetails.actualSecondGradeQuantity || 0} шт.
+                {operationDetails.status === 'completed' 
+                  ? (operationDetails.actualSecondGradeQuantity || 0)
+                  : (operationDetails.progress?.totalSecondGrade || 0)
+                } шт.
+                {operationDetails.status !== 'completed' && operationDetails.progress?.totalSecondGrade ? ' (промежуточный)' : ''}
               </Descriptions.Item>
               <Descriptions.Item label="Товар сорта Либерти">
-                {operationDetails.actualLibertyGradeQuantity || 0} шт.
+                {operationDetails.status === 'completed' 
+                  ? (operationDetails.actualLibertyGradeQuantity || 0)
+                  : (operationDetails.progress?.totalLibertyGrade || 0)
+                } шт.
+                {operationDetails.status !== 'completed' && operationDetails.progress?.totalLibertyGrade ? ' (промежуточный)' : ''}
               </Descriptions.Item>
-              <Descriptions.Item label="Отходы">{operationDetails.wasteQuantity} шт.</Descriptions.Item>
+              <Descriptions.Item label="Брак">
+                {operationDetails.status === 'completed' 
+                  ? (operationDetails.actualDefectQuantity || 0)
+                  : (operationDetails.progress?.totalWaste || 0)
+                } шт.
+                {operationDetails.status !== 'completed' && operationDetails.progress?.totalWaste ? ' (промежуточный)' : ''}
+              </Descriptions.Item>
               <Descriptions.Item label="Оператор">
                 {operationDetails.operator ? 
                   (operationDetails.operator.fullName || operationDetails.operator.username) : 
