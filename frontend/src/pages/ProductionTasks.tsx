@@ -3376,7 +3376,13 @@ const ProductionTasks: React.FC = () => {
                   type="primary"
                   htmlType="submit"
                   icon={<PlusOutlined />}
-                  disabled={partialCompleteFormValues.qualityQuantity + partialCompleteFormValues.defectQuantity !== partialCompleteFormValues.producedQuantity}
+                  disabled={
+                    (partialCompleteFormValues.qualityQuantity || 0) + 
+                    (partialCompleteFormValues.secondGradeQuantity || 0) + 
+                    (partialCompleteFormValues.libertyGradeQuantity || 0) + 
+                    (partialCompleteFormValues.defectQuantity || 0) !== 
+                    (partialCompleteFormValues.producedQuantity || 0)
+                  }
                 >
                   Зарегистрировать выпуск
                 </Button>
