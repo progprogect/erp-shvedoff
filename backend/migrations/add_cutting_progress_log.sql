@@ -86,15 +86,10 @@ BEGIN
     LEFT JOIN products p ON p.id = co.target_product_id
     WHERE co.id = NEW.operation_id;
 
-    -- Определяем ID товара 2-го сорта (если он существует)
-    SELECT p.id INTO _second_grade_product_id
-    FROM products p
-    WHERE p.name = _target_product_name AND p.grade = 'grade_2' AND p.is_active = TRUE;
-
-    -- Определяем ID товара сорта Либерти (если он существует)
-    SELECT p.id INTO _liberty_grade_product_id
-    FROM products p
-    WHERE p.name = _target_product_name AND p.grade = 'liber' AND p.is_active = TRUE;
+    -- Товары 2-го сорта и Либерти теперь создаются в API endpoint с правильными характеристиками
+    -- Здесь мы только обновляем остатки для уже существующих товаров
+    _second_grade_product_id := NULL;
+    _liberty_grade_product_id := NULL;
 
     -- Вычисляем разность для обновления остатков
     IF TG_OP = 'INSERT' THEN
@@ -173,111 +168,8 @@ BEGIN
         );
     END IF;
 
-    -- Обновляем остатки для товара 2-го сорта
-    IF _second_grade_diff != 0 THEN
-        -- Если товара 2-го сорта нет, создаем его
-        IF _second_grade_product_id IS NULL THEN
-            INSERT INTO products (
-                name, 
-                article, 
-                category_id, 
-                product_type, 
-                grade, 
-                is_active, 
-                notes
-            ) VALUES (
-                _target_product_name, 
-                '2S-' || _target_product_name, 
-                (SELECT category_id FROM products WHERE id = _target_product_id), 
-                (SELECT product_type FROM products WHERE id = _target_product_id), 
-                'grade_2', 
-                TRUE, 
-                'Автоматически создан для 2-го сорта по операции резки #' || NEW.operation_id
-            ) RETURNING id INTO _second_grade_product_id;
-
-            -- Создаем запись остатков для нового товара
-            INSERT INTO stock (product_id, current_stock, reserved_stock)
-            VALUES (_second_grade_product_id, 0, 0);
-        END IF;
-
-        UPDATE stock 
-        SET 
-            current_stock = current_stock + _second_grade_diff,
-            updated_at = NOW()
-        WHERE product_id = _second_grade_product_id;
-
-        -- Логируем движение товара 2-го сорта
-        INSERT INTO stock_movements (
-            product_id, 
-            movement_type, 
-            quantity, 
-            reference_id, 
-            reference_type, 
-            comment, 
-            user_id
-        ) VALUES (
-            _second_grade_product_id,
-            (CASE WHEN _second_grade_diff > 0 THEN 'cutting_in' ELSE 'outgoing' END)::movement_type,
-            ABS(_second_grade_diff),
-            NEW.operation_id,
-            'cutting_progress',
-            'Корректировка 2-го сорта по операции резки #' || NEW.operation_id || ' (прогресс)',
-            _user_id
-        );
-    END IF;
-
-    -- Обновляем остатки для товара сорта Либерти
-    IF _liberty_grade_diff != 0 THEN
-        -- Если товара сорта Либерти нет, создаем его
-        IF _liberty_grade_product_id IS NULL THEN
-            INSERT INTO products (
-                name, 
-                article, 
-                category_id, 
-                product_type, 
-                grade, 
-                is_active, 
-                notes
-            ) VALUES (
-                _target_product_name, 
-                'Либер-' || _target_product_name, 
-                (SELECT category_id FROM products WHERE id = _target_product_id), 
-                (SELECT product_type FROM products WHERE id = _target_product_id), 
-                'liber', 
-                TRUE, 
-                'Автоматически создан для сорта Либерти по операции резки #' || NEW.operation_id
-            ) RETURNING id INTO _liberty_grade_product_id;
-
-            -- Создаем запись остатков для нового товара
-            INSERT INTO stock (product_id, current_stock, reserved_stock)
-            VALUES (_liberty_grade_product_id, 0, 0);
-        END IF;
-
-        UPDATE stock 
-        SET 
-            current_stock = current_stock + _liberty_grade_diff,
-            updated_at = NOW()
-        WHERE product_id = _liberty_grade_product_id;
-
-        -- Логируем движение товара сорта Либерти
-        INSERT INTO stock_movements (
-            product_id, 
-            movement_type, 
-            quantity, 
-            reference_id, 
-            reference_type, 
-            comment, 
-            user_id
-        ) VALUES (
-            _liberty_grade_product_id,
-            (CASE WHEN _liberty_grade_diff > 0 THEN 'cutting_in' ELSE 'outgoing' END)::movement_type,
-            ABS(_liberty_grade_diff),
-            NEW.operation_id,
-            'cutting_progress',
-            'Корректировка сорта Либерти по операции резки #' || NEW.operation_id || ' (прогресс)',
-            _user_id
-        );
-    END IF;
+    -- Товары 2-го сорта и Либерти теперь создаются и обновляются в API endpoint
+    -- с правильными характеристиками и полными артикулами
 
     RETURN NEW;
 END;
