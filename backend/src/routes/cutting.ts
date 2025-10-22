@@ -667,13 +667,12 @@ router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edi
             material: material ? { name: material.name } : undefined,
             bottomType: bottomType ? { code: bottomType.code } : undefined,
             puzzleType: puzzleType ? { name: puzzleType.name } : undefined,
-            pressType: operation.targetProduct.pressType,
-            borderType: operation.targetProduct.borderType,
-            carpetEdgeType: operation.targetProduct.carpetEdgeType,
-            carpetEdgeSides: operation.targetProduct.carpetEdgeSides,
-            carpetEdgeStrength: operation.targetProduct.carpetEdgeStrength,
-            grade: 'liber' as const,
-            pressType: operation.targetProduct.pressType || 'not_selected'
+            pressType: operation.targetProduct.pressType || 'not_selected',
+            borderType: operation.targetProduct.borderType || 'without_border',
+            carpetEdgeType: operation.targetProduct.carpetEdgeType || undefined,
+            carpetEdgeSides: operation.targetProduct.carpetEdgeSides || undefined,
+            carpetEdgeStrength: operation.targetProduct.carpetEdgeStrength || undefined,
+            grade: 'liber' as const
           };
 
           const libertyGradeArticle = generateArticle(libertyGradeProductData);
