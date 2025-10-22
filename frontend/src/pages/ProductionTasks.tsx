@@ -1984,54 +1984,6 @@ const ProductionTasks: React.FC = () => {
       <div style={{ padding: '24px' }}>
         <Title level={2}>Производственные задания</Title>
       
-      {/* Статистика */}
-      <Row gutter={16} style={{ marginBottom: '24px' }}>
-        <Col span={5}>
-          <Card>
-            <Statistic
-              title="Предложено"
-              value={stats.pending}
-              valueStyle={{ color: '#1890ff' }}
-            />
-          </Card>
-        </Col>
-        <Col span={5}>
-          <Card>
-            <Statistic
-              title="В производстве"
-              value={stats.inProgress}
-              valueStyle={{ color: '#13c2c2' }}
-            />
-          </Card>
-        </Col>
-        <Col span={5}>
-          <Card>
-            <Statistic
-              title="На паузе"
-              value={stats.paused}
-              valueStyle={{ color: '#fa8c16' }}
-            />
-          </Card>
-        </Col>
-        <Col span={5}>
-          <Card>
-            <Statistic
-              title="Завершено"
-              value={stats.completed}
-              valueStyle={{ color: '#722ed1' }}
-            />
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card>
-            <Statistic
-              title="Отменено"
-              value={stats.cancelled}
-              valueStyle={{ color: '#f5222d' }}
-            />
-          </Card>
-        </Col>
-      </Row>
 
       {/* Фильтры по статусу */}
       <Card style={{ marginBottom: '16px' }}>
