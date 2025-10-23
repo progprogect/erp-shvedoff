@@ -1798,6 +1798,9 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
     const { items, productionDate, notes } = req.body;
     const userId = req.user!.id;
 
+    console.log(`[BULK-REGISTER] Получен запрос с ${items?.length || 0} товарами`);
+    console.log(`[BULK-REGISTER] Первый item:`, JSON.stringify(items?.[0], null, 2));
+
     // Валидация входных данных
     if (!items || !Array.isArray(items) || items.length === 0) {
       return next(createError('Необходимо указать список товаров для регистрации', 400));
@@ -2053,6 +2056,7 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
         }
 
         // Обрабатываем товар 2-го сорта (если есть)
+        console.log(`[BULK-REGISTER] ПРОВЕРКА 2-го сорта: secondGradeQuantity = ${secondGradeQuantity}, тип: ${typeof secondGradeQuantity}, условие !== 0: ${secondGradeQuantity !== 0}`);
         if (secondGradeQuantity !== 0) {
           console.log(`[BULK-REGISTER] Обработка 2-го сорта для ${article}, количество: ${secondGradeQuantity}, product.name: ${product.name}`);
           
@@ -2241,6 +2245,7 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
         }
 
         // Обрабатываем товар сорта Либерти (если есть)
+        console.log(`[BULK-REGISTER] ПРОВЕРКА Либерти: libertyGradeQuantity = ${libertyGradeQuantity}, тип: ${typeof libertyGradeQuantity}, условие !== 0: ${libertyGradeQuantity !== 0}`);
         if (libertyGradeQuantity !== 0) {
           console.log(`[BULK-REGISTER] Обработка Либерти для ${article}, количество: ${libertyGradeQuantity}, product.name: ${product.name}`);
           
