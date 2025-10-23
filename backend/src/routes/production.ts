@@ -1946,6 +1946,10 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
         });
 
         // Обработка случая когда нет активных заданий (WBS 2 - Adjustments Задача 4.4)
+        let hasOverproduction = false;
+        let remainingQuality = qualityQuantity;
+        const completedTasks: any[] = [];
+        
         if (activeTasks.length === 0) {
           // Все произведенное количество добавляется на склад без заданий
           await tx.update(schema.stock)
@@ -1966,20 +1970,14 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
               userId
             });
           }
-
-          results.push({
-            article,
-            status: 'warning',
-            message: `Произведено ${producedQuantity} шт. без заданий - добавлено на склад как внеплановое производство`,
-            tasksCompleted: 0
-          });
-          continue;
-        }
-
-        // Распределяем произведенное количество по заданиям
-        // Сначала закрываем задания качественными товарами, брак игнорируем
-        let remainingQuality = qualityQuantity;
-        const completedTasks = [];
+          
+          remainingQuality = 0; // Все использовано
+          hasOverproduction = true;
+          // НЕ делаем continue - продолжаем обработку сортов!
+        } else {
+          // Распределяем произведенное количество по заданиям
+          // Сначала закрываем задания качественными товарами, брак игнорируем
+          remainingQuality = qualityQuantity;
 
         for (const task of activeTasks) {
           if (remainingQuality <= 0) break;
@@ -2035,25 +2033,27 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
           }
         }
 
-        // Добавляем остаток качественных товаров на склад (если есть)
-        if (remainingQuality > 0) {
-          await tx.update(schema.stock)
-            .set({
-              currentStock: sql`${schema.stock.currentStock} + ${remainingQuality}`,
-              updatedAt: new Date()
-            })
-            .where(eq(schema.stock.productId, product.id));
+          // Добавляем остаток качественных товаров на склад (если есть)
+          if (remainingQuality > 0) {
+            await tx.update(schema.stock)
+              .set({
+                currentStock: sql`${schema.stock.currentStock} + ${remainingQuality}`,
+                updatedAt: new Date()
+              })
+              .where(eq(schema.stock.productId, product.id));
 
-          // Логируем остаток качественных товаров
-          await tx.insert(schema.stockMovements).values({
-            productId: product.id,
-            movementType: 'incoming',
-            quantity: remainingQuality,
-            referenceType: 'overproduction',
-            comment: `Остаток качественных товаров (артикул: ${article})`,
-            userId
-          });
-        }
+            // Логируем остаток качественных товаров
+            await tx.insert(schema.stockMovements).values({
+              productId: product.id,
+              movementType: 'incoming',
+              quantity: remainingQuality,
+              referenceType: 'overproduction',
+              comment: `Остаток качественных товаров (артикул: ${article})`,
+              userId
+            });
+            hasOverproduction = true;
+          }
+        } // Закрываем else блок
 
         // Обрабатываем товар 2-го сорта (если есть)
         console.log(`[BULK-REGISTER] ПРОВЕРКА 2-го сорта: secondGradeQuantity = ${secondGradeQuantity}, тип: ${typeof secondGradeQuantity}, условие !== 0: ${secondGradeQuantity !== 0}`);
@@ -2447,11 +2447,14 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
 
         // Определяем статус результата
         const totalDistributed = qualityQuantity - remainingQuality;
-        const hasOverproduction = remainingQuality > 0;
+        hasOverproduction = hasOverproduction || remainingQuality > 0;
         const hasDefect = defectQuantity > 0;
 
-        let resultMessage = `Распределено ${totalDistributed} шт. качественных товаров между ${completedTasks.length} заданиями`;
-        if (hasOverproduction) {
+        let resultMessage = activeTasks.length > 0 
+          ? `Распределено ${totalDistributed} шт. качественных товаров между ${completedTasks.length} заданиями`
+          : `Произведено ${producedQuantity} шт. без заданий - добавлено на склад как внеплановое производство`;
+        
+        if (hasOverproduction && remainingQuality > 0) {
           resultMessage += `. Остаток: ${remainingQuality} шт. качественных`;
         }
         if (hasDefect) {
