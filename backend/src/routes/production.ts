@@ -2433,17 +2433,7 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
           }
         }
 
-        // Добавляем весь брак на склад (если есть)
-        if (defectQuantity > 0) {
-          await tx.insert(schema.stockMovements).values({
-            productId: product.id,
-            movementType: 'incoming',
-            quantity: defectQuantity,
-            referenceType: 'defect_production',
-            comment: `Брак производства (артикул: ${article})`,
-            userId
-          });
-        }
+        // Брак НЕ добавляется на склад - только учитывается в статистике заданий
 
         // Определяем статус результата
         const totalDistributed = qualityQuantity - remainingQuality;
