@@ -2632,19 +2632,121 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
 
         // Обрабатываем товар 2-го сорта (если есть)
         if (secondGradeQuantity !== 0) {
-          // Находим или создаем товар 2-го сорта с теми же характеристиками
+          // Находим товар 2-го сорта с теми же характеристиками (полный поиск)
           let secondGradeProduct = await tx.query.products.findFirst({
             where: and(
+              task.product.categoryId ? eq(schema.products.categoryId, task.product.categoryId) : undefined,
               eq(schema.products.name, task.product.name),
+              eq(schema.products.productType, task.product.productType),
               eq(schema.products.grade, 'grade_2'),
-              eq(schema.products.isActive, true)
+              eq(schema.products.isActive, true),
+              task.product.dimensions ? eq(schema.products.dimensions, task.product.dimensions) : undefined,
+              task.product.surfaceIds ? eq(schema.products.surfaceIds, task.product.surfaceIds) : undefined,
+              task.product.logoId ? eq(schema.products.logoId, task.product.logoId) : (!task.product.logoId ? isNull(schema.products.logoId) : undefined),
+              task.product.materialId ? eq(schema.products.materialId, task.product.materialId) : (!task.product.materialId ? isNull(schema.products.materialId) : undefined),
+              task.product.bottomTypeId ? eq(schema.products.bottomTypeId, task.product.bottomTypeId) : (!task.product.bottomTypeId ? isNull(schema.products.bottomTypeId) : undefined),
+              task.product.puzzleTypeId ? eq(schema.products.puzzleTypeId, task.product.puzzleTypeId) : (!task.product.puzzleTypeId ? isNull(schema.products.puzzleTypeId) : undefined),
+              task.product.puzzleSides ? eq(schema.products.puzzleSides, task.product.puzzleSides) : undefined,
+              task.product.pressType ? eq(schema.products.pressType, task.product.pressType) : (!task.product.pressType ? isNull(schema.products.pressType) : undefined),
+              task.product.carpetEdgeType ? eq(schema.products.carpetEdgeType, task.product.carpetEdgeType) : (!task.product.carpetEdgeType ? isNull(schema.products.carpetEdgeType) : undefined),
+              task.product.carpetEdgeSides ? eq(schema.products.carpetEdgeSides, task.product.carpetEdgeSides) : undefined,
+              task.product.carpetEdgeStrength ? eq(schema.products.carpetEdgeStrength, task.product.carpetEdgeStrength) : (!task.product.carpetEdgeStrength ? isNull(schema.products.carpetEdgeStrength) : undefined),
+              task.product.matArea ? eq(schema.products.matArea, task.product.matArea) : (!task.product.matArea ? isNull(schema.products.matArea) : undefined),
+              task.product.weight ? eq(schema.products.weight, task.product.weight) : (!task.product.weight ? isNull(schema.products.weight) : undefined),
+              task.product.borderType ? eq(schema.products.borderType, task.product.borderType) : (!task.product.borderType ? isNull(schema.products.borderType) : undefined)
             )
           });
 
           if (!secondGradeProduct && secondGradeQuantity > 0) {
-            // Создаем товар 2-го сорта (упрощенная логика, можно расширить)
-            // Для полноценного создания с характеристиками используйте логику из массовой регистрации
-            console.warn('Товар 2-го сорта не найден. Рекомендуется использовать функцию "Завершить задание" для создания товаров с полными характеристиками.');
+            // Создаем новый товар 2-го сорта с полным артикулом
+            const { generateArticle } = await import('../utils/articleGenerator');
+            
+            // Получаем связанные данные для генерации артикула
+            const [surfaces, logo, material, bottomType, puzzleType] = await Promise.all([
+              task.product.surfaceIds && task.product.surfaceIds.length > 0 
+                ? tx.query.productSurfaces.findMany({ where: inArray(schema.productSurfaces.id, task.product.surfaceIds) })
+                : [],
+              task.product.logoId 
+                ? tx.query.productLogos.findFirst({ where: eq(schema.productLogos.id, task.product.logoId) })
+                : null,
+              task.product.materialId 
+                ? tx.query.productMaterials.findFirst({ where: eq(schema.productMaterials.id, task.product.materialId) })
+                : null,
+              task.product.bottomTypeId 
+                ? tx.query.bottomTypes.findFirst({ where: eq(schema.bottomTypes.id, task.product.bottomTypeId) })
+                : null,
+              task.product.puzzleTypeId 
+                ? tx.query.puzzleTypes.findFirst({ where: eq(schema.puzzleTypes.id, task.product.puzzleTypeId) })
+                : null
+            ]);
+
+            const secondGradeProductData = {
+              name: task.product.name,
+              dimensions: task.product.dimensions as { length?: number; width?: number; thickness?: number },
+              surfaces: surfaces.length > 0 ? surfaces.map((s: any) => ({ name: s.name })) : undefined,
+              logo: logo ? { name: logo.name } : undefined,
+              material: material ? { name: material.name } : undefined,
+              bottomType: bottomType ? { code: bottomType.code } : undefined,
+              puzzleType: puzzleType ? { name: puzzleType.name } : undefined,
+              carpetEdgeType: task.product.carpetEdgeType || undefined,
+              carpetEdgeSides: task.product.carpetEdgeSides || undefined,
+              carpetEdgeStrength: task.product.carpetEdgeStrength || undefined,
+              pressType: task.product.pressType || 'not_selected',
+              borderType: task.product.borderType || 'without_border',
+              grade: 'grade_2' as const
+            };
+            
+            const secondGradeArticle = generateArticle(secondGradeProductData);
+            
+            const [newSecondGradeProduct] = await tx.insert(schema.products).values({
+              name: task.product.name,
+              article: secondGradeArticle,
+              categoryId: task.product.categoryId,
+              productType: task.product.productType,
+              dimensions: task.product.dimensions,
+              surfaceIds: task.product.surfaceIds,
+              logoId: task.product.logoId,
+              materialId: task.product.materialId,
+              bottomTypeId: task.product.bottomTypeId,
+              puzzleTypeId: task.product.puzzleTypeId,
+              puzzleSides: task.product.puzzleSides,
+              carpetEdgeType: task.product.carpetEdgeType,
+              carpetEdgeSides: task.product.carpetEdgeSides,
+              carpetEdgeStrength: task.product.carpetEdgeStrength,
+              matArea: task.product.matArea,
+              weight: task.product.weight,
+              pressType: task.product.pressType,
+              borderType: task.product.borderType,
+              grade: 'grade_2',
+              normStock: 0,
+              isActive: true,
+              notes: `Автоматически создан для 2-го сорта по заданию #${taskId}`
+            }).returning();
+
+            // Создаем запись остатков для нового товара
+            await tx.insert(schema.stock).values({
+              productId: newSecondGradeProduct.id,
+              currentStock: 0,
+              reservedStock: 0,
+              updatedAt: new Date()
+            });
+
+            secondGradeProduct = newSecondGradeProduct;
+          } else if (secondGradeProduct) {
+            // Проверяем, есть ли запись в stock для существующего товара
+            const existingStock = await tx.query.stock.findFirst({
+              where: eq(schema.stock.productId, secondGradeProduct.id)
+            });
+
+            if (!existingStock) {
+              // Создаем запись остатков для существующего товара
+              await tx.insert(schema.stock).values({
+                productId: secondGradeProduct.id,
+                currentStock: 0,
+                reservedStock: 0,
+                updatedAt: new Date()
+              });
+            }
           }
 
           if (secondGradeProduct) {
@@ -2671,19 +2773,121 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
 
         // Обрабатываем товар сорта Либерти (если есть)
         if (libertyGradeQuantity !== 0) {
-          // Находим или создаем товар сорта Либерти с теми же характеристиками
+          // Находим товар сорта Либерти с теми же характеристиками (полный поиск)
           let libertyGradeProduct = await tx.query.products.findFirst({
             where: and(
+              task.product.categoryId ? eq(schema.products.categoryId, task.product.categoryId) : undefined,
               eq(schema.products.name, task.product.name),
+              eq(schema.products.productType, task.product.productType),
               eq(schema.products.grade, 'liber'),
-              eq(schema.products.isActive, true)
+              eq(schema.products.isActive, true),
+              task.product.dimensions ? eq(schema.products.dimensions, task.product.dimensions) : undefined,
+              task.product.surfaceIds ? eq(schema.products.surfaceIds, task.product.surfaceIds) : undefined,
+              task.product.logoId ? eq(schema.products.logoId, task.product.logoId) : (!task.product.logoId ? isNull(schema.products.logoId) : undefined),
+              task.product.materialId ? eq(schema.products.materialId, task.product.materialId) : (!task.product.materialId ? isNull(schema.products.materialId) : undefined),
+              task.product.bottomTypeId ? eq(schema.products.bottomTypeId, task.product.bottomTypeId) : (!task.product.bottomTypeId ? isNull(schema.products.bottomTypeId) : undefined),
+              task.product.puzzleTypeId ? eq(schema.products.puzzleTypeId, task.product.puzzleTypeId) : (!task.product.puzzleTypeId ? isNull(schema.products.puzzleTypeId) : undefined),
+              task.product.puzzleSides ? eq(schema.products.puzzleSides, task.product.puzzleSides) : undefined,
+              task.product.pressType ? eq(schema.products.pressType, task.product.pressType) : (!task.product.pressType ? isNull(schema.products.pressType) : undefined),
+              task.product.carpetEdgeType ? eq(schema.products.carpetEdgeType, task.product.carpetEdgeType) : (!task.product.carpetEdgeType ? isNull(schema.products.carpetEdgeType) : undefined),
+              task.product.carpetEdgeSides ? eq(schema.products.carpetEdgeSides, task.product.carpetEdgeSides) : undefined,
+              task.product.carpetEdgeStrength ? eq(schema.products.carpetEdgeStrength, task.product.carpetEdgeStrength) : (!task.product.carpetEdgeStrength ? isNull(schema.products.carpetEdgeStrength) : undefined),
+              task.product.matArea ? eq(schema.products.matArea, task.product.matArea) : (!task.product.matArea ? isNull(schema.products.matArea) : undefined),
+              task.product.weight ? eq(schema.products.weight, task.product.weight) : (!task.product.weight ? isNull(schema.products.weight) : undefined),
+              task.product.borderType ? eq(schema.products.borderType, task.product.borderType) : (!task.product.borderType ? isNull(schema.products.borderType) : undefined)
             )
           });
 
           if (!libertyGradeProduct && libertyGradeQuantity > 0) {
-            // Создаем товар сорта Либерти (упрощенная логика, можно расширить)
-            // Для полноценного создания с характеристиками используйте логику из массовой регистрации
-            console.warn('Товар сорта Либерти не найден. Рекомендуется использовать функцию "Завершить задание" для создания товаров с полными характеристиками.');
+            // Создаем новый товар сорта Либерти с полным артикулом
+            const { generateArticle } = await import('../utils/articleGenerator');
+            
+            // Получаем связанные данные для генерации артикула
+            const [surfaces, logo, material, bottomType, puzzleType] = await Promise.all([
+              task.product.surfaceIds && task.product.surfaceIds.length > 0 
+                ? tx.query.productSurfaces.findMany({ where: inArray(schema.productSurfaces.id, task.product.surfaceIds) })
+                : [],
+              task.product.logoId 
+                ? tx.query.productLogos.findFirst({ where: eq(schema.productLogos.id, task.product.logoId) })
+                : null,
+              task.product.materialId 
+                ? tx.query.productMaterials.findFirst({ where: eq(schema.productMaterials.id, task.product.materialId) })
+                : null,
+              task.product.bottomTypeId 
+                ? tx.query.bottomTypes.findFirst({ where: eq(schema.bottomTypes.id, task.product.bottomTypeId) })
+                : null,
+              task.product.puzzleTypeId 
+                ? tx.query.puzzleTypes.findFirst({ where: eq(schema.puzzleTypes.id, task.product.puzzleTypeId) })
+                : null
+            ]);
+
+            const libertyGradeProductData = {
+              name: task.product.name,
+              dimensions: task.product.dimensions as { length?: number; width?: number; thickness?: number },
+              surfaces: surfaces.length > 0 ? surfaces.map((s: any) => ({ name: s.name })) : undefined,
+              logo: logo ? { name: logo.name } : undefined,
+              material: material ? { name: material.name } : undefined,
+              bottomType: bottomType ? { code: bottomType.code } : undefined,
+              puzzleType: puzzleType ? { name: puzzleType.name } : undefined,
+              carpetEdgeType: task.product.carpetEdgeType || undefined,
+              carpetEdgeSides: task.product.carpetEdgeSides || undefined,
+              carpetEdgeStrength: task.product.carpetEdgeStrength || undefined,
+              pressType: task.product.pressType || 'not_selected',
+              borderType: task.product.borderType || 'without_border',
+              grade: 'liber' as const
+            };
+            
+            const libertyGradeArticle = generateArticle(libertyGradeProductData);
+            
+            const [newLibertyGradeProduct] = await tx.insert(schema.products).values({
+              name: task.product.name,
+              article: libertyGradeArticle,
+              categoryId: task.product.categoryId,
+              productType: task.product.productType,
+              dimensions: task.product.dimensions,
+              surfaceIds: task.product.surfaceIds,
+              logoId: task.product.logoId,
+              materialId: task.product.materialId,
+              bottomTypeId: task.product.bottomTypeId,
+              puzzleTypeId: task.product.puzzleTypeId,
+              puzzleSides: task.product.puzzleSides,
+              carpetEdgeType: task.product.carpetEdgeType,
+              carpetEdgeSides: task.product.carpetEdgeSides,
+              carpetEdgeStrength: task.product.carpetEdgeStrength,
+              matArea: task.product.matArea,
+              weight: task.product.weight,
+              pressType: task.product.pressType,
+              borderType: task.product.borderType,
+              grade: 'liber',
+              normStock: 0,
+              isActive: true,
+              notes: `Автоматически создан для сорта Либерти по заданию #${taskId}`
+            }).returning();
+
+            // Создаем запись остатков для нового товара
+            await tx.insert(schema.stock).values({
+              productId: newLibertyGradeProduct.id,
+              currentStock: 0,
+              reservedStock: 0,
+              updatedAt: new Date()
+            });
+
+            libertyGradeProduct = newLibertyGradeProduct;
+          } else if (libertyGradeProduct) {
+            // Проверяем, есть ли запись в stock для существующего товара
+            const existingStock = await tx.query.stock.findFirst({
+              where: eq(schema.stock.productId, libertyGradeProduct.id)
+            });
+
+            if (!existingStock) {
+              // Создаем запись остатков для существующего товара
+              await tx.insert(schema.stock).values({
+                productId: libertyGradeProduct.id,
+                currentStock: 0,
+                reservedStock: 0,
+                updatedAt: new Date()
+              });
+            }
           }
 
           if (libertyGradeProduct) {
