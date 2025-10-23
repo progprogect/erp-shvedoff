@@ -2446,13 +2446,21 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
   try {
     const taskId = Number(req.params.id);
     const { 
-      producedQuantity, 
-      qualityQuantity,
-      secondGradeQuantity = 0,
-      libertyGradeQuantity = 0,
-      defectQuantity, 
+      producedQuantity: rawProducedQuantity, 
+      qualityQuantity: rawQualityQuantity,
+      secondGradeQuantity: rawSecondGradeQuantity = 0,
+      libertyGradeQuantity: rawLibertyGradeQuantity = 0,
+      defectQuantity: rawDefectQuantity, 
       notes 
     } = req.body;
+    
+    // Явное приведение к числам
+    const producedQuantity = Number(rawProducedQuantity) || 0;
+    const qualityQuantity = Number(rawQualityQuantity) || 0;
+    const secondGradeQuantity = Number(rawSecondGradeQuantity) || 0;
+    const libertyGradeQuantity = Number(rawLibertyGradeQuantity) || 0;
+    const defectQuantity = Number(rawDefectQuantity) || 0;
+    
     const userId = req.user!.id;
 
     const task = await db.query.productionTasks.findFirst({
@@ -2485,8 +2493,13 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
       }
     }
 
-    if (qualityQuantity + secondGradeQuantity + libertyGradeQuantity + defectQuantity !== producedQuantity) {
-      return next(createError('Сумма годных, 2-го сорта, Либерти и брака должна равняться произведенному количеству', 400));
+    // Валидация суммы
+    const totalSum = qualityQuantity + secondGradeQuantity + libertyGradeQuantity + defectQuantity;
+    if (totalSum !== producedQuantity) {
+      return next(createError(
+        `Сумма годных (${qualityQuantity}), 2-го сорта (${secondGradeQuantity}), Либерти (${libertyGradeQuantity}) и брака (${defectQuantity}) = ${totalSum} должна равняться произведенному количеству (${producedQuantity})`, 
+        400
+      ));
     }
 
     // Обработка сверхпланового производства (исправленная логика)
