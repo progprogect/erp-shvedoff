@@ -2048,7 +2048,9 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
         }
 
         // Обрабатываем товар 2-го сорта (если есть)
-        if (secondGradeQuantity > 0) {
+        if (secondGradeQuantity !== 0) {
+          console.log(`[BULK-REGISTER] Обработка 2-го сорта для ${article}, количество: ${secondGradeQuantity}, product.name: ${product.name}`);
+          
           // Находим или создаем товар 2-го сорта с теми же характеристиками
           let secondGradeProduct = await tx.query.products.findFirst({
             where: and(
@@ -2110,7 +2112,10 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
             )
           });
 
-          if (!secondGradeProduct) {
+          console.log(`[BULK-REGISTER] Товар 2-го сорта ${secondGradeProduct ? 'найден' : 'НЕ найден'}, будет создан: ${!secondGradeProduct && secondGradeQuantity > 0}`);
+
+          if (!secondGradeProduct && secondGradeQuantity > 0) {
+            console.log(`[BULK-REGISTER] Создание нового товара 2-го сорта для ${product.name}`);
             // Создаем новый товар 2-го сорта с полным артикулом
             const { generateArticle } = await import('../utils/articleGenerator');
             
@@ -2184,14 +2189,17 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
               updatedAt: new Date()
             });
 
+            console.log(`[BULK-REGISTER] Товар 2-го сорта создан: ${newSecondGradeProduct.article} (ID: ${newSecondGradeProduct.id})`);
             secondGradeProduct = newSecondGradeProduct;
-          } else {
+          } else if (secondGradeProduct) {
+            console.log(`[BULK-REGISTER] Товар 2-го сорта уже существует: ${secondGradeProduct.article} (ID: ${secondGradeProduct.id})`);
             // Проверяем, есть ли запись в stock для существующего товара
             const existingStock = await tx.query.stock.findFirst({
               where: eq(schema.stock.productId, secondGradeProduct.id)
             });
 
             if (!existingStock) {
+              console.log(`[BULK-REGISTER] Создание записи stock для существующего товара 2-го сорта`);
               // Создаем запись остатков для существующего товара
               await tx.insert(schema.stock).values({
                 productId: secondGradeProduct.id,
@@ -2202,27 +2210,35 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
             }
           }
 
-          // Обновляем остатки
-          await tx.update(schema.stock)
-            .set({
-              currentStock: sql`current_stock + ${secondGradeQuantity}`,
-              updatedAt: new Date()
-            })
-            .where(eq(schema.stock.productId, secondGradeProduct.id));
+          if (secondGradeProduct) {
+            console.log(`[BULK-REGISTER] Обновление остатков 2-го сорта: +${secondGradeQuantity}`);
+            // Обновляем остатки
+            await tx.update(schema.stock)
+              .set({
+                currentStock: sql`current_stock + ${secondGradeQuantity}`,
+                updatedAt: new Date()
+              })
+              .where(eq(schema.stock.productId, secondGradeProduct.id));
 
-          // Логируем движение товара 2-го сорта
-          await tx.insert(schema.stockMovements).values({
-            productId: secondGradeProduct.id,
-            movementType: 'incoming',
-            quantity: secondGradeQuantity,
-            referenceType: 'production',
-            comment: `2-й сорт из массовой регистрации (артикул: ${article})`,
-            userId
-          });
+            // Логируем движение товара 2-го сорта
+            await tx.insert(schema.stockMovements).values({
+              productId: secondGradeProduct.id,
+              movementType: secondGradeQuantity > 0 ? 'incoming' : 'outgoing',
+              quantity: Math.abs(secondGradeQuantity),
+              referenceType: 'production',
+              comment: `2-й сорт из массовой регистрации (артикул: ${article})`,
+              userId
+            });
+            console.log(`[BULK-REGISTER] Остатки 2-го сорта обновлены успешно`);
+          } else {
+            console.log(`[BULK-REGISTER] ВНИМАНИЕ: Товар 2-го сорта не был создан и не найден`);
+          }
         }
 
         // Обрабатываем товар сорта Либерти (если есть)
-        if (libertyGradeQuantity > 0) {
+        if (libertyGradeQuantity !== 0) {
+          console.log(`[BULK-REGISTER] Обработка Либерти для ${article}, количество: ${libertyGradeQuantity}, product.name: ${product.name}`);
+          
           // Находим или создаем товар сорта Либерти с теми же характеристиками
           let libertyGradeProduct = await tx.query.products.findFirst({
             where: and(
@@ -2284,7 +2300,10 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
             )
           });
 
-          if (!libertyGradeProduct) {
+          console.log(`[BULK-REGISTER] Товар Либерти ${libertyGradeProduct ? 'найден' : 'НЕ найден'}, будет создан: ${!libertyGradeProduct && libertyGradeQuantity > 0}`);
+
+          if (!libertyGradeProduct && libertyGradeQuantity > 0) {
+            console.log(`[BULK-REGISTER] Создание нового товара Либерти для ${product.name}`);
             // Создаем новый товар сорта Либерти с полным артикулом
             const { generateArticle } = await import('../utils/articleGenerator');
             
@@ -2358,14 +2377,17 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
               updatedAt: new Date()
             });
 
+            console.log(`[BULK-REGISTER] Товар Либерти создан: ${newLibertyGradeProduct.article} (ID: ${newLibertyGradeProduct.id})`);
             libertyGradeProduct = newLibertyGradeProduct;
-          } else {
+          } else if (libertyGradeProduct) {
+            console.log(`[BULK-REGISTER] Товар Либерти уже существует: ${libertyGradeProduct.article} (ID: ${libertyGradeProduct.id})`);
             // Проверяем, есть ли запись в stock для существующего товара
             const existingStock = await tx.query.stock.findFirst({
               where: eq(schema.stock.productId, libertyGradeProduct.id)
             });
 
             if (!existingStock) {
+              console.log(`[BULK-REGISTER] Создание записи stock для существующего товара Либерти`);
               // Создаем запись остатков для существующего товара
               await tx.insert(schema.stock).values({
                 productId: libertyGradeProduct.id,
@@ -2376,23 +2398,29 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
             }
           }
 
-          // Обновляем остатки
-          await tx.update(schema.stock)
-            .set({
-              currentStock: sql`current_stock + ${libertyGradeQuantity}`,
-              updatedAt: new Date()
-            })
-            .where(eq(schema.stock.productId, libertyGradeProduct.id));
+          if (libertyGradeProduct) {
+            console.log(`[BULK-REGISTER] Обновление остатков Либерти: +${libertyGradeQuantity}`);
+            // Обновляем остатки
+            await tx.update(schema.stock)
+              .set({
+                currentStock: sql`current_stock + ${libertyGradeQuantity}`,
+                updatedAt: new Date()
+              })
+              .where(eq(schema.stock.productId, libertyGradeProduct.id));
 
-          // Логируем движение товара сорта Либерти
-          await tx.insert(schema.stockMovements).values({
-            productId: libertyGradeProduct.id,
-            movementType: 'incoming',
-            quantity: libertyGradeQuantity,
-            referenceType: 'production',
-            comment: `Либерти из массовой регистрации (артикул: ${article})`,
-            userId
-          });
+            // Логируем движение товара сорта Либерти
+            await tx.insert(schema.stockMovements).values({
+              productId: libertyGradeProduct.id,
+              movementType: libertyGradeQuantity > 0 ? 'incoming' : 'outgoing',
+              quantity: Math.abs(libertyGradeQuantity),
+              referenceType: 'production',
+              comment: `Либерти из массовой регистрации (артикул: ${article})`,
+              userId
+            });
+            console.log(`[BULK-REGISTER] Остатки Либерти обновлены успешно`);
+          } else {
+            console.log(`[BULK-REGISTER] ВНИМАНИЕ: Товар Либерти не был создан и не найден`);
+          }
         }
 
         // Добавляем весь брак на склад (если есть)
