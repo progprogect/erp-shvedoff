@@ -3510,7 +3510,6 @@ const ProductionTasks: React.FC = () => {
                   <div style={{ flex: 1.5, paddingRight: 8, display: 'flex', alignItems: 'center' }}>
                     <InputNumber
                       style={{ width: '100%', height: '50px' }}
-                      min={0}
                       value={item.qualityQuantity}
                       onChange={(value) => {
                         const quality = value || 0;
@@ -3530,7 +3529,6 @@ const ProductionTasks: React.FC = () => {
                   <div style={{ flex: 1.5, paddingRight: 8, display: 'flex', alignItems: 'center' }}>
                     <InputNumber
                       style={{ width: '100%', height: '50px' }}
-                      min={0}
                       value={item.secondGradeQuantity}
                       placeholder="0"
                       onChange={(value) => {
@@ -3551,7 +3549,6 @@ const ProductionTasks: React.FC = () => {
                   <div style={{ flex: 1.5, paddingRight: 8, display: 'flex', alignItems: 'center' }}>
                     <InputNumber
                       style={{ width: '100%', height: '50px' }}
-                      min={0}
                       value={item.libertyGradeQuantity}
                       placeholder="0"
                       onChange={(value) => {
@@ -3572,7 +3569,6 @@ const ProductionTasks: React.FC = () => {
                   <div style={{ flex: 1.5, paddingRight: 8, display: 'flex', alignItems: 'center' }}>
                     <InputNumber
                       style={{ width: '100%', height: '50px' }}
-                      min={0}
                       value={item.defectQuantity}
                       placeholder="0"
                       onChange={(value) => {
@@ -3668,10 +3664,12 @@ const ProductionTasks: React.FC = () => {
                 icon={<CheckCircleOutlined />}
                 disabled={
                   bulkRegisterItems.filter(item => item.article.trim() !== '').length === 0 ||
-                  bulkRegisterItems.some(item => 
-                    item.article.trim() !== '' && 
-                    (item.qualityQuantity + item.defectQuantity !== item.producedQuantity)
-                  )
+                  bulkRegisterItems.some(item => {
+                    if (item.article.trim() === '') return false;
+                    const secondGrade = item.secondGradeQuantity || 0;
+                    const libertyGrade = item.libertyGradeQuantity || 0;
+                    return (item.qualityQuantity + secondGrade + libertyGrade + item.defectQuantity !== item.producedQuantity);
+                  })
                 }
               >
                 Зарегистрировать выпуск
