@@ -825,11 +825,13 @@ const ProductionTasks: React.FC = () => {
 
       const produced = partialCompleteFormValues.producedQuantity;
       const quality = partialCompleteFormValues.qualityQuantity;
+      const secondGrade = partialCompleteFormValues.secondGradeQuantity || 0;
+      const libertyGrade = partialCompleteFormValues.libertyGradeQuantity || 0;
       const defect = partialCompleteFormValues.defectQuantity;
 
       // Валидация суммы
-      if (quality + defect !== produced) {
-        message.error('Сумма годных и брака должна равняться произведенному количеству');
+      if (quality + secondGrade + libertyGrade + defect !== produced) {
+        message.error(`Сумма годных (${quality}), 2-го сорта (${secondGrade}), Либерти (${libertyGrade}) и брака (${defect}) должна равняться произведенному количеству (${produced})`);
         return;
       }
 
@@ -845,6 +847,8 @@ const ProductionTasks: React.FC = () => {
       const result = await partialCompleteTask(selectedTask.id, {
         producedQuantity: Number(produced),
         qualityQuantity: Number(quality),
+        secondGradeQuantity: Number(secondGrade),
+        libertyGradeQuantity: Number(libertyGrade),
         defectQuantity: Number(defect),
         notes: values.notes
       });
