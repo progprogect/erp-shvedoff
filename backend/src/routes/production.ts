@@ -1835,6 +1835,8 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
           libertyGradeQuantity = 0,
           defectQuantity = 0 
         } = item;
+        
+        console.log(`[BULK-REGISTER] Товар: ${article}, produced: ${producedQuantity}, quality: ${qualityQuantity}, 2сорт: ${secondGradeQuantity}, Либер: ${libertyGradeQuantity}, брак: ${defectQuantity}`);
 
         // Находим товар по артикулу
         const product = await tx.query.products.findFirst({
@@ -1842,6 +1844,7 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
         });
 
         if (!product) {
+          console.log(`[BULK-REGISTER] ❌ ОШИБКА: Товар с артикулом "${article}" не найден в БД`);
           results.push({
             article,
             status: 'error',
@@ -1849,6 +1852,8 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
           });
           continue;
         }
+        
+        console.log(`[BULK-REGISTER] ✅ Товар найден: ${product.name} (ID: ${product.id})`);
 
         // Получаем активные задания для этого товара, отсортированные по приоритету (WBS 2 - Adjustments Задача 4.3)
         const activeTasks = await tx.query.productionTasks.findMany({
@@ -2458,6 +2463,8 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
       }
     });
 
+    console.log(`[BULK-REGISTER] ✅ Транзакция завершена успешно. Обработано товаров: ${items.length}, результатов: ${results.length}`);
+
     res.json({
       success: true,
       data: results,
@@ -2465,6 +2472,7 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
     });
 
   } catch (error) {
+    console.error(`[BULK-REGISTER] ❌ КРИТИЧЕСКАЯ ОШИБКА:`, error);
     next(error);
   }
 });
