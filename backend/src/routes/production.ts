@@ -2112,9 +2112,9 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
             )
           });
 
-          console.log(`[BULK-REGISTER] Товар 2-го сорта ${secondGradeProduct ? 'найден' : 'НЕ найден'}, будет создан: ${!secondGradeProduct && secondGradeQuantity > 0}`);
+          console.log(`[BULK-REGISTER] Товар 2-го сорта ${secondGradeProduct ? 'найден' : 'НЕ найден'}, будет создан: ${!secondGradeProduct}`);
 
-          if (!secondGradeProduct && secondGradeQuantity > 0) {
+          if (!secondGradeProduct) {
             console.log(`[BULK-REGISTER] Создание нового товара 2-го сорта для ${product.name}`);
             // Создаем новый товар 2-го сорта с полным артикулом
             const { generateArticle } = await import('../utils/articleGenerator');
@@ -2300,9 +2300,9 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
             )
           });
 
-          console.log(`[BULK-REGISTER] Товар Либерти ${libertyGradeProduct ? 'найден' : 'НЕ найден'}, будет создан: ${!libertyGradeProduct && libertyGradeQuantity > 0}`);
+          console.log(`[BULK-REGISTER] Товар Либерти ${libertyGradeProduct ? 'найден' : 'НЕ найден'}, будет создан: ${!libertyGradeProduct}`);
 
-          if (!libertyGradeProduct && libertyGradeQuantity > 0) {
+          if (!libertyGradeProduct) {
             console.log(`[BULK-REGISTER] Создание нового товара Либерти для ${product.name}`);
             // Создаем новый товар сорта Либерти с полным артикулом
             const { generateArticle } = await import('../utils/articleGenerator');
@@ -2685,8 +2685,8 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
             )
           });
 
-          if (!secondGradeProduct && secondGradeQuantity > 0) {
-            // Создаем новый товар 2-го сорта с полным артикулом
+          if (!secondGradeProduct) {
+            // Создаем новый товар 2-го сорта с полным артикулом (независимо от quantity - может быть отрицательным)
             const { generateArticle } = await import('../utils/articleGenerator');
             
             // Получаем связанные данные для генерации артикула
@@ -2826,8 +2826,8 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
             )
           });
 
-          if (!libertyGradeProduct && libertyGradeQuantity > 0) {
-            // Создаем новый товар сорта Либерти с полным артикулом
+          if (!libertyGradeProduct) {
+            // Создаем новый товар сорта Либерти с полным артикулом (независимо от quantity - может быть отрицательным)
             const { generateArticle } = await import('../utils/articleGenerator');
             
             // Получаем связанные данные для генерации артикула

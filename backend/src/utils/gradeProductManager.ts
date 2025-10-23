@@ -104,8 +104,8 @@ export async function findOrCreateGradeProduct(options: GradeProductOptions): Pr
 
   let wasCreated = false;
 
-  // 2. Если товар не найден и количество положительное - создаем новый
-  if (!gradeProduct && quantity > 0) {
+  // 2. Если товар не найден - создаем новый (независимо от quantity - может быть отрицательным)
+  if (!gradeProduct) {
     // Получаем связанные данные для генерации артикула
     const [surfaces, logo, material, bottomType, puzzleType] = await Promise.all([
       sourceProduct.surfaceIds && sourceProduct.surfaceIds.length > 0 
