@@ -2652,10 +2652,12 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
     console.log(`[PARTIAL-COMPLETE] Новое состояние будет: newTotalProduced=${newTotalProduced}`);
 
     // Обработка отрицательных значений (корректировка)
-    if (producedQuantity < 0) {
-      const quantityToRemove = Math.abs(producedQuantity);
+    // ВАЖНО: Проверяем остатки основного товара ТОЛЬКО если отрицательное qualityQuantity
+    // Не проверяем, если отрицательное только secondGradeQuantity или libertyGradeQuantity
+    if (qualityQuantity < 0) {
+      const quantityToRemove = Math.abs(qualityQuantity);
       
-      // Проверяем достаточность на складе
+      // Проверяем достаточность на складе основного товара
       const stockInfo = await getStockInfo(task.productId);
       if (stockInfo.currentStock < quantityToRemove) {
         return next(createError(
@@ -3138,18 +3140,24 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
 
       // Обработка 2-го сорта и Либерти находится выше (строки 2767-3137) - независимо от знака producedQuantity
       
-      if (producedQuantity < 0) {
-        // Отрицательное количество - убираем со склада используя существующую логику корректировки
-        const quantityToRemove = Math.abs(producedQuantity);
+      // ВАЖНО: Списываем с основного товара ТОЛЬКО если отрицательное qualityQuantity
+      // Не списываем, если отрицательное только secondGradeQuantity или libertyGradeQuantity
+      if (qualityQuantity < 0) {
+        // Отрицательное количество качественной продукции - убираем со склада основного товара
+        const quantityToRemove = Math.abs(qualityQuantity);
+        
+        console.log(`[PARTIAL-COMPLETE] Списывание с основного товара: productId=${task.productId}, quantity=${qualityQuantity}`);
         
         // Используем performStockOperation для корректировки
         await performStockOperation({
           productId: task.productId,
           type: 'adjustment',
-          quantity: producedQuantity, // Отрицательное значение
+          quantity: qualityQuantity, // Отрицательное значение
           userId: userId,
-          comment: `Корректировка задания #${taskId}: убрано ${quantityToRemove} шт`
+          comment: `Корректировка задания #${taskId}: убрано ${quantityToRemove} шт качественного товара`
         });
+        
+        console.log(`[PARTIAL-COMPLETE] ✅ Основной товар скорректирован: убрано ${quantityToRemove} шт`);
       }
 
       // Аудит лог
@@ -3177,15 +3185,29 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
     console.log(`[PARTIAL-COMPLETE] ========== Регистрация выпуска завершена ==========`);
 
     let message = '';
-    if (producedQuantity < 0) {
-      // Корректировка
-      const quantityRemoved = Math.abs(producedQuantity);
-      message = `Корректировка: убрано ${quantityRemoved} шт из задания. Товар списан со склада.`;
+    // Проверяем корректировку основного товара или сортов отдельно
+    const hasMainProductAdjustment = qualityQuantity < 0;
+    const hasGradesAdjustment = (secondGradeQuantity < 0) || (libertyGradeQuantity < 0);
+    
+    if (hasMainProductAdjustment) {
+      // Корректировка основного товара
+      const quantityRemoved = Math.abs(qualityQuantity);
+      message = `Корректировка: убрано ${quantityRemoved} шт качественного товара из задания. Товар списан со склада.`;
       if (result && result.wasCompleted) {
         message += ` Задание завершено: ${newTotalProduced} из ${task.requestedQuantity} шт.`;
       } else {
         message += ` Осталось произвести: ${result?.remainingQuantity || 0} шт.`;
       }
+    } else if (hasGradesAdjustment) {
+      // Корректировка только сортов (2-го сорта или Либерти)
+      const adjustments = [];
+      if (secondGradeQuantity < 0) {
+        adjustments.push(`убрано ${Math.abs(secondGradeQuantity)} шт 2-го сорта`);
+      }
+      if (libertyGradeQuantity < 0) {
+        adjustments.push(`убрано ${Math.abs(libertyGradeQuantity)} шт Либерти`);
+      }
+      message = `Корректировка: ${adjustments.join(', ')}. Остатки соответствующих товаров обновлены.`;
     } else if (result && result.wasCompleted) {
       if (result.overproductionQuantity > 0) {
         message = `Задание завершено! Произведено ${newTotalProduced} из ${task.requestedQuantity} шт. + ${result.overproductionQuantity} шт. сверх плана`;
