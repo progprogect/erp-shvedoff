@@ -1488,6 +1488,18 @@ router.post('/:id/progress', authenticateToken, requirePermission('cutting', 'ed
 
       // Обновляем остатки для товара 2-го сорта (если количество не нулевое)
       if (quantities.secondGradeQuantity !== 0 && existingSecondGrade) {
+        // Для отрицательных значений проверяем достаточность остатков
+        if (quantities.secondGradeQuantity < 0) {
+          const stockInfo = await tx.query.stock.findFirst({
+            where: eq(schema.stock.productId, existingSecondGrade.id)
+          });
+          const currentStock = stockInfo?.currentStock || 0;
+          const quantityToRemove = Math.abs(quantities.secondGradeQuantity);
+          if (currentStock < quantityToRemove) {
+            throw new Error(`Недостаточно товара 2-го сорта на складе для корректировки. На складе: ${currentStock} шт, требуется убрать: ${quantityToRemove} шт`);
+          }
+        }
+        
         await tx.update(schema.stock)
           .set({
             currentStock: sql`current_stock + ${quantities.secondGradeQuantity}`,
@@ -1509,6 +1521,18 @@ router.post('/:id/progress', authenticateToken, requirePermission('cutting', 'ed
 
       // Обновляем остатки для товара Либерти (если количество не нулевое)
       if (quantities.libertyGradeQuantity !== 0 && existingLibertyGrade) {
+        // Для отрицательных значений проверяем достаточность остатков
+        if (quantities.libertyGradeQuantity < 0) {
+          const stockInfo = await tx.query.stock.findFirst({
+            where: eq(schema.stock.productId, existingLibertyGrade.id)
+          });
+          const currentStock = stockInfo?.currentStock || 0;
+          const quantityToRemove = Math.abs(quantities.libertyGradeQuantity);
+          if (currentStock < quantityToRemove) {
+            throw new Error(`Недостаточно товара сорта Либерти на складе для корректировки. На складе: ${currentStock} шт, требуется убрать: ${quantityToRemove} шт`);
+          }
+        }
+        
         await tx.update(schema.stock)
           .set({
             currentStock: sql`current_stock + ${quantities.libertyGradeQuantity}`,

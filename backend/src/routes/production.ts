@@ -2784,6 +2784,18 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
           }
 
           if (secondGradeProduct) {
+            // Для отрицательных значений проверяем достаточность остатков
+            if (secondGradeQuantity < 0) {
+              const stockInfo = await tx.query.stock.findFirst({
+                where: eq(schema.stock.productId, secondGradeProduct.id)
+              });
+              const currentStock = stockInfo?.currentStock || 0;
+              const quantityToRemove = Math.abs(secondGradeQuantity);
+              if (currentStock < quantityToRemove) {
+                throw new Error(`Недостаточно товара 2-го сорта на складе для корректировки. На складе: ${currentStock} шт, требуется убрать: ${quantityToRemove} шт`);
+              }
+            }
+            
             // Обновляем остатки
             await tx.update(schema.stock)
               .set({
@@ -2925,6 +2937,18 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
           }
 
           if (libertyGradeProduct) {
+            // Для отрицательных значений проверяем достаточность остатков
+            if (libertyGradeQuantity < 0) {
+              const stockInfo = await tx.query.stock.findFirst({
+                where: eq(schema.stock.productId, libertyGradeProduct.id)
+              });
+              const currentStock = stockInfo?.currentStock || 0;
+              const quantityToRemove = Math.abs(libertyGradeQuantity);
+              if (currentStock < quantityToRemove) {
+                throw new Error(`Недостаточно товара сорта Либерти на складе для корректировки. На складе: ${currentStock} шт, требуется убрать: ${quantityToRemove} шт`);
+              }
+            }
+            
             // Обновляем остатки
             await tx.update(schema.stock)
               .set({
@@ -3130,7 +3154,7 @@ router.post('/tasks/:id/complete', authenticateToken, requirePermission('product
 
         if (secondGradeProduct) {
           secondGradeProductId = secondGradeProduct.id;
-        } else if (secondGradeQuantity > 0) {
+        } else if (secondGradeQuantity !== 0) {
           // Создаем новый товар второго сорта с полным артикулом
           const { generateArticle } = await import('../utils/articleGenerator');
           
@@ -3222,6 +3246,18 @@ router.post('/tasks/:id/complete', authenticateToken, requirePermission('product
 
         // Обновляем остатки товара второго сорта
         if (secondGradeProductId) {
+          // Для отрицательных значений проверяем достаточность остатков
+          if (secondGradeQuantity < 0) {
+            const stockInfo = await tx.query.stock.findFirst({
+              where: eq(schema.stock.productId, secondGradeProductId)
+            });
+            const currentStock = stockInfo?.currentStock || 0;
+            const quantityToRemove = Math.abs(secondGradeQuantity);
+            if (currentStock < quantityToRemove) {
+              throw new Error(`Недостаточно товара 2-го сорта на складе для корректировки. На складе: ${currentStock} шт, требуется убрать: ${quantityToRemove} шт`);
+            }
+          }
+          
           await tx.update(schema.stock)
             .set({
               currentStock: sql`current_stock + ${secondGradeQuantity}`,
@@ -3256,7 +3292,7 @@ router.post('/tasks/:id/complete', authenticateToken, requirePermission('product
 
         if (libertyGradeProduct) {
           libertyGradeProductId = libertyGradeProduct.id;
-        } else if (libertyGradeQuantity > 0) {
+        } else if (libertyGradeQuantity !== 0) {
           // Создаем новый товар сорта Либерти с полным артикулом
           const { generateArticle } = await import('../utils/articleGenerator');
           
@@ -3348,6 +3384,18 @@ router.post('/tasks/:id/complete', authenticateToken, requirePermission('product
 
         // Обновляем остатки товара сорта Либерти
         if (libertyGradeProductId) {
+          // Для отрицательных значений проверяем достаточность остатков
+          if (libertyGradeQuantity < 0) {
+            const stockInfo = await tx.query.stock.findFirst({
+              where: eq(schema.stock.productId, libertyGradeProductId)
+            });
+            const currentStock = stockInfo?.currentStock || 0;
+            const quantityToRemove = Math.abs(libertyGradeQuantity);
+            if (currentStock < quantityToRemove) {
+              throw new Error(`Недостаточно товара сорта Либерти на складе для корректировки. На складе: ${currentStock} шт, требуется убрать: ${quantityToRemove} шт`);
+            }
+          }
+          
           await tx.update(schema.stock)
             .set({
               currentStock: sql`current_stock + ${libertyGradeQuantity}`,
