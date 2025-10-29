@@ -2754,49 +2754,6 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
 
         // Обрабатываем товар 2-го сорта (если есть)
         if (secondGradeQuantity !== 0) {
-          // Для отрицательных значений проверяем остатки ДО создания товара
-          if (secondGradeQuantity < 0) {
-            // Сначала находим товар
-            const existingProductCheck = await tx.query.products.findFirst({
-              where: and(
-                task.product.categoryId ? eq(schema.products.categoryId, task.product.categoryId) : undefined,
-                eq(schema.products.name, task.product.name),
-                eq(schema.products.productType, task.product.productType),
-                eq(schema.products.grade, 'grade_2'),
-                eq(schema.products.isActive, true),
-                task.product.dimensions ? eq(schema.products.dimensions, task.product.dimensions) : undefined,
-                task.product.surfaceIds ? eq(schema.products.surfaceIds, task.product.surfaceIds) : undefined,
-                task.product.logoId ? eq(schema.products.logoId, task.product.logoId) : (!task.product.logoId ? isNull(schema.products.logoId) : undefined),
-                task.product.materialId ? eq(schema.products.materialId, task.product.materialId) : (!task.product.materialId ? isNull(schema.products.materialId) : undefined),
-                task.product.bottomTypeId ? eq(schema.products.bottomTypeId, task.product.bottomTypeId) : (!task.product.bottomTypeId ? isNull(schema.products.bottomTypeId) : undefined),
-                task.product.puzzleTypeId ? eq(schema.products.puzzleTypeId, task.product.puzzleTypeId) : (!task.product.puzzleTypeId ? isNull(schema.products.puzzleTypeId) : undefined),
-                task.product.puzzleSides ? eq(schema.products.puzzleSides, task.product.puzzleSides) : undefined,
-                task.product.pressType ? eq(schema.products.pressType, task.product.pressType) : (!task.product.pressType ? isNull(schema.products.pressType) : undefined),
-                task.product.carpetEdgeType ? eq(schema.products.carpetEdgeType, task.product.carpetEdgeType) : (!task.product.carpetEdgeType ? isNull(schema.products.carpetEdgeType) : undefined),
-                task.product.carpetEdgeSides ? eq(schema.products.carpetEdgeSides, task.product.carpetEdgeSides) : undefined,
-                task.product.carpetEdgeStrength ? eq(schema.products.carpetEdgeStrength, task.product.carpetEdgeStrength) : (!task.product.carpetEdgeStrength ? isNull(schema.products.carpetEdgeStrength) : undefined),
-                task.product.matArea ? eq(schema.products.matArea, task.product.matArea) : (!task.product.matArea ? isNull(schema.products.matArea) : undefined),
-                task.product.weight ? eq(schema.products.weight, task.product.weight) : (!task.product.weight ? isNull(schema.products.weight) : undefined),
-                task.product.borderType ? eq(schema.products.borderType, task.product.borderType) : (!task.product.borderType ? isNull(schema.products.borderType) : undefined)
-              )
-            });
-            
-            if (!existingProductCheck) {
-              // Товара нет - нельзя списать
-              throw new Error(`Недостаточно товара 2-го сорта на складе для корректировки. Товар не существует, требуется убрать: ${Math.abs(secondGradeQuantity)} шт`);
-            }
-            
-            // Проверяем остатки существующего товара
-            const stockCheck = await tx.query.stock.findFirst({
-              where: eq(schema.stock.productId, existingProductCheck.id)
-            });
-            const currentStock = stockCheck?.currentStock || 0;
-            const quantityToRemove = Math.abs(secondGradeQuantity);
-            if (currentStock < quantityToRemove) {
-              throw new Error(`Недостаточно товара 2-го сорта на складе для корректировки. На складе: ${currentStock} шт, требуется убрать: ${quantityToRemove} шт`);
-            }
-          }
-
           // Находим товар 2-го сорта с теми же характеристиками (полный поиск)
           let secondGradeProduct = await tx.query.products.findFirst({
             where: and(
@@ -2821,6 +2778,23 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
               task.product.borderType ? eq(schema.products.borderType, task.product.borderType) : (!task.product.borderType ? isNull(schema.products.borderType) : undefined)
             )
           });
+
+          // Для отрицательных значений проверяем остатки и существование товара
+          if (secondGradeQuantity < 0) {
+            if (!secondGradeProduct) {
+              throw new Error(`Недостаточно товара 2-го сорта на складе для корректировки. Товар не существует, требуется убрать: ${Math.abs(secondGradeQuantity)} шт`);
+            }
+            
+            // Проверяем остатки существующего товара
+            const stockCheck = await tx.query.stock.findFirst({
+              where: eq(schema.stock.productId, secondGradeProduct.id)
+            });
+            const currentStock = stockCheck?.currentStock || 0;
+            const quantityToRemove = Math.abs(secondGradeQuantity);
+            if (currentStock < quantityToRemove) {
+              throw new Error(`Недостаточно товара 2-го сорта на складе для корректировки. На складе: ${currentStock} шт, требуется убрать: ${quantityToRemove} шт`);
+            }
+          }
 
           if (!secondGradeProduct && secondGradeQuantity > 0) {
             // Создаем новый товар 2-го сорта с полным артикулом (независимо от quantity - может быть отрицательным)
@@ -2915,7 +2889,7 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
           }
 
           if (secondGradeProduct) {
-            // Остатки уже проверены выше для отрицательных значений
+            // Для отрицательных значений остатки уже проверены выше
             // Обновляем остатки
             await tx.update(schema.stock)
               .set({
@@ -2939,49 +2913,6 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
 
         // Обрабатываем товар сорта Либерти (если есть)
         if (libertyGradeQuantity !== 0) {
-          // Для отрицательных значений проверяем остатки ДО создания товара
-          if (libertyGradeQuantity < 0) {
-            // Сначала находим товар
-            const existingProductCheck = await tx.query.products.findFirst({
-              where: and(
-                task.product.categoryId ? eq(schema.products.categoryId, task.product.categoryId) : undefined,
-                eq(schema.products.name, task.product.name),
-                eq(schema.products.productType, task.product.productType),
-                eq(schema.products.grade, 'liber'),
-                eq(schema.products.isActive, true),
-                task.product.dimensions ? eq(schema.products.dimensions, task.product.dimensions) : undefined,
-                task.product.surfaceIds ? eq(schema.products.surfaceIds, task.product.surfaceIds) : undefined,
-                task.product.logoId ? eq(schema.products.logoId, task.product.logoId) : (!task.product.logoId ? isNull(schema.products.logoId) : undefined),
-                task.product.materialId ? eq(schema.products.materialId, task.product.materialId) : (!task.product.materialId ? isNull(schema.products.materialId) : undefined),
-                task.product.bottomTypeId ? eq(schema.products.bottomTypeId, task.product.bottomTypeId) : (!task.product.bottomTypeId ? isNull(schema.products.bottomTypeId) : undefined),
-                task.product.puzzleTypeId ? eq(schema.products.puzzleTypeId, task.product.puzzleTypeId) : (!task.product.puzzleTypeId ? isNull(schema.products.puzzleTypeId) : undefined),
-                task.product.puzzleSides ? eq(schema.products.puzzleSides, task.product.puzzleSides) : undefined,
-                task.product.pressType ? eq(schema.products.pressType, task.product.pressType) : (!task.product.pressType ? isNull(schema.products.pressType) : undefined),
-                task.product.carpetEdgeType ? eq(schema.products.carpetEdgeType, task.product.carpetEdgeType) : (!task.product.carpetEdgeType ? isNull(schema.products.carpetEdgeType) : undefined),
-                task.product.carpetEdgeSides ? eq(schema.products.carpetEdgeSides, task.product.carpetEdgeSides) : undefined,
-                task.product.carpetEdgeStrength ? eq(schema.products.carpetEdgeStrength, task.product.carpetEdgeStrength) : (!task.product.carpetEdgeStrength ? isNull(schema.products.carpetEdgeStrength) : undefined),
-                task.product.matArea ? eq(schema.products.matArea, task.product.matArea) : (!task.product.matArea ? isNull(schema.products.matArea) : undefined),
-                task.product.weight ? eq(schema.products.weight, task.product.weight) : (!task.product.weight ? isNull(schema.products.weight) : undefined),
-                task.product.borderType ? eq(schema.products.borderType, task.product.borderType) : (!task.product.borderType ? isNull(schema.products.borderType) : undefined)
-              )
-            });
-            
-            if (!existingProductCheck) {
-              // Товара нет - нельзя списать
-              throw new Error(`Недостаточно товара сорта Либерти на складе для корректировки. Товар не существует, требуется убрать: ${Math.abs(libertyGradeQuantity)} шт`);
-            }
-            
-            // Проверяем остатки существующего товара
-            const stockCheck = await tx.query.stock.findFirst({
-              where: eq(schema.stock.productId, existingProductCheck.id)
-            });
-            const currentStock = stockCheck?.currentStock || 0;
-            const quantityToRemove = Math.abs(libertyGradeQuantity);
-            if (currentStock < quantityToRemove) {
-              throw new Error(`Недостаточно товара сорта Либерти на складе для корректировки. На складе: ${currentStock} шт, требуется убрать: ${quantityToRemove} шт`);
-            }
-          }
-
           // Находим товар сорта Либерти с теми же характеристиками (полный поиск)
           let libertyGradeProduct = await tx.query.products.findFirst({
             where: and(
@@ -3006,6 +2937,23 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
               task.product.borderType ? eq(schema.products.borderType, task.product.borderType) : (!task.product.borderType ? isNull(schema.products.borderType) : undefined)
             )
           });
+
+          // Для отрицательных значений проверяем остатки и существование товара
+          if (libertyGradeQuantity < 0) {
+            if (!libertyGradeProduct) {
+              throw new Error(`Недостаточно товара сорта Либерти на складе для корректировки. Товар не существует, требуется убрать: ${Math.abs(libertyGradeQuantity)} шт`);
+            }
+            
+            // Проверяем остатки существующего товара
+            const stockCheck = await tx.query.stock.findFirst({
+              where: eq(schema.stock.productId, libertyGradeProduct.id)
+            });
+            const currentStock = stockCheck?.currentStock || 0;
+            const quantityToRemove = Math.abs(libertyGradeQuantity);
+            if (currentStock < quantityToRemove) {
+              throw new Error(`Недостаточно товара сорта Либерти на складе для корректировки. На складе: ${currentStock} шт, требуется убрать: ${quantityToRemove} шт`);
+            }
+          }
 
           if (!libertyGradeProduct && libertyGradeQuantity > 0) {
             // Создаем новый товар сорта Либерти только для положительных значений
