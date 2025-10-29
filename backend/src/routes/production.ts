@@ -2221,6 +2221,19 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
 
           if (secondGradeProduct) {
             console.log(`[BULK-REGISTER] Обновление остатков 2-го сорта: +${secondGradeQuantity}`);
+            
+            // Для отрицательных значений проверяем достаточность остатков
+            if (secondGradeQuantity < 0) {
+              const stockInfo = await tx.query.stock.findFirst({
+                where: eq(schema.stock.productId, secondGradeProduct.id)
+              });
+              const currentStock = stockInfo?.currentStock || 0;
+              const quantityToRemove = Math.abs(secondGradeQuantity);
+              if (currentStock < quantityToRemove) {
+                throw new Error(`Недостаточно товара 2-го сорта на складе для корректировки. На складе: ${currentStock} шт, требуется убрать: ${quantityToRemove} шт`);
+              }
+            }
+            
             // Обновляем остатки
             await tx.update(schema.stock)
               .set({
@@ -2410,6 +2423,19 @@ router.post('/tasks/bulk-register', authenticateToken, requirePermission('produc
 
           if (libertyGradeProduct) {
             console.log(`[BULK-REGISTER] Обновление остатков Либерти: +${libertyGradeQuantity}`);
+            
+            // Для отрицательных значений проверяем достаточность остатков
+            if (libertyGradeQuantity < 0) {
+              const stockInfo = await tx.query.stock.findFirst({
+                where: eq(schema.stock.productId, libertyGradeProduct.id)
+              });
+              const currentStock = stockInfo?.currentStock || 0;
+              const quantityToRemove = Math.abs(libertyGradeQuantity);
+              if (currentStock < quantityToRemove) {
+                throw new Error(`Недостаточно товара сорта Либерти на складе для корректировки. На складе: ${currentStock} шт, требуется убрать: ${quantityToRemove} шт`);
+              }
+            }
+            
             // Обновляем остатки
             await tx.update(schema.stock)
               .set({
