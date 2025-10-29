@@ -1498,11 +1498,11 @@ router.post('/:id/progress', authenticateToken, requirePermission('cutting', 'ed
         // Логируем движение товара
         await tx.insert(schema.stockMovements).values({
           productId: existingSecondGrade.id,
-          movementType: quantities.secondGradeQuantity > 0 ? 'cutting_in' : 'outgoing',
+          movementType: quantities.secondGradeQuantity > 0 ? 'cutting_in' : 'adjustment',
           quantity: Math.abs(quantities.secondGradeQuantity),
           referenceId: operationId,
           referenceType: 'cutting_progress',
-          comment: `Корректировка 2-го сорта по операции резки #${operationId} (прогресс)`,
+          comment: `${quantities.secondGradeQuantity > 0 ? 'Производство' : 'Корректировка'} 2-го сорта по операции резки #${operationId} (прогресс)`,
           userId
         });
       }
@@ -1519,11 +1519,11 @@ router.post('/:id/progress', authenticateToken, requirePermission('cutting', 'ed
         // Логируем движение товара
         await tx.insert(schema.stockMovements).values({
           productId: existingLibertyGrade.id,
-          movementType: quantities.libertyGradeQuantity > 0 ? 'cutting_in' : 'outgoing',
+          movementType: quantities.libertyGradeQuantity > 0 ? 'cutting_in' : 'adjustment',
           quantity: Math.abs(quantities.libertyGradeQuantity),
           referenceId: operationId,
           referenceType: 'cutting_progress',
-          comment: `Корректировка сорта Либерти по операции резки #${operationId} (прогресс)`,
+          comment: `${quantities.libertyGradeQuantity > 0 ? 'Производство' : 'Корректировка'} сорта Либерти по операции резки #${operationId} (прогресс)`,
           userId
         });
       }

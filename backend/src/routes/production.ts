@@ -2795,7 +2795,7 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
             // Логируем движение
             await tx.insert(schema.stockMovements).values({
               productId: secondGradeProduct.id,
-              movementType: secondGradeQuantity > 0 ? 'incoming' : 'outgoing',
+              movementType: secondGradeQuantity > 0 ? 'incoming' : 'adjustment',
               quantity: Math.abs(secondGradeQuantity),
               referenceId: taskId,
               referenceType: 'production_task',
@@ -2936,7 +2936,7 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
             // Логируем движение
             await tx.insert(schema.stockMovements).values({
               productId: libertyGradeProduct.id,
-              movementType: libertyGradeQuantity > 0 ? 'incoming' : 'outgoing',
+              movementType: libertyGradeQuantity > 0 ? 'incoming' : 'adjustment',
               quantity: Math.abs(libertyGradeQuantity),
               referenceId: taskId,
               referenceType: 'production_task',
@@ -3232,7 +3232,7 @@ router.post('/tasks/:id/complete', authenticateToken, requirePermission('product
           // Логируем движение товара
           await tx.insert(schema.stockMovements).values({
             productId: secondGradeProductId,
-            movementType: secondGradeQuantity > 0 ? 'incoming' : 'outgoing',
+            movementType: secondGradeQuantity > 0 ? 'incoming' : 'adjustment',
             quantity: Math.abs(secondGradeQuantity),
             referenceId: taskId,
             referenceType: 'production_task',
@@ -3358,7 +3358,7 @@ router.post('/tasks/:id/complete', authenticateToken, requirePermission('product
           // Логируем движение товара
           await tx.insert(schema.stockMovements).values({
             productId: libertyGradeProductId,
-            movementType: libertyGradeQuantity > 0 ? 'incoming' : 'outgoing',
+            movementType: libertyGradeQuantity > 0 ? 'incoming' : 'adjustment',
             quantity: Math.abs(libertyGradeQuantity),
             referenceId: taskId,
             referenceType: 'production_task',
