@@ -103,9 +103,14 @@ const StockHistoryModal: React.FC<StockHistoryModalProps> = ({
       width: 100,
       align: 'center' as const,
       render: (quantity: number, record: StockMovement) => {
-        // Определяем знак напрямую по значению quantity в БД
-        const isPositive = quantity >= 0;
+        // Определяем цвет по ТИПУ операции, а не по знаку quantity в БД
+        // (так как в БД могут быть inconsistencies - не все negative types записаны с минусом)
+        const positiveTypes = ['incoming', 'cutting_in', 'release_reservation'];
+        const negativeTypes = ['outgoing', 'cutting_out', 'reservation', 'adjustment'];
+        
+        const isPositive = positiveTypes.includes(record.movementType);
         const displayQuantity = Math.abs(quantity);
+        
         return (
           <Text 
             strong 
@@ -189,19 +194,21 @@ const StockHistoryModal: React.FC<StockHistoryModalProps> = ({
       return { incoming: 0, outgoing: 0, adjustments: 0, total: 0 };
     }
 
-    // Подсчитываем поступления (quantity > 0)
+    // Подсчитываем поступления по ТИПУ операции
+    const positiveTypes = ['incoming', 'cutting_in', 'release_reservation'];
     const incoming = movements
-      .filter(m => m.quantity > 0)
-      .reduce((sum, m) => sum + m.quantity, 0);
+      .filter(m => positiveTypes.includes(m.movementType))
+      .reduce((sum, m) => sum + Math.abs(m.quantity), 0);
     
-    // Подсчитываем расходы (quantity < 0)
+    // Подсчитываем расходы по ТИПУ операции
+    const negativeTypes = ['outgoing', 'cutting_out', 'reservation'];
     const outgoing = movements
-      .filter(m => m.quantity < 0)
+      .filter(m => negativeTypes.includes(m.movementType))
       .reduce((sum, m) => sum + Math.abs(m.quantity), 0);
     
     const adjustments = movements
       .filter(m => m.movementType === 'adjustment')
-      .length;
+      .reduce((sum, m) => sum + Math.abs(m.quantity), 0);
 
     return { incoming, outgoing, adjustments, total: movements.length };
   }, [movements]);
