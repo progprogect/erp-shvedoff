@@ -3135,7 +3135,6 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
             console.log(`[PARTIAL-COMPLETE] ⚠️ Товар Либерти не найден, обновление остатков пропущено`);
           }
         }
-      }
 
       // Обработка 2-го сорта и Либерти находится выше (строки 2767-3137) - независимо от знака producedQuantity
       
