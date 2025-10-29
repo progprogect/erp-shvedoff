@@ -378,7 +378,7 @@ const ProductDetail: React.FC = () => {
       render: (type: string) => {
         const types: Record<string, { text: string; color: string }> = {
           'incoming': { text: 'Поступление', color: 'green' },
-          'outgoing': { text: 'Отгрузка', color: 'red' },
+          'outgoing': { text: 'Списание', color: 'red' },
           'reservation': { text: 'Резерв', color: 'purple' },
           'release_reservation': { text: 'Снятие резерва', color: 'cyan' },
           'adjustment': { text: 'Корректировка', color: 'gold' },

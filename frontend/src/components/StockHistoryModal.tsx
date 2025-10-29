@@ -56,7 +56,7 @@ const StockHistoryModal: React.FC<StockHistoryModalProps> = ({
   const getMovementTypeInfo = (type: string) => {
     const types: Record<string, { text: string; color: string; icon: string }> = {
       'incoming': { text: 'Поступление', color: 'green', icon: '📦' },
-      'outgoing': { text: 'Отгрузка', color: 'red', icon: '🚚' },
+      'outgoing': { text: 'Списание', color: 'red', icon: '🚚' },
       'cutting_out': { text: 'Резка (расход)', color: 'orange', icon: '✂️' },
       'cutting_in': { text: 'Резка (результат)', color: 'blue', icon: '✨' },
       'reservation': { text: 'Резервирование', color: 'purple', icon: '🔒' },
