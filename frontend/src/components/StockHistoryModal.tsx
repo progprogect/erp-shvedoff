@@ -103,9 +103,9 @@ const StockHistoryModal: React.FC<StockHistoryModalProps> = ({
       width: 100,
       align: 'center' as const,
       render: (quantity: number, record: StockMovement) => {
-        // Определяем знак по типу движения, а не по количеству
-        const isPositive = ['incoming', 'cutting_in', 'release_reservation'].includes(record.movementType);
-        const displayQuantity = isPositive ? quantity : -quantity;
+        // Определяем знак напрямую по значению quantity в БД
+        const isPositive = quantity >= 0;
+        const displayQuantity = Math.abs(quantity);
         return (
           <Text 
             strong 
@@ -114,7 +114,7 @@ const StockHistoryModal: React.FC<StockHistoryModalProps> = ({
               fontSize: 16 
             }}
           >
-            {isPositive ? '+' : ''}{displayQuantity} шт
+            {isPositive ? '+' : '-'}{displayQuantity} шт
           </Text>
         );
       }
@@ -189,12 +189,14 @@ const StockHistoryModal: React.FC<StockHistoryModalProps> = ({
       return { incoming: 0, outgoing: 0, adjustments: 0, total: 0 };
     }
 
+    // Подсчитываем поступления (quantity > 0)
     const incoming = movements
-      .filter(m => ['incoming', 'cutting_in', 'adjustment'].includes(m.movementType) && m.quantity > 0)
+      .filter(m => m.quantity > 0)
       .reduce((sum, m) => sum + m.quantity, 0);
     
+    // Подсчитываем расходы (quantity < 0)
     const outgoing = movements
-      .filter(m => ['outgoing', 'cutting_out'].includes(m.movementType) || m.quantity < 0)
+      .filter(m => m.quantity < 0)
       .reduce((sum, m) => sum + Math.abs(m.quantity), 0);
     
     const adjustments = movements

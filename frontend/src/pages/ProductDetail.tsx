@@ -396,12 +396,12 @@ const ProductDetail: React.FC = () => {
       width: 100,
       align: 'center' as const,
       render: (quantity: number, record: any) => {
-        // Определяем знак по типу движения, а не по количеству
-        const isPositive = ['incoming', 'cutting_in', 'release_reservation'].includes(record.movementType);
-        const displayQuantity = isPositive ? quantity : -quantity;
+        // Определяем знак напрямую по значению quantity в БД
+        const isPositive = quantity >= 0;
+        const displayQuantity = Math.abs(quantity);
         return (
           <Text strong style={{ color: isPositive ? '#52c41a' : '#ff4d4f' }}>
-            {isPositive ? '+' : ''}{displayQuantity} шт
+            {isPositive ? '+' : '-'}{displayQuantity} шт
           </Text>
         );
       }
