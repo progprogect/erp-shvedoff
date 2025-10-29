@@ -2585,6 +2585,10 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
     
     const userId = req.user!.id;
 
+    console.log(`[PARTIAL-COMPLETE] ========== Начало регистрации выпуска ==========`);
+    console.log(`[PARTIAL-COMPLETE] taskId=${taskId}, userId=${userId}`);
+    console.log(`[PARTIAL-COMPLETE] Входные данные: producedQuantity=${producedQuantity}, qualityQuantity=${qualityQuantity}, secondGradeQuantity=${secondGradeQuantity}, libertyGradeQuantity=${libertyGradeQuantity}, defectQuantity=${defectQuantity}`);
+
     const task = await db.query.productionTasks.findFirst({
       where: eq(schema.productionTasks.id, taskId),
       with: {
@@ -2644,6 +2648,9 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
     // Обновляем общее количество БЕЗ ограничений - отражаем фактически произведенное
     const newTotalProduced = currentProduced + producedQuantity;
 
+    console.log(`[PARTIAL-COMPLETE] Текущее состояние задания: currentProduced=${currentProduced}, requestedQuantity=${task.requestedQuantity}`);
+    console.log(`[PARTIAL-COMPLETE] Новое состояние будет: newTotalProduced=${newTotalProduced}`);
+
     // Обработка отрицательных значений (корректировка)
     if (producedQuantity < 0) {
       const quantityToRemove = Math.abs(producedQuantity);
@@ -2658,8 +2665,12 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
       }
     }
 
+    console.log(`[PARTIAL-COMPLETE] Начинаем транзакцию для задания #${taskId}, productId=${task.productId}`);
+    
     // Используем транзакцию для атомарности операций
     const result = await db.transaction(async (tx) => {
+      console.log(`[PARTIAL-COMPLETE] Транзакция начата`);
+      
       // Обновляем счетчики задания
       const newQualityQuantity = (task.qualityQuantity || 0) + qualityQuantity; // записываем ВСЕ качественное количество
       const newSecondGradeQuantity = (task.secondGradeQuantity || 0) + secondGradeQuantity; // 2-й сорт
@@ -2940,6 +2951,8 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
 
         // Обрабатываем товар сорта Либерти (если есть)
         if (libertyGradeQuantity !== 0) {
+          console.log(`[PARTIAL-COMPLETE] Обработка Либерти: quantity=${libertyGradeQuantity}, task.product.name=${task.product.name}`);
+          
           // Находим товар сорта Либерти с теми же характеристиками (полный поиск)
           let libertyGradeProduct = await tx.query.products.findFirst({
             where: and(
@@ -2965,9 +2978,12 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
             )
           });
 
+          console.log(`[PARTIAL-COMPLETE] Товар Либерти ${libertyGradeProduct ? `найден: ID=${libertyGradeProduct.id}, артикул=${libertyGradeProduct.article}` : 'НЕ НАЙДЕН'}`);
+
           // Для отрицательных значений проверяем остатки и существование товара
           if (libertyGradeQuantity < 0) {
             if (!libertyGradeProduct) {
+              console.error(`[PARTIAL-COMPLETE] ❌ Товар Либерти не найден для корректировки`);
               throw new Error(`Недостаточно товара сорта Либерти на складе для корректировки. Товар не существует, требуется убрать: ${Math.abs(libertyGradeQuantity)} шт`);
             }
             
@@ -2977,9 +2993,13 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
             });
             const currentStock = stockCheck?.currentStock || 0;
             const quantityToRemove = Math.abs(libertyGradeQuantity);
+            console.log(`[PARTIAL-COMPLETE] Проверка остатков Либерти: productId=${libertyGradeProduct.id}, currentStock=${currentStock}, нужно убрать=${quantityToRemove}`);
+            
             if (currentStock < quantityToRemove) {
+              console.error(`[PARTIAL-COMPLETE] ❌ Недостаточно остатков Либерти: ${currentStock} < ${quantityToRemove}`);
               throw new Error(`Недостаточно товара сорта Либерти на складе для корректировки. На складе: ${currentStock} шт, требуется убрать: ${quantityToRemove} шт`);
             }
+            console.log(`[PARTIAL-COMPLETE] ✅ Остатков Либерти достаточно: ${currentStock} >= ${quantityToRemove}`);
           }
 
           if (!libertyGradeProduct && libertyGradeQuantity > 0) {
@@ -3075,7 +3095,15 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
           }
 
           if (libertyGradeProduct) {
-            // Остатки уже проверены выше для отрицательных значений
+            // Для отрицательных значений остатки уже проверены выше
+            // Получаем текущие остатки перед обновлением
+            const stockBeforeUpdate = await tx.query.stock.findFirst({
+              where: eq(schema.stock.productId, libertyGradeProduct.id)
+            });
+            const stockBefore = stockBeforeUpdate?.currentStock || 0;
+            
+            console.log(`[PARTIAL-COMPLETE] Обновление остатков Либерти: productId=${libertyGradeProduct.id}, было=${stockBefore}, изменение=${libertyGradeQuantity}, будет=${stockBefore + libertyGradeQuantity}`);
+            
             // Обновляем остатки
             await tx.update(schema.stock)
               .set({
@@ -3083,6 +3111,13 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
                 updatedAt: new Date()
               })
               .where(eq(schema.stock.productId, libertyGradeProduct.id));
+
+            // Проверяем результат обновления
+            const stockAfterUpdate = await tx.query.stock.findFirst({
+              where: eq(schema.stock.productId, libertyGradeProduct.id)
+            });
+            const stockAfter = stockAfterUpdate?.currentStock || 0;
+            console.log(`[PARTIAL-COMPLETE] ✅ Остатки Либерти обновлены: productId=${libertyGradeProduct.id}, стало=${stockAfter}`);
 
             // Логируем движение
             await tx.insert(schema.stockMovements).values({
@@ -3094,6 +3129,9 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
               comment: `${libertyGradeQuantity > 0 ? 'Производство' : 'Корректировка'} сорта Либерти по заданию #${taskId}`,
               userId
             });
+            console.log(`[PARTIAL-COMPLETE] ✅ Движение Либерти залогировано: productId=${libertyGradeProduct.id}, movementType=${libertyGradeQuantity > 0 ? 'incoming' : 'adjustment'}, quantity=${Math.abs(libertyGradeQuantity)}`);
+          } else {
+            console.log(`[PARTIAL-COMPLETE] ⚠️ Товар Либерти не найден, обновление остатков пропущено`);
           }
         }
       } else if (producedQuantity < 0) {
@@ -3120,6 +3158,9 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
         userId
       });
 
+      console.log(`[PARTIAL-COMPLETE] Транзакция завершена успешно`);
+      console.log(`[PARTIAL-COMPLETE] Обновленные счетчики задания: quality=${newQualityQuantity}, secondGrade=${newSecondGradeQuantity}, libertyGrade=${newLibertyGradeQuantity}, defect=${newDefectQuantity}`);
+      
       return { 
         task: updatedTask[0], 
         wasCompleted: isCompleted,
@@ -3128,6 +3169,8 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
         overproductionQuality: overproductionQuality
       };
     });
+
+    console.log(`[PARTIAL-COMPLETE] ========== Регистрация выпуска завершена ==========`);
 
     let message = '';
     if (producedQuantity < 0) {
