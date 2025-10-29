@@ -1175,6 +1175,58 @@ router.post('/:id/progress', authenticateToken, requirePermission('cutting', 'ed
 
       // Проверяем и создаем товары 2-го сорта и Либерти если их нет
       if (quantities.secondGradeQuantity !== 0) {
+        // Для отрицательных значений проверяем остатки ДО создания товара
+        if (quantities.secondGradeQuantity < 0) {
+          // Сначала проверяем, существует ли товар
+          const existingProductCheck = await tx.query.products.findFirst({
+            where: and(
+              operation.targetProduct.categoryId ? eq(schema.products.categoryId, operation.targetProduct.categoryId) : undefined,
+              eq(schema.products.name, operation.targetProduct.name),
+              eq(schema.products.productType, operation.targetProduct.productType),
+              eq(schema.products.grade, 'grade_2'),
+              eq(schema.products.isActive, true),
+              operation.targetProduct.dimensions ? eq(schema.products.dimensions, operation.targetProduct.dimensions) : undefined,
+              operation.targetProduct.surfaceIds ? eq(schema.products.surfaceIds, operation.targetProduct.surfaceIds) : undefined,
+              operation.targetProduct.logoId ? eq(schema.products.logoId, operation.targetProduct.logoId) : 
+              (!operation.targetProduct.logoId ? isNull(schema.products.logoId) : undefined),
+              operation.targetProduct.materialId ? eq(schema.products.materialId, operation.targetProduct.materialId) : 
+              (!operation.targetProduct.materialId ? isNull(schema.products.materialId) : undefined),
+              operation.targetProduct.bottomTypeId ? eq(schema.products.bottomTypeId, operation.targetProduct.bottomTypeId) : 
+              (!operation.targetProduct.bottomTypeId ? isNull(schema.products.bottomTypeId) : undefined),
+              operation.targetProduct.puzzleTypeId ? eq(schema.products.puzzleTypeId, operation.targetProduct.puzzleTypeId) : 
+              (!operation.targetProduct.puzzleTypeId ? isNull(schema.products.puzzleTypeId) : undefined),
+              operation.targetProduct.puzzleSides ? eq(schema.products.puzzleSides, operation.targetProduct.puzzleSides) : undefined,
+              operation.targetProduct.pressType ? eq(schema.products.pressType, operation.targetProduct.pressType) : 
+              (!operation.targetProduct.pressType ? isNull(schema.products.pressType) : undefined),
+              operation.targetProduct.carpetEdgeType ? eq(schema.products.carpetEdgeType, operation.targetProduct.carpetEdgeType) : 
+              (!operation.targetProduct.carpetEdgeType ? isNull(schema.products.carpetEdgeType) : undefined),
+              operation.targetProduct.carpetEdgeSides ? eq(schema.products.carpetEdgeSides, operation.targetProduct.carpetEdgeSides) : undefined,
+              operation.targetProduct.carpetEdgeStrength ? eq(schema.products.carpetEdgeStrength, operation.targetProduct.carpetEdgeStrength) : 
+              (!operation.targetProduct.carpetEdgeStrength ? isNull(schema.products.carpetEdgeStrength) : undefined),
+              operation.targetProduct.matArea ? eq(schema.products.matArea, operation.targetProduct.matArea) : 
+              (!operation.targetProduct.matArea ? isNull(schema.products.matArea) : undefined),
+              operation.targetProduct.weight ? eq(schema.products.weight, operation.targetProduct.weight) : 
+              (!operation.targetProduct.weight ? isNull(schema.products.weight) : undefined),
+              operation.targetProduct.borderType ? eq(schema.products.borderType, operation.targetProduct.borderType) : 
+              (!operation.targetProduct.borderType ? isNull(schema.products.borderType) : undefined)
+            )
+          });
+          
+          if (!existingProductCheck) {
+            throw new Error(`Недостаточно товара 2-го сорта на складе для корректировки. Товар не существует, требуется убрать: ${Math.abs(quantities.secondGradeQuantity)} шт`);
+          }
+          
+          // Проверяем остатки существующего товара
+          const stockCheck = await tx.query.stock.findFirst({
+            where: eq(schema.stock.productId, existingProductCheck.id)
+          });
+          const currentStock = stockCheck?.currentStock || 0;
+          const quantityToRemove = Math.abs(quantities.secondGradeQuantity);
+          if (currentStock < quantityToRemove) {
+            throw new Error(`Недостаточно товара 2-го сорта на складе для корректировки. На складе: ${currentStock} шт, требуется убрать: ${quantityToRemove} шт`);
+          }
+        }
+
         // Проверяем, существует ли товар 2-го сорта с теми же характеристиками
         existingSecondGrade = await tx.query.products.findFirst({
           where: and(
@@ -1236,8 +1288,8 @@ router.post('/:id/progress', authenticateToken, requirePermission('cutting', 'ed
           )
         });
 
-        if (!existingSecondGrade) {
-          // Создаем товар 2-го сорта с полным артикулом
+        if (!existingSecondGrade && quantities.secondGradeQuantity > 0) {
+          // Создаем товар 2-го сорта только для положительных значений
           const { generateArticle } = await import('../utils/articleGenerator');
           
           // Получаем связанные данные для генерации артикула
@@ -1331,6 +1383,58 @@ router.post('/:id/progress', authenticateToken, requirePermission('cutting', 'ed
       }
 
       if (quantities.libertyGradeQuantity !== 0) {
+        // Для отрицательных значений проверяем остатки ДО создания товара
+        if (quantities.libertyGradeQuantity < 0) {
+          // Сначала проверяем, существует ли товар
+          const existingProductCheck = await tx.query.products.findFirst({
+            where: and(
+              operation.targetProduct.categoryId ? eq(schema.products.categoryId, operation.targetProduct.categoryId) : undefined,
+              eq(schema.products.name, operation.targetProduct.name),
+              eq(schema.products.productType, operation.targetProduct.productType),
+              eq(schema.products.grade, 'liber'),
+              eq(schema.products.isActive, true),
+              operation.targetProduct.dimensions ? eq(schema.products.dimensions, operation.targetProduct.dimensions) : undefined,
+              operation.targetProduct.surfaceIds ? eq(schema.products.surfaceIds, operation.targetProduct.surfaceIds) : undefined,
+              operation.targetProduct.logoId ? eq(schema.products.logoId, operation.targetProduct.logoId) : 
+              (!operation.targetProduct.logoId ? isNull(schema.products.logoId) : undefined),
+              operation.targetProduct.materialId ? eq(schema.products.materialId, operation.targetProduct.materialId) : 
+              (!operation.targetProduct.materialId ? isNull(schema.products.materialId) : undefined),
+              operation.targetProduct.bottomTypeId ? eq(schema.products.bottomTypeId, operation.targetProduct.bottomTypeId) : 
+              (!operation.targetProduct.bottomTypeId ? isNull(schema.products.bottomTypeId) : undefined),
+              operation.targetProduct.puzzleTypeId ? eq(schema.products.puzzleTypeId, operation.targetProduct.puzzleTypeId) : 
+              (!operation.targetProduct.puzzleTypeId ? isNull(schema.products.puzzleTypeId) : undefined),
+              operation.targetProduct.puzzleSides ? eq(schema.products.puzzleSides, operation.targetProduct.puzzleSides) : undefined,
+              operation.targetProduct.pressType ? eq(schema.products.pressType, operation.targetProduct.pressType) : 
+              (!operation.targetProduct.pressType ? isNull(schema.products.pressType) : undefined),
+              operation.targetProduct.carpetEdgeType ? eq(schema.products.carpetEdgeType, operation.targetProduct.carpetEdgeType) : 
+              (!operation.targetProduct.carpetEdgeType ? isNull(schema.products.carpetEdgeType) : undefined),
+              operation.targetProduct.carpetEdgeSides ? eq(schema.products.carpetEdgeSides, operation.targetProduct.carpetEdgeSides) : undefined,
+              operation.targetProduct.carpetEdgeStrength ? eq(schema.products.carpetEdgeStrength, operation.targetProduct.carpetEdgeStrength) : 
+              (!operation.targetProduct.carpetEdgeStrength ? isNull(schema.products.carpetEdgeStrength) : undefined),
+              operation.targetProduct.matArea ? eq(schema.products.matArea, operation.targetProduct.matArea) : 
+              (!operation.targetProduct.matArea ? isNull(schema.products.matArea) : undefined),
+              operation.targetProduct.weight ? eq(schema.products.weight, operation.targetProduct.weight) : 
+              (!operation.targetProduct.weight ? isNull(schema.products.weight) : undefined),
+              operation.targetProduct.borderType ? eq(schema.products.borderType, operation.targetProduct.borderType) : 
+              (!operation.targetProduct.borderType ? isNull(schema.products.borderType) : undefined)
+            )
+          });
+          
+          if (!existingProductCheck) {
+            throw new Error(`Недостаточно товара сорта Либерти на складе для корректировки. Товар не существует, требуется убрать: ${Math.abs(quantities.libertyGradeQuantity)} шт`);
+          }
+          
+          // Проверяем остатки существующего товара
+          const stockCheck = await tx.query.stock.findFirst({
+            where: eq(schema.stock.productId, existingProductCheck.id)
+          });
+          const currentStock = stockCheck?.currentStock || 0;
+          const quantityToRemove = Math.abs(quantities.libertyGradeQuantity);
+          if (currentStock < quantityToRemove) {
+            throw new Error(`Недостаточно товара сорта Либерти на складе для корректировки. На складе: ${currentStock} шт, требуется убрать: ${quantityToRemove} шт`);
+          }
+        }
+
         // Проверяем, существует ли товар сорта Либерти с теми же характеристиками
         existingLibertyGrade = await tx.query.products.findFirst({
           where: and(
@@ -1392,8 +1496,8 @@ router.post('/:id/progress', authenticateToken, requirePermission('cutting', 'ed
           )
         });
 
-        if (!existingLibertyGrade) {
-          // Создаем товар сорта Либерти с полным артикулом
+        if (!existingLibertyGrade && quantities.libertyGradeQuantity > 0) {
+          // Создаем товар сорта Либерти только для положительных значений
           const { generateArticle } = await import('../utils/articleGenerator');
           
           // Получаем связанные данные для генерации артикула
@@ -1488,18 +1592,7 @@ router.post('/:id/progress', authenticateToken, requirePermission('cutting', 'ed
 
       // Обновляем остатки для товара 2-го сорта (если количество не нулевое)
       if (quantities.secondGradeQuantity !== 0 && existingSecondGrade) {
-        // Для отрицательных значений проверяем достаточность остатков
-        if (quantities.secondGradeQuantity < 0) {
-          const stockInfo = await tx.query.stock.findFirst({
-            where: eq(schema.stock.productId, existingSecondGrade.id)
-          });
-          const currentStock = stockInfo?.currentStock || 0;
-          const quantityToRemove = Math.abs(quantities.secondGradeQuantity);
-          if (currentStock < quantityToRemove) {
-            throw new Error(`Недостаточно товара 2-го сорта на складе для корректировки. На складе: ${currentStock} шт, требуется убрать: ${quantityToRemove} шт`);
-          }
-        }
-        
+        // Остатки уже проверены выше для отрицательных значений
         await tx.update(schema.stock)
           .set({
             currentStock: sql`current_stock + ${quantities.secondGradeQuantity}`,
@@ -1521,18 +1614,7 @@ router.post('/:id/progress', authenticateToken, requirePermission('cutting', 'ed
 
       // Обновляем остатки для товара Либерти (если количество не нулевое)
       if (quantities.libertyGradeQuantity !== 0 && existingLibertyGrade) {
-        // Для отрицательных значений проверяем достаточность остатков
-        if (quantities.libertyGradeQuantity < 0) {
-          const stockInfo = await tx.query.stock.findFirst({
-            where: eq(schema.stock.productId, existingLibertyGrade.id)
-          });
-          const currentStock = stockInfo?.currentStock || 0;
-          const quantityToRemove = Math.abs(quantities.libertyGradeQuantity);
-          if (currentStock < quantityToRemove) {
-            throw new Error(`Недостаточно товара сорта Либерти на складе для корректировки. На складе: ${currentStock} шт, требуется убрать: ${quantityToRemove} шт`);
-          }
-        }
-        
+        // Остатки уже проверены выше для отрицательных значений
         await tx.update(schema.stock)
           .set({
             currentStock: sql`current_stock + ${quantities.libertyGradeQuantity}`,
