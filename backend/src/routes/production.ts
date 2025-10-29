@@ -2754,6 +2754,8 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
 
         // Обрабатываем товар 2-го сорта (если есть)
         if (secondGradeQuantity !== 0) {
+          console.log(`[PARTIAL-COMPLETE] Обработка 2-го сорта: quantity=${secondGradeQuantity}, task.product.name=${task.product.name}`);
+          
           // Находим товар 2-го сорта с теми же характеристиками (полный поиск)
           let secondGradeProduct = await tx.query.products.findFirst({
             where: and(
@@ -2779,9 +2781,12 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
             )
           });
 
+          console.log(`[PARTIAL-COMPLETE] Товар 2-го сорта ${secondGradeProduct ? `найден: ID=${secondGradeProduct.id}, артикул=${secondGradeProduct.article}` : 'НЕ НАЙДЕН'}`);
+
           // Для отрицательных значений проверяем остатки и существование товара
           if (secondGradeQuantity < 0) {
             if (!secondGradeProduct) {
+              console.error(`[PARTIAL-COMPLETE] ❌ Товар 2-го сорта не найден для корректировки`);
               throw new Error(`Недостаточно товара 2-го сорта на складе для корректировки. Товар не существует, требуется убрать: ${Math.abs(secondGradeQuantity)} шт`);
             }
             
@@ -2791,9 +2796,13 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
             });
             const currentStock = stockCheck?.currentStock || 0;
             const quantityToRemove = Math.abs(secondGradeQuantity);
+            console.log(`[PARTIAL-COMPLETE] Проверка остатков: productId=${secondGradeProduct.id}, currentStock=${currentStock}, нужно убрать=${quantityToRemove}`);
+            
             if (currentStock < quantityToRemove) {
+              console.error(`[PARTIAL-COMPLETE] ❌ Недостаточно остатков: ${currentStock} < ${quantityToRemove}`);
               throw new Error(`Недостаточно товара 2-го сорта на складе для корректировки. На складе: ${currentStock} шт, требуется убрать: ${quantityToRemove} шт`);
             }
+            console.log(`[PARTIAL-COMPLETE] ✅ Остатков достаточно: ${currentStock} >= ${quantityToRemove}`);
           }
 
           if (!secondGradeProduct && secondGradeQuantity > 0) {
@@ -2890,13 +2899,28 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
 
           if (secondGradeProduct) {
             // Для отрицательных значений остатки уже проверены выше
+            // Получаем текущие остатки перед обновлением
+            const stockBeforeUpdate = await tx.query.stock.findFirst({
+              where: eq(schema.stock.productId, secondGradeProduct.id)
+            });
+            const stockBefore = stockBeforeUpdate?.currentStock || 0;
+            
+            console.log(`[PARTIAL-COMPLETE] Обновление остатков 2-го сорта: productId=${secondGradeProduct.id}, было=${stockBefore}, изменение=${secondGradeQuantity}, будет=${stockBefore + secondGradeQuantity}`);
+            
             // Обновляем остатки
-            await tx.update(schema.stock)
+            const updateResult = await tx.update(schema.stock)
               .set({
                 currentStock: sql`current_stock + ${secondGradeQuantity}`,
                 updatedAt: new Date()
               })
               .where(eq(schema.stock.productId, secondGradeProduct.id));
+
+            // Проверяем результат обновления
+            const stockAfterUpdate = await tx.query.stock.findFirst({
+              where: eq(schema.stock.productId, secondGradeProduct.id)
+            });
+            const stockAfter = stockAfterUpdate?.currentStock || 0;
+            console.log(`[PARTIAL-COMPLETE] ✅ Остатки обновлены: productId=${secondGradeProduct.id}, стало=${stockAfter}`);
 
             // Логируем движение
             await tx.insert(schema.stockMovements).values({
@@ -2908,6 +2932,9 @@ router.post('/tasks/:id/partial-complete', authenticateToken, requirePermission(
               comment: `${secondGradeQuantity > 0 ? 'Производство' : 'Корректировка'} 2-го сорта по заданию #${taskId}`,
               userId
             });
+            console.log(`[PARTIAL-COMPLETE] ✅ Движение залогировано: productId=${secondGradeProduct.id}, movementType=${secondGradeQuantity > 0 ? 'incoming' : 'adjustment'}, quantity=${Math.abs(secondGradeQuantity)}`);
+          } else {
+            console.log(`[PARTIAL-COMPLETE] ⚠️ Товар 2-го сорта не найден, обновление остатков пропущено`);
           }
         }
 
