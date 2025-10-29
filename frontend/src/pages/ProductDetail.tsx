@@ -110,6 +110,27 @@ const ProductDetail: React.FC = () => {
     }
   }, [id, token]);
 
+  // Обновление данных при возврате на страницу (например, после регистрации выпуска в другом месте)
+  useEffect(() => {
+    const handleFocus = () => {
+      if (id && token && document.visibilityState === 'visible') {
+        // Обновляем данные с небольшой задержкой, чтобы избежать лишних запросов
+        const timer = setTimeout(() => {
+          loadProductData();
+        }, 500);
+        return () => clearTimeout(timer);
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+    };
+  }, [id, token]);
+
   const loadProductData = async () => {
     if (!id || !token) return;
     
