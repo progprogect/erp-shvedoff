@@ -78,13 +78,21 @@ DECLARE
     _total_produced_diff INTEGER;
     _source_quantity INTEGER;
     _user_id INTEGER;
+    _operation_id INTEGER;
 BEGIN
+    -- Определяем operation_id в зависимости от типа операции
+    IF TG_OP = 'DELETE' THEN
+        _operation_id := OLD.operation_id;
+    ELSE
+        _operation_id := NEW.operation_id;
+    END IF;
+
     -- Получаем информацию об операции резки
     SELECT co.source_product_id, co.target_product_id, co.source_quantity, co.operator_id, p.name 
     INTO _source_product_id, _target_product_id, _source_quantity, _user_id, _target_product_name
     FROM cutting_operations co
     LEFT JOIN products p ON p.id = co.target_product_id
-    WHERE co.id = NEW.operation_id;
+    WHERE co.id = _operation_id;
 
     -- Товары 2-го сорта и Либерти теперь создаются в API endpoint с правильными характеристиками
     -- Здесь мы только обновляем остатки для уже существующих товаров
@@ -133,9 +141,9 @@ BEGIN
             _source_product_id,
             'cutting_out'::movement_type,
             ABS(_total_produced_diff),
-            NEW.operation_id,
+            _operation_id,
             'cutting_progress',
-            'Списание исходного товара по операции резки #' || NEW.operation_id || ' (прогресс: товар=' || _product_diff || ', 2сорт=' || _second_grade_diff || ', Либерти=' || _liberty_grade_diff || ', брак=' || _waste_diff || ')',
+            'Списание исходного товара по операции резки #' || _operation_id || ' (прогресс: товар=' || _product_diff || ', 2сорт=' || _second_grade_diff || ', Либерти=' || _liberty_grade_diff || ', брак=' || _waste_diff || ')',
             _user_id
         );
     END IF;
@@ -161,9 +169,9 @@ BEGIN
             _target_product_id,
             (CASE WHEN _product_diff > 0 THEN 'cutting_in' ELSE 'outgoing' END)::movement_type,
             ABS(_product_diff),
-            NEW.operation_id,
+            _operation_id,
             'cutting_progress',
-            'Корректировка готового товара по операции резки #' || NEW.operation_id || ' (прогресс)',
+            'Корректировка готового товара по операции резки #' || _operation_id || ' (прогресс)',
             _user_id
         );
     END IF;
@@ -171,7 +179,12 @@ BEGIN
     -- Товары 2-го сорта и Либерти создаются в API endpoint с правильными характеристиками
     -- Trigger функция только обновляет остатки готового товара и списывает исходный товар
     
-    RETURN NEW;
+    -- Возвращаем правильную запись в зависимости от типа операции
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+    ELSE
+        RETURN NEW;
+    END IF;
 END;
 $$ LANGUAGE plpgsql;
 
