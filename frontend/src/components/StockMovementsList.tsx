@@ -110,7 +110,7 @@ const StockMovementsList: React.FC<StockMovementsListProps> = ({
       title: 'Дата и время',
       dataIndex: 'createdAt',
       key: 'createdAt',
-      width: 150,
+      width: 180,
       render: (date: string) => {
         const dateObj = new Date(date);
         const dateStr = dateObj.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -128,7 +128,7 @@ const StockMovementsList: React.FC<StockMovementsListProps> = ({
       title: 'Количество',
       dataIndex: 'quantity',
       key: 'quantity',
-      width: 120,
+      width: 100,
       align: 'center' as const,
       render: (quantity: number, record: StockMovement) => {
         const positiveTypes = ['incoming', 'cutting_in', 'release_reservation'];
@@ -151,7 +151,7 @@ const StockMovementsList: React.FC<StockMovementsListProps> = ({
     {
       title: 'Артикул товара',
       key: 'productArticle',
-      width: 300,
+      width: 200,
       render: (_: any, record: StockMovement) => {
         const article = record.productArticle || '—';
         return (
@@ -165,10 +165,9 @@ const StockMovementsList: React.FC<StockMovementsListProps> = ({
                 padding: 0, 
                 height: 'auto', 
                 fontFamily: 'monospace',
-                maxWidth: '100%',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
+                whiteSpace: 'normal',
+                wordBreak: 'break-word',
+                textAlign: 'left',
                 display: 'block'
               }}
             >
@@ -181,13 +180,20 @@ const StockMovementsList: React.FC<StockMovementsListProps> = ({
     {
       title: 'Примечание',
       key: 'comment',
-      width: 300,
+      width: 200,
       render: (_: any, record: StockMovement) => {
         // Показываем комментарий из задания/операции, если есть, иначе системный комментарий
         const displayComment = record.referenceComment || record.comment || '—';
         return (
           <Tooltip title={displayComment} placement="topLeft">
-            <Text style={{ fontSize: 12 }} ellipsis={{ tooltip: displayComment }}>
+            <Text 
+              style={{ 
+                fontSize: 12,
+                whiteSpace: 'normal',
+                wordBreak: 'break-word',
+                display: 'block'
+              }}
+            >
               {displayComment}
             </Text>
           </Tooltip>
@@ -253,7 +259,7 @@ const StockMovementsList: React.FC<StockMovementsListProps> = ({
             `${range[0]}-${range[1]} из ${total} операций`,
           onChange: (page) => setCurrentPage(page)
         }}
-        scroll={{ x: 1000 }}
+        scroll={{ x: 750 }}
         locale={{
           emptyText: 'Нет истории движения'
         }}

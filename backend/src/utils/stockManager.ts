@@ -1,5 +1,5 @@
 import { db, schema } from '../db';
-import { eq, sql, and } from 'drizzle-orm';
+import { eq, sql, and, gte, lte, desc } from 'drizzle-orm';
 
 /**
  * Централизованная система управления остатками товаров
@@ -580,8 +580,30 @@ export async function cancelStockMovement(
             .set(updates)
             .where(eq(schema.productionTasks.id, referenceId));
         }
+      } else if (referenceType === 'cutting_progress' && referenceId) {
+        // При отмене движения cutting_progress нужно удалить соответствующую запись из cutting_progress_log
+        // чтобы статистика в операции резки обновилась
+        // Находим запись progress по operationId и времени (в пределах 10 секунд от created_at движения)
+        const movementCreatedAt = new Date(movement.createdAt);
+        const timeWindowStart = new Date(movementCreatedAt.getTime() - 10000); // 10 секунд назад
+        const timeWindowEnd = new Date(movementCreatedAt.getTime() + 10000); // 10 секунд вперед
+
+        const progressEntries = await tx.query.cuttingProgressLog.findMany({
+          where: and(
+            eq(schema.cuttingProgressLog.operationId, referenceId),
+            gte(schema.cuttingProgressLog.enteredAt, timeWindowStart),
+            lte(schema.cuttingProgressLog.enteredAt, timeWindowEnd)
+          ),
+          orderBy: desc(schema.cuttingProgressLog.enteredAt)
+        });
+
+        // Если найдена запись progress, удаляем её (триггер автоматически пересчитает остатки)
+        if (progressEntries.length > 0) {
+          // Удаляем самую близкую по времени запись
+          await tx.delete(schema.cuttingProgressLog)
+            .where(eq(schema.cuttingProgressLog.id, progressEntries[0].id));
+        }
       }
-      // Прогресс резки не обновляем здесь - он вычисляется динамически из cutting_progress_log
     }
 
     // Удаляем запись движения
