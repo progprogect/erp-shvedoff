@@ -708,7 +708,14 @@ export async function cancelStockMovement(
         if (progressEntry) {
           const progressEntryId = progressEntry.id;
           
+          // Сохраняем ID всех существующих движений для этой операции до удаления
+          // Это нужно, чтобы потом найти и удалить движения, созданные триггером
+          const existingMovementIds = new Set(
+            relatedMovements.map(m => m.id)
+          );
+          
           // Удаляем запись progress - триггер автоматически откатит остатки
+          // НО триггер также создаст новые движения с отрицательными значениями
           await tx.delete(schema.cuttingProgressLog)
             .where(eq(schema.cuttingProgressLog.id, progressEntryId));
           
@@ -720,6 +727,29 @@ export async function cancelStockMovement(
           if (relatedMovementIds.length > 0) {
             await tx.delete(schema.stockMovements)
               .where(inArray(schema.stockMovements.id, relatedMovementIds));
+          }
+          
+          // Триггер создает новые движения при DELETE для отката остатков
+          // Эти движения нужно найти и удалить, чтобы они не попали в историю
+          // Находим все движения cutting_progress для этой операции
+          const allCurrentMovements = await tx.query.stockMovements.findMany({
+            where: and(
+              eq(schema.stockMovements.referenceType, 'cutting_progress'),
+              eq(schema.stockMovements.referenceId, referenceId)
+            )
+          });
+          
+          // Находим движения, созданные триггером (те, которых не было в исходном списке)
+          const triggerCreatedMovements = allCurrentMovements.filter(
+            m => !existingMovementIds.has(m.id) && m.id !== movementId
+          );
+          
+          // Удаляем движения, созданные триггером при откате
+          const triggerMovementIds = triggerCreatedMovements.map(m => m.id);
+          
+          if (triggerMovementIds.length > 0) {
+            await tx.delete(schema.stockMovements)
+              .where(inArray(schema.stockMovements.id, triggerMovementIds));
           }
           
           // Получаем обновленные остатки после работы триггера
