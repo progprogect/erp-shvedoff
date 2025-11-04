@@ -1,5 +1,5 @@
 import { db, schema } from '../db';
-import { eq, sql, and, gte, lte, desc, inArray } from 'drizzle-orm';
+import { eq, sql, and, gte, lte, desc, asc, inArray } from 'drizzle-orm';
 
 /**
  * Централизованная система управления остатками товаров
