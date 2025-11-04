@@ -753,7 +753,7 @@ router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edi
           quantity: -operation.sourceQuantity,
           referenceId: operationId,
           referenceType: 'cutting',
-          comment: `Списание при резке #${operationId}: ${operation.sourceProduct.name} → ${operation.targetProduct.name}`,
+          comment: `Операция резки #${operationId}: списание исходного товара`,
           userId
         }
       ];
@@ -766,7 +766,7 @@ router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edi
           quantity: Number(actualTargetQuantity),
           referenceId: operationId,
           referenceType: 'cutting',
-          comment: `Поступление от резки #${operationId}: ${operation.sourceProduct.name} → ${operation.targetProduct.name}`,
+          comment: `Операция резки #${operationId}: поступление готового товара`,
           userId
         });
       }
@@ -779,7 +779,7 @@ router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edi
           quantity: Number(actualSecondGradeQuantity),
           referenceId: operationId,
           referenceType: 'cutting',
-          comment: `Поступление 2-го сорта от резки #${operationId}: ${operation.sourceProduct.name} → ${operation.targetProduct.name} (2 сорт)`,
+          comment: `Операция резки #${operationId}: поступление 2-го сорта`,
           userId
         });
       }
@@ -792,7 +792,7 @@ router.put('/:id/complete', authenticateToken, requirePermission('cutting', 'edi
           quantity: Number(actualLibertyGradeQuantity),
           referenceId: operationId,
           referenceType: 'cutting',
-          comment: `Поступление сорта Либерти от резки #${operationId}: ${operation.sourceProduct.name} → ${operation.targetProduct.name} (Либерти)`,
+          comment: `Операция резки #${operationId}: поступление сорта Либерти`,
           userId
         });
       }
@@ -1537,7 +1537,7 @@ router.post('/:id/progress', authenticateToken, requirePermission('cutting', 'ed
           quantity: Math.abs(quantities.secondGradeQuantity),
           referenceId: operationId,
           referenceType: 'cutting_progress',
-          comment: `${quantities.secondGradeQuantity > 0 ? 'Производство' : 'Корректировка'} 2-го сорта по операции резки #${operationId} (прогресс)`,
+          comment: `Операция резки #${operationId}: ${quantities.secondGradeQuantity > 0 ? 'поступление' : 'корректировка'} 2-го сорта (промежуточный результат)`,
           userId
         });
       }
@@ -1559,7 +1559,7 @@ router.post('/:id/progress', authenticateToken, requirePermission('cutting', 'ed
           quantity: Math.abs(quantities.libertyGradeQuantity),
           referenceId: operationId,
           referenceType: 'cutting_progress',
-          comment: `${quantities.libertyGradeQuantity > 0 ? 'Производство' : 'Корректировка'} сорта Либерти по операции резки #${operationId} (прогресс)`,
+          comment: `Операция резки #${operationId}: ${quantities.libertyGradeQuantity > 0 ? 'поступление' : 'корректировка'} сорта Либерти (промежуточный результат)`,
           userId
         });
       }

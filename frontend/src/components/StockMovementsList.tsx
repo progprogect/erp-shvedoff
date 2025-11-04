@@ -107,19 +107,22 @@ const StockMovementsList: React.FC<StockMovementsListProps> = ({
 
   const columns = [
     {
-      title: 'Дата',
+      title: 'Дата и время',
       dataIndex: 'createdAt',
       key: 'createdAt',
-      width: 120,
-      render: (date: string) => (
-        <div>
-          <Text strong>{new Date(date).toLocaleDateString('ru-RU')}</Text>
-          <br />
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            {new Date(date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
-          </Text>
-        </div>
-      )
+      width: 150,
+      render: (date: string) => {
+        const dateObj = new Date(date);
+        const dateStr = dateObj.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const timeStr = dateObj.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        return (
+          <div>
+            <Text strong style={{ fontSize: 13 }}>{dateStr}</Text>
+            <br />
+            <Text type="secondary" style={{ fontSize: 12 }}>{timeStr}</Text>
+          </div>
+        );
+      }
     },
     {
       title: 'Количество',
