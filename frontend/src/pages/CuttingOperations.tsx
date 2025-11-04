@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   Table, 
   Button, 
   Badge, 
@@ -18,7 +18,8 @@ import {
   Popconfirm,
   Input,
   Descriptions,
-  Divider
+  Divider,
+  Tabs
 } from 'antd';
 import { 
   PlusOutlined, 
@@ -42,6 +43,7 @@ import cuttingApi, {
   AddProgressRequest
 } from '../services/cuttingApi';
 import { catalogApi } from '../services/catalogApi';
+import StockMovementsList from '../components/StockMovementsList';
 import dayjs from 'dayjs';
 
 const { Option } = Select;
@@ -60,7 +62,7 @@ interface Product {
 
 export const CuttingOperations: React.FC = () => {
   const { user } = useAuthStore();
-  const { canCreate } = usePermissions();
+  const { canCreate, canView, canManage } = usePermissions();
 
   // Добавляем стили для центрирования селектов
   useEffect(() => {
@@ -109,6 +111,7 @@ export const CuttingOperations: React.FC = () => {
   
   // Фильтры
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [activeTab, setActiveTab] = useState<string>('operations');
   
   // Состояние для экспорта (Задача 9.2)
   const [exportingOperations, setExportingOperations] = useState(false);
@@ -752,18 +755,40 @@ export const CuttingOperations: React.FC = () => {
         )}
       </div>
 
-      {/* Таблица операций */}
-      <Table
-        columns={columns}
-        dataSource={operations}
-        rowKey="id"
-        loading={loading}
-        pagination={{
-          pageSize: 20,
-          showSizeChanger: true,
-          showQuickJumper: true,
-          showTotal: (total) => `Всего ${total} операций`,
-        }}
+      {/* Табы */}
+      <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        items={[
+          {
+            key: 'operations',
+            label: 'Операции резки',
+            children: (
+              <Table
+                columns={columns}
+                dataSource={operations}
+                rowKey="id"
+                loading={loading}
+                pagination={{
+                  pageSize: 20,
+                  showSizeChanger: true,
+                  showQuickJumper: true,
+                  showTotal: (total) => `Всего ${total} операций`,
+                }}
+              />
+            )
+          },
+          ...(canView('cutting') ? [{
+            key: 'movements',
+            label: 'История движений остатков',
+            children: (
+              <StockMovementsList
+                referenceTypes={['cutting', 'cutting_progress']}
+                canCancel={canManage('cutting')}
+              />
+            )
+          }] : [])
+        ]}
       />
 
       {/* Модальное окно создания операции */}

@@ -27,6 +27,7 @@ export interface StockMovement {
   userId: number;
   createdAt: string;
   productName: string;
+  productArticle?: string;
   userName: string;
 }
 
@@ -98,6 +99,31 @@ class StockApi {
   async getStockMovements(productId: number): Promise<ApiResponse<StockMovement[]>> {
     const response = await axios.get(
       `${API_BASE_URL}/stock/movements/${productId}`,
+      this.getAuthHeaders()
+    );
+    return response.data;
+  }
+
+  async getMovementsByReferenceTypes(
+    referenceTypes: string[],
+    limit: number = 50,
+    offset: number = 0
+  ): Promise<ApiResponse<StockMovement[]>> {
+    const params = new URLSearchParams();
+    params.append('referenceTypes', referenceTypes.join(','));
+    params.append('limit', limit.toString());
+    params.append('offset', offset.toString());
+
+    const response = await axios.get(
+      `${API_BASE_URL}/stock/movements?${params.toString()}`,
+      this.getAuthHeaders()
+    );
+    return response.data;
+  }
+
+  async cancelMovement(movementId: number): Promise<ApiResponse<{ movementId: number; productId: number; newStock: number; newReservedStock: number }>> {
+    const response = await axios.delete(
+      `${API_BASE_URL}/stock/movements/${movementId}`,
       this.getAuthHeaders()
     );
     return response.data;

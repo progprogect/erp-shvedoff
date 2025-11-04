@@ -10,7 +10,8 @@ import {
   validateAllStock, 
   fixStockInconsistencies, 
   syncReservationsWithOrders,
-  getStockStatistics 
+  getStockStatistics,
+  cancelStockMovement
 } from '../utils/stockManager';
 
 const router = express.Router();
@@ -370,6 +371,76 @@ router.post('/adjust', authenticateToken, requirePermission('stock', 'manage'), 
       success: true,
       message: result.stockResult.message + result.productionMessage,
       data: result.stockResult.stockInfo
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/stock/movements - Get stock movements by reference types
+router.get('/movements', authenticateToken, requirePermission('stock', 'view'), async (req, res, next) => {
+  try {
+    const { referenceTypes, limit = 50, offset = 0 } = req.query;
+
+    // Parse referenceTypes from query string (can be comma-separated or array)
+    let referenceTypesArray: string[] = [];
+    if (referenceTypes) {
+      if (Array.isArray(referenceTypes)) {
+        referenceTypesArray = referenceTypes as string[];
+      } else {
+        referenceTypesArray = (referenceTypes as string).split(',').map(t => t.trim()).filter(Boolean);
+      }
+    }
+
+    // Build where clause
+    let whereClause: any = undefined;
+    if (referenceTypesArray.length > 0) {
+      whereClause = inArray(schema.stockMovements.referenceType, referenceTypesArray);
+    }
+
+    const movements = await db.query.stockMovements.findMany({
+      where: whereClause,
+      with: {
+        product: {
+          columns: {
+            id: true,
+            name: true,
+            article: true
+          }
+        },
+        user: {
+          columns: {
+            id: true,
+            username: true,
+            fullName: true,
+            passwordHash: false
+          }
+        }
+      },
+      orderBy: sql`${schema.stockMovements.createdAt} DESC`,
+      limit: Number(limit),
+      offset: Number(offset)
+    });
+
+    // Format response data
+    const formattedMovements = movements.map(movement => ({
+      id: movement.id,
+      productId: movement.productId,
+      movementType: movement.movementType,
+      quantity: movement.quantity,
+      referenceId: movement.referenceId,
+      referenceType: movement.referenceType,
+      comment: movement.comment,
+      userId: movement.userId,
+      createdAt: movement.createdAt,
+      productName: movement.product?.name || '',
+      productArticle: movement.product?.article || '',
+      userName: movement.user?.fullName || movement.user?.username || 'Система'
+    }));
+
+    res.json({
+      success: true,
+      data: formattedMovements
     });
   } catch (error) {
     next(error);
@@ -964,6 +1035,37 @@ router.post('/sync-reservations', authenticateToken, requirePermission('stock', 
       message: 'Ошибка при синхронизации резервов',
       error: error.message
     });
+  }
+});
+
+// DELETE /api/stock/movements/:movementId - Cancel stock movement
+router.delete('/movements/:movementId', authenticateToken, requirePermission('stock', 'manage'), async (req: AuthRequest, res, next) => {
+  try {
+    const movementId = Number(req.params.movementId);
+    const userId = req.user!.id;
+
+    if (!movementId || isNaN(movementId)) {
+      return next(createError('Invalid movement ID', 400));
+    }
+
+    const result = await cancelStockMovement(movementId, userId);
+
+    if (!result.success) {
+      return next(createError(result.message || 'Failed to cancel movement', 400));
+    }
+
+    res.json({
+      success: true,
+      message: 'Движение успешно отменено',
+      data: {
+        movementId,
+        productId: result.productId,
+        newStock: result.newStock,
+        newReservedStock: result.newReservedStock
+      }
+    });
+  } catch (error) {
+    next(error);
   }
 });
 

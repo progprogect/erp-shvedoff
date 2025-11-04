@@ -415,6 +415,181 @@ function getMovementType(operationType: string): 'incoming' | 'outgoing' | 'cutt
 }
 
 /**
+ * Отменить движение остатков
+ */
+export async function cancelStockMovement(
+  movementId: number,
+  userId: number
+): Promise<{
+  success: boolean;
+  message?: string;
+  productId?: number;
+  newStock?: number;
+  newReservedStock?: number;
+}> {
+  return await db.transaction(async (tx) => {
+    // Получаем движение
+    const movement = await tx.query.stockMovements.findFirst({
+      where: eq(schema.stockMovements.id, movementId),
+      with: {
+        product: true
+      }
+    });
+
+    if (!movement) {
+      return {
+        success: false,
+        message: 'Движение не найдено'
+      };
+    }
+
+    const { productId, movementType, quantity, referenceType, referenceId } = movement;
+
+    // Получаем текущие остатки
+    const stockRecord = await tx.query.stock.findFirst({
+      where: eq(schema.stock.productId, productId)
+    });
+
+    if (!stockRecord) {
+      return {
+        success: false,
+        message: 'Запись остатков не найдена'
+      };
+    }
+
+    let newCurrentStock = stockRecord.currentStock;
+    let newReservedStock = stockRecord.reservedStock;
+
+    // Откат остатков в зависимости от типа движения
+    switch (movementType) {
+      case 'incoming':
+        // Уменьшаем currentStock на quantity
+        newCurrentStock = newCurrentStock - quantity;
+        break;
+
+      case 'outgoing':
+        // Увеличиваем currentStock на quantity
+        newCurrentStock = newCurrentStock + quantity;
+        break;
+
+      case 'cutting_out':
+        // Увеличиваем currentStock и reservedStock на quantity
+        newCurrentStock = newCurrentStock + quantity;
+        newReservedStock = newReservedStock + quantity;
+        break;
+
+      case 'cutting_in':
+        // Уменьшаем currentStock на quantity
+        newCurrentStock = newCurrentStock - quantity;
+        break;
+
+      case 'reservation':
+        // Уменьшаем reservedStock на quantity
+        newReservedStock = newReservedStock - quantity;
+        break;
+
+      case 'release_reservation':
+        // Увеличиваем reservedStock на quantity
+        newReservedStock = newReservedStock + quantity;
+        break;
+
+      case 'adjustment':
+        // Откатываем по знаку quantity
+        if (quantity > 0) {
+          newCurrentStock = newCurrentStock - quantity;
+        } else {
+          newCurrentStock = newCurrentStock + Math.abs(quantity);
+        }
+        break;
+
+      default:
+        return {
+          success: false,
+          message: `Неизвестный тип движения: ${movementType}`
+        };
+    }
+
+    // Обновляем остатки
+    await tx.update(schema.stock)
+      .set({
+        currentStock: newCurrentStock,
+        reservedStock: newReservedStock,
+        updatedAt: new Date()
+      })
+      .where(eq(schema.stock.productId, productId));
+
+    // Обновляем статистику операций
+    if (referenceType && referenceId) {
+      if (referenceType === 'cutting' || referenceType === 'cutting_progress') {
+        // Пересчитываем прогресс операции резки
+        const progressLogs = await tx.query.cuttingProgressLog.findMany({
+          where: eq(schema.cuttingProgressLog.operationId, referenceId)
+        });
+
+        let totalProduct = 0;
+        let totalSecondGrade = 0;
+        let totalLibertyGrade = 0;
+        let totalWaste = 0;
+
+        for (const log of progressLogs) {
+          totalProduct += log.productQuantity || 0;
+          totalSecondGrade += log.secondGradeQuantity || 0;
+          totalLibertyGrade += log.libertyGradeQuantity || 0;
+          totalWaste += log.wasteQuantity || 0;
+        }
+
+        // Если отменяем cutting_in - уменьшаем totalProduct
+        if (movementType === 'cutting_in') {
+          totalProduct = Math.max(0, totalProduct - Math.abs(quantity));
+        }
+        // Если отменяем cutting_out - это уже учтено в исходном товаре
+      }
+
+      if (referenceType === 'production_task' || referenceType === 'overproduction') {
+        // Обновляем producedQuantity в production_tasks
+        const task = await tx.query.productionTasks.findFirst({
+          where: eq(schema.productionTasks.id, referenceId)
+        });
+
+        if (task && movementType === 'incoming') {
+          const newProducedQuantity = Math.max(0, (task.producedQuantity || 0) - Math.abs(quantity));
+          
+          await tx.update(schema.productionTasks)
+            .set({
+              producedQuantity: newProducedQuantity,
+              updatedAt: new Date()
+            })
+            .where(eq(schema.productionTasks.id, referenceId));
+        }
+      }
+    }
+
+    // Удаляем запись движения
+    await tx.delete(schema.stockMovements)
+      .where(eq(schema.stockMovements.id, movementId));
+
+    // Логируем отмену в audit_log
+    await tx.insert(schema.auditLog).values({
+      tableName: 'stock_movements',
+      recordId: movementId,
+      operation: 'DELETE',
+      oldValues: movement as any,
+      newValues: { cancelled: true, cancelledBy: userId, cancelledAt: new Date() },
+      userId,
+      createdAt: new Date()
+    });
+
+    return {
+      success: true,
+      message: 'Движение успешно отменено',
+      productId,
+      newStock: newCurrentStock,
+      newReservedStock
+    };
+  });
+}
+
+/**
  * Получить статистику по остаткам
  */
 export async function getStockStatistics(): Promise<{
