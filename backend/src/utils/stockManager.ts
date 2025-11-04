@@ -601,10 +601,10 @@ export async function cancelStockMovement(
           };
         }
 
-        // Расширяем временное окно до 30 секунд для более надежного поиска
+        // Расширяем временное окно до 2 минут для более надежного поиска
         const movementCreatedAt = new Date(movement.createdAt);
-        const timeWindowStart = new Date(movementCreatedAt.getTime() - 30000); // 30 секунд назад
-        const timeWindowEnd = new Date(movementCreatedAt.getTime() + 30000); // 30 секунд вперед
+        const timeWindowStart = new Date(movementCreatedAt.getTime() - 120000); // 2 минуты назад
+        const timeWindowEnd = new Date(movementCreatedAt.getTime() + 120000); // 2 минуты вперед
 
         // Находим все движения cutting_progress для этой операции в временном окне
         const relatedMovements = await tx.query.stockMovements.findMany({
@@ -632,11 +632,12 @@ export async function cancelStockMovement(
           ? new Date(sourceWriteOffMovement.createdAt)
           : movementCreatedAt;
         
-        const progressSearchStart = new Date(searchTime.getTime() - 5000); // 5 секунд назад
-        const progressSearchEnd = new Date(searchTime.getTime() + 5000); // 5 секунд вперед
+        // Расширяем окно поиска до 30 секунд в обе стороны от времени движения
+        const progressSearchStart = new Date(searchTime.getTime() - 30000); // 30 секунд назад
+        const progressSearchEnd = new Date(searchTime.getTime() + 30000); // 30 секунд вперед
 
         // Ищем запись progress по operationId и времени
-        const progressEntries = await tx.query.cuttingProgressLog.findMany({
+        let progressEntries = await tx.query.cuttingProgressLog.findMany({
           where: and(
             eq(schema.cuttingProgressLog.operationId, referenceId),
             gte(schema.cuttingProgressLog.enteredAt, progressSearchStart),
@@ -646,13 +647,13 @@ export async function cancelStockMovement(
         });
 
         // Если не нашли по времени, пробуем найти последнюю запись для этой операции
-        // в пределах большего временного окна (на случай если запись была создана раньше)
+        // в пределах более широкого временного окна (до 5 минут назад)
         let progressEntry = progressEntries.length > 0 ? progressEntries[0] : null;
         
         if (!progressEntry) {
-          // Ищем последнюю запись progress для этой операции в пределах 60 секунд
-          const extendedStart = new Date(movementCreatedAt.getTime() - 60000);
-          const extendedEnd = new Date(movementCreatedAt.getTime() + 60000);
+          // Ищем последнюю запись progress для этой операции в пределах 5 минут
+          const extendedStart = new Date(movementCreatedAt.getTime() - 300000); // 5 минут назад
+          const extendedEnd = new Date(movementCreatedAt.getTime() + 30000); // 30 секунд вперед
           
           const extendedEntries = await tx.query.cuttingProgressLog.findMany({
             where: and(
@@ -661,10 +662,44 @@ export async function cancelStockMovement(
               lte(schema.cuttingProgressLog.enteredAt, extendedEnd)
             ),
             orderBy: desc(schema.cuttingProgressLog.enteredAt),
-            limit: 1
+            limit: 5 // Берем последние 5 записей для более точного сопоставления
           });
           
-          if (extendedEntries.length > 0) {
+          // Если есть комментарий с информацией о прогрессе, пытаемся найти запись по значениям
+          if (sourceWriteOffMovement?.comment && extendedEntries.length > 0) {
+            // Парсим значения из комментария (например, "товар=-2, 2сорт=-2, Либерти=-2, брак=0")
+            const comment = sourceWriteOffMovement.comment;
+            const productMatch = comment.match(/товар=(-?\d+)/);
+            const secondGradeMatch = comment.match(/2сорт=(-?\d+)/);
+            const libertyMatch = comment.match(/Либерти=(-?\d+)/);
+            const wasteMatch = comment.match(/брак=(-?\d+)/);
+            
+            const expectedProduct = productMatch ? parseInt(productMatch[1]) : null;
+            const expectedSecondGrade = secondGradeMatch ? parseInt(secondGradeMatch[1]) : null;
+            const expectedLiberty = libertyMatch ? parseInt(libertyMatch[1]) : null;
+            const expectedWaste = wasteMatch ? parseInt(wasteMatch[1]) : null;
+            
+            // Ищем запись progress с соответствующими значениями
+            if (expectedProduct !== null || expectedSecondGrade !== null || expectedLiberty !== null || expectedWaste !== null) {
+              const matchingEntry = extendedEntries.find(entry => {
+                const productMatch = expectedProduct === null || entry.productQuantity === expectedProduct;
+                const secondGradeMatch = expectedSecondGrade === null || entry.secondGradeQuantity === expectedSecondGrade;
+                const libertyMatch = expectedLiberty === null || entry.libertyGradeQuantity === expectedLiberty;
+                const wasteMatch = expectedWaste === null || entry.wasteQuantity === expectedWaste;
+                return productMatch && secondGradeMatch && libertyMatch && wasteMatch;
+              });
+              
+              if (matchingEntry) {
+                progressEntry = matchingEntry;
+              } else if (extendedEntries.length > 0) {
+                // Если не нашли точное совпадение, берем последнюю запись
+                progressEntry = extendedEntries[0];
+              }
+            } else {
+              // Если не удалось распарсить комментарий, берем последнюю запись
+              progressEntry = extendedEntries[0];
+            }
+          } else if (extendedEntries.length > 0) {
             progressEntry = extendedEntries[0];
           }
         }
