@@ -593,41 +593,86 @@ export async function cancelStockMovement(
         // При отмене движения cutting_progress нужно удалить соответствующую запись из cutting_progress_log
         // чтобы статистика в операции резки обновилась
         // Триггер БД автоматически откатит все изменения в остатках при удалении записи progress
-        // Находим запись progress по operationId и времени (в пределах 10 секунд от created_at движения)
+        
         if (!movement.createdAt) {
           return {
             success: false,
             message: 'Дата создания движения не найдена'
           };
         }
-        const movementCreatedAt = new Date(movement.createdAt);
-        const timeWindowStart = new Date(movementCreatedAt.getTime() - 10000); // 10 секунд назад
-        const timeWindowEnd = new Date(movementCreatedAt.getTime() + 10000); // 10 секунд вперед
 
+        // Расширяем временное окно до 30 секунд для более надежного поиска
+        const movementCreatedAt = new Date(movement.createdAt);
+        const timeWindowStart = new Date(movementCreatedAt.getTime() - 30000); // 30 секунд назад
+        const timeWindowEnd = new Date(movementCreatedAt.getTime() + 30000); // 30 секунд вперед
+
+        // Находим все движения cutting_progress для этой операции в временном окне
+        const relatedMovements = await tx.query.stockMovements.findMany({
+          where: and(
+            eq(schema.stockMovements.referenceType, 'cutting_progress'),
+            eq(schema.stockMovements.referenceId, referenceId),
+            gte(schema.stockMovements.createdAt, timeWindowStart),
+            lte(schema.stockMovements.createdAt, timeWindowEnd)
+          ),
+          orderBy: asc(schema.stockMovements.createdAt)
+        });
+
+        // Находим движение списания исходного товара - оно всегда создается триггером первым
+        // и содержит детальную информацию о прогрессе в комментарии
+        const sourceWriteOffMovement = relatedMovements.find(m => 
+          m.movementType === 'cutting_out' && 
+          m.comment && 
+          m.comment.includes('Списание исходного товара') &&
+          m.comment.includes('прогресс:')
+        );
+
+        // Используем время движения списания для поиска записи progress, если найдено
+        // Иначе используем время текущего движения
+        const searchTime = sourceWriteOffMovement?.createdAt 
+          ? new Date(sourceWriteOffMovement.createdAt)
+          : movementCreatedAt;
+        
+        const progressSearchStart = new Date(searchTime.getTime() - 5000); // 5 секунд назад
+        const progressSearchEnd = new Date(searchTime.getTime() + 5000); // 5 секунд вперед
+
+        // Ищем запись progress по operationId и времени
         const progressEntries = await tx.query.cuttingProgressLog.findMany({
           where: and(
             eq(schema.cuttingProgressLog.operationId, referenceId),
-            gte(schema.cuttingProgressLog.enteredAt, timeWindowStart),
-            lte(schema.cuttingProgressLog.enteredAt, timeWindowEnd)
+            gte(schema.cuttingProgressLog.enteredAt, progressSearchStart),
+            lte(schema.cuttingProgressLog.enteredAt, progressSearchEnd)
           ),
           orderBy: desc(schema.cuttingProgressLog.enteredAt)
         });
 
-        // Если найдена запись progress, удаляем её (триггер автоматически пересчитает остатки)
-        if (progressEntries.length > 0) {
-          const progressEntryId = progressEntries[0].id;
+        // Если не нашли по времени, пробуем найти последнюю запись для этой операции
+        // в пределах большего временного окна (на случай если запись была создана раньше)
+        let progressEntry = progressEntries.length > 0 ? progressEntries[0] : null;
+        
+        if (!progressEntry) {
+          // Ищем последнюю запись progress для этой операции в пределах 60 секунд
+          const extendedStart = new Date(movementCreatedAt.getTime() - 60000);
+          const extendedEnd = new Date(movementCreatedAt.getTime() + 60000);
           
-          // Находим все движения связанные с этой записью progress (по времени создания)
-          // чтобы удалить их все одновременно
-          const relatedMovements = await tx.query.stockMovements.findMany({
+          const extendedEntries = await tx.query.cuttingProgressLog.findMany({
             where: and(
-              eq(schema.stockMovements.referenceType, 'cutting_progress'),
-              eq(schema.stockMovements.referenceId, referenceId),
-              gte(schema.stockMovements.createdAt, timeWindowStart),
-              lte(schema.stockMovements.createdAt, timeWindowEnd)
-            )
+              eq(schema.cuttingProgressLog.operationId, referenceId),
+              gte(schema.cuttingProgressLog.enteredAt, extendedStart),
+              lte(schema.cuttingProgressLog.enteredAt, extendedEnd)
+            ),
+            orderBy: desc(schema.cuttingProgressLog.enteredAt),
+            limit: 1
           });
+          
+          if (extendedEntries.length > 0) {
+            progressEntry = extendedEntries[0];
+          }
+        }
 
+        // Если найдена запись progress, удаляем её (триггер автоматически пересчитает остатки)
+        if (progressEntry) {
+          const progressEntryId = progressEntry.id;
+          
           // Удаляем запись progress - триггер автоматически откатит остатки
           await tx.delete(schema.cuttingProgressLog)
             .where(eq(schema.cuttingProgressLog.id, progressEntryId));
@@ -650,6 +695,18 @@ export async function cancelStockMovement(
           if (updatedStock) {
             newCurrentStock = updatedStock.currentStock;
             newReservedStock = updatedStock.reservedStock;
+          }
+        } else {
+          // Если не найдена запись progress, но есть связанные движения,
+          // это может означать, что запись уже была удалена или движения были созданы вручную
+          // В этом случае просто удаляем все связанные движения
+          const relatedMovementIds = relatedMovements
+            .filter(m => m.id !== movementId)
+            .map(m => m.id);
+          
+          if (relatedMovementIds.length > 0) {
+            await tx.delete(schema.stockMovements)
+              .where(inArray(schema.stockMovements.id, relatedMovementIds));
           }
         }
       }
