@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Table, Typography, Tag, Space, Spin, message, Button, Popconfirm } from 'antd';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Table, Typography, Spin, message, Button, Popconfirm } from 'antd';
 import { DeleteOutlined, LinkOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { StockMovement, stockApi } from '../services/stockApi';
@@ -24,11 +24,10 @@ const StockMovementsList: React.FC<StockMovementsListProps> = ({
   const [cancellingId, setCancellingId] = useState<number | null>(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    loadMovements();
-  }, [referenceTypes, currentPage]);
+  // Мемоизируем referenceTypes для стабильной ссылки
+  const referenceTypesKey = useMemo(() => referenceTypes.sort().join(','), [referenceTypes]);
 
-  const loadMovements = async () => {
+  const loadMovements = useCallback(async () => {
     setLoading(true);
     try {
       const offset = (currentPage - 1) * pageSize;
@@ -41,7 +40,14 @@ const StockMovementsList: React.FC<StockMovementsListProps> = ({
       if (response.success) {
         setMovements(response.data);
         // Если получили меньше записей, чем pageSize, значит это последняя страница
-        setTotal(offset + response.data.length + (response.data.length === pageSize ? 1 : 0));
+        // Если получили ровно pageSize, возможно есть еще записи
+        if (response.data.length < pageSize) {
+          setTotal(offset + response.data.length);
+        } else {
+          // Если получили полную страницу, предполагаем что есть еще записи
+          // Устанавливаем минимум на следующую страницу
+          setTotal(offset + response.data.length + 1);
+        }
       } else {
         message.error('Ошибка загрузки истории движения');
       }
@@ -51,7 +57,15 @@ const StockMovementsList: React.FC<StockMovementsListProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [referenceTypes, pageSize, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1); // Сбрасываем на первую страницу при изменении фильтров
+  }, [referenceTypesKey]);
+
+  useEffect(() => {
+    loadMovements();
+  }, [loadMovements]);
 
   const handleCancel = async (movementId: number) => {
     setCancellingId(movementId);
@@ -60,8 +74,12 @@ const StockMovementsList: React.FC<StockMovementsListProps> = ({
 
       if (response.success) {
         message.success('Движение успешно отменено');
-        // Обновляем список
-        loadMovements();
+        // Обновляем список - если текущая страница стала пустой, переходим на предыдущую
+        if (movements.length === 1 && currentPage > 1) {
+          setCurrentPage(currentPage - 1);
+        } else {
+          loadMovements();
+        }
       } else {
         message.error(response.message || 'Ошибка отмены движения');
       }

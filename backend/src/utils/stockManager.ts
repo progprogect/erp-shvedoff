@@ -519,32 +519,9 @@ export async function cancelStockMovement(
       .where(eq(schema.stock.productId, productId));
 
     // Обновляем статистику операций
+    // Примечание: Прогресс резки пересчитывается автоматически из cutting_progress_log,
+    // поэтому здесь обновляем только production_tasks
     if (referenceType && referenceId) {
-      if (referenceType === 'cutting' || referenceType === 'cutting_progress') {
-        // Пересчитываем прогресс операции резки
-        const progressLogs = await tx.query.cuttingProgressLog.findMany({
-          where: eq(schema.cuttingProgressLog.operationId, referenceId)
-        });
-
-        let totalProduct = 0;
-        let totalSecondGrade = 0;
-        let totalLibertyGrade = 0;
-        let totalWaste = 0;
-
-        for (const log of progressLogs) {
-          totalProduct += log.productQuantity || 0;
-          totalSecondGrade += log.secondGradeQuantity || 0;
-          totalLibertyGrade += log.libertyGradeQuantity || 0;
-          totalWaste += log.wasteQuantity || 0;
-        }
-
-        // Если отменяем cutting_in - уменьшаем totalProduct
-        if (movementType === 'cutting_in') {
-          totalProduct = Math.max(0, totalProduct - Math.abs(quantity));
-        }
-        // Если отменяем cutting_out - это уже учтено в исходном товаре
-      }
-
       if (referenceType === 'production_task' || referenceType === 'overproduction') {
         // Обновляем producedQuantity в production_tasks
         const task = await tx.query.productionTasks.findFirst({
@@ -562,6 +539,7 @@ export async function cancelStockMovement(
             .where(eq(schema.productionTasks.id, referenceId));
         }
       }
+      // Прогресс резки не обновляем здесь - он вычисляется динамически из cutting_progress_log
     }
 
     // Удаляем запись движения
