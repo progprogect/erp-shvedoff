@@ -179,13 +179,18 @@ const StockMovementsList: React.FC<StockMovementsListProps> = ({
       title: 'Действия',
       key: 'actions',
       width: 100,
-      render: (_: any, record: StockMovement) => (
+      render: (_: any, record: StockMovement) => {
+        const positiveTypes = ['incoming', 'cutting_in', 'release_reservation'];
+        const isPositive = positiveTypes.includes(record.movementType);
+        const displayQuantity = Math.abs(record.quantity);
+        
+        return (
         <Popconfirm
           title="Отменить движение?"
           description={
             <div>
               <div>Дата: {new Date(record.createdAt).toLocaleString('ru-RU')}</div>
-              <div>Количество: {record.quantity > 0 ? '+' : ''}{record.quantity} шт</div>
+              <div>Количество: {isPositive ? '+' : '-'}{displayQuantity} шт</div>
               <div>Товар: {record.productArticle || record.productName}</div>
               <div style={{ marginTop: 8, color: '#ff4d4f' }}>
                 Это действие откатит изменения в остатках и удалит запись из истории.
@@ -207,7 +212,8 @@ const StockMovementsList: React.FC<StockMovementsListProps> = ({
             Отменить
           </Button>
         </Popconfirm>
-      )
+        );
+      }
     }] : [])
   ];
 
