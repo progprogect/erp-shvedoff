@@ -24,6 +24,7 @@ export interface StockMovement {
   referenceId?: number;
   referenceType?: string;
   comment?: string;
+  referenceComment?: string; // Комментарий из задания/операции
   userId: number;
   createdAt: string;
   productName: string;

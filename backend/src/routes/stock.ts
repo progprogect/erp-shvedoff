@@ -422,8 +422,34 @@ router.get('/movements', authenticateToken, requirePermission('stock', 'view'), 
       offset: Number(offset)
     });
 
+    // Получаем комментарии из заданий/операций для движений
+    const movementsWithNotes = await Promise.all(
+      movements.map(async (movement) => {
+        let referenceComment = null;
+        
+        // Получаем комментарий из задания для движений production_task или overproduction
+        if (movement.referenceType === 'production_task' || movement.referenceType === 'overproduction') {
+          if (movement.referenceId) {
+            const task = await db.query.productionTasks.findFirst({
+              where: eq(schema.productionTasks.id, movement.referenceId),
+              columns: { notes: true }
+            });
+            if (task?.notes) {
+              referenceComment = task.notes;
+            }
+          }
+        }
+        // Для движений резки комментарий уже есть в movement.comment
+        
+        return {
+          ...movement,
+          referenceComment
+        };
+      })
+    );
+
     // Format response data
-    const formattedMovements = movements.map(movement => ({
+    const formattedMovements = movementsWithNotes.map(movement => ({
       id: movement.id,
       productId: movement.productId,
       movementType: movement.movementType,
@@ -431,6 +457,7 @@ router.get('/movements', authenticateToken, requirePermission('stock', 'view'), 
       referenceId: movement.referenceId,
       referenceType: movement.referenceType,
       comment: movement.comment,
+      referenceComment: movement.referenceComment || null, // Комментарий из задания/операции
       userId: movement.userId,
       createdAt: movement.createdAt,
       productName: movement.product?.name || '',

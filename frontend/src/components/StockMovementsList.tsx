@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Table, Typography, Spin, message, Button, Popconfirm } from 'antd';
+import { Table, Typography, Spin, message, Button, Popconfirm, Tooltip } from 'antd';
 import { DeleteOutlined, LinkOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { StockMovement, stockApi } from '../services/stockApi';
@@ -148,32 +148,48 @@ const StockMovementsList: React.FC<StockMovementsListProps> = ({
     {
       title: 'Артикул товара',
       key: 'productArticle',
-      width: 200,
+      width: 300,
       render: (_: any, record: StockMovement) => {
         const article = record.productArticle || '—';
         return (
-          <Button
-            type="link"
-            size="small"
-            icon={<LinkOutlined />}
-            onClick={() => navigate(`/products/${record.productId}`)}
-            style={{ padding: 0, height: 'auto', fontFamily: 'monospace' }}
-          >
-            {article}
-          </Button>
+          <Tooltip title={article} placement="topLeft">
+            <Button
+              type="link"
+              size="small"
+              icon={<LinkOutlined />}
+              onClick={() => navigate(`/products/${record.productId}`)}
+              style={{ 
+                padding: 0, 
+                height: 'auto', 
+                fontFamily: 'monospace',
+                maxWidth: '100%',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                display: 'block'
+              }}
+            >
+              {article}
+            </Button>
+          </Tooltip>
         );
       }
     },
     {
       title: 'Примечание',
-      dataIndex: 'comment',
       key: 'comment',
-      ellipsis: true,
-      render: (comment: string) => (
-        <Text style={{ fontSize: 12 }}>
-          {comment || '—'}
-        </Text>
-      )
+      width: 300,
+      render: (_: any, record: StockMovement) => {
+        // Показываем комментарий из задания/операции, если есть, иначе системный комментарий
+        const displayComment = record.referenceComment || record.comment || '—';
+        return (
+          <Tooltip title={displayComment} placement="topLeft">
+            <Text style={{ fontSize: 12 }} ellipsis={{ tooltip: displayComment }}>
+              {displayComment}
+            </Text>
+          </Tooltip>
+        );
+      }
     },
     ...(canCancel ? [{
       title: 'Действия',
@@ -234,7 +250,7 @@ const StockMovementsList: React.FC<StockMovementsListProps> = ({
             `${range[0]}-${range[1]} из ${total} операций`,
           onChange: (page) => setCurrentPage(page)
         }}
-        scroll={{ x: 800 }}
+        scroll={{ x: 1000 }}
         locale={{
           emptyText: 'Нет истории движения'
         }}

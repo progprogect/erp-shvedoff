@@ -523,19 +523,58 @@ export async function cancelStockMovement(
     // поэтому здесь обновляем только production_tasks
     if (referenceType && referenceId) {
       if (referenceType === 'production_task' || referenceType === 'overproduction') {
-        // Обновляем producedQuantity в production_tasks
+        // Обновляем статистику в production_tasks
         const task = await tx.query.productionTasks.findFirst({
-          where: eq(schema.productionTasks.id, referenceId)
+          where: eq(schema.productionTasks.id, referenceId),
+          with: {
+            product: {
+              columns: {
+                id: true,
+                article: true
+              }
+            }
+          }
         });
 
         if (task && movementType === 'incoming') {
-          const newProducedQuantity = Math.max(0, (task.producedQuantity || 0) - Math.abs(quantity));
+          const cancelQuantity = Math.abs(quantity);
+          const product = await tx.query.products.findFirst({
+            where: eq(schema.products.id, productId),
+            columns: {
+              id: true,
+              article: true
+            }
+          });
+
+          // Определяем тип товара по productId и артикулу
+          const isMainProduct = productId === task.productId;
+          const isSecondGrade = product?.article?.includes('- 2СОРТ') || product?.article?.includes('- 2сорт');
+          const isLibertyGrade = product?.article?.includes('- Либер') || product?.article?.includes('- Либерти');
+
+          // Обновляем соответствующие поля
+          let updates: any = {
+            updatedAt: new Date()
+          };
+
+          if (isMainProduct) {
+            // Это основной товар (quality) - откатываем qualityQuantity и producedQuantity
+            updates.producedQuantity = Math.max(0, (task.producedQuantity || 0) - cancelQuantity);
+            updates.qualityQuantity = Math.max(0, (task.qualityQuantity || 0) - cancelQuantity);
+          } else if (isSecondGrade) {
+            // Это товар 2-го сорта - откатываем secondGradeQuantity и producedQuantity
+            updates.producedQuantity = Math.max(0, (task.producedQuantity || 0) - cancelQuantity);
+            updates.secondGradeQuantity = Math.max(0, (task.secondGradeQuantity || 0) - cancelQuantity);
+          } else if (isLibertyGrade) {
+            // Это товар сорта Либерти - откатываем libertyGradeQuantity и producedQuantity
+            updates.producedQuantity = Math.max(0, (task.producedQuantity || 0) - cancelQuantity);
+            updates.libertyGradeQuantity = Math.max(0, (task.libertyGradeQuantity || 0) - cancelQuantity);
+          } else {
+            // Неизвестный тип - откатываем только producedQuantity (fallback)
+            updates.producedQuantity = Math.max(0, (task.producedQuantity || 0) - cancelQuantity);
+          }
           
           await tx.update(schema.productionTasks)
-            .set({
-              producedQuantity: newProducedQuantity,
-              updatedAt: new Date()
-            })
+            .set(updates)
             .where(eq(schema.productionTasks.id, referenceId));
         }
       }
