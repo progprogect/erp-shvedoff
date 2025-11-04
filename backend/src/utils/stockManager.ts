@@ -704,52 +704,124 @@ export async function cancelStockMovement(
           }
         }
 
-        // Если найдена запись progress, удаляем её (триггер автоматически пересчитает остатки)
+        // Если найдена запись progress, обновляем только соответствующие поля (как в производстве)
+        // вместо удаления всей записи, чтобы можно было отменять отдельные движения
         if (progressEntry) {
           const progressEntryId = progressEntry.id;
           
-          // Сохраняем ID всех существующих движений для этой операции до удаления
-          // Это нужно, чтобы потом найти и удалить движения, созданные триггером
-          const existingMovementIds = new Set(
-            relatedMovements.map(m => m.id)
-          );
+          // Определяем, какое количество нужно откатить на основе типа движения
+          const cancelQuantity = Math.abs(quantity);
           
-          // Удаляем запись progress - триггер автоматически откатит остатки
-          // НО триггер также создаст новые движения с отрицательными значениями
-          await tx.delete(schema.cuttingProgressLog)
-            .where(eq(schema.cuttingProgressLog.id, progressEntryId));
-          
-          // Удаляем все связанные движения (кроме текущего, который удалим ниже)
-          const relatedMovementIds = relatedMovements
-            .filter(m => m.id !== movementId)
-            .map(m => m.id);
-          
-          if (relatedMovementIds.length > 0) {
-            await tx.delete(schema.stockMovements)
-              .where(inArray(schema.stockMovements.id, relatedMovementIds));
-          }
-          
-          // Триггер создает новые движения при DELETE для отката остатков
-          // Эти движения нужно найти и удалить, чтобы они не попали в историю
-          // Находим все движения cutting_progress для этой операции
-          const allCurrentMovements = await tx.query.stockMovements.findMany({
-            where: and(
-              eq(schema.stockMovements.referenceType, 'cutting_progress'),
-              eq(schema.stockMovements.referenceId, referenceId)
-            )
+          // Получаем информацию об операции резки для сопоставления товаров
+          const cuttingOperation = await tx.query.cuttingOperations.findFirst({
+            where: eq(schema.cuttingOperations.id, referenceId),
+            with: {
+              targetProduct: {
+                columns: {
+                  id: true,
+                  article: true
+                }
+              }
+            }
           });
           
-          // Находим движения, созданные триггером (те, которых не было в исходном списке)
-          const triggerCreatedMovements = allCurrentMovements.filter(
-            m => !existingMovementIds.has(m.id) && m.id !== movementId
-          );
+          // Определяем тип товара по комментарию и productId
+          const comment = movement.comment || '';
+          const isTargetProduct = cuttingOperation && productId === cuttingOperation.targetProductId;
+          const isSecondGrade = comment.includes('2-го сорта') || comment.includes('2сорт') || 
+                                (movement.product?.article?.includes('- 2СОРТ') || movement.product?.article?.includes('- 2сорт'));
+          const isLibertyGrade = comment.includes('Либерти') || comment.includes('Либер') ||
+                                (movement.product?.article?.includes('- Либер') || movement.product?.article?.includes('- Либерти'));
+          const isSourceWriteOff = movementType === 'cutting_out' && comment.includes('Списание исходного товара');
           
-          // Удаляем движения, созданные триггером при откате
-          const triggerMovementIds = triggerCreatedMovements.map(m => m.id);
+          // Формируем обновления для записи progress
+          let updates: any = {};
           
-          if (triggerMovementIds.length > 0) {
-            await tx.delete(schema.stockMovements)
-              .where(inArray(schema.stockMovements.id, triggerMovementIds));
+          if (isSourceWriteOff) {
+            // Если отменяем списание исходного товара, это означает отмену всей записи progress
+            // (так как списание исходного товара связано со всей операцией)
+            // Удаляем всю запись progress - триггер автоматически откатит все изменения
+            await tx.delete(schema.cuttingProgressLog)
+              .where(eq(schema.cuttingProgressLog.id, progressEntryId));
+            
+            // Удаляем все связанные движения (кроме текущего, который удалим ниже)
+            const relatedMovementIds = relatedMovements
+              .filter(m => m.id !== movementId)
+              .map(m => m.id);
+            
+            if (relatedMovementIds.length > 0) {
+              await tx.delete(schema.stockMovements)
+                .where(inArray(schema.stockMovements.id, relatedMovementIds));
+            }
+            
+            // Триггер создаст новые движения при DELETE, их нужно удалить
+            const existingMovementIds = new Set(relatedMovements.map(m => m.id));
+            const allCurrentMovements = await tx.query.stockMovements.findMany({
+              where: and(
+                eq(schema.stockMovements.referenceType, 'cutting_progress'),
+                eq(schema.stockMovements.referenceId, referenceId)
+              )
+            });
+            
+            const triggerCreatedMovements = allCurrentMovements.filter(
+              m => !existingMovementIds.has(m.id) && m.id !== movementId
+            );
+            
+            const triggerMovementIds = triggerCreatedMovements.map(m => m.id);
+            if (triggerMovementIds.length > 0) {
+              await tx.delete(schema.stockMovements)
+                .where(inArray(schema.stockMovements.id, triggerMovementIds));
+            }
+            
+            // Выходим из блока, так как уже обработали удаление
+          } else if (movementType === 'cutting_in' || movementType === 'adjustment') {
+            // Отменяем движение готового товара или корректировку
+            if (isTargetProduct && !isSecondGrade && !isLibertyGrade) {
+              // Готовый товар
+              updates.productQuantity = Math.max(0, (progressEntry.productQuantity || 0) - cancelQuantity);
+            } else if (isSecondGrade) {
+              // Товар 2-го сорта
+              updates.secondGradeQuantity = Math.max(0, (progressEntry.secondGradeQuantity || 0) - cancelQuantity);
+            } else if (isLibertyGrade) {
+              // Товар сорта Либерти
+              updates.libertyGradeQuantity = Math.max(0, (progressEntry.libertyGradeQuantity || 0) - cancelQuantity);
+            }
+          }
+          
+          // Обновляем запись progress - триггер автоматически пересчитает остатки
+          if (Object.keys(updates).length > 0 && !isSourceWriteOff) {
+            // Сохраняем ID существующих движений до UPDATE
+            const existingMovementIds = new Set(relatedMovements.map(m => m.id));
+            
+            // Обновляем запись progress - триггер синхронно создаст новые движения
+            await tx.update(schema.cuttingProgressLog)
+              .set(updates)
+              .where(eq(schema.cuttingProgressLog.id, progressEntryId));
+            
+            // Триггер на UPDATE синхронно создаст новые движения для отката, их нужно удалить
+            // Находим все движения cutting_progress для этой операции сразу после UPDATE
+            const allCurrentMovements = await tx.query.stockMovements.findMany({
+              where: and(
+                eq(schema.stockMovements.referenceType, 'cutting_progress'),
+                eq(schema.stockMovements.referenceId, referenceId)
+              )
+            });
+            
+            // Находим движения, созданные триггером (те, которых не было в исходном списке)
+            const triggerCreatedMovements = allCurrentMovements.filter(
+              m => !existingMovementIds.has(m.id) && m.id !== movementId
+            );
+            
+            // Удаляем движения, созданные триггером при откате
+            const triggerMovementIds = triggerCreatedMovements.map(m => m.id);
+            
+            if (triggerMovementIds.length > 0) {
+              await tx.delete(schema.stockMovements)
+                .where(inArray(schema.stockMovements.id, triggerMovementIds));
+            }
+            
+            // Удаляем только отменяемое движение (остальные остаются)
+            // Не удаляем все связанные движения, только конкретное
           }
           
           // Получаем обновленные остатки после работы триггера
