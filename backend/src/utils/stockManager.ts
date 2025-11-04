@@ -469,9 +469,6 @@ export async function cancelStockMovement(
       newReservedStock = stockRecord.reservedStock;
 
       // Откат остатков в зависимости от типа движения
-    }
-
-    if (!isCuttingProgress) {
       switch (movementType) {
       case 'incoming':
         // Уменьшаем currentStock на quantity
@@ -526,8 +523,8 @@ export async function cancelStockMovement(
       // Обновляем остатки только для не-cutting_progress движений
       await tx.update(schema.stock)
         .set({
-          currentStock: newCurrentStock!,
-          reservedStock: newReservedStock!,
+          currentStock: newCurrentStock,
+          reservedStock: newReservedStock,
           updatedAt: new Date()
         })
         .where(eq(schema.stock.productId, productId));
@@ -597,6 +594,12 @@ export async function cancelStockMovement(
         // чтобы статистика в операции резки обновилась
         // Триггер БД автоматически откатит все изменения в остатках при удалении записи progress
         // Находим запись progress по operationId и времени (в пределах 10 секунд от created_at движения)
+        if (!movement.createdAt) {
+          return {
+            success: false,
+            message: 'Дата создания движения не найдена'
+          };
+        }
         const movementCreatedAt = new Date(movement.createdAt);
         const timeWindowStart = new Date(movementCreatedAt.getTime() - 10000); // 10 секунд назад
         const timeWindowEnd = new Date(movementCreatedAt.getTime() + 10000); // 10 секунд вперед
