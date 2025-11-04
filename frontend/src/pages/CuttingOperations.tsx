@@ -784,7 +784,7 @@ export const CuttingOperations: React.FC = () => {
             children: (
               <StockMovementsList
                 referenceTypes={['cutting', 'cutting_progress']}
-                canCancel={canManage('cutting')}
+                canCancel={canManage('stock')}
               />
             )
           }] : [])

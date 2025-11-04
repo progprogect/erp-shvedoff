@@ -2262,10 +2262,10 @@ const ProductionTasks: React.FC = () => {
               key: 'movements',
               label: 'История движений остатков',
               children: (
-                <StockMovementsList
-                  referenceTypes={['production_task', 'overproduction']}
-                  canCancel={canManage('production')}
-                />
+            <StockMovementsList
+              referenceTypes={['production_task', 'overproduction']}
+              canCancel={canManage('stock')}
+            />
               )
             }] : [])
           ]}
