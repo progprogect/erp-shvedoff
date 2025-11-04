@@ -72,6 +72,7 @@ import {
 import ProductionCalendar from '../components/ProductionCalendar';
 import ProductionStatistics from '../components/ProductionStatistics';
 import SimpleGanttChart from '../components/SimpleGanttChart';
+import StockMovementsList from '../components/StockMovementsList';
 import { catalogApi } from '../services/catalogApi';
 import { useAuthStore } from '../stores/authStore';
 import usePermissions from '../hooks/usePermissions';
@@ -98,7 +99,7 @@ interface TasksByProduct {
 
 const ProductionTasks: React.FC = () => {
   const { user, token } = useAuthStore();
-  const { canManage } = usePermissions();
+  const { canManage, canView } = usePermissions();
   const { message } = App.useApp();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<string>('list');
@@ -2256,7 +2257,17 @@ const ProductionTasks: React.FC = () => {
               children: (
                 <ProductionStatistics />
               )
-            }
+            },
+            ...(canView('production') ? [{
+              key: 'movements',
+              label: 'История движений остатков',
+              children: (
+                <StockMovementsList
+                  referenceTypes={['production_task', 'overproduction']}
+                  canCancel={canManage('production')}
+                />
+              )
+            }] : [])
           ]}
         />
       </Card>
