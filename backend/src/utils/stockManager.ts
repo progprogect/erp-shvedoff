@@ -1,5 +1,5 @@
 import { db, schema } from '../db';
-import { eq, sql, and, gte, lte, desc } from 'drizzle-orm';
+import { eq, sql, and, gte, lte, desc, inArray } from 'drizzle-orm';
 
 /**
  * Централизованная система управления остатками товаров
@@ -445,23 +445,34 @@ export async function cancelStockMovement(
 
     const { productId, movementType, quantity, referenceType, referenceId } = movement;
 
-    // Получаем текущие остатки
-    const stockRecord = await tx.query.stock.findFirst({
-      where: eq(schema.stock.productId, productId)
-    });
+    // Для движений cutting_progress остатки откатываются автоматически триггером БД
+    // при удалении записи cutting_progress_log, поэтому пропускаем ручной откат
+    const isCuttingProgress = referenceType === 'cutting_progress';
 
-    if (!stockRecord) {
-      return {
-        success: false,
-        message: 'Запись остатков не найдена'
-      };
+    let newCurrentStock: number | undefined;
+    let newReservedStock: number | undefined;
+
+    if (!isCuttingProgress) {
+      // Получаем текущие остатки только для не-cutting_progress движений
+      const stockRecord = await tx.query.stock.findFirst({
+        where: eq(schema.stock.productId, productId)
+      });
+
+      if (!stockRecord) {
+        return {
+          success: false,
+          message: 'Запись остатков не найдена'
+        };
+      }
+
+      newCurrentStock = stockRecord.currentStock;
+      newReservedStock = stockRecord.reservedStock;
+
+      // Откат остатков в зависимости от типа движения
     }
 
-    let newCurrentStock = stockRecord.currentStock;
-    let newReservedStock = stockRecord.reservedStock;
-
-    // Откат остатков в зависимости от типа движения
-    switch (movementType) {
+    if (!isCuttingProgress) {
+      switch (movementType) {
       case 'incoming':
         // Уменьшаем currentStock на quantity
         newCurrentStock = newCurrentStock - quantity;
@@ -510,16 +521,17 @@ export async function cancelStockMovement(
           success: false,
           message: `Неизвестный тип движения: ${movementType}`
         };
-    }
+      }
 
-    // Обновляем остатки
-    await tx.update(schema.stock)
-      .set({
-        currentStock: newCurrentStock,
-        reservedStock: newReservedStock,
-        updatedAt: new Date()
-      })
-      .where(eq(schema.stock.productId, productId));
+      // Обновляем остатки только для не-cutting_progress движений
+      await tx.update(schema.stock)
+        .set({
+          currentStock: newCurrentStock!,
+          reservedStock: newReservedStock!,
+          updatedAt: new Date()
+        })
+        .where(eq(schema.stock.productId, productId));
+    }
 
     // Обновляем статистику операций
     // Примечание: Прогресс резки пересчитывается автоматически из cutting_progress_log,
@@ -583,6 +595,7 @@ export async function cancelStockMovement(
       } else if (referenceType === 'cutting_progress' && referenceId) {
         // При отмене движения cutting_progress нужно удалить соответствующую запись из cutting_progress_log
         // чтобы статистика в операции резки обновилась
+        // Триггер БД автоматически откатит все изменения в остатках при удалении записи progress
         // Находим запись progress по operationId и времени (в пределах 10 секунд от created_at движения)
         const movementCreatedAt = new Date(movement.createdAt);
         const timeWindowStart = new Date(movementCreatedAt.getTime() - 10000); // 10 секунд назад
@@ -599,9 +612,42 @@ export async function cancelStockMovement(
 
         // Если найдена запись progress, удаляем её (триггер автоматически пересчитает остатки)
         if (progressEntries.length > 0) {
-          // Удаляем самую близкую по времени запись
+          const progressEntryId = progressEntries[0].id;
+          
+          // Находим все движения связанные с этой записью progress (по времени создания)
+          // чтобы удалить их все одновременно
+          const relatedMovements = await tx.query.stockMovements.findMany({
+            where: and(
+              eq(schema.stockMovements.referenceType, 'cutting_progress'),
+              eq(schema.stockMovements.referenceId, referenceId),
+              gte(schema.stockMovements.createdAt, timeWindowStart),
+              lte(schema.stockMovements.createdAt, timeWindowEnd)
+            )
+          });
+
+          // Удаляем запись progress - триггер автоматически откатит остатки
           await tx.delete(schema.cuttingProgressLog)
-            .where(eq(schema.cuttingProgressLog.id, progressEntries[0].id));
+            .where(eq(schema.cuttingProgressLog.id, progressEntryId));
+          
+          // Удаляем все связанные движения (кроме текущего, который удалим ниже)
+          const relatedMovementIds = relatedMovements
+            .filter(m => m.id !== movementId)
+            .map(m => m.id);
+          
+          if (relatedMovementIds.length > 0) {
+            await tx.delete(schema.stockMovements)
+              .where(inArray(schema.stockMovements.id, relatedMovementIds));
+          }
+          
+          // Получаем обновленные остатки после работы триггера
+          const updatedStock = await tx.query.stock.findFirst({
+            where: eq(schema.stock.productId, productId)
+          });
+          
+          if (updatedStock) {
+            newCurrentStock = updatedStock.currentStock;
+            newReservedStock = updatedStock.reservedStock;
+          }
         }
       }
     }
@@ -626,7 +672,7 @@ export async function cancelStockMovement(
       message: 'Движение успешно отменено',
       productId,
       newStock: newCurrentStock,
-      newReservedStock
+      newReservedStock: newReservedStock
     };
   });
 }
