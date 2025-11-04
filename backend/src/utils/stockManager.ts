@@ -473,9 +473,12 @@ export async function cancelStockMovement(
         break;
 
       case 'cutting_out':
-        // Увеличиваем currentStock и reservedStock на quantity
-        newCurrentStock = newCurrentStock + quantity;
-        newReservedStock = newReservedStock + quantity;
+        // quantity для cutting_out хранится как отрицательное (например -10)
+        // При создании движения остатки уменьшаются на sourceQuantity
+        // При отмене нужно вернуть товар обратно - увеличить на Math.abs(quantity)
+        const cuttingOutQuantity = Math.abs(quantity);
+        newCurrentStock = newCurrentStock + cuttingOutQuantity;
+        newReservedStock = newReservedStock + cuttingOutQuantity;
         break;
 
       case 'cutting_in':
