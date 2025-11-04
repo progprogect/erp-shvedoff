@@ -171,7 +171,7 @@ BEGIN
             ABS(_product_diff),
             _operation_id,
             'cutting_progress',
-            'Корректировка готового товара по операции резки #' || _operation_id || ' (прогресс)',
+            'Операция резки #' || _operation_id || ': поступление готового товара (промежуточный результат)',
             _user_id
         );
     END IF;

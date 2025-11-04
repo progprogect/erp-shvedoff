@@ -1,7 +1,8 @@
--- Миграция: Исправление функции update_stock_from_cutting_progress для корректной работы с DELETE
+-- Миграция: Обновление формата комментария для движений готового товара в операциях резки
 -- Дата: 2025-11-04
--- Описание: Исправление ошибки использования NEW вместо OLD при DELETE операциях
+-- Описание: Изменение формата комментария с "Корректировка готового товара..." на "Операция резки #X: поступление готового товара (промежуточный результат)" для консистентности
 
+-- Обновляем функцию триггера для нового формата комментария
 CREATE OR REPLACE FUNCTION update_stock_from_cutting_progress()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -27,18 +28,15 @@ BEGIN
     END IF;
 
     -- Получаем информацию об операции резки
-    SELECT co.source_product_id, co.target_product_id, co.source_quantity, co.operator_id, p.name 
+    SELECT co.source_product_id, co.target_product_id, co.source_quantity, co.operator_id, p.name
     INTO _source_product_id, _target_product_id, _source_quantity, _user_id, _target_product_name
     FROM cutting_operations co
     LEFT JOIN products p ON p.id = co.target_product_id
     WHERE co.id = _operation_id;
 
     -- Товары 2-го сорта и Либерти теперь создаются в API endpoint с правильными характеристиками
-    -- Здесь мы только обновляем остатки для уже существующих товаров
-    _second_grade_product_id := NULL;
-    _liberty_grade_product_id := NULL;
+    -- Trigger функция только обновляет остатки готового товара и списывает исходный товар
 
-    -- Вычисляем разность для обновления остатков
     IF TG_OP = 'INSERT' THEN
         _product_diff := NEW.product_quantity;
         _second_grade_diff := NEW.second_grade_quantity;
@@ -49,7 +47,7 @@ BEGIN
         _second_grade_diff := NEW.second_grade_quantity - OLD.second_grade_quantity;
         _liberty_grade_diff := NEW.liberty_grade_quantity - OLD.liberty_grade_quantity;
         _waste_diff := NEW.waste_quantity - OLD.waste_quantity;
-    ELSE -- DELETE
+    ELSIF TG_OP = 'DELETE' THEN
         _product_diff := -OLD.product_quantity;
         _second_grade_diff := -OLD.second_grade_quantity;
         _liberty_grade_diff := -OLD.liberty_grade_quantity;
@@ -61,20 +59,20 @@ BEGIN
 
     -- Списываем исходный товар пропорционально произведенному количеству
     IF _total_produced_diff != 0 THEN
-        UPDATE stock 
-        SET 
+        UPDATE stock
+        SET
             current_stock = current_stock - _total_produced_diff,
             updated_at = NOW()
         WHERE product_id = _source_product_id;
 
         -- Логируем списание исходного товара
         INSERT INTO stock_movements (
-            product_id, 
-            movement_type, 
-            quantity, 
-            reference_id, 
-            reference_type, 
-            comment, 
+            product_id,
+            movement_type,
+            quantity,
+            reference_id,
+            reference_type,
+            comment,
             user_id
         ) VALUES (
             _source_product_id,
@@ -82,27 +80,27 @@ BEGIN
             ABS(_total_produced_diff),
             _operation_id,
             'cutting_progress',
-            'Списание исходного товара по операции резки #' || _operation_id || ' (прогресс: товар=' || _product_diff || ', 2сорт=' || _second_grade_diff || ', Либерти=' || _liberty_grade_diff || ', брак=' || _waste_diff || ')',
+            'Операция резки #' || _operation_id || ': списание исходного товара (прогресс: товар=' || _product_diff || ', 2сорт=' || _second_grade_diff || ', Либерти=' || _liberty_grade_diff || ', брак=' || _waste_diff || ')',
             _user_id
         );
     END IF;
 
     -- Обновляем остатки для готового товара
     IF _product_diff != 0 THEN
-        UPDATE stock 
-        SET 
+        UPDATE stock
+        SET
             current_stock = current_stock + _product_diff,
             updated_at = NOW()
         WHERE product_id = _target_product_id;
 
         -- Логируем движение товара
         INSERT INTO stock_movements (
-            product_id, 
-            movement_type, 
-            quantity, 
-            reference_id, 
-            reference_type, 
-            comment, 
+            product_id,
+            movement_type,
+            quantity,
+            reference_id,
+            reference_type,
+            comment,
             user_id
         ) VALUES (
             _target_product_id,
@@ -128,5 +126,5 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Логирование выполнения миграции
-SELECT 'Миграция fix_cutting_progress_trigger выполнена успешно' as status;
+SELECT 'Миграция update_cutting_progress_comment выполнена успешно' as status;
 
