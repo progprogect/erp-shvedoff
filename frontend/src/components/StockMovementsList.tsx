@@ -131,8 +131,18 @@ const StockMovementsList: React.FC<StockMovementsListProps> = ({
       width: 100,
       align: 'center' as const,
       render: (quantity: number, record: StockMovement) => {
-        const positiveTypes = ['incoming', 'cutting_in', 'release_reservation'];
-        const isPositive = positiveTypes.includes(record.movementType);
+        // Для корректировок знак определяется по значению quantity в БД
+        // Для остальных типов - по типу операции
+        let isPositive: boolean;
+        if (record.movementType === 'adjustment') {
+          // Корректировка может быть как положительной (поступление), так и отрицательной (списание)
+          isPositive = quantity >= 0;
+        } else {
+          // Для остальных типов определяем по списку типов операций
+          const positiveTypes = ['incoming', 'cutting_in', 'release_reservation'];
+          isPositive = positiveTypes.includes(record.movementType);
+        }
+        
         const displayQuantity = Math.abs(quantity);
 
         return (

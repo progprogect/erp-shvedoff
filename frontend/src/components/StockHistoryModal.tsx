@@ -103,12 +103,18 @@ const StockHistoryModal: React.FC<StockHistoryModalProps> = ({
       width: 100,
       align: 'center' as const,
       render: (quantity: number, record: StockMovement) => {
-        // Определяем цвет по ТИПУ операции, а не по знаку quantity в БД
-        // (так как в БД могут быть inconsistencies - не все negative types записаны с минусом)
-        const positiveTypes = ['incoming', 'cutting_in', 'release_reservation'];
-        const negativeTypes = ['outgoing', 'cutting_out', 'reservation', 'adjustment'];
+        // Для корректировок знак определяется по значению quantity в БД
+        // Для остальных типов - по типу операции
+        let isPositive: boolean;
+        if (record.movementType === 'adjustment') {
+          // Корректировка может быть как положительной (поступление), так и отрицательной (списание)
+          isPositive = quantity >= 0;
+        } else {
+          // Для остальных типов определяем по списку типов операций
+          const positiveTypes = ['incoming', 'cutting_in', 'release_reservation'];
+          isPositive = positiveTypes.includes(record.movementType);
+        }
         
-        const isPositive = positiveTypes.includes(record.movementType);
         const displayQuantity = Math.abs(quantity);
         
         return (
