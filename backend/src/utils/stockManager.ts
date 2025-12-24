@@ -628,6 +628,21 @@ export async function cancelStockMovement(
             updates.producedQuantity = Math.max(0, (task.producedQuantity || 0) - cancelQuantity);
           }
           
+          // Удаляем соответствующее примечание из notes задания при отмене движения
+          // Примечания добавляются через \n, последняя строка обычно соответствует последнему движению
+          if (task.notes) {
+            const notesLines = task.notes.split('\n').filter(line => line.trim());
+            
+            // Если есть несколько строк, удаляем последнюю (она соответствует отменяемому движению)
+            if (notesLines.length > 1) {
+              const updatedNotes = notesLines.slice(0, -1).join('\n').trim();
+              updates.notes = updatedNotes || null;
+            } else if (notesLines.length === 1) {
+              // Если только одна строка, удаляем её полностью
+              updates.notes = null;
+            }
+          }
+          
           await tx.update(schema.productionTasks)
             .set(updates)
             .where(eq(schema.productionTasks.id, referenceId));

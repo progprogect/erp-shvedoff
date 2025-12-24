@@ -194,18 +194,29 @@ const StockMovementsList: React.FC<StockMovementsListProps> = ({
       render: (_: any, record: StockMovement) => {
         // Показываем комментарий из задания/операции, если есть, иначе системный комментарий
         const displayComment = record.referenceComment || record.comment || '—';
+        // Разбиваем примечание по переносам строк для правильного отображения
+        const commentLines = typeof displayComment === 'string' 
+          ? displayComment.split('\n').filter(line => line.trim())
+          : [displayComment];
+        
         return (
           <Tooltip title={displayComment} placement="topLeft">
-            <Text 
-              style={{ 
-                fontSize: 12,
-                whiteSpace: 'normal',
-                wordBreak: 'break-word',
-                display: 'block'
-              }}
-            >
-              {displayComment}
-            </Text>
+            <div style={{ fontSize: 12 }}>
+              {commentLines.map((line, index) => (
+                <Text 
+                  key={index}
+                  style={{ 
+                    fontSize: 12,
+                    whiteSpace: 'normal',
+                    wordBreak: 'break-word',
+                    display: 'block',
+                    marginBottom: index < commentLines.length - 1 ? 4 : 0
+                  }}
+                >
+                  {line.trim()}
+                </Text>
+              ))}
+            </div>
           </Tooltip>
         );
       }
