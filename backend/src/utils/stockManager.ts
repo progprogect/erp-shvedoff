@@ -100,6 +100,43 @@ export async function performStockOperation(operation: StockOperation): Promise<
     let newCurrentStock = currentStock.currentStock;
     let newReservedStock = currentStock.reservedStock;
 
+    // Для корректировок: рассчитываем реальный резерв из всех источников
+    // Это исправляет рассинхронизацию между БД и реальными данными
+    if (type === 'adjustment') {
+      // 1. Резерв из активных заказов
+      const reservedFromOrdersResult = await tx
+        .select({
+          total: sql<number>`COALESCE(SUM(${schema.orderItems.quantity}), 0)`.as('total')
+        })
+        .from(schema.orderItems)
+        .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
+        .where(
+          and(
+            eq(schema.orderItems.productId, productId),
+            sql`${schema.orders.status} IN ('new', 'confirmed', 'in_production', 'ready')`
+          )
+        );
+      
+      // 2. Резерв из активных операций резки
+      // ВАЖНО: используем sourceQuantity, а не фактическое выполненное количество
+      const reservedFromCuttingResult = await tx
+        .select({
+          total: sql<number>`COALESCE(SUM(${schema.cuttingOperations.sourceQuantity}), 0)`.as('total')
+        })
+        .from(schema.cuttingOperations)
+        .where(
+          and(
+            eq(schema.cuttingOperations.sourceProductId, productId),
+            sql`${schema.cuttingOperations.status} IN ('in_progress', 'paused')`
+          )
+        );
+      
+      // 3. Итоговый резерв = сумма обоих источников
+      const reservedFromOrders = Number(reservedFromOrdersResult[0]?.total || 0);
+      const reservedFromCutting = Number(reservedFromCuttingResult[0]?.total || 0);
+      newReservedStock = reservedFromOrders + reservedFromCutting;
+    }
+
     // Рассчитываем новые значения в зависимости от типа операции
     switch (type) {
       case 'adjustment':
@@ -163,7 +200,26 @@ export async function performStockOperation(operation: StockOperation): Promise<
         return { success: false, message: 'Неизвестный тип операции' };
     }
 
-    // Валидация финальных значений
+    // ШАГ 1: Автокорректировка резерва для корректировок (ДО проверок)
+    // Это должно выполняться до проверки отрицательного резерва
+    if (type === 'adjustment' && newReservedStock > newCurrentStock) {
+      // При корректировке остатка автоматически корректируем резерв
+      const excessReserve = newReservedStock - newCurrentStock;
+      const oldReservedStock = newReservedStock;
+      newReservedStock = newCurrentStock; // Может стать отрицательным, если newCurrentStock < 0
+      
+      // Логируем автоматическую корректировку резерва
+      await tx.insert(schema.stockMovements).values({
+        productId,
+        movementType: 'release_reservation',
+        quantity: -excessReserve,
+        comment: `Автокорректировка резерва при изменении остатка: было ${oldReservedStock}, стало ${newReservedStock} (снято ${excessReserve} шт.)`,
+        userId
+      });
+    }
+
+    // ШАГ 2: Валидация финальных значений
+    // Для корректировок разрешаем отрицательные остатки и резервы
     if (newCurrentStock < 0 && type !== 'adjustment') {
       return {
         success: false,
@@ -171,27 +227,13 @@ export async function performStockOperation(operation: StockOperation): Promise<
       };
     }
 
-    if (newReservedStock < 0) {
+    // Для корректировок разрешаем отрицательный резерв, если остаток отрицательный
+    // Это нормально для корректировок - резерв может быть отрицательным вместе с остатком
+    if (newReservedStock < 0 && type !== 'adjustment') {
       return {
         success: false,
         message: `Операция приведет к отрицательному резерву: ${newReservedStock}`
       };
-    }
-
-    // Специальная логика для корректировок - ПЕРЕМЕЩЕНО СЮДА!
-    if (type === 'adjustment' && newReservedStock > newCurrentStock) {
-      // При корректировке остатка автоматически корректируем резерв
-      const excessReserve = newReservedStock - newCurrentStock;
-      newReservedStock = newCurrentStock;
-      
-      // Логируем автоматическую корректировку резерва
-      await tx.insert(schema.stockMovements).values({
-        productId,
-        movementType: 'release_reservation',
-        quantity: -excessReserve,
-        comment: `Автокорректировка резерва при изменении остатка: снято ${excessReserve} шт.`,
-        userId
-      });
     }
 
     // Основная валидация резерва (для всех операций кроме корректировок)
@@ -203,10 +245,11 @@ export async function performStockOperation(operation: StockOperation): Promise<
     }
 
     // Обновляем остатки
+    // Для корректировок: синхронизируем резерв в БД с реальными данными из заказов и операций резки
     await tx.update(schema.stock)
       .set({
         currentStock: newCurrentStock,
-        reservedStock: newReservedStock,
+        reservedStock: newReservedStock, // Для корректировок это уже синхронизированный резерв
         updatedAt: new Date()
       })
       .where(eq(schema.stock.productId, productId));

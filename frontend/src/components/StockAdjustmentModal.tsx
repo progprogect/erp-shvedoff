@@ -90,10 +90,8 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
     const adjustmentAmount = getAdjustmentAmount();
     const newStock = calculateNewStock();
 
-    if (newStock < 0) {
-      message.error('Остаток не может быть отрицательным');
-      return;
-    }
+    // Убрана блокировка отрицательных остатков - система поддерживает отрицательные остатки для корректировок
+    // Предупреждение показывается в UI, но не блокирует операцию
 
     if (adjustmentAmount === 0) {
       message.warning('Укажите количество для корректировки');
@@ -276,8 +274,8 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
               </Col>
             </Row>
             {!isValidStock && (
-              <Text type="danger" style={{ fontSize: 12 }}>
-                ⚠️ Остаток не может быть отрицательным
+              <Text type="warning" style={{ fontSize: 12 }}>
+                ⚠️ Итоговый остаток будет отрицательным. Это допустимо для корректировок.
               </Text>
             )}
           </div>
@@ -451,7 +449,7 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
               type="primary"
               htmlType="submit"
               loading={loading}
-              disabled={!isValidStock || quantity === 0}
+              disabled={quantity === 0}
             >
               Применить корректировку
             </Button>
