@@ -73,6 +73,7 @@ const ProductDetail: React.FC = () => {
   const [showAllMovements, setShowAllMovements] = useState(false);
   const [newLogoName, setNewLogoName] = useState('');
   const [creatingLogo, setCreatingLogo] = useState(false);
+  const [expandedComments, setExpandedComments] = useState<Set<number>>(new Set());
   const [editForm] = Form.useForm();
 
   // Фильтруем движения, исключая резервы (чтобы не путать пользователей)
@@ -449,8 +450,72 @@ const ProductDetail: React.FC = () => {
       title: 'Комментарий',
       dataIndex: 'comment',
       key: 'comment',
-      ellipsis: true,
-      render: (comment: string) => comment || '—'
+      width: 300,
+      render: (_: any, record: StockMovement) => {
+        // Показываем комментарий из задания/операции, если есть, иначе системный комментарий
+        const displayComment = record.referenceComment || record.comment || '—';
+        
+        // Разбиваем примечание по переносам строк
+        const commentLines = typeof displayComment === 'string' 
+          ? displayComment.split('\n').filter(line => line.trim())
+          : [displayComment];
+        
+        // Если после фильтрации пустых строк ничего не осталось, показываем fallback
+        if (commentLines.length === 0) {
+          return <Text style={{ fontSize: 12 }}>—</Text>;
+        }
+        
+        const isExpanded = expandedComments.has(record.id);
+        const maxVisibleLines = 2; // Показываем максимум 2 строки в свернутом виде
+        const shouldCollapse = commentLines.length > maxVisibleLines;
+        const visibleLines = shouldCollapse && !isExpanded 
+          ? commentLines.slice(0, maxVisibleLines)
+          : commentLines;
+        
+        const toggleExpand = () => {
+          const newExpanded = new Set(expandedComments);
+          if (isExpanded) {
+            newExpanded.delete(record.id);
+          } else {
+            newExpanded.add(record.id);
+          }
+          setExpandedComments(newExpanded);
+        };
+        
+        return (
+          <div style={{ fontSize: 12 }}>
+            {visibleLines.map((line, index) => (
+              <Text 
+                key={index}
+                style={{ 
+                  fontSize: 12,
+                  whiteSpace: 'normal',
+                  wordBreak: 'break-word',
+                  display: 'block',
+                  marginBottom: index < visibleLines.length - 1 ? 4 : 0
+                }}
+              >
+                {line.trim()}
+              </Text>
+            ))}
+            {shouldCollapse && (
+              <Button
+                type="link"
+                size="small"
+                onClick={toggleExpand}
+                style={{ 
+                  padding: 0, 
+                  height: 'auto', 
+                  fontSize: 12,
+                  marginTop: 4
+                }}
+              >
+                {isExpanded ? 'Свернуть' : `Показать еще ${commentLines.length - maxVisibleLines} строк`}
+              </Button>
+            )}
+          </div>
+        );
+      }
     }
   ];
 
