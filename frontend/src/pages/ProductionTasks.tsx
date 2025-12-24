@@ -73,6 +73,7 @@ import ProductionCalendar from '../components/ProductionCalendar';
 import ProductionStatistics from '../components/ProductionStatistics';
 import SimpleGanttChart from '../components/SimpleGanttChart';
 import StockMovementsList from '../components/StockMovementsList';
+import SuccessModal from '../components/SuccessModal';
 import { catalogApi } from '../services/catalogApi';
 import { useAuthStore } from '../stores/authStore';
 import usePermissions from '../hooks/usePermissions';
@@ -208,6 +209,7 @@ const ProductionTasks: React.FC = () => {
   const [createTaskModalVisible, setCreateTaskModalVisible] = useState<boolean>(false);
   const [completeByProductModalVisible, setCompleteByProductModalVisible] = useState<boolean>(false);
   const [cancelModalVisible, setCancelModalVisible] = useState<boolean>(false);
+  const [successModalVisible, setSuccessModalVisible] = useState<boolean>(false);
   const [selectedTask, setSelectedTask] = useState<ProductionTask | null>(null);
   const [selectedProductForCompletion, setSelectedProductForCompletion] = useState<TasksByProduct | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -854,24 +856,25 @@ const ProductionTasks: React.FC = () => {
         notes: values.notes
       });
 
-      // Показываем детальную информацию о результате
-      message.success(result.message);
-      
-      // Дополнительные уведомления о сверхплановом производстве
-      if (result.data.overproductionQuality && result.data.overproductionQuality > 0) {
-        message.info(`Сверхплановое производство: ${result.data.overproductionQuality} шт. добавлено в остатки товара`, 5);
-      }
-      
-      if (result.data.wasCompleted) {
-        message.success(`Задание полностью выполнено!`, 3);
-      }
-
+      // 1. Обновление данных (независимо)
       setPartialCompleteModalVisible(false);
       setSelectedTask(null);
       partialCompleteForm.resetFields();
       setPartialCompleteFormValues({ producedQuantity: 0, qualityQuantity: 0, secondGradeQuantity: 0, libertyGradeQuantity: 0, defectQuantity: 0 });
       loadTasks();
       loadTasksByProduct();
+      
+      // Дополнительные уведомления о сверхплановом производстве (оставляем как информационные)
+      if (result.data.overproductionQuality && result.data.overproductionQuality > 0) {
+        message.info(`Сверхплановое производство: ${result.data.overproductionQuality} шт. добавлено в остатки товара`, 5);
+      }
+      
+      if (result.data.wasCompleted) {
+        message.info(`Задание полностью выполнено!`, 3);
+      }
+
+      // 2. Показ модального окна успеха
+      setSuccessModalVisible(true);
     } catch (error) {
       message.error(`Ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
     }
@@ -1020,16 +1023,19 @@ const ProductionTasks: React.FC = () => {
       const result = await completeTasksByProduct(requestData);
       
       if (result.success) {
-        message.success(`Произведено ${qualityQuantity} шт качественных товара "${selectedProductForCompletion.product.name}"`);
+        // 1. Обновление данных (независимо)
+        setCompleteByProductModalVisible(false);
+        setSelectedProductForCompletion(null);
+        completeByProductForm.resetFields();
+        loadTasks();
+        loadTasksByProduct();
+        
+        // 2. Показ модального окна успеха
+        setSuccessModalVisible(true);
       } else {
         message.error(result.message || 'Ошибка завершения заданий');
         return;
       }
-      setCompleteByProductModalVisible(false);
-      setSelectedProductForCompletion(null);
-      completeByProductForm.resetFields();
-      loadTasks();
-      loadTasksByProduct();
     } catch (error) {
       message.error(`Ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
     }
@@ -4476,6 +4482,11 @@ const ProductionTasks: React.FC = () => {
         </div>
       </Modal>
 
+      {/* Модальное окно успешного выполнения операции */}
+      <SuccessModal
+        visible={successModalVisible}
+        onClose={() => setSuccessModalVisible(false)}
+      />
       </div>
     </App>
   );

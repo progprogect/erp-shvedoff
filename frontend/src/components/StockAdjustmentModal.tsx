@@ -4,6 +4,7 @@ import { ExclamationCircleOutlined, PlusOutlined, MinusOutlined, AppstoreAddOutl
 import { StockItem, stockApi } from '../services/stockApi';
 import { useAuthStore } from '../stores/authStore';
 import { handleFormError } from '../utils/errorUtils';
+import SuccessModal from './SuccessModal';
 
 const { Text, Title } = Typography;
 const { TextArea } = Input;
@@ -29,6 +30,7 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
   const [productionAction, setProductionAction] = useState<'none' | 'add' | 'remove'>('none');
   const [productionQuantity, setProductionQuantity] = useState<number>(0);
   const [commentValue, setCommentValue] = useState<string>(''); // 🔥 Для отслеживания значения комментария
+  const [successModalVisible, setSuccessModalVisible] = useState(false);
   const { token } = useAuthStore();
   const { message } = App.useApp();
 
@@ -41,6 +43,7 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
       setProductionAction('none');
       setProductionQuantity(0);
       setCommentValue(''); // 🔥 Сброс комментария
+      setSuccessModalVisible(false); // Сброс состояния модального окна успеха
     }
   }, [visible, stockItem, form]);
 
@@ -125,9 +128,14 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
       const response = await stockApi.adjustStock(requestData);
 
       if (response.success) {
-        message.success(`Остаток успешно скорректирован. ${response.message}`);
+        // 1. Обновление данных (независимо)
         onSuccess();
+        
+        // 2. Закрытие основного модального окна
         onClose();
+        
+        // 3. Показ модального окна успеха
+        setSuccessModalVisible(true);
       } else {
         message.error('Ошибка корректировки остатка');
       }
@@ -450,6 +458,12 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
           </Space>
         </Form.Item>
       </Form>
+
+      {/* Модальное окно успешного выполнения операции */}
+      <SuccessModal
+        visible={successModalVisible}
+        onClose={() => setSuccessModalVisible(false)}
+      />
     </Modal>
   );
 };

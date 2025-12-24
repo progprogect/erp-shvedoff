@@ -34,6 +34,7 @@ import {
 } from '@ant-design/icons';
 import { useAuthStore } from '../stores/authStore';
 import usePermissions from '../hooks/usePermissions';
+import SuccessModal from '../components/SuccessModal';
 import cuttingApi, { 
   CuttingOperation, 
   CreateCuttingOperationRequest, 
@@ -98,6 +99,7 @@ export const CuttingOperations: React.FC = () => {
   const [completeModalVisible, setCompleteModalVisible] = useState(false);
   const [detailsModalVisible, setDetailsModalVisible] = useState(false);
   const [progressModalVisible, setProgressModalVisible] = useState(false);
+  const [successModalVisible, setSuccessModalVisible] = useState(false);
   
   // Данные для модальных окон
   const [selectedOperation, setSelectedOperation] = useState<CuttingOperation | null>(null);
@@ -369,13 +371,16 @@ export const CuttingOperations: React.FC = () => {
       };
       
       await cuttingApi.completeCuttingOperation(selectedOperation.id, request);
-      message.success('Операция резки завершена');
       
+      // 1. Обновление данных (независимо)
       setCompleteModalVisible(false);
       completeForm.resetFields();
       setSelectedOperation(null);
       loadData();
       loadStatistics();
+      
+      // 2. Показ модального окна успеха
+      setSuccessModalVisible(true);
     } catch (error: any) {
       message.error(error.response?.data?.message || 'Ошибка завершения операции');
     } finally {
@@ -1857,6 +1862,12 @@ export const CuttingOperations: React.FC = () => {
           </>
         )}
       </Modal>
+
+      {/* Модальное окно успешного выполнения операции */}
+      <SuccessModal
+        visible={successModalVisible}
+        onClose={() => setSuccessModalVisible(false)}
+      />
     </div>
   );
 };
